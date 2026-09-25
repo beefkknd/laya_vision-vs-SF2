@@ -32,6 +32,11 @@ def split(total: int, n: int):
     return [total // n + (1 if i < total % n else 0) for i in range(n)]
 
 
+def worker_dirs(out: str, name: str, n: int):
+    """Workers write inside the batch dir, so ``<out>/<name>`` alone is the whole batch (copyable between machines)."""
+    return [os.path.join(out, name, "%s_w%d" % (name, i)) for i in range(n)]  # batch name keeps row ids unique
+
+
 def merge(src_dirs, dst, script, model=None):
     os.makedirs(dst, exist_ok=True)
     for sp in ("train", "val"):
@@ -97,20 +102,19 @@ def main():
     dec = split(known.decisions, n) if known.decisions else [None] * n
     mat = split(known.matches, n) if known.matches else [None] * n
     os.makedirs("out/parallel", exist_ok=True)
-    procs, dirs = [], []
+    procs, dirs = [], worker_dirs(known.out, known.name, n)
     for i in range(n):
         name = "%s_w%d" % (known.name, i)
-        dirs.append(os.path.join(known.out, name))
         argv = [sys.executable, os.path.join(HERE, args.script + ".py"), *passthrough, "--headless",
                 "--port", str(args.base_port + i), "--seed", str(known.seed * 1000 + i), "--name", name,
-                "--out", known.out]
+                "--out", os.path.join(known.out, known.name)]
         if dec[i] is not None:
             argv += ["--decisions", str(dec[i])]
         if mat[i] is not None:
             argv += ["--matches", str(mat[i])]
         log = open("out/parallel/%s.log" % name, "w")
         procs.append((subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT), log, name))
-        print("worker %d: port %d -> %s (log out/parallel/%s.log)" % (i, args.base_port + i, dirs[-1], name),
+        print("worker %d: port %d -> %s (log out/parallel/%s.log)" % (i, args.base_port + i, dirs[i], name),
               flush=True)
     t0, failed = time.time(), []
     for p, log, name in procs:

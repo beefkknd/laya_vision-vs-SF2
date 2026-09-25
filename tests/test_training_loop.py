@@ -167,3 +167,16 @@ def test_runner_finishes_a_queue_with_no_deadline(tmp_path, monkeypatch):
                 "tasks": [{"id": "collect", "kind": "collect", "resource": "cpu", "slots": 6, "state": "pending"}]})
     tq.run(q, poll_seconds=0.05)
     assert tq.load(q)["state"] == "done"
+
+
+def test_parallel_workers_write_inside_their_batch_dir():
+    # a batch must be one directory: copied from another machine, its image paths must still resolve
+    dirs = parallel.worker_dirs("data", "seed_x", 3)
+    assert all(os.path.dirname(d) == os.path.join("data", "seed_x") for d in dirs)
+    assert len(set(dirs)) == 3
+
+
+def test_worker_names_carry_the_batch_name_so_row_ids_stay_unique():
+    a = parallel.worker_dirs("data", "batch_a", 2)
+    b = parallel.worker_dirs("data", "batch_b", 2)
+    assert not {os.path.basename(d) for d in a} & {os.path.basename(d) for d in b}
