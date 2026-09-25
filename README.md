@@ -36,7 +36,7 @@ The plan's `left/right` became **`forward/back`**, relative to the opponent, so 
 ## Setup (Mac Studio, Apple silicon)
 
 ```bash
-git clone https://github.com/beefkknd/laya_vision-vs-SF2 && cd laya_vision-vs-SF2
+git clone https://github.com/beefkknd/laya_vision-vs-sf2 && cd laya_vision-vs-sf2
 uv venv -p 3.12 && source .venv/bin/activate        # Python 3.11–3.13
 uv pip install -e '.[model,dev]'
 uv pip install "laya @ git+https://github.com/r33drichards/laya-vision@568feeeada793f70f736756b0f3a7643d1e75910"
