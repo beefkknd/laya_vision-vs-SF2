@@ -141,7 +141,7 @@ class FightEnv:
                 res.round_over, res.winner = True, winner
                 self.f = f  # judge damage at the deciding frame
                 break
-        # KO life is negative (clamped to 0); a time-over refill makes the difference negative (clamped to 0)
+        # KO life is clamped to zero on the SNES ROM; a time-over refill makes the difference negative.
         res.dmg_for = max(0, start.opp_hp - max(0, self.f.opp_hp))
         res.dmg_against = max(0, start.my_hp - max(0, self.f.my_hp))
         self.last = action
@@ -149,8 +149,8 @@ class FightEnv:
 
     def _round_check(self, before: ram.Fighters, f: ram.Fighters):
         full = self.full_hp
-        if f.my_hp < 0 or f.opp_hp < 0:  # KO
-            winner = "draw" if f.my_hp < 0 and f.opp_hp < 0 else "me" if f.opp_hp < 0 else "opp"
+        if f.my_hp <= 0 or f.opp_hp <= 0:  # KO
+            winner = "draw" if f.my_hp <= 0 and f.opp_hp <= 0 else "me" if f.opp_hp <= 0 else "opp"
         elif f.my_hp == full and f.opp_hp == full and (before.my_hp < full or before.opp_hp < full):
             # the bars refilled without a KO (time over, or a cart that stops at 0): higher life won
             winner = "me" if before.my_hp > before.opp_hp else "opp" if before.opp_hp > before.my_hp else "draw"

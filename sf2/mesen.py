@@ -120,6 +120,10 @@ class MesenBridge:
         self._send("SAVESTATE")
         return self._obs().state
 
+    def reset(self) -> Obs:
+        self._send("RESET")
+        return self._obs()
+
     def dump_wram(self) -> bytes:
         self._send("DUMP")
         head = self._line().split()

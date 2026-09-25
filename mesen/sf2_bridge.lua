@@ -14,6 +14,7 @@
 --   WATCH <n> <every>          n frames of player-controlled input; log it; screenshot every <every> frames
 --   LOADSTATE <len>            + len bytes of a savestate made by SAVESTATE
 --   SAVESTATE                  save now; bytes come back in the report
+--   RESET                      reset the cartridge and report its new initial state
 --   DUMP                       whole 128 KiB WRAM
 --   QUIT                       disconnect, keep emulating, wait for the next Python run
 --   EXIT                       end the Mesen process (headless --testrunner runs)
@@ -159,6 +160,10 @@ local function serve()
       return
     elseif op == "SAVESTATE" then
       armExec(nil)
+      return
+    elseif op == "RESET" then
+      emu.reset()
+      mode, n, k, caps = "run", 0, 0, {[0] = true}
       return
     elseif op == "DUMP" then
       local size = emu.getMemorySize(WRAM)
