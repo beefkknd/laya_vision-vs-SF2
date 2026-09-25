@@ -17,6 +17,7 @@
 --   RESET                      reset the cartridge and report its new initial state
 --   CAPTURE png|raw            screenshots as PNG (takeScreenshot) or raw RGB from the screen buffer; use raw when
 --                              PNGs come back blank (headless --testrunner runs)
+--   KEEP                       keep a headless test-runner alive during slow Python inference; no response
 --   DUMP                       whole 128 KiB WRAM
 --   QUIT                       disconnect, keep emulating, wait for the next Python run
 --   EXIT                       end the Mesen process (headless --testrunner runs)
@@ -194,6 +195,8 @@ local function serve()
     elseif op == "CAPTURE" then
       capture = cmd[2] == "raw" and "raw" or "png"
       send("OK\n")
+    elseif op == "KEEP" then
+      -- Deliberately silent: Python will next expect an OBS response, not a heartbeat response.
     elseif op == "DUMP" then
       local size = emu.getMemorySize(WRAM)
       local parts, chunk = {}, {}

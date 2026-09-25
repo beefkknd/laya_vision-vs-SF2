@@ -9,6 +9,7 @@ whiff, hot, round_result, dx.
 """
 import argparse
 import json
+from contextlib import nullcontext
 
 import _path  # noqa: F401
 from sf2.dataset import Writer
@@ -32,7 +33,9 @@ def main():
     pol = LayaPolicy(args.model, device=args.device, sample=args.sample, seed=args.seed)
 
     def choose(env, prev, cur, text, t_dist):
-        a, probs = pol.act(prev, cur, text)
+        keep_alive = getattr(env.backend, "keep_alive", None)
+        with keep_alive() if keep_alive else nullcontext():
+            a, probs = pol.act(prev, cur, text)
         return a, {"actor": "student", "student_probs": probs}
 
     env = make_env(args)

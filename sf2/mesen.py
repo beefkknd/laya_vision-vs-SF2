@@ -8,7 +8,9 @@ import io
 import shlex
 import socket
 import subprocess
+import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence
 
@@ -50,6 +52,7 @@ class MesenBridge:
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.sock = conn
         self.f = conn.makefile("rwb", buffering=0)
+        self._send_lock = threading.Lock()
         hello = self._line().split(" ", 2)
         if hello[0] != "HELLO":
             raise RuntimeError("unexpected greeting from Mesen: %r" % hello)
@@ -79,7 +82,28 @@ class MesenBridge:
         return bytes(out)
 
     def _send(self, s: str, payload: bytes = b"") -> None:
-        self.sock.sendall(s.encode() + b"\n" + payload)
+        with self._send_lock:
+            self.sock.sendall(s.encode() + b"\n" + payload)
+
+    @contextmanager
+    def keep_alive(self, interval: float = 0.5):
+        """Prevent a headless Mesen test runner timing out while a model predicts."""
+        done = threading.Event()
+
+        def tick():
+            while not done.wait(interval):
+                try:
+                    self._send("KEEP")
+                except OSError:
+                    return
+
+        thread = threading.Thread(target=tick, daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            done.set()
+            thread.join()
 
     def _obs(self) -> Obs:
         head = self._line().split()

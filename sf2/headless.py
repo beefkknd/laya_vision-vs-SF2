@@ -39,4 +39,5 @@ def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
     rom = os.path.expanduser(rom or os.environ.get("SF2_ROM", ""))
     if not rom or not os.path.exists(rom):
         raise FileNotFoundError("ROM not found: pass --rom or set SF2_ROM")
-    return [find_mesen(mesen), "--testrunner", rom, bridge_for_port(port)]
+    # The test runner's default wall-clock limit is 100 seconds, shorter than a full student match.
+    return [find_mesen(mesen), "--testrunner", "--timeout=3600", rom, bridge_for_port(port)]
