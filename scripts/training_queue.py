@@ -132,9 +132,12 @@ def run(path, poll_seconds):
                 queue["history"].append(task.copy())
                 save(path, queue)
                 continue
-            log_dir = ROOT / "out" / "queue"
-            log_dir.mkdir(parents=True, exist_ok=True)
-            log = open(log_dir / (task["id"] + ".log"), "w")
+            # One stable path makes live monitoring independent of task names.
+            log_path = ROOT / "out" / "training.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log = open(log_path, "a")
+            log.write("\n=== %s started %s ===\n" % (task["id"], time.strftime("%Y-%m-%d %H:%M:%S")))
+            log.flush()
             proc = subprocess.Popen(argv, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             task["state"], task["pid"], task["started_at"] = "running", proc.pid, now
             running[task["id"]], logs[task["id"]] = proc, log
