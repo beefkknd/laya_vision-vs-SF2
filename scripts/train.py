@@ -7,6 +7,8 @@
 Each --data dir is sampled as its own group, in equal shares by default (``--mix name=weight`` to change it),
 which is how seed and DAgger rows are merged 50/50 without one swamping the other.
 Early stopping watches val *frame accuracy against the teacher*; the real verdict is scripts/gate.py.
+The frozen vision tower's features come from ``sf2.vision_cache`` (built on first use per dataset, ~50 ms/image
+on MPS, then reused by every later run with the same vision weights); ``--no-vision-cache`` feeds pixels instead.
 ``--max-minutes`` is wall time for the whole run: model load and every eval, the final one included, come out of it.
 """
 import argparse
@@ -16,7 +18,7 @@ import random
 import time
 
 import _path  # noqa: F401
-from sf2 import lora
+from sf2 import lora, vision_cache
 from sf2.config import BASE_MODEL
 
 
@@ -56,7 +58,7 @@ def main():
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr-head", type=float, default=1e-4)
     ap.add_argument("--lr-backbone", type=float, default=None, help="default 2e-4 for lora, 2e-5 otherwise")
-    ap.add_argument("--eval-every", type=int, default=250)
+    ap.add_argument("--eval-every", type=int, default=500)
     ap.add_argument("--patience", type=int, default=3, help="evals without val-accuracy gain before stopping")
     ap.add_argument("--val-limit", type=int, default=600, help="val frames per eval (~0.15 s each on MPS)")
     ap.add_argument("--mix", action="append", default=[], help="group=weight, e.g. dagger_r1_hot=0.5")
@@ -67,6 +69,7 @@ def main():
     ap.add_argument("--workers", type=int, default=4, help="data-loader processes (0 = load on the GPU thread)")
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--no-vision-cache", action="store_true", help="run the frozen vision tower every step")
     args = ap.parse_args()
     t_start = time.time()
 
@@ -74,14 +77,32 @@ def main():
     import laya.vlm_train as vt
 
     agent = laya.load_vlm(args.init, device=args.device)
-    train, val = [], []
+    train, val, per_dir = [], [], {}
     for d in args.data:
         root, name = os.path.split(os.path.normpath(d))
-        train += vt.load_jsonl_examples(root, name, "train")
+        rows = vt.load_jsonl_examples(root, name, "train")
+        train += rows
+        per_dir[d] = list(rows)
         if os.path.exists(os.path.join(d, "val.jsonl")):
-            val += vt.load_jsonl_examples(root, name, "val")
+            rows = vt.load_jsonl_examples(root, name, "val")
+            val += rows
+            per_dir[d] += rows
     train, val = split_val(train, val, args.val_limit, args.seed)
     print("train %d frames, val %d frames, init %s, mode %s" % (len(train), len(val), args.init, args.mode))
+
+    image_seq_len = agent.model.prep.image_seq_len
+    if args.no_vision_cache:
+        vision_cache.install(None, image_seq_len)  # without-replacement sampling only
+    else:
+        t = time.time()
+        fp = vision_cache.fingerprint(agent.model, agent.model.prep)
+        todo = vision_cache.missing(args.data, fp)
+        enc = vision_cache.encoder(agent.model, agent.processor, num_workers=max(1, args.workers)) if todo else None
+        for d in todo:
+            vision_cache.build(d, per_dir[d], enc, fp, log=lambda m: print(m, flush=True))
+        vision_cache.install(vision_cache.load(args.data, fp), image_seq_len)
+        print("vision cache %s: %d built, %d reused (%.0fs)" % (fp, len(todo), len(args.data) - len(todo),
+                                                                time.time() - t), flush=True)
 
     if args.mode == "lora":
         n = lora.inject(agent.model.encoder, rank=args.rank, alpha=args.alpha)
@@ -112,14 +133,17 @@ def main():
 
     def eval_fn(step):
         t = time.time()
-        m = vt.metrics_from(vt.collect_logits(agent.model, agent.processor, val, batch_size=16))
+        # cached items are tokenization only: spawning loader workers costs more than it saves (33 s vs 7 s / 320)
+        m = vt.metrics_from(vt.collect_logits(agent.model, agent.processor, val, batch_size=16,
+                                              num_workers=args.workers if args.no_vision_cache else 0))
         agent.model.train()
         hist.append({"step": step, "seconds": time.time() - t, **{k: v for k, v in m.items()}})
         print("eval step %d (%.0fs): %s" % (step, hist[-1]["seconds"], vt.format_metrics(m)), flush=True)
         if m["all"]["acc"] > best["acc"]:
             best.update(acc=m["all"]["acc"], step=step, bad=0)
+            ts = time.time()
             save(os.path.join(args.out, "best"))
-            print("  saved best -> %s/best" % args.out, flush=True)
+            print("  saved best -> %s/best (%.0fs)" % (args.out, time.time() - ts), flush=True)
         else:
             best["bad"] += 1
             if best["bad"] >= args.patience:
