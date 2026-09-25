@@ -10,7 +10,7 @@ from sf2 import dataset as D
 from sf2.loop import play
 from sf2.rollout import gate
 
-from fake_retro import make_env
+from fake_mesen import make_env
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -32,7 +32,7 @@ def test_collect_relabel_load(tmp_path):
     recs = D.read(str(tmp_path / "data/seed/train.jsonl"))
     r = recs[0]
     assert len(r["target"]) == 12 and abs(sum(r["target"]) - 1) < 1e-6
-    assert r["state_text"].startswith("me=ryu opp=guile dist=")
+    assert r["state_text"].startswith("me=ryu opp=ken dist=")
     for im in r["images"]:
         assert os.path.exists(tmp_path / "data/seed" / im)
     assert all("dmg_for_next" in x["meta"] and "round_result" in x["meta"] for x in recs)

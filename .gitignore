@@ -4,3 +4,7 @@ runs/
 out/
 states/*.state
 *.md~
+human/
+__pycache__/
+.pytest_cache/
+.venv/

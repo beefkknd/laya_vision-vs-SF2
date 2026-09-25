@@ -2,7 +2,7 @@
 
     python scripts/label_human.py --session human/s1 --name human_s1 [--me ryu --opp ken]
 
-Frames where either life bar reads KO are dropped. A new "episode" starts whenever both bars refill, and every
+Frames where either life reads KO are dropped. A new "episode" starts whenever both bars refill, and every
 10th one goes to val.
 """
 import argparse
@@ -13,8 +13,9 @@ import _path  # noqa: F401
 from sf2 import dataset as D
 from sf2 import labeler
 from sf2.actions import question
-from sf2.config import FULL_HP, HOLD, PREV_GAP
-from sf2.ram import Fighters, text_state
+from sf2.config import HOLD, PREV_GAP
+from sf2.env import AIR_DY
+from sf2.ram import REQUIRED, Fighters, text_state
 
 
 def main():
@@ -23,34 +24,36 @@ def main():
     ap.add_argument("--name", required=True)
     ap.add_argument("--out", default="data")
     ap.add_argument("--me", default="ryu")
-    ap.add_argument("--opp", default="guile")
+    ap.add_argument("--opp", default="ken")
     ap.add_argument("--val-every", type=int, default=10)
     args = ap.parse_args()
 
     log = D.read(os.path.join(args.session, "log.jsonl"))
+    fighters = [Fighters(*(r["ram"][n] for n in REQUIRED)) for r in log]
+    labels = labeler.label_frames([(r["names"], f.facing_right) for r, f in zip(log, fighters)], hold=HOLD)
     by_frame = {r["frame"]: r for r in log}
-    labels = labeler.label_frames([(r["names"], r["facing_right"]) for r in log], hold=HOLD)
+    full = max(max(f.my_hp, f.opp_hp) for f in fighters)
     dst = os.path.join(args.out, args.name)
     os.makedirs(dst, exist_ok=True)
     splits = {"train": [], "val": []}
-    episode, last, prev_full = 0, "idle", True
+    episode, last, prev_full, ground = 0, "idle", True, (fighters[0].my_y, fighters[0].opp_y)
     for g, action in labels:
-        r = log[g]
-        full = r["my_hp"] == FULL_HP and r["opp_hp"] == FULL_HP
-        if full and not prev_full:
-            episode, last = episode + 1, "idle"
-        prev_full = full
-        if "image" not in r or r["my_hp"] < 0 or r["opp_hp"] < 0:
+        r, f = log[g], fighters[g]
+        is_full = f.my_hp == full and f.opp_hp == full
+        if is_full and not prev_full:
+            episode, last, ground = episode + 1, "idle", (f.my_y, f.opp_y)
+        prev_full = is_full
+        if "image" not in r or f.my_hp < 0 or f.opp_hp < 0:
             continue
         prev = by_frame.get(r["frame"] - PREV_GAP, r)
-        f = Fighters(r["my_hp"], r["opp_hp"], r["my_x"], r["opp_x"], r["my_y"], r["opp_y"])
         imgs = [os.path.relpath(os.path.join(args.session, x.get("image", r["image"])), dst) for x in (prev, r)]
+        my_air, opp_air = abs(f.my_y - ground[0]) > AIR_DY, abs(f.opp_y - ground[1]) > AIR_DY
         target = D.one_hot(action)
         rec = {"id": "%s-e%05d-s%07d" % (args.name, episode, r["frame"]), "images": imgs,
-               "state_text": text_state(f, args.me, args.opp, last, r["my_air"], r["opp_air"]),
-               "question": question(),
-               "label": target.index(1.0), "target": target, "episode": episode, "step": r["frame"],
-               "source": args.name, "meta": {"action": action, "actor": "human", "frame": r["frame"]}}
+               "state_text": text_state(f, args.me, args.opp, last, my_air, opp_air, full),
+               "question": question(), "label": target.index(1.0), "target": target, "episode": episode,
+               "step": r["frame"], "source": args.name,
+               "meta": {"action": action, "actor": "human", "frame": r["frame"]}}
         sp = "val" if args.val_every and episode % args.val_every == args.val_every - 1 else "train"
         splits[sp].append(rec)
         last = action

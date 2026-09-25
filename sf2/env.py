@@ -1,11 +1,11 @@
-"""stable-retro wrapper: one call = one Laya decision (a held input or a whole special-move macro).
+"""The fight environment on top of the Mesen bridge: one call = one Laya decision.
 
-Tracks rounds and matches from RAM so every script counts wins and damage the same way. An episode is one match
-from the savestate: it ends when either side has two round wins, and ``reset()`` loads the savestate again, so the
-opponent never changes under the gate.
+A decision's whole input sequence (a held direction, a button tap, or a special-move macro) goes to Mesen as one
+RUN; Mesen sends back the RAM variables for every frame plus two screenshots (4 frames before the end, and the
+end). Rounds and matches are tracked from the life values. An episode is one match from the savestate: it ends
+when either side has two round wins, and ``reset()`` reloads the savestate, so the opponent never changes under
+the gate.
 """
-import gzip
-import os
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Deque, List, Optional
@@ -14,11 +14,12 @@ import numpy as np
 
 from . import actions as A
 from . import ram
-from .config import DEFAULT_STATE, FULL_HP, GAME, PREV_GAP
+from .config import PREV_GAP
 
 AIR_DY = 6          # |y - standing y| above this = airborne
 INTRO_SKIP = 90     # frames after the life bars refill before a round really starts ("ROUND 2 ... FIGHT!")
-MAX_WAIT = 1500     # safety cap while waiting through KO / time-over screens
+MAX_WAIT = 1800     # safety cap while waiting through KO / time-over screens
+WAIT_CHUNK = 30
 
 
 @dataclass
@@ -42,41 +43,63 @@ class Context:
 
 
 class FightEnv:
-    def __init__(self, state: str = DEFAULT_STATE, me: str = "ryu", opp: str = "guile", render: bool = False):
-        import stable_retro as retro
+    """``backend``: a MesenBridge (or a test fake) with set_vars / run / load_state."""
 
-        self.retro = retro
+    def __init__(self, backend, ram_map: List[ram.Var], savestate: bytes, me: str = "ryu", opp: str = "ken"):
+        self.backend = backend
+        self.names = [v.name for v in ram_map]
+        backend.set_vars(ram_map)
+        self.savestate = savestate
         self.me, self.opp = me, opp
-        if os.path.isfile(state):  # a savestate you made yourself
-            self.env = retro.make(GAME, use_restricted_actions=retro.Actions.ALL,
-                                  render_mode="human" if render else "rgb_array")
-            with gzip.open(state, "rb") as fh:
-                self.env.initial_state = fh.read()
-        else:
-            self.env = retro.make(GAME, state=state, use_restricted_actions=retro.Actions.ALL,
-                                  render_mode="human" if render else "rgb_array")
-        ram.register(self.env)
-        self.buttons: List[str] = list(self.env.buttons)
         self.episode = -1
+        self.done = False
 
-    # ------------------------------------------------------------------ frames
+    # ------------------------------------------------------------------ helpers
+    def _f(self, values) -> ram.Fighters:
+        return ram.Fighters.from_values(self.names, values)
+
+    def _ingest(self, rows: List[List[int]]) -> List[ram.Fighters]:
+        """RAM rows *after* each executed frame -> Fighters, updating history / hit timer."""
+        out = []
+        for values in rows:
+            prev, self.f = self.f, self._f(values)
+            self.frame_no += 1
+            self.hist.append(self.f)
+            if 0 <= self.f.my_hp < prev.my_hp:
+                self.last_hit = self.frame_no
+            out.append(self.f)
+        return out
+
+    def run_frames(self, frames: List[List[str]], capture: bool = True) -> List[ram.Fighters]:
+        n = len(frames)
+        caps = {max(0, n - PREV_GAP), n} if capture else set()
+        obs = self.backend.run(frames, caps)
+        fs = self._ingest(obs.rams[1:])
+        if capture:
+            cur = obs.images[n]
+            prev = obs.images.get(n - PREV_GAP, self.frame)
+            self.frames.extend([prev, cur])
+        return fs
+
+    # ------------------------------------------------------------------ episode
     def reset(self) -> np.ndarray:
-        obs, _ = self.env.reset()
+        obs = self.backend.load_state(self.savestate)
         self.episode += 1
         self.frame_no = 0
         self.round = 0
         self.wins = {"me": 0, "opp": 0}
         self.last = "idle"
-        self.done = False
-        self.frames: Deque[np.ndarray] = deque([obs] * (PREV_GAP + 1), maxlen=PREV_GAP + 1)
+        img = obs.images[0]
+        self.frames: Deque[np.ndarray] = deque([img, img], maxlen=2)
         self.hist: Deque[ram.Fighters] = deque(maxlen=120)
-        self.f = ram.read(self.env)
+        self.f = self._f(obs.rams[0])
         self.hist.append(self.f)
+        self.full_hp = max(self.f.my_hp, self.f.opp_hp)  # the savestate starts with full bars
         self.ground = (self.f.my_y, self.f.opp_y)
         self.last_hit = -10_000
         self.last_fireball = -10_000
         self.in_round = True
-        return obs
+        return img
 
     @property
     def frame(self) -> np.ndarray:
@@ -86,23 +109,13 @@ class FightEnv:
     def prev_frame(self) -> np.ndarray:
         return self.frames[0]
 
-    def step_frame(self, names: List[str]) -> None:
-        obs, _, done, trunc, _ = self.env.step(A.to_array(names, self.buttons))
-        self.frame_no += 1
-        self.frames.append(obs)
-        prev, self.f = self.f, ram.read(self.env)
-        self.hist.append(self.f)
-        if 0 <= self.f.my_hp < prev.my_hp:
-            self.last_hit = self.frame_no
-        self.done = self.done or done or trunc
-
     # ------------------------------------------------------------------ state for model / teacher
     def airborne(self):
         return abs(self.f.my_y - self.ground[0]) > AIR_DY, abs(self.f.opp_y - self.ground[1]) > AIR_DY
 
     def text(self) -> str:
         my_air, opp_air = self.airborne()
-        return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air)
+        return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air, self.full_hp)
 
     def context(self) -> Context:
         my_air, opp_air = self.airborne()
@@ -111,36 +124,35 @@ class FightEnv:
                        self.frame_no - self.last_fireball, list(self.hist))
 
     # ------------------------------------------------------------------ one decision
-    def act(self, action: str, on_frame: Optional[Callable[["FightEnv"], None]] = None) -> ActResult:
+    def act(self, action: str, on_frame: Optional[Callable[[ram.Fighters], None]] = None) -> ActResult:
         facing = self.f.facing_right
         start = self.f
         if action == "hadouken":
             self.last_fireball = self.frame_no
-        res = ActResult(0, 0, 0)
-        for tokens in A.expand(action):
-            before = self.f
-            self.step_frame(A.to_physical(tokens, facing))
-            res.frames += 1
+        frames = [A.to_physical(t, facing) for t in A.expand(action)]
+        res = ActResult(len(frames), 0, 0)
+        before = start
+        for f in self.run_frames(frames):
             if on_frame:
-                on_frame(self)
-            over, winner = self._round_check(before)
+                on_frame(f)
+            over, winner = self._round_check(before, f)
+            before = f
             if over:
                 res.round_over, res.winner = True, winner
+                self.f = f  # judge damage at the deciding frame
                 break
-            if self.done:
-                break
-        # KO life is -1 (clamped to 0); a time-over refill makes the difference negative (clamped to 0)
+        # KO life is negative (clamped to 0); a time-over refill makes the difference negative (clamped to 0)
         res.dmg_for = max(0, start.opp_hp - max(0, self.f.opp_hp))
         res.dmg_against = max(0, start.my_hp - max(0, self.f.my_hp))
         self.last = action
         return res
 
-    def _round_check(self, before: ram.Fighters):
-        f = self.f
+    def _round_check(self, before: ram.Fighters, f: ram.Fighters):
+        full = self.full_hp
         if f.my_hp < 0 or f.opp_hp < 0:  # KO
             winner = "draw" if f.my_hp < 0 and f.opp_hp < 0 else "me" if f.opp_hp < 0 else "opp"
-        elif f.my_hp == FULL_HP and f.opp_hp == FULL_HP and (before.my_hp < FULL_HP or before.opp_hp < FULL_HP):
-            # time over: the bars refilled without a KO; higher life won
+        elif f.my_hp == full and f.opp_hp == full and (before.my_hp < full or before.opp_hp < full):
+            # the bars refilled without a KO (time over, or a cart that stops at 0): higher life won
             winner = "me" if before.my_hp > before.opp_hp else "opp" if before.opp_hp > before.my_hp else "draw"
         else:
             return False, None
@@ -153,14 +165,13 @@ class FightEnv:
         """Advance through KO / time-over screens. Returns False when the match (episode) is over."""
         if self.wins["me"] >= 2 or self.wins["opp"] >= 2 or self.done:
             return False
-        for _ in range(MAX_WAIT):
-            self.step_frame([])
-            if self.done:
-                return False
-            if self.f.my_hp == FULL_HP and self.f.opp_hp == FULL_HP:
+        waited = 0
+        while waited < MAX_WAIT:
+            fs = self.run_frames([[]] * WAIT_CHUNK, capture=False)
+            waited += WAIT_CHUNK
+            if fs[-1].my_hp == self.full_hp and fs[-1].opp_hp == self.full_hp:
                 break
-        for _ in range(INTRO_SKIP):
-            self.step_frame([])
+        self.run_frames([[]] * INTRO_SKIP)
         self.round += 1
         self.last = "idle"
         self.ground = (self.f.my_y, self.f.opp_y)
@@ -168,4 +179,4 @@ class FightEnv:
         return not self.done
 
     def close(self):
-        self.env.close()
+        self.backend.close()

@@ -1,49 +1,43 @@
-"""Day 1: hook the emulator, take screenshots, send each of the 12 actions, sanity-check the RAM map.
+"""Day 1: drive Mesen from Python, send each of the 12 actions, sanity-check the RAM map.
 
-    python scripts/check_env.py                 # headless; writes out/check/*.png
-    python scripts/check_env.py --watch         # also opens the emulator window
+    python scripts/check_env.py            # then load mesen/sf2_bridge.lua in Mesen's Script Window
 
-What to look for in the printout:
+Writes out/check/*.png. What to look for in the printout:
   * my_x grows while "forward" runs when you are on the left (and shrinks on the right).
-  * my_y changes during "jump" and returns afterwards (airborne=1 in between).
-  * lp / hp / hadouken frames show the move in out/check/.
-If x/y never move, the position addresses in sf2/ram.py are wrong for your ROM revision: fix them before
-collecting data, because the teacher and the text note both depend on them.
+  * my_y changes during "jump" and comes back (airborne=1 in between).
+  * lp / hp / hadouken screenshots show the move.
+If x/y never move, the RAM map is wrong: rerun scripts/find_ram.py or fix ram_maps/*.txt by hand.
 """
 import argparse
 import os
 
 import _path  # noqa: F401
 from sf2 import actions as A
-from sf2.config import DEFAULT_STATE
+from sf2.cli import add_env_args, make_env
 from sf2.dataset import save_png
-from sf2.env import FightEnv
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--state", default=DEFAULT_STATE)
-    ap.add_argument("--watch", action="store_true")
+    add_env_args(ap)
     ap.add_argument("--out", default="out/check")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
-    env = FightEnv(args.state, render=args.watch)
-    obs = env.reset()
-    print("buttons:", env.buttons)
-    print("frame shape:", obs.shape, " start:", env.f, " text:", env.text())
-    for _ in range(60):  # let the round intro play
-        env.step_frame([])
+    env = make_env(args)
+    img = env.reset()
+    print("frame shape:", img.shape, " full life:", env.full_hp, " start:", env.f)
+    print("text:", env.text())
+    env.run_frames([[]] * 60)  # let the round intro play
     save_png(env.frame, os.path.join(args.out, "00_start.png"))
 
     for i, a in enumerate(A.ACTIONS, 1):
         before = env.f
         xs, ys = [], []
-        res = env.act(a, on_frame=lambda e: (xs.append(e.f.my_x), ys.append(e.f.my_y)))
-        for _ in range(24):  # let the move play out, idle
-            env.step_frame([])
-            xs.append(env.f.my_x)
-            ys.append(env.f.my_y)
+        res = env.act(a, on_frame=lambda f: (xs.append(f.my_x), ys.append(f.my_y)))
+        for f in env.run_frames([[]] * 24):  # let the move play out
+            xs.append(f.my_x)
+            ys.append(f.my_y)
         save_png(env.frame, os.path.join(args.out, "%02d_%s.png" % (i, a)))
         print("%-10s frames=%2d  x %4d->%4d (min %d max %d)  y %4d->%4d (min %d max %d)  dealt=%d taken=%d  %s"
               % (a, res.frames, before.my_x, env.f.my_x, min(xs), max(xs), before.my_y, env.f.my_y, min(ys),

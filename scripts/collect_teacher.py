@@ -11,18 +11,15 @@ import random
 
 import _path  # noqa: F401
 from sf2 import actions as A
-from sf2.config import DEFAULT_STATE
 from sf2.dataset import Writer
-from sf2.env import FightEnv
+from sf2.cli import add_env_args, make_env
 from sf2.loop import play, save_rounds
 from sf2.rollout import gate
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--state", default=DEFAULT_STATE)
-    ap.add_argument("--me", default="ryu")
-    ap.add_argument("--opp", default="guile")
+    add_env_args(ap)
     ap.add_argument("--out", default="data")
     ap.add_argument("--name", default="seed_teacher")
     ap.add_argument("--decisions", type=int, default=30000)
@@ -38,10 +35,11 @@ def main():
         acts = list(t_dist)
         return rng.choices(acts, weights=[t_dist[a] for a in acts])[0], {"actor": "teacher"}
 
-    env = FightEnv(args.state, me=args.me, opp=args.opp)
+    env = make_env(args)
     w = Writer(args.out, args.name, source=args.name)
     rows, rounds = play(env, choose, args.max_matches, writer=w, max_decisions=args.decisions)
     w.close()
+    env.close()
     save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)
     print("wrote", w.n, "->", w.dir)
     print("teacher (eps=%.2f) gate:" % args.eps, gate(rows, rounds))

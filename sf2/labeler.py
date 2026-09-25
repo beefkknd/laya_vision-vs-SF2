@@ -16,13 +16,13 @@ _ATTACK = {"lp": "lp", "mp": "lp", "hp": "hp", "lk": "lk", "mk": "lk", "hk": "hk
 
 
 def relative(names: Sequence[str], facing_right: bool) -> Tuple[frozenset, Set[str]]:
-    """Genesis button names -> (direction tokens, attack names)."""
-    fwd, back = ("RIGHT", "LEFT") if facing_right else ("LEFT", "RIGHT")
+    """SNES button names (Mesen's) -> (direction tokens, attack names)."""
+    fwd, back = ("right", "left") if facing_right else ("left", "right")
     dirs, atk = set(), set()
     for n in names:
-        if n == "UP":
+        if n == "up":
             dirs.add("U")
-        elif n == "DOWN":
+        elif n == "down":
             dirs.add("D")
         elif n == fwd:
             dirs.add("F")

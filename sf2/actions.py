@@ -6,8 +6,6 @@ fighters' x positions at decision time, so the model never has to know which sid
 """
 from typing import Dict, List, Sequence, Tuple
 
-import numpy as np
-
 from .config import PAD
 
 ACTIONS: List[str] = [
@@ -72,14 +70,14 @@ def expand(action: str) -> List[Tuple[str, ...]]:
 
 
 def to_physical(tokens: Sequence[str], facing_right: bool) -> List[str]:
-    """Relative tokens -> Genesis button names."""
-    fwd, back = ("RIGHT", "LEFT") if facing_right else ("LEFT", "RIGHT")
+    """Relative tokens -> SNES button names (Mesen's)."""
+    fwd, back = ("right", "left") if facing_right else ("left", "right")
     names = []
     for t in tokens:
         if t == "U":
-            names.append("UP")
+            names.append("up")
         elif t == "D":
-            names.append("DOWN")
+            names.append("down")
         elif t == "F":
             names.append(fwd)
         elif t == "B":
@@ -87,11 +85,3 @@ def to_physical(tokens: Sequence[str], facing_right: bool) -> List[str]:
         else:
             names.append(PAD[t])
     return names
-
-
-def to_array(names: Sequence[str], buttons: Sequence[str]) -> np.ndarray:
-    """Button names -> the MultiBinary array stable-retro expects (order = env.buttons)."""
-    a = np.zeros(len(buttons), np.uint8)
-    for n in names:
-        a[buttons.index(n)] = 1
-    return a

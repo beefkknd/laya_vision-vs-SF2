@@ -1,7 +1,6 @@
 """Days 3-6: the student plays; every decision is recorded with the teacher's gold beside it.
 
     python scripts/play_student.py --model runs/r0/best --name r0 --matches 10
-    python scripts/play_student.py --model runs/r0/best --name r0 --matches 10 --watch
 
 Writes rollouts/<name>/{train,val}.jsonl + images (same layout as a dataset: label/target = teacher),
 rollouts/<name>/rounds.jsonl, and prints the gate. Each row's meta has: action (student), student_probs,
@@ -12,9 +11,8 @@ import argparse
 import json
 
 import _path  # noqa: F401
-from sf2.config import DEFAULT_STATE
 from sf2.dataset import Writer
-from sf2.env import FightEnv
+from sf2.cli import add_env_args, make_env
 from sf2.loop import play, save_rounds
 from sf2.policy import LayaPolicy
 from sf2.rollout import gate
@@ -25,12 +23,9 @@ def main():
     ap.add_argument("--model", required=True)
     ap.add_argument("--name", required=True)
     ap.add_argument("--out", default="rollouts")
-    ap.add_argument("--state", default=DEFAULT_STATE)
-    ap.add_argument("--me", default="ryu")
-    ap.add_argument("--opp", default="guile")
+    add_env_args(ap)
     ap.add_argument("--matches", type=int, default=10)
     ap.add_argument("--sample", action="store_true", help="sample from the probabilities instead of the top option")
-    ap.add_argument("--watch", action="store_true")
     ap.add_argument("--device", default=None)
     args = ap.parse_args()
 
@@ -40,13 +35,14 @@ def main():
         a, probs = pol.act(prev, cur, text)
         return a, {"actor": "student", "student_probs": probs}
 
-    env = FightEnv(args.state, me=args.me, opp=args.opp, render=args.watch)
+    env = make_env(args)
     w = Writer(args.out, args.name, source=args.name, val_every=0)  # all rows -> train.jsonl
     rows, rounds = play(env, choose, args.matches, writer=w)
     w.close()
+    env.close()
     save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)
     g = gate(rows, rounds)
-    g.update(model=args.model, state=args.state)
+    g.update(model=args.model, savestate=args.savestate)
     with open("%s/%s/gate.json" % (args.out, args.name), "w") as f:
         json.dump(g, f, indent=2)
     print(json.dumps(g, indent=2))

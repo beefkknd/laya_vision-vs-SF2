@@ -13,16 +13,19 @@ def test_hadouken_expands_to_quarter_circle_then_release():
 
 
 def test_forward_follows_facing():
-    assert A.to_physical(("F",), facing_right=True) == ["RIGHT"]
-    assert A.to_physical(("F",), facing_right=False) == ["LEFT"]
-    assert A.to_physical(("D", "B"), facing_right=True) == ["DOWN", "LEFT"]
-    assert A.to_physical(("hp",), True) == ["Z"]
+    assert A.to_physical(("F",), facing_right=True) == ["right"]
+    assert A.to_physical(("F",), facing_right=False) == ["left"]
+    assert A.to_physical(("D", "B"), facing_right=True) == ["down", "left"]
+    assert A.to_physical(("hp",), True) == ["l"]  # fierce punch on the SNES pad
 
 
-def test_to_array_uses_env_button_order():
-    buttons = ["B", "A", "MODE", "START", "UP", "DOWN", "LEFT", "RIGHT", "C", "Y", "X", "Z"]
-    a = A.to_array(["DOWN", "RIGHT", "Z"], buttons)
-    assert [buttons[i] for i in a.nonzero()[0]] == ["DOWN", "RIGHT", "Z"]
+def test_physical_names_are_snes_buttons():
+    from sf2.config import BUTTONS
+
+    for a in A.ACTIONS:
+        for tokens in A.expand(a):
+            for facing in (True, False):
+                assert set(A.to_physical(tokens, facing)) <= set(BUTTONS)
 
 
 def test_question_is_stable():

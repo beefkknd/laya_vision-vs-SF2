@@ -10,6 +10,9 @@ import sys
 
 
 def main():
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        return
     cols = ["rounds", "round_win_rate", "dmg_dealt_per_round", "dmg_taken_per_round", "hadouken_whiff_rate",
             "shoryuken_whiff_rate", "teacher_agreement"]
     print("%-22s" % "run" + "".join("%22s" % c for c in cols))

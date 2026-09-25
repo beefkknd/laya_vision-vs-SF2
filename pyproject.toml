@@ -5,13 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "laya-vision-vs-sf2"
 version = "0.1.0"
-description = "Teach laya-vision (image -> typed choice) to play Street Fighter II with a frame-level teacher + DAgger"
+description = "Teach laya-vision (image -> typed choice) to play SNES Street Fighter II in Mesen with a frame-level teacher + DAgger"
 requires-python = ">=3.11"
+# The emulator is Mesen 2 (a separate app); mesen/sf2_bridge.lua connects it to Python over a local socket.
 dependencies = [
-    "stable-retro==1.0.1",      # Genesis emulator + SF2 SCE integration (macOS arm64 wheels)
     "numpy",
     "pillow",
-    "pygame",                   # human pad recording / savestate maker
 ]
 
 [project.optional-dependencies]
