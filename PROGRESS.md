@@ -21,3 +21,9 @@ agreement as a training diagnostic, not a performance score.
 | --- | ---: | ---: | --- |
 | chunli_r0 | 33.5 | -117.0 | Two-round exploratory gate; not protocol-comparable. |
 | chunli_r1 | 25.0 | -132.0 | Two-round exploratory gate; not protocol-comparable. |
+| v2_random | 54.6 | -79.9 | v2 baseline: random policy, 14 rounds. |
+| v2_teacher | 21.0 | -139.1 | v2 baseline: scripted teacher, eps 0, 12 rounds. Worse than random; see TEACHER.md. |
+
+Old data (the chunli_r* datasets and rollouts) was deleted on 2026-09-25; the v2 loop starts over. The earlier
+val accuracies were optimistic: no dataset had val rows, so val was random frames whose neighbours were in training.
+Val now uses held-out rounds or eval-only sets (`--val-data`).
