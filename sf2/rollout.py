@@ -6,7 +6,7 @@ executed), dmg_for / dmg_against (during that action), and round_result once the
 from collections import Counter, defaultdict
 from typing import Dict, List
 
-from .config import NEXT_WINDOW, WHIFF_WINDOW
+from .config import NEXT_WINDOW, ROUND_LIFE, WHIFF_WINDOW
 
 BIG_HIT = 20  # life points (of 176) taken inside the next window ~ a combo or knockdown
 
@@ -46,11 +46,17 @@ def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
     dealt = sum(r["dmg_for"] for r in rounds)
     taken = sum(r["dmg_against"] for r in rounds)
     acts = Counter(r["meta"]["action"] for r in rows)
+    dealt_per_round = dealt / n if n else 0.0
+    taken_per_round = taken / n if n else 0.0
     out = {
         "rounds": n,
         "round_win_rate": wins / n if n else 0.0,
-        "dmg_dealt_per_round": dealt / n if n else 0.0,
-        "dmg_taken_per_round": taken / n if n else 0.0,
+        "dmg_dealt_per_round": dealt_per_round,
+        "dmg_taken_per_round": taken_per_round,
+        # Early learning metric: 100 means a full opponent life bar per round.
+        # It remains informative before the policy can reliably win rounds.
+        "damage_score": 100.0 * dealt_per_round / ROUND_LIFE,
+        "net_damage_per_round": dealt_per_round - taken_per_round,
         "decisions": len(rows),
         "action_mix": {a: round(c / max(1, len(rows)), 3) for a, c in acts.most_common()},
     }

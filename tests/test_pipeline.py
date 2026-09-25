@@ -38,6 +38,8 @@ def test_collect_relabel_load(tmp_path):
     assert all("dmg_for_next" in x["meta"] and "round_result" in x["meta"] for x in recs)
     g = gate(rows, rounds)
     assert 0 <= g["round_win_rate"] <= 1 and g["decisions"] == len(rows)
+    assert 0 <= g["damage_score"] <= 100
+    assert g["net_damage_per_round"] == g["dmg_dealt_per_round"] - g["dmg_taken_per_round"]
 
     # pretend the seed data is a student rollout, then DAgger-relabel it
     out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts/relabel.py"), "--rollout",

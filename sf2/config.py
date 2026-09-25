@@ -18,6 +18,7 @@ HOLD = 4               # frames a non-macro action is held => one decision every
 PREV_GAP = 4           # the "previous" image is always the frame HOLD frames before the current one
 NEXT_WINDOW = 30       # 0.5 s: window for damage_for / damage_against after a decision
 WHIFF_WINDOW = 60      # a hadouken that deals no damage within 1 s counts as a whiff
+ROUND_LIFE = 176       # full health in the verified Street Fighter II (USA) RAM map
 
 # SNES pad, SF2's default layout: Y X L = jab / strong / fierce punch, B A R = short / forward / roundhouse.
 # Names are Mesen's (emu.getInput / emu.setInput keys).
