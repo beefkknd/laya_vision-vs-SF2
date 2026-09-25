@@ -40,7 +40,11 @@ class MesenBridge:
         print("waiting for Mesen on 127.0.0.1:%d - load mesen/sf2_bridge.lua in Mesen's Script Window" % port,
               flush=True)
         if launch:  # a command line string, or an argv list (paths with spaces)
-            self.proc = subprocess.Popen(shlex.split(launch) if isinstance(launch, str) else list(launch))
+            if isinstance(launch, str):
+                self.proc = subprocess.Popen(shlex.split(launch))
+            else:
+                # Mesen's test runner emits emulator diagnostics for every worker.
+                self.proc = subprocess.Popen(list(launch), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         conn, _ = srv.accept()
         srv.close()
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
