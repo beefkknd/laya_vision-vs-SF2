@@ -13,17 +13,31 @@ import train  # noqa: E402
 import training_queue as tq  # noqa: E402
 
 
-def test_val_limit_caps_the_held_out_slice_when_no_val_jsonl():
-    # every Chun-Li dataset lacks val.jsonl, so this fallback is the path real runs take
-    tr, val = train.split_val(list(range(34274)), [], limit=600, seed=0)
-    assert len(val) == 600
-    assert len(tr) + len(val) == 34274  # frames not held out go back to training
-    assert not set(tr) & set(val)
+def _frames(n_rounds, per_round, dataset="d"):
+    exs, info = [], {}
+    for r in range(n_rounds):
+        for f in range(per_round):
+            i = "%s-%d-%d" % (dataset, r, f)
+            exs.append({"id": i, "dataset": dataset})
+            info[i] = {"id": i, "dataset": dataset, "episode": 0, "meta": {"episode": 0, "round": r, "frame": f}}
+    return exs, info
+
+
+def test_fallback_val_holds_out_whole_rounds_and_keeps_them_out_of_training():
+    # no val.jsonl anywhere (true of every Chun-Li dataset): neighbouring frames must not straddle the split
+    exs, info = _frames(40, 50)
+    tr, val = train.split_val(exs, [], limit=600, seed=0, info=info)
+    val_rounds = {info[e["id"]]["meta"]["round"] for e in val}
+    train_rounds = {info[e["id"]]["meta"]["round"] for e in tr}
+    assert val and not val_rounds & train_rounds
+    assert len(val) <= 600
 
 
 def test_val_limit_caps_an_explicit_val_split():
-    tr, val = train.split_val(list(range(100)), list(range(1000, 3000)), limit=600, seed=0)
-    assert len(val) == 600 and len(tr) == 100
+    exs, info = _frames(4, 25)
+    val = [{"id": "v%d" % i} for i in range(2000)]
+    tr, v = train.split_val(exs, val, limit=600, seed=0, info=info)
+    assert len(v) == 600 and len(tr) == 100
 
 
 def test_training_budget_covers_load_eval0_and_the_final_eval():

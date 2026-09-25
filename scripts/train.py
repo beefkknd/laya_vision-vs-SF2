@@ -7,6 +7,10 @@
 Each --data dir is sampled as its own group, in equal shares by default (``--mix name=weight`` to change it),
 which is how seed and DAgger rows are merged 50/50 without one swamping the other.
 Early stopping watches val *frame accuracy against the teacher*; the real verdict is scripts/gate.py.
+Val comes from ``--val-data`` dirs (eval only, never trained on), else val.jsonl, else whole held-out rounds of the
+training data (``sf2.metrics``): never single frames, whose neighbours would sit in the training set. Every eval
+appends a per-situation breakdown (teacher move, time into round, life left, distance, ...) to
+``<out>/eval_slices.jsonl``; compare runs with scripts/report.py.
 The frozen vision tower's features come from ``sf2.vision_cache`` (built on first use per dataset, ~50 ms/image
 on MPS, then reused by every later run with the same vision weights); ``--no-vision-cache`` feeds pixels instead.
 ``--max-minutes`` is wall time for the whole run: model load and every eval, the final one included, come out of it.
@@ -18,7 +22,8 @@ import random
 import time
 
 import _path  # noqa: F401
-from sf2 import lora, vision_cache
+from sf2 import dataset as D
+from sf2 import lora, metrics, vision_cache
 from sf2.config import BASE_MODEL
 
 
@@ -26,15 +31,16 @@ class EarlyStop(Exception):
     pass
 
 
-def split_val(train, val, limit, seed):
-    """Cap val at ``limit`` frames; with no val.jsonl anywhere, hold out a slice of train instead."""
+def split_val(train, val, limit, seed, info, every=10):
+    """Cap val at ``limit`` frames. With no val anywhere, hold out every ``every``-th round of the training data
+    (``info``: example id -> raw record); the held-out rounds leave training entirely, even past ``limit``."""
     rng = random.Random(seed)
+    if not val:
+        held = metrics.holdout_round_ids([info[ex["id"]] for ex in train], every)
+        val = [ex for ex in train if ex["id"] in held]
+        train = [ex for ex in train if ex["id"] not in held]
     if len(val) > limit:
         val = rng.sample(val, limit)
-    if not val:
-        rng.shuffle(train)
-        n = min(len(train) // 20, limit)
-        val, train = train[:n], train[n:]
     return train, val
 
 
@@ -48,6 +54,8 @@ def training_minutes(max_minutes, spent_s, eval_s):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", action="append", required=True, help="dataset dir (train.jsonl / val.jsonl)")
+    ap.add_argument("--val-data", action="append", default=[],
+                    help="eval-only dataset dir: all its rows are val, none are trained on")
     ap.add_argument("--init", default=BASE_MODEL, help="checkpoint to start from (Hub id or runs/<x>/best)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--mode", choices=["lora", "head", "last_n", "full"], default="lora")
@@ -60,7 +68,7 @@ def main():
     ap.add_argument("--lr-backbone", type=float, default=None, help="default 2e-4 for lora, 2e-5 otherwise")
     ap.add_argument("--eval-every", type=int, default=500)
     ap.add_argument("--patience", type=int, default=3, help="evals without val-accuracy gain before stopping")
-    ap.add_argument("--val-limit", type=int, default=600, help="val frames per eval (~0.15 s each on MPS)")
+    ap.add_argument("--val-limit", type=int, default=1200, help="val frames per eval (~20 ms each, cached)")
     ap.add_argument("--mix", action="append", default=[], help="group=weight, e.g. dagger_r1_hot=0.5")
     ap.add_argument("--temperature", choices=["one", "keep"], default="one",
                     help="'one' resets the choice temperature to 1.0 (the base checkpoint's photo-fitted value "
@@ -77,17 +85,23 @@ def main():
     import laya.vlm_train as vt
 
     agent = laya.load_vlm(args.init, device=args.device)
-    train, val, per_dir = [], [], {}
-    for d in args.data:
+    train, val, per_dir, info = [], [], {}, {}
+    for d in args.data + args.val_data:
         root, name = os.path.split(os.path.normpath(d))
-        rows = vt.load_jsonl_examples(root, name, "train")
-        train += rows
-        per_dir[d] = list(rows)
-        if os.path.exists(os.path.join(d, "val.jsonl")):
-            rows = vt.load_jsonl_examples(root, name, "val")
-            val += rows
+        per_dir[d] = []
+        raw = []
+        for split in ("train", "val"):
+            if not os.path.exists(os.path.join(d, split + ".jsonl")):
+                continue
+            rows = vt.load_jsonl_examples(root, name, split)
             per_dir[d] += rows
-    train, val = split_val(train, val, args.val_limit, args.seed)
+            (val if split == "val" or d in args.val_data else train).extend(rows)
+            raw += D.read(os.path.join(d, split + ".jsonl"))
+        for r in raw:
+            r["dataset"] = name
+        metrics.annotate(raw)  # time into round, from all of the dataset's frames
+        info.update((r["id"], r) for r in raw)
+    train, val = split_val(train, val, args.val_limit, args.seed, info)
     print("train %d frames, val %d frames, init %s, mode %s" % (len(train), len(val), args.init, args.mode))
 
     image_seq_len = agent.model.prep.image_seq_len
@@ -96,12 +110,13 @@ def main():
     else:
         t = time.time()
         fp = vision_cache.fingerprint(agent.model, agent.model.prep)
-        todo = vision_cache.missing(args.data, fp)
+        dirs = args.data + args.val_data
+        todo = vision_cache.missing(dirs, fp)
         enc = vision_cache.encoder(agent.model, agent.processor, num_workers=max(1, args.workers)) if todo else None
         for d in todo:
             vision_cache.build(d, per_dir[d], enc, fp, log=lambda m: print(m, flush=True))
-        vision_cache.install(vision_cache.load(args.data, fp), image_seq_len)
-        print("vision cache %s: %d built, %d reused (%.0fs)" % (fp, len(todo), len(args.data) - len(todo),
+        vision_cache.install(vision_cache.load(dirs, fp), image_seq_len)
+        print("vision cache %s: %d built, %d reused (%.0fs)" % (fp, len(todo), len(dirs) - len(todo),
                                                                 time.time() - t), flush=True)
 
     if args.mode == "lora":
@@ -134,11 +149,17 @@ def main():
     def eval_fn(step):
         t = time.time()
         # cached items are tokenization only: spawning loader workers costs more than it saves (33 s vs 7 s / 320)
-        m = vt.metrics_from(vt.collect_logits(agent.model, agent.processor, val, batch_size=16,
-                                              num_workers=args.workers if args.no_vision_cache else 0))
+        res = vt.collect_logits(agent.model, agent.processor, val, batch_size=16,
+                                num_workers=args.workers if args.no_vision_cache else 0)
+        m = vt.metrics_from(res)
         agent.model.train()
         hist.append({"step": step, "seconds": time.time() - t, **{k: v for k, v in m.items()}})
         print("eval step %d (%.0fs): %s" % (step, hist[-1]["seconds"], vt.format_metrics(m)), flush=True)
+        sl = metrics.slice_metrics([info[ex["id"]] for ex in val], [r["logits"].tolist() for r in res],
+                                   [r["target"].tolist() for r in res])
+        with open(os.path.join(args.out, "eval_slices.jsonl"), "a") as f:
+            f.write(json.dumps({"step": step, "time": time.time(), "slices": sl}) + "\n")
+        print("  " + metrics.summary(sl), flush=True)
         if m["all"]["acc"] > best["acc"]:
             best.update(acc=m["all"]["acc"], step=step, bad=0)
             ts = time.time()
