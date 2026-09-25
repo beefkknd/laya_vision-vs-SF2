@@ -4,7 +4,7 @@ This project teaches **laya-vision** to play **Street Fighter II: Special Champi
 
 ## What laya-vision actually is (read this first)
 
-- **It is not part of `laya-mlx`.** `laya-mlx` (used in `../smoke_test.py`) is text-only. laya-vision is a separate research fork: [r33drichards/laya-vision](https://github.com/r33drichards/laya-vision). It uses a **SmolVLM-256M** image backbone with Laya's typed-decision head and the same `predict(state, questions)` API. It is **PyTorch** and runs on Apple **MPS**, not MLX.
+- **It is not `laya-mlx`.** [`laya-mlx`](https://github.com/mizorewww/laya-mlx) (the Apple MLX runtime) is text-only. laya-vision is a separate research fork: [r33drichards/laya-vision](https://github.com/r33drichards/laya-vision). It uses a **SmolVLM-256M** image backbone with Laya's typed-decision head and the same `predict(state, questions)` API. It is **PyTorch** and runs on Apple **MPS**, not MLX.
 - Checkpoint: [`thaitea/laya-vision-smolvlm-256m`](https://huggingface.co/thaitea/laya-vision-smolvlm-256m). It was trained on photo questions and knows no games.
 - Its trainer freezes whole layers (`head` / `last_n` / `full`). **It has no LoRA**, so `sf2/lora.py` adds one: rank-r adapters on the text layers' attention and MLP projections, with the decision head fully trained. The adapters are merged back before saving, so a trained run is an ordinary laya-vision checkpoint.
 - Upstream has already tried this loop on Atari ([docs/game-training.md](https://github.com/r33drichards/laya-vision/blob/main/docs/game-training.md)):
@@ -36,8 +36,8 @@ The plan's `left/right` became **`forward/back`**, relative to the opponent, so 
 ## Setup (Mac Studio, Apple silicon)
 
 ```bash
-cd laya_vision-vs-SF2
-uv venv -p 3.12 && source .venv/bin/activate        # Python 3.11–3.13; separate from the laya-mlx venv
+git clone https://github.com/beefkknd/laya_vision-vs-SF2 && cd laya_vision-vs-SF2
+uv venv -p 3.12 && source .venv/bin/activate        # Python 3.11–3.13
 uv pip install -e '.[model,dev]'
 uv pip install "laya @ git+https://github.com/r33drichards/laya-vision@568feeeada793f70f736756b0f3a7643d1e75910"
 pytest -q                                            # 13 tests, no ROM or model download needed
