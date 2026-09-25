@@ -31,7 +31,7 @@ def play(env: FightEnv, choose: Choose, matches: int, writer: Optional[Writer] =
         while True:
             prev, cur = env.prev_frame.copy(), env.frame.copy()
             text, f, ctx = env.text(), env.f, env.context()
-            t_dist = teacher_policy(f, ctx)
+            t_dist = teacher_policy(f, ctx, env.me)
             action, extra = choose(env, prev, cur, text, t_dist)
             frame0, round0 = env.frame_no, env.round
             res = env.act(action)
