@@ -114,3 +114,17 @@ def test_all_workers_failing_leaves_no_ready_dataset(tmp_path, monkeypatch):
         parallel.main()
     assert e.value.code
     assert not (tmp_path / "data" / "seed_x" / "_READY").exists()
+
+
+def test_runner_status_lines_land_in_the_training_log(tmp_path, monkeypatch):
+    # people follow one file with tail -f; queue events belong there next to the task output
+    log = tmp_path / "training.log"
+    monkeypatch.setattr(tq, "LOG", log)
+    monkeypatch.setattr(tq, "command", lambda task, remaining: [sys.executable, "-c", "print('task output')"])
+    q = tmp_path / "q.json"
+    tq.save(q, {"version": 1, "state": "running", "created_at": 0, "deadline": 4e9, "history": [],
+                "tasks": [{"id": "collect", "kind": "collect", "resource": "cpu", "slots": 6, "state": "pending"}]})
+    tq.run(q, poll_seconds=0.05)
+    text = log.read_text()
+    for line in ("task output", "started collect", "collect done", "queue complete"):
+        assert line in text

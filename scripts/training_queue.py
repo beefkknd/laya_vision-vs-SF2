@@ -31,6 +31,7 @@ from sf2.headless import find_mesen
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_QUEUE = ROOT / "out" / "training_queue.json"
+LOG = ROOT / "out" / "training.log"  # one stable file for tail -f: task output and queue events
 CPU_SLOTS, GPU_SLOTS = 6, 1
 DEADLINE_MARGIN_S = 60  # train.py wraps up (final eval, train_log.json) this long before the queue kills it
 
@@ -76,6 +77,13 @@ def command(task, remaining):
     raise RuntimeError("unknown task kind: %s" % kind)
 
 
+def note(msg):
+    print(msg, flush=True)
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOG, "a") as f:
+        f.write("=== %s %s ===\n" % (time.strftime("%H:%M:%S"), msg))
+
+
 def dependencies_done(queue, task):
     states = {t["id"]: t["state"] for t in queue["tasks"]}
     return all(states.get(dep) == "done" for dep in task.get("depends", []))
@@ -108,7 +116,7 @@ def run(path, poll_seconds):
                 f.close()
             expire(queue)
             save(path, queue)
-            print("deadline reached; queue cleared")
+            note("deadline reached; queue cleared")
             return
 
         for task_id, proc in list(running.items()):
@@ -122,7 +130,7 @@ def run(path, poll_seconds):
             queue["history"].append(task.copy())
             running.pop(task_id)
             save(path, queue)
-            print("%s %s" % (task_id, task["state"]), flush=True)
+            note("%s %s (exit %d)" % (task_id, task["state"], rc))
 
         used_cpu = sum(next(t for t in queue["tasks"] if t["id"] == i)["slots"] for i in running)
         used_gpu = sum(1 for i in running if next(t for t in queue["tasks"] if t["id"] == i)["resource"] == "gpu")
@@ -139,25 +147,21 @@ def run(path, poll_seconds):
                 task["state"], task["error"] = "failed", str(e)
                 queue["history"].append(task.copy())
                 save(path, queue)
+                note("%s failed to start: %s" % (task["id"], e))
                 continue
-            # One stable path makes live monitoring independent of task names.
-            log_path = ROOT / "out" / "training.log"
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            log = open(log_path, "a")
-            log.write("\n=== %s started %s ===\n" % (task["id"], time.strftime("%Y-%m-%d %H:%M:%S")))
-            log.flush()
+            note("started %s: %s" % (task["id"], " ".join(argv)))
+            log = open(LOG, "a")
             proc = subprocess.Popen(argv, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             task["state"], task["pid"], task["started_at"] = "running", proc.pid, now
             running[task["id"]], logs[task["id"]] = proc, log
             used_cpu += task["slots"] if task["resource"] == "cpu" else 0
             used_gpu += 1 if task["resource"] == "gpu" else 0
             save(path, queue)
-            print("started %s: %s" % (task["id"], " ".join(argv)), flush=True)
 
         if not running and not any(t["state"] == "pending" for t in queue["tasks"]):
             queue["state"] = "done"
             save(path, queue)
-            print("queue complete")
+            note("queue complete")
             return
         time.sleep(poll_seconds)
 
