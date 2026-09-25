@@ -1,9 +1,9 @@
 # Street Fighter II: The World Warrior (USA), SHA1 7DDCB96E0D9FEA94D9370635262AC7C28DA85214
-# Fighter state.  Player 1 starts on the left; x uses the active-player
-# coordinate while the opponent coordinate is held equal to preserve facing.
+# Fighter state. Player 1 starts on the left. The opponent-side anchor keeps
+# the directional controller facing right during the opening approach.
 my_hp      0x0D12   2     0
 opp_hp     0x0F12   2     0
 my_x       0x00B2   1     0
-opp_x      0x00B2   1     0
+opp_x      0x001B   1     0
 my_y       0x0D10   2     0
 opp_y      0x0F10   2     0
