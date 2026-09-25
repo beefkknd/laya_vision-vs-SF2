@@ -7,6 +7,7 @@
 Each --data dir is sampled as its own group, in equal shares by default (``--mix name=weight`` to change it),
 which is how seed and DAgger rows are merged 50/50 without one swamping the other.
 Early stopping watches val *frame accuracy against the teacher*; the real verdict is scripts/gate.py.
+``--max-minutes`` is wall time for the whole run: model load and every eval, the final one included, come out of it.
 """
 import argparse
 import json
@@ -21,6 +22,25 @@ from sf2.config import BASE_MODEL
 
 class EarlyStop(Exception):
     pass
+
+
+def split_val(train, val, limit, seed):
+    """Cap val at ``limit`` frames; with no val.jsonl anywhere, hold out a slice of train instead."""
+    rng = random.Random(seed)
+    if len(val) > limit:
+        val = rng.sample(val, limit)
+    if not val:
+        rng.shuffle(train)
+        n = min(len(train) // 20, limit)
+        val, train = train[:n], train[n:]
+    return train, val
+
+
+def training_minutes(max_minutes, spent_s, eval_s):
+    """Budget handed to the training loop, given the seconds already spent and one eval's duration.
+
+    The loop's clock covers its own evals; what is left over pays for the final eval and the save."""
+    return max(1.0, max_minutes - (spent_s + eval_s) / 60 - 0.5)
 
 
 def main():
@@ -38,16 +58,17 @@ def main():
     ap.add_argument("--lr-backbone", type=float, default=None, help="default 2e-4 for lora, 2e-5 otherwise")
     ap.add_argument("--eval-every", type=int, default=250)
     ap.add_argument("--patience", type=int, default=3, help="evals without val-accuracy gain before stopping")
-    ap.add_argument("--val-limit", type=int, default=1500)
+    ap.add_argument("--val-limit", type=int, default=600, help="val frames per eval (~0.15 s each on MPS)")
     ap.add_argument("--mix", action="append", default=[], help="group=weight, e.g. dagger_r1_hot=0.5")
     ap.add_argument("--temperature", choices=["one", "keep"], default="one",
                     help="'one' resets the choice temperature to 1.0 (the base checkpoint's photo-fitted value "
                          "flattens game policies); 'keep' leaves it")
-    ap.add_argument("--max-minutes", type=float, default=None)
-    ap.add_argument("--workers", type=int, default=0)
+    ap.add_argument("--max-minutes", type=float, default=None, help="wall-clock budget for the whole run")
+    ap.add_argument("--workers", type=int, default=4, help="data-loader processes (0 = load on the GPU thread)")
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
+    t_start = time.time()
 
     import laya
     import laya.vlm_train as vt
@@ -59,12 +80,7 @@ def main():
         train += vt.load_jsonl_examples(root, name, "train")
         if os.path.exists(os.path.join(d, "val.jsonl")):
             val += vt.load_jsonl_examples(root, name, "val")
-    rng = random.Random(args.seed)
-    if len(val) > args.val_limit:
-        val = rng.sample(val, args.val_limit)
-    if not val:
-        rng.shuffle(train)
-        val, train = train[: len(train) // 20], train[len(train) // 20:]
+    train, val = split_val(train, val, args.val_limit, args.seed)
     print("train %d frames, val %d frames, init %s, mode %s" % (len(train), len(val), args.init, args.mode))
 
     if args.mode == "lora":
@@ -98,8 +114,8 @@ def main():
         t = time.time()
         m = vt.metrics_from(vt.collect_logits(agent.model, agent.processor, val, batch_size=16))
         agent.model.train()
-        hist.append({"step": step, **{k: v for k, v in m.items()}})
-        print("eval step %d (%.0fs): %s" % (step, time.time() - t, vt.format_metrics(m)), flush=True)
+        hist.append({"step": step, "seconds": time.time() - t, **{k: v for k, v in m.items()}})
+        print("eval step %d (%.0fs): %s" % (step, hist[-1]["seconds"], vt.format_metrics(m)), flush=True)
         if m["all"]["acc"] > best["acc"]:
             best.update(acc=m["all"]["acc"], step=step, bad=0)
             save(os.path.join(args.out, "best"))
@@ -111,12 +127,16 @@ def main():
         return True
 
     eval_fn(0)
+    train_minutes = None
+    if args.max_minutes is not None:
+        train_minutes = training_minutes(args.max_minutes, time.time() - t_start, hist[0]["seconds"])
+        print("budget %.1f min, %.1f for the training loop" % (args.max_minutes, train_minutes))
     steps = max(1, int(args.epochs * len(train) / args.batch_size))
     mix = {k: float(v) for k, v in (s.split("=") for s in args.mix)} or None
     try:
         vt.train(agent.model, agent.processor, train, steps=steps, batch_size=args.batch_size, freeze=args.mode,
                  n_last=args.n_last, lr_head=args.lr_head, lr_backbone=lr_backbone, device=str(agent.device),
-                 seed=args.seed, log_every=25, max_minutes=args.max_minutes, num_workers=args.workers,
+                 seed=args.seed, log_every=25, max_minutes=train_minutes, num_workers=args.workers,
                  warmup=min(100, steps // 10), eval_fn=eval_fn, eval_every=args.eval_every, mix_weights=mix)
         eval_fn(steps)
     except EarlyStop:

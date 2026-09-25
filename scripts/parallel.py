@@ -121,6 +121,8 @@ def main():
     if failed:
         print("FAILED: %s (see out/parallel/<name>.log); merging the rest" % ", ".join(failed))
     ok = [d for d, (_, _, name) in zip(dirs, procs) if name not in failed]
+    if not ok:  # an empty dataset marked _READY would look trainable and block re-using the name
+        sys.exit("every worker failed; nothing merged")
     counts, g = merge(ok, os.path.join(known.out, known.name), args.script, known.model)
     print("merged %s -> %s" % (counts, os.path.join(known.out, known.name)))
     if g:

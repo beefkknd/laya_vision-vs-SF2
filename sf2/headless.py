@@ -28,7 +28,9 @@ def bridge_for_port(port: int, out_dir: str = os.path.join(ROOT, "out", "bridge"
 
 
 def find_mesen(explicit: str = None) -> str:
-    for cand in (explicit, os.environ.get("SF2_MESEN"), MAC_MESEN):
+    # ~/Applications is where a per-user drag install lands; the app may keep its "Mesen 2" download name
+    user_apps = ["~/Applications/%s.app/Contents/MacOS/Mesen" % app for app in ("Mesen", "Mesen 2")]
+    for cand in (explicit, os.environ.get("SF2_MESEN"), MAC_MESEN, *user_apps):
         if cand and os.path.exists(os.path.expanduser(cand)):
             return os.path.expanduser(cand)
     raise FileNotFoundError("Mesen binary not found: pass --mesen or set SF2_MESEN (on macOS usually %s)"
