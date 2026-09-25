@@ -3,7 +3,7 @@
 Pipelined rounds: train round N on data already on disk while the CPU pool
 collects round N+1's data, then run the pool:
 
-    python scripts/training_queue.py create --minutes 30 --collect-name seed_chunli_r5 \\
+    python scripts/training_queue.py create --collect-name seed_chunli_r5 \\
       --savestate states/<fight>.state --rom "$SF2_ROM" \\
       --train-out runs/chunli_r5 --train-init runs/chunli_r4/best \\
       --train-data data/seed_chunli_r4 --train-data data/dagger_chunli_r2
@@ -15,7 +15,8 @@ own ``data/<collect-name>``; otherwise both start at once.
 The pool has one GPU slot and six CPU slots. Collection occupies all six CPU
 slots through ``parallel.py``; training occupies the single GPU slot (plus its
 data-loader processes on the remaining cores). At the deadline it stops running
-queue jobs and moves pending work to history.
+queue jobs and moves pending work to history; without ``--minutes`` there is no
+deadline and training runs its full epoch (or early-stops).
 """
 import argparse
 import json
@@ -71,8 +72,9 @@ def command(task, remaining):
         argv = [sys.executable, "scripts/train.py"]
         for data in spec["data"]:
             argv += ["--data", data]
-        argv += ["--init", spec["init"], "--out", spec["out"], "--epochs", "1", "--batch-size", "8",
-                 "--patience", "3", "--max-minutes", "%.2f" % ((remaining - DEADLINE_MARGIN_S) / 60)]
+        argv += ["--init", spec["init"], "--out", spec["out"], "--epochs", "1", "--batch-size", "8", "--patience", "3"]
+        if remaining is not None:  # no deadline: train runs its epoch (or early-stops)
+            argv += ["--max-minutes", "%.2f" % ((remaining - DEADLINE_MARGIN_S) / 60)]
         return argv
     raise RuntimeError("unknown task kind: %s" % kind)
 
@@ -105,7 +107,7 @@ def run(path, poll_seconds):
     logs = {}
     while True:
         now = time.time()
-        if now >= queue["deadline"]:
+        if queue["deadline"] is not None and now >= queue["deadline"]:
             for task_id, proc in running.items():
                 os.killpg(proc.pid, signal.SIGTERM)
                 task = next(t for t in queue["tasks"] if t["id"] == task_id)
@@ -142,7 +144,7 @@ def run(path, poll_seconds):
             if task["resource"] == "gpu" and (used_gpu >= GPU_SLOTS or live_external_gpu()):
                 continue
             try:
-                argv = command(task, queue["deadline"] - now)
+                argv = command(task, None if queue["deadline"] is None else queue["deadline"] - now)
             except RuntimeError as e:
                 task["state"], task["error"] = "failed", str(e)
                 queue["history"].append(task.copy())
@@ -184,7 +186,7 @@ def create(args):
         "version": 1,
         "state": "running",
         "created_at": time.time(),
-        "deadline": time.time() + args.minutes * 60,
+        "deadline": None if args.minutes is None else time.time() + args.minutes * 60,
         "pool": {"gpu": GPU_SLOTS, "cpu": CPU_SLOTS},
         "history": [],
         "tasks": [
@@ -198,8 +200,9 @@ def create(args):
         ],
     }
     save(path, queue)
-    print("created %s: 6 CPU collection slots + 1 GPU training slot, %.0f-minute deadline, train %s"
-          % (path, args.minutes, "after collect" if waits else "alongside collect"))
+    print("created %s: 6 CPU collection slots + 1 GPU training slot, %s, train %s"
+          % (path, "no deadline" if args.minutes is None else "%.0f-minute deadline" % args.minutes,
+             "after collect" if waits else "alongside collect"))
 
 
 def main():
@@ -207,7 +210,7 @@ def main():
     sub = ap.add_subparsers(dest="command", required=True)
     c = sub.add_parser("create")
     c.add_argument("--queue", default=str(DEFAULT_QUEUE))
-    c.add_argument("--minutes", type=float, default=30)
+    c.add_argument("--minutes", type=float, default=None, help="queue deadline; default none (train runs its epoch)")
     c.add_argument("--collect-name", required=True)
     c.add_argument("--collect-decisions", type=int, default=18000)
     c.add_argument("--base-port", type=int, default=47940)

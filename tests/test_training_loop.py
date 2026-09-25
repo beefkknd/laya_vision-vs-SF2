@@ -128,3 +128,28 @@ def test_runner_status_lines_land_in_the_training_log(tmp_path, monkeypatch):
     text = log.read_text()
     for line in ("task output", "started collect", "collect done", "queue complete"):
         assert line in text
+
+
+def test_queue_without_minutes_has_no_deadline_and_train_runs_to_the_end(tmp_path):
+    rom, mesen = tmp_path / "sf2.sfc", tmp_path / "Mesen"
+    rom.write_bytes(b"")
+    mesen.write_bytes(b"")
+    args = argparse.Namespace(queue=str(tmp_path / "q.json"), minutes=None, collect_name="seed_r5",
+                              collect_decisions=100, base_port=47940, eps=0.2, savestate="states/x.state",
+                              me="chunli", opp="dhalsim", train_out="runs/zz_test", train_init="runs/init",
+                              train_data=["data/seed_r4"], rom=str(rom), mesen=str(mesen))
+    tq.create(args)
+    queue = tq.load(tmp_path / "q.json")
+    assert queue["deadline"] is None
+    train_task = next(t for t in queue["tasks"] if t["id"] == "train")
+    assert "--max-minutes" not in tq.command(train_task, remaining=None)
+
+
+def test_runner_finishes_a_queue_with_no_deadline(tmp_path, monkeypatch):
+    monkeypatch.setattr(tq, "LOG", tmp_path / "training.log")
+    monkeypatch.setattr(tq, "command", lambda task, remaining: [sys.executable, "-c", "pass"])
+    q = tmp_path / "q.json"
+    tq.save(q, {"version": 1, "state": "running", "created_at": 0, "deadline": None, "history": [],
+                "tasks": [{"id": "collect", "kind": "collect", "resource": "cpu", "slots": 6, "state": "pending"}]})
+    tq.run(q, poll_seconds=0.05)
+    assert tq.load(q)["state"] == "done"
