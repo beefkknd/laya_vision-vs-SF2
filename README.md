@@ -62,7 +62,7 @@ Directions are relative: `forward` is toward the opponent, `back` is away, and `
    uv venv -p 3.12 && source .venv/bin/activate
    uv pip install -e '.[model,dev]'
    uv pip install "laya @ git+https://github.com/r33drichards/laya-vision@568feeeada793f70f736756b0f3a7643d1e75910"
-   pytest -q      # 20 tests. Needs no ROM or model; the Lua-bridge tests run only if lua5.4 + LuaSocket are installed
+   pytest -q      # 22 tests. Needs no ROM or model; the Lua-bridge tests run only if lua5.4 + LuaSocket are installed
    ```
 4. **Load the bridge.** In Mesen's Script Window: Open → `mesen/sf2_bridge.lua` → Run. It shows "waiting for a Python script". Leave it loaded.
 5. **Speed.** For recording yourself, play at normal speed. For teacher collection and student play, set Mesen's emulation speed to maximum; the bridge still waits for Python on every decision.
@@ -112,7 +112,20 @@ python scripts/relabel.py --rollout rollouts/r0 --name filter_r1 --mode filter
 
 On day 7, compare `scripts/gate.py rollouts/teacher rollouts/r0 rollouts/r1 rollouts/r2`. If win rate and damage per round have not moved, the labels are too coarse. Fix the teacher or add a macro; don't collect more frames.
 
-**Headless runs.** Mesen 2 can run without a window: `Mesen --testrunner <rom> mesen/sf2_bridge.lua`. Pass that as `--launch "<command>"` (or set `SF2_MESEN_LAUNCH`), and Python starts Mesen itself and ends it when done. I haven't confirmed that screenshots work in test-runner mode. If `check_env.py --launch ...` saves blank images, use the windowed setup above.
+## Headless and parallel runs
+
+Every emulator script takes `--headless`. It then starts its own windowless Mesen (`Mesen --testrunner <rom> <bridge>`) on its own port, so no window or script loading is needed. Set `SF2_ROM` (and `SF2_MESEN` if Mesen isn't in `/Applications`). Screenshots switch to Mesen's raw screen buffer automatically if the headless PNGs come back blank.
+
+`scripts/parallel.py` runs N of those at once, each with a different seed and a random idle start, so the workers don't replay the same fight. It splits `--decisions` / `--matches` between them and merges the results into the usual `data/<name>` / `rollouts/<name>`:
+
+```bash
+export SF2_ROM=~/roms/sf2.sfc
+python scripts/parallel.py --workers 4 collect_teacher --name seed_teacher --decisions 40000 --eps 0.25
+python scripts/parallel.py --workers 4 play_student --model runs/r0/best --name r0 --matches 12
+WORKERS=4 scripts/dagger_round.sh 1
+```
+
+Parallel workers make **collection and evaluation** faster. Training stays one process on the GPU. [AGENTS.md](AGENTS.md) is the runbook for coding agents, including worker counts for a Mac mini M4.
 
 ## Check these on day 1 (the likely breakpoints)
 

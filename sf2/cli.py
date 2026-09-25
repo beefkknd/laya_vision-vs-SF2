@@ -12,6 +12,17 @@ def add_env_args(ap: argparse.ArgumentParser, savestate: bool = True, ram_map: b
                    help="command that starts Mesen with the ROM and the bridge script, e.g. "
                         "'/Applications/Mesen.app/Contents/MacOS/Mesen --testrunner ~/roms/sf2.sfc "
                         "mesen/sf2_bridge.lua' (default: $SF2_MESEN_LAUNCH; unset = load the script by hand)")
+    g.add_argument("--headless", action="store_true",
+                   help="start a windowless Mesen (--testrunner) for this run; needs --rom / $SF2_ROM and "
+                        "--mesen / $SF2_MESEN (default /Applications/Mesen.app/Contents/MacOS/Mesen)")
+    g.add_argument("--rom", default=os.environ.get("SF2_ROM"))
+    g.add_argument("--mesen", default=os.environ.get("SF2_MESEN"))
+    g.add_argument("--capture", choices=["auto", "png", "raw"], default="auto",
+                   help="screenshot path; auto switches to raw when PNGs come back blank (headless)")
+    g.add_argument("--seed", type=int, default=0)
+    g.add_argument("--jitter", type=int, default=30,
+                   help="up to this many idle frames after each savestate load, so parallel workers and "
+                        "repeated matches do not replay the identical fight")
     if savestate:
         g.add_argument("--savestate", default=DEFAULT_SAVESTATE, help="fight-start savestate (record_human.py, F9)")
     if ram_map:
@@ -23,7 +34,19 @@ def add_env_args(ap: argparse.ArgumentParser, savestate: bool = True, ram_map: b
 def bridge(args):
     from .mesen import MesenBridge
 
-    return MesenBridge(args.port, launch=args.launch)
+    launch = args.launch
+    if args.headless:
+        from .headless import launch_argv
+
+        launch = launch_argv(args.port, args.rom, args.mesen)
+    b = MesenBridge(args.port, launch=launch)
+    if args.capture != "auto":
+        b.set_capture(args.capture)
+    return b
+
+
+def _blank(img) -> bool:
+    return img is None or int(img.max()) == int(img.min())
 
 
 def make_env(args):
@@ -33,4 +56,10 @@ def make_env(args):
     ram_map = load_map(args.ram_map)
     with open(args.savestate, "rb") as f:
         state = f.read()
-    return FightEnv(bridge(args), ram_map, state, me=args.me, opp=args.opp)
+    b = bridge(args)
+    if args.capture == "auto":
+        b.set_vars([])
+        if _blank(b.load_state(state).images.get(0)):
+            print("screenshots came back blank: switching to the raw screen buffer", flush=True)
+            b.set_capture("raw")
+    return FightEnv(b, ram_map, state, me=args.me, opp=args.opp, seed=args.seed, jitter=args.jitter)

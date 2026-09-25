@@ -25,6 +25,7 @@ def _dist(weights: Dict[str, float]) -> Dict[str, float]:
 
 
 def teacher_policy(f: Fighters, c: Context, character: str = "ryu") -> Dict[str, float]:
+    character = character.lower().replace("-", "").replace("_", "").replace(" ", "")  # "Chun-Li" -> "chunli"
     dx = f.dx
     fireball_ready = c.frames_since_fireball >= FIREBALL_COOLDOWN
     if c.my_air:  # jump-in: kick on the way down

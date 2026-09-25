@@ -6,6 +6,7 @@ end). Rounds and matches are tracked from the life values. An episode is one mat
 when either side has two round wins, and ``reset()`` reloads the savestate, so the opponent never changes under
 the gate.
 """
+import random
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Deque, List, Optional
@@ -19,6 +20,7 @@ from .config import PREV_GAP
 AIR_DY = 6          # |y - standing y| above this = airborne
 INTRO_SKIP = 90     # frames after the life bars refill before a round really starts ("ROUND 2 ... FIGHT!")
 MAX_WAIT = 1800     # safety cap while waiting through KO / time-over screens
+MAX_ROUNDS = 5      # SF2 ends a match after the 5th round even on draws; never loop forever
 WAIT_CHUNK = 30
 
 
@@ -45,7 +47,8 @@ class Context:
 class FightEnv:
     """``backend``: a MesenBridge (or a test fake) with set_vars / run / load_state."""
 
-    def __init__(self, backend, ram_map: List[ram.Var], savestate: bytes, me: str = "ryu", opp: str = "ken"):
+    def __init__(self, backend, ram_map: List[ram.Var], savestate: bytes, me: str = "ryu", opp: str = "ken",
+                 seed: int = 0, jitter: int = 0):
         self.backend = backend
         self.names = [v.name for v in ram_map]
         backend.set_vars(ram_map)
@@ -53,6 +56,8 @@ class FightEnv:
         self.me, self.opp = me, opp
         self.episode = -1
         self.done = False
+        self.rng = random.Random(seed)
+        self.jitter = jitter
 
     # ------------------------------------------------------------------ helpers
     def _f(self, values) -> ram.Fighters:
@@ -99,7 +104,11 @@ class FightEnv:
         self.last_hit = -10_000
         self.last_fireball = -10_000
         self.in_round = True
-        return img
+        if self.jitter:  # desynchronise the CPU's randomness between workers / matches
+            self.run_frames([[]] * self.rng.randint(1, self.jitter))
+            self.frame_no = 0
+            self.ground = (self.f.my_y, self.f.opp_y)
+        return self.frame
 
     @property
     def frame(self) -> np.ndarray:
@@ -163,14 +172,18 @@ class FightEnv:
 
     def next_round(self) -> bool:
         """Advance through KO / time-over screens. Returns False when the match (episode) is over."""
-        if self.wins["me"] >= 2 or self.wins["opp"] >= 2 or self.done:
+        if self.wins["me"] >= 2 or self.wins["opp"] >= 2 or self.done or self.round + 1 >= MAX_ROUNDS:
             return False
         waited = 0
-        while waited < MAX_WAIT:
+        while True:
             fs = self.run_frames([[]] * WAIT_CHUNK, capture=False)
             waited += WAIT_CHUNK
             if fs[-1].my_hp == self.full_hp and fs[-1].opp_hp == self.full_hp:
                 break
+            if waited >= MAX_WAIT:  # bars never refilled (continue screen, match over): end the episode
+                print("next_round: life bars did not refill within %d frames; ending the match" % MAX_WAIT,
+                      flush=True)
+                return False
         self.run_frames([[]] * INTRO_SKIP)
         self.round += 1
         self.last = "idle"

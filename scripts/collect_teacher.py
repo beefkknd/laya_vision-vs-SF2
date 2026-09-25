@@ -25,7 +25,6 @@ def main():
     ap.add_argument("--decisions", type=int, default=30000)
     ap.add_argument("--max-matches", type=int, default=10000)
     ap.add_argument("--eps", type=float, default=0.25)
-    ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
     rng = random.Random(args.seed)
 

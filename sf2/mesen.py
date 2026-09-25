@@ -33,14 +33,14 @@ def decode_png(data: bytes) -> np.ndarray:
 
 
 class MesenBridge:
-    def __init__(self, port: int = MESEN_PORT, launch: Optional[str] = None, timeout: float = 300.0):
+    def __init__(self, port: int = MESEN_PORT, launch=None, timeout: float = 300.0):
         srv = socket.create_server(("127.0.0.1", port))
         srv.settimeout(timeout)
         self.proc = None
         print("waiting for Mesen on 127.0.0.1:%d - load mesen/sf2_bridge.lua in Mesen's Script Window" % port,
               flush=True)
-        if launch:
-            self.proc = subprocess.Popen(shlex.split(launch))
+        if launch:  # a command line string, or an argv list (paths with spaces)
+            self.proc = subprocess.Popen(shlex.split(launch) if isinstance(launch, str) else list(launch))
         conn, _ = srv.accept()
         srv.close()
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -86,8 +86,12 @@ class MesenBridge:
         inputs = [[] if (l := self._line()) == "-" else l.split("+") for _ in range(ni)]
         images = {}
         for _ in range(nimg):
-            _, idx, ln = self._line().split()
-            images[int(idx)] = decode_png(self._read(int(ln)))
+            h = self._line().split()
+            if h[0] == "RAW":
+                idx, w, hgt, ln = map(int, h[1:5])
+                images[idx] = np.frombuffer(self._read(ln), np.uint8).reshape(hgt, w, 3).copy()
+            else:
+                images[int(h[1])] = decode_png(self._read(int(h[2])))
         state = self._read(slen) if slen else None
         return Obs(rams, inputs, images, state)
 
@@ -119,6 +123,12 @@ class MesenBridge:
     def save_state(self) -> bytes:
         self._send("SAVESTATE")
         return self._obs().state
+
+    def set_capture(self, mode: str) -> None:
+        """'png' (emu.takeScreenshot) or 'raw' (screen buffer; for headless runs where PNGs come back blank)."""
+        self._send("CAPTURE %s" % mode)
+        if self._line() != "OK":
+            raise RuntimeError("CAPTURE not accepted")
 
     def reset(self) -> Obs:
         self._send("RESET")

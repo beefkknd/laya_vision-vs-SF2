@@ -29,7 +29,7 @@ def main():
     ap.add_argument("--device", default=None)
     args = ap.parse_args()
 
-    pol = LayaPolicy(args.model, device=args.device, sample=args.sample)
+    pol = LayaPolicy(args.model, device=args.device, sample=args.sample, seed=args.seed)
 
     def choose(env, prev, cur, text, t_dist):
         a, probs = pol.act(prev, cur, text)

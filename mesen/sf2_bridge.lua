@@ -15,13 +15,16 @@
 --   LOADSTATE <len>            + len bytes of a savestate made by SAVESTATE
 --   SAVESTATE                  save now; bytes come back in the report
 --   RESET                      reset the cartridge and report its new initial state
+--   CAPTURE png|raw            screenshots as PNG (takeScreenshot) or raw RGB from the screen buffer; use raw when
+--                              PNGs come back blank (headless --testrunner runs)
 --   DUMP                       whole 128 KiB WRAM
 --   QUIT                       disconnect, keep emulating, wait for the next Python run
 --   EXIT                       end the Mesen process (headless --testrunner runs)
 -- F9 while a WATCH is running saves a savestate; it comes back in that WATCH's report.
 -- Report (to Python), after every command:
 --   OBS <nrams> <ninputs> <nimgs> <statelen>, then nrams csv lines (RAM before frame 0..n), ninputs lines of
---   pressed buttons, nimgs x ("IMG <frame> <len>" + png bytes), then <statelen> savestate bytes.
+--   pressed buttons, nimgs x ("IMG <frame> <len>" + png bytes, or "RAW <frame> <w> <h> <len>" + RGB bytes),
+--   then <statelen> savestate bytes.
 
 local HOST, PORT = "127.0.0.1", 47800
 do  -- SF2_BRIDGE_PORT overrides the port (needs "Allow access to I/O and OS functions"; ignored otherwise)
@@ -82,6 +85,24 @@ local mode, n, k = nil, 0, 0          -- mode: nil (waiting) | "run" | "watch" |
 local plan, caps, every = {}, {}, 0
 local rams, inputs, imgs, state = {}, {}, {}, nil
 local cbRef, f9Down = nil, false
+local capture = "png"
+
+-- one screenshot: a PNG string, or {w, h, rgb bytes} from the raw ARGB screen buffer
+local function grab()
+  if capture == "png" then return emu.takeScreenshot() end
+  local size = emu.getScreenSize()
+  local buf = emu.getScreenBuffer()
+  local parts, chunk = {}, {}
+  for i = 1, #buf do
+    local c = buf[i]
+    chunk[#chunk + 1] = (c >> 16) & 0xFF
+    chunk[#chunk + 1] = (c >> 8) & 0xFF
+    chunk[#chunk + 1] = c & 0xFF
+    if #chunk >= 3072 then parts[#parts + 1] = string.char(table.unpack(chunk)); chunk = {} end
+  end
+  if #chunk > 0 then parts[#parts + 1] = string.char(table.unpack(chunk)) end
+  return {size.width, size.height, table.concat(parts)}
+end
 
 local function readVars()
   local t = {}
@@ -113,9 +134,14 @@ local function report()
   send(string.format("OBS %d %d %d %d\n", #rams, #inputs, nimg, state and #state or 0))
   for _, line in ipairs(rams) do send(line .. "\n") end
   for _, line in ipairs(inputs) do send(line .. "\n") end
-  for idx, png in pairs(imgs) do
-    send(string.format("IMG %d %d\n", idx, #png))
-    send(png)
+  for idx, img in pairs(imgs) do
+    if type(img) == "string" then
+      send(string.format("IMG %d %d\n", idx, #img))
+      send(img)
+    else
+      send(string.format("RAW %d %d %d %d\n", idx, img[1], img[2], #img[3]))
+      send(img[3])
+    end
   end
   if state then send(state) end
   rams, inputs, imgs, state = {}, {}, {}, nil
@@ -165,6 +191,9 @@ local function serve()
       emu.reset()
       mode, n, k, caps = "run", 0, 0, {[0] = true}
       return
+    elseif op == "CAPTURE" then
+      capture = cmd[2] == "raw" and "raw" or "png"
+      send("OK\n")
     elseif op == "DUMP" then
       local size = emu.getMemorySize(WRAM)
       local parts, chunk = {}, {}
@@ -210,7 +239,7 @@ local function onPoll()
     -- index k: state before frame k (k == n: after the last one)
     rams[#rams + 1] = readVars()
     if caps[k] or (mode == "watch" and every > 0 and k % every == 0 and k < n) then
-      imgs[k] = emu.takeScreenshot()
+      imgs[k] = grab()
     end
     if mode == "watch" and k < n then
       inputs[#inputs + 1] = pressed()

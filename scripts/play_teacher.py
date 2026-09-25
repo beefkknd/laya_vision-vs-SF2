@@ -8,6 +8,7 @@ import os
 
 import _path  # noqa: F401
 from sf2.cli import add_env_args, make_env
+from sf2.dataset import write_jsonl
 from sf2.loop import play, save_rounds
 from sf2.rollout import gate
 from sf2.teacher import argmax
@@ -23,7 +24,7 @@ def main():
     args = ap.parse_args()
     import random
 
-    rng = random.Random(0)
+    rng = random.Random(args.seed)
 
     def choose(env, prev, cur, text, t_dist):
         if args.policy == "random":
@@ -37,6 +38,7 @@ def main():
     env.close()
     os.makedirs(os.path.join(args.out, args.name), exist_ok=True)
     save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)
+    write_jsonl("%s/%s/rows.jsonl" % (args.out, args.name), ({"episode": r["episode"], "meta": r["meta"]} for r in rows))
     g = gate(rows, rounds)
     g.update(model=args.policy, savestate=args.savestate)
     with open("%s/%s/gate.json" % (args.out, args.name), "w") as f:
