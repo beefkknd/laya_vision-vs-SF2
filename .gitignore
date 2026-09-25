@@ -1,0 +1,6 @@
+data/
+rollouts/
+runs/
+out/
+states/*.state
+*.md~

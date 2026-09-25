@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "laya-vision-vs-sf2"
+version = "0.1.0"
+description = "Teach laya-vision (image -> typed choice) to play Street Fighter II with a frame-level teacher + DAgger"
+requires-python = ">=3.11"
+dependencies = [
+    "stable-retro==1.0.1",      # Genesis emulator + SF2 SCE integration (macOS arm64 wheels)
+    "numpy",
+    "pillow",
+    "pygame",                   # human pad recording / savestate maker
+]
+
+[project.optional-dependencies]
+# The model side. laya-vision is not on PyPI; install it pinned (see README).
+model = ["torch>=2.3", "torchvision", "transformers>=4.45", "safetensors", "huggingface_hub"]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = ["sf2"]

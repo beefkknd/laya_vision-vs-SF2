@@ -1,0 +1,51 @@
+"""Day 2: dump the seed set from the scripted teacher (rung 2 of the teacher ladder).
+
+    python scripts/collect_teacher.py --out data --name seed_teacher --decisions 30000 --eps 0.25
+
+The teacher plays full matches from the savestate. With probability ``--eps`` it executes a random option
+instead of its own (epsilon-expert), so the data covers states its own play would never reach; every frame is
+still labelled with the teacher's distribution. Every 10th match goes to val.
+"""
+import argparse
+import random
+
+import _path  # noqa: F401
+from sf2 import actions as A
+from sf2.config import DEFAULT_STATE
+from sf2.dataset import Writer
+from sf2.env import FightEnv
+from sf2.loop import play, save_rounds
+from sf2.rollout import gate
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--state", default=DEFAULT_STATE)
+    ap.add_argument("--me", default="ryu")
+    ap.add_argument("--opp", default="guile")
+    ap.add_argument("--out", default="data")
+    ap.add_argument("--name", default="seed_teacher")
+    ap.add_argument("--decisions", type=int, default=30000)
+    ap.add_argument("--max-matches", type=int, default=10000)
+    ap.add_argument("--eps", type=float, default=0.25)
+    ap.add_argument("--seed", type=int, default=0)
+    args = ap.parse_args()
+    rng = random.Random(args.seed)
+
+    def choose(env, prev, cur, text, t_dist):
+        if rng.random() < args.eps:
+            return rng.choice(A.ACTIONS), {"actor": "random"}
+        acts = list(t_dist)
+        return rng.choices(acts, weights=[t_dist[a] for a in acts])[0], {"actor": "teacher"}
+
+    env = FightEnv(args.state, me=args.me, opp=args.opp)
+    w = Writer(args.out, args.name, source=args.name)
+    rows, rounds = play(env, choose, args.max_matches, writer=w, max_decisions=args.decisions)
+    w.close()
+    save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)
+    print("wrote", w.n, "->", w.dir)
+    print("teacher (eps=%.2f) gate:" % args.eps, gate(rows, rounds))
+
+
+if __name__ == "__main__":
+    main()
