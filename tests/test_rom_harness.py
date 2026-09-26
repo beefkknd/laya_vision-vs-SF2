@@ -87,3 +87,19 @@ def test_an_idle_match_is_two_lost_rounds_and_every_round_starts_controllable(en
         if not env.next_round():
             break
     assert winners == ["opp", "opp"]
+
+
+def test_block_guards_the_attack_that_hits_an_idle_fighter(env):
+    env.reset()
+    while env.f.my_hp == FULL:                      # when does Dhalsim first hit an idle Chun-Li?
+        env.run_frames([[]], capture=False)
+    first_hit = env.frame_no
+    env.reset()
+    env.run_frames([[]] * (first_hit - 40), capture=False)
+    attacked = False
+    while env.frame_no < first_hit + 60:
+        env.act("block")
+        attacked |= env.f.opp_state == 0x0A
+    if not attacked:
+        pytest.xfail("Dhalsim did not attack while Chun-Li blocked")
+    assert env.f.my_hp == FULL
