@@ -62,7 +62,7 @@ def test_forward_and_back_press_toward_and_away_from_the_opponent():
 def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter():
     from trace_mesen import make_trace
 
-    rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192,
+    rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192, "timer": 0x79,
              "opp_y": 140 if 1 <= i <= 40 else 192} for i in range(101)]      # Dhalsim mid-jump early on
     env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"", seed=0, jitter=20)
     env.reset()                                    # the jitter idles 1..20 frames, while he is in the air
@@ -72,15 +72,25 @@ def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter()
 
 
 def test_time_over_goes_to_the_higher_life_without_counting_the_zeroed_bars_as_damage():
-    t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))   # timer ran out at 43 vs 25
+    t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))   # timer ran out at 51 vs 72
     env = FightEnv(TraceMesen(t), MAP, b"", seed=t["header"]["seed"], jitter=t["header"]["jitter"])
     env.reset()
     while True:
         res = env.act("idle")                      # inputs are not checked in this trace
         if res.round_over:
             break
-    assert res.winner == "me" and env.wins == {"me": 1, "opp": 0}
+    assert res.winner == "opp" and env.wins == {"me": 0, "opp": 1}
     assert (res.dmg_for, res.dmg_against) == (0, 0)
+
+
+def test_round_ends_when_the_timer_reaches_zero():
+    t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))
+    timer_zero = next(i for i, r in enumerate(t["rows"]) if r["mem"][3][16:18] == "00")   # 0x1AC8
+    env = FightEnv(TraceMesen(t), MAP, b"", seed=t["header"]["seed"], jitter=t["header"]["jitter"])
+    env.reset()
+    while not env.act("idle").round_over:
+        pass
+    assert timer_zero <= env.backend.t < timer_zero + 4   # not ~480 frames later, when the ROM zeroes the bars
 
 
 def test_first_decision_of_the_match_moves():

@@ -12,9 +12,10 @@ memory viewer:
 Addresses are hex WRAM offsets; SNES bus addresses 7E0000-7FFFFF are accepted and converted.
 """
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
+OPTIONAL = ["timer"]  # round clock (BCD on the SNES ROM); only "reached zero" is used
 
 # |x difference| in game pixels (the SNES screen is 256 wide; a fighter is ~50 wide). Check on day 1.
 CLOSE, MID = 55, 120
@@ -64,11 +65,12 @@ class Fighters:
     opp_x: int
     my_y: int
     opp_y: int
+    timer: Optional[int] = None
 
     @classmethod
     def from_values(cls, names: List[str], values: List[int]) -> "Fighters":
         d: Dict[str, int] = dict(zip(names, values))
-        return cls(*(int(d[n]) for n in REQUIRED))
+        return cls(*(int(d[n]) for n in REQUIRED), *(d.get(n) for n in OPTIONAL))
 
     @property
     def dx(self) -> int:

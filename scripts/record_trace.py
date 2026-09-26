@@ -31,7 +31,7 @@ from sf2.ram import Var, load_map
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests"))
 from trace_mesen import save  # noqa: E402
 
-WINDOWS = [[0x0000, 0x200], [0x0D00, 0x80], [0x0F00, 0x80]]
+WINDOWS = [[0x0000, 0x200], [0x0D00, 0x80], [0x0F00, 0x80], [0x1AC0, 0x10]]  # low page, fighters, timer
 MY_WX, OPP_WX = 0x0D18, 0x0F18
 DECISION = 4
 

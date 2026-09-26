@@ -164,6 +164,9 @@ class FightEnv:
             judged = before
         elif f.my_hp <= 0 or f.opp_hp <= 0:  # KO
             winner = "draw" if f.my_hp <= 0 and f.opp_hp <= 0 else "me" if f.opp_hp <= 0 else "opp"
+        elif f.timer == 0 and before.timer:
+            # time over: the ROM runs its end-of-round screens for ~480 frames before zeroing both bars
+            winner = "me" if f.my_hp > f.opp_hp else "opp" if f.opp_hp > f.my_hp else "draw"
         elif f.my_hp == full and f.opp_hp == full and (before.my_hp < full or before.opp_hp < full):
             # the bars refilled without a KO (time over, or a cart that stops at 0): higher life won
             winner = "me" if before.my_hp > before.opp_hp else "opp" if before.opp_hp > before.my_hp else "draw"

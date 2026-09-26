@@ -7,3 +7,5 @@ my_x       0x0D18   2     0
 opp_x      0x0F18   2     0
 my_y       0x0D10   2     0
 opp_y      0x0F10   2     0
+# Round clock, BCD (0x79 = 79 s at the Chun-Li savestate); the env only uses "reached zero".
+timer      0x1AC8   1     0
