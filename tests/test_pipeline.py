@@ -32,7 +32,7 @@ def test_collect_relabel_load(tmp_path):
     recs = D.read(str(tmp_path / "data/seed/train.jsonl"))
     r = recs[0]
     assert len(r["target"]) == 12 and abs(sum(r["target"]) - 1) < 1e-6
-    assert r["state_text"].startswith("me=ryu opp=ken dist=")
+    assert r["state_text"].startswith("me=ryu ") and " opp=ken " in r["state_text"] and " dist=" in r["state_text"]
     for im in r["images"]:
         assert os.path.exists(tmp_path / "data/seed" / im)
     assert all("dmg_for_next" in x["meta"] and "round_result" in x["meta"] for x in recs)

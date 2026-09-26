@@ -4,7 +4,7 @@
 
 Writes out/check/*.png. What to look for in the printout:
   * my_x grows while "forward" runs when you are on the left (and shrinks on the right).
-  * my_y changes during "jump" and comes back (airborne=1 in between).
+  * my_y changes during "jump" and comes back ("me=... jump" in the note in between).
   * lp / hp / hadouken screenshots show the move.
 If x/y never move, the RAM map is wrong: rerun scripts/find_ram.py or fix ram_maps/*.txt by hand.
 """

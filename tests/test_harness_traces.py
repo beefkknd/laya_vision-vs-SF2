@@ -178,3 +178,73 @@ def test_dhalsim_cornered_at_the_left_wall():
     fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
     near = [f for f in fs if f.opp_x <= 60 and f.opp_x < f.my_x]   # his back to the wall, she is in front
     assert len(near) > 10 and all(f.opp_cornered and not f.my_cornered for f in near)
+
+
+def _notes(name):
+    """(Fighters, note fields, note words, airborne, recorded state bytes) after every frame of a trace."""
+    env, t = _env(name)
+    out = []
+    for r in t["rows"][1:]:
+        env.run_frames([r["in"] or []], capture=False)
+        words = env.text().split()
+        out.append((env.f, dict(kv.split("=") for kv in words if "=" in kv), words, env.airborne(),
+                    (int(r["mem"][4][6:8], 16), int(r["mem"][5][6:8], 16))))
+    return out
+
+
+WORD = {0x00: "stand", 0x02: "crouch", 0x04: "stand", 0x08: "block", 0x0A: "attack", 0x0E: "hit"}
+
+
+def test_note_corner_and_facing_on_the_walls_trace():
+    notes = _notes("walls")
+    at_left = [n for f, n, *_ in notes if f.my_x == 53]
+    at_right = [n for f, n, *_ in notes if f.my_x == 459]
+    assert at_left and all(n["corner"] == "me" and n["facing"] == "right" for n in at_left)
+    assert at_right and all(n["corner"] == "me" and n["facing"] == "left" for n in at_right)
+    assert all(n["corner"] == "none" for f, n, *_ in notes if 150 <= f.my_x <= 360)
+    facing = [n["facing"] for _, n, *_ in notes]
+    flips = [i for i in range(1, len(notes)) if facing[i] != facing[i - 1]]
+    assert len(flips) >= 2 and all(notes[i][0].dx < 25 for i in flips)       # only where they cross
+    assert all(n["facing"] == ("right" if f.my_x <= f.opp_x else "left") for f, n, *_ in notes)
+
+
+def test_note_state_words_match_the_recorded_state_bytes():
+    seen = set()
+    for name in ("walls", "knockdown", "timeover", "ko_round2"):
+        for f, n, words, airs, states in _notes(name):
+            for word, air, state in zip((words[1], words[4]), airs, states):
+                want = "hit" if state == 0x0E else "jump" if air else WORD.get(state, "other")
+                assert word == want, (name, f, words)
+                seen.add(word)
+    assert seen == {"stand", "crouch", "jump", "block", "attack", "hit", "other"}
+
+
+def test_note_sees_dhalsim_cornered_and_hit():
+    assert any(n["corner"] == "opp" for f, n, *_ in _notes("knockdown") if f.opp_x <= 60 and f.opp_x < f.my_x)
+    assert any(words[4] == "hit" for _, _, words, _, _ in _notes("timeover"))
+
+
+def test_note_clock_runs_early_to_late_in_a_timed_out_round():
+    t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))
+    env = FightEnv(TraceMesen(t), MAP, b"", me="chunli", opp="dhalsim", jitter=t["header"]["jitter"])
+    env.reset()
+    seen = []
+    while True:
+        seen.append((env.f.timer, env.text().split("time=")[1].split()[0]))
+        if env.act("idle").round_over:
+            break
+    words = [w for _, w in seen]
+    assert words[0] == "early" and words[-1] == "late" and "mid" in words
+    assert words == sorted(words, key=["early", "mid", "late"].index)       # never goes back
+    assert all(w == "late" for t, w in seen if t < 0x30) and all(w == "early" for t, w in seen if t >= 0x60)
+
+
+def test_note_at_the_start_of_round_two():
+    env, t = _env("ko_round2")
+    while not env.act("idle").round_over:
+        pass
+    assert env.next_round()
+    words = env.text().split()
+    n = dict(kv.split("=") for kv in words if "=" in kv)
+    assert (words[1], words[4], n["facing"], n["corner"], n["time"]) == ("stand", "stand", "right", "none", "early")
+    assert "hp=100" in env.text() and n["last"] == "idle"

@@ -110,7 +110,29 @@ def pct(hp: int, full: int) -> int:
     return max(0, round(100 * hp / max(1, full)))
 
 
+# Action state -> the word in the note. 08 shows while holding back against his attacks with no life lost (walls
+# trace): block. 04 on the ground is take-off / landing, so "jump" comes only from the airborne rule (env.airborne).
+# Anything else (06 throws, 10-14 end-of-round poses) is "other".
+STATE_WORDS = {0x00: "stand", 0x02: "crouch", 0x04: "stand", 0x08: "block", 0x0A: "attack", HIT_STATE: "hit"}
+
+
+def state_word(state: Optional[int], air: bool) -> str:
+    if state == HIT_STATE:
+        return "hit"
+    if air:
+        return "jump"
+    return "stand" if state is None else STATE_WORDS.get(state, "other")
+
+
+def clock_word(timer: Optional[int]) -> str:
+    """Round clock (BCD seconds, 99 at the start): early 99-60, mid 59-30, late 29-0."""
+    s = 99 if timer is None else (timer >> 4) * 10 + (timer & 0xF)
+    return "early" if s >= 60 else "mid" if s >= 30 else "late"
+
+
 def text_state(f: Fighters, me: str, opp: str, last: str, my_air: bool, opp_air: bool, full_hp: int) -> str:
-    return ("me=%s opp=%s dist=%s my_hp=%d opp_hp=%d last=%s airborne=%d opp_airborne=%d"
-            % (me, opp, dist_bin(f.dx), pct(f.my_hp, full_hp), pct(f.opp_hp, full_hp), last, int(my_air),
-               int(opp_air)))
+    corner = "me" if f.my_cornered else "opp" if f.opp_cornered else "none"  # never both: they are < 212 px apart
+    return ("me=%s %s hp=%d opp=%s %s hp=%d dist=%s facing=%s corner=%s time=%s last=%s"
+            % (me, state_word(f.my_state, my_air), pct(f.my_hp, full_hp), opp, state_word(f.opp_state, opp_air),
+               pct(f.opp_hp, full_hp), dist_bin(f.dx), "right" if f.facing_right else "left", corner,
+               clock_word(f.timer), last))

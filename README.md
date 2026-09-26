@@ -45,7 +45,7 @@ Mesen 2 (your SNES ROM)                                Python (this repo)
 | Fight env | `sf2/env.py`. One call = one decision. It tracks rounds and matches from the life values; an episode is one match from your savestate |
 | RAM map (per cartridge) | `ram_maps/sf2_snes.txt`, found by `scripts/find_ram.py` (`sf2/ramsearch.py`) |
 | Action set (12) | `sf2/actions.py`: `idle forward back jump crouch lp hp lk hk block hadouken shoryuken` |
-| Text state | `me=ryu opp=ken dist=mid my_hp=80 opp_hp=45 last=hadouken airborne=0 opp_airborne=1` |
+| Text state | `me=chunli stand hp=80 opp=dhalsim jump hp=45 dist=mid facing=right corner=opp time=late last=hk` (`sf2/ram.py`: each fighter's state word stand/crouch/jump/block/attack/hit/other, whose back is to a wall, round clock early/mid/late) |
 | Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` recognises fireball and dragon-punch motions |
 | Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
 | LoRA | `scripts/train.py` + `sf2/lora.py`. Early stopping uses held-out teacher frames |

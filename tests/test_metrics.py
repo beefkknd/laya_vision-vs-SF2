@@ -59,15 +59,18 @@ def test_by_move_accuracy_separates_kicks_from_forward():
 def test_slices_cover_phase_hp_distance_and_danger():
     fw = A.ACTIONS.index("forward")
     rows = [
-        _row(fw, _probs(fw), t=3.0, text="me=chunli opp=dhalsim dist=close my_hp=100 opp_hp=100 last=idle airborne=0 opp_airborne=1"),
+        _row(fw, _probs(fw), t=3.0, text="me=chunli stand hp=100 opp=dhalsim jump hp=100 dist=close facing=right "
+                                           "corner=none time=early last=idle"),
         _row(fw, _probs(0), t=40.0, my_hp=30, opp_hp=150, hot=True,
-             text="me=chunli opp=dhalsim dist=far my_hp=17 opp_hp=85 last=hk airborne=0 opp_airborne=0"),
+             text="me=chunli jump hp=17 opp=dhalsim attack hp=85 dist=far facing=left corner=me time=mid last=hk"),
     ]
     s = M.slice_metrics([r for r, _, _ in rows], [z for _, z, _ in rows], [t for _, _, t in rows])
     assert s["by_time"]["early"]["acc"] == 1.0 and s["by_time"]["late"]["acc"] == 0.0
     assert s["by_hp"]["endgame"]["n"] == 1 and s["by_hp"]["opening"]["n"] == 1
     assert set(s["by_dist"]) == {"close", "far"}
-    assert s["by_opp_air"]["air"]["n"] == 1
+    assert s["by_opp_air"]["air"]["n"] == 1 and s["by_opp_air"]["ground"]["n"] == 1
+    old_note = "me=chunli opp=dhalsim dist=close my_hp=100 opp_hp=100 last=idle airborne=0 opp_airborne=1"
+    assert M.situation(_rec(0, 0, 0, 0, 0, text=old_note))["by_opp_air"] == "air"   # the note before 2026-09-26
     assert s["by_danger"]["hit_next"]["acc"] == 0.0
     assert 0.0 < s["all"]["p_teacher"] < 1.0
 
