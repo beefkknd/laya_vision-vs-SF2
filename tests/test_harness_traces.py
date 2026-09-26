@@ -62,8 +62,9 @@ def test_forward_and_back_press_toward_and_away_from_the_opponent():
 def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter():
     from trace_mesen import make_trace
 
-    rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192, "timer": 0x79,
-             "opp_y": 140 if 1 <= i <= 40 else 192} for i in range(101)]      # Dhalsim mid-jump early on
+    rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192, "timer": 0x79, "my_state": 0,
+             "opp_y": 140 if 1 <= i <= 40 else 192, "opp_state": 4 if 1 <= i <= 40 else 0}
+            for i in range(101)]                                               # Dhalsim mid-jump early on
     env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"", jitter=20)
     env.reset()                                    # the jitter idles while he is in the air
     for _ in range(12):
@@ -133,3 +134,18 @@ def test_parallel_workers_and_matches_all_start_differently():
             env.reset()
             idles.append(env.backend.t)            # frames idled before the first decision
     assert len(set(idles)) == 12, sorted(idles)
+
+
+def test_knocked_into_the_air_is_not_airborne_but_a_jump_is():
+    env, t = _env("knockdown")
+    state = [int(r["mem"][4][6:8], 16) for r in t["rows"]]        # Chun-Li's action state, 0x0C03
+    jump, knocked = [], []
+    for i, r in enumerate(t["rows"][1:], 1):
+        env.run_frames([r["in"]], capture=False)
+        off_ground = env.f.my_y < 185
+        if off_ground and state[i] == 0x04:
+            jump.append(env.airborne()[0])
+        if off_ground and state[i] == 0x0E:
+            knocked.append(env.airborne()[0])
+    assert len(jump) > 100 and all(jump)
+    assert len(knocked) > 50 and not any(knocked)

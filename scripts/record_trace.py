@@ -12,6 +12,7 @@ Plans:
   facing     toward x8, away x8, idle until first hit, idle 90 frames, toward x8, away x8
   start      hold toward for 150 frames straight after the savestate loads
   ko_round2  idle until the round ends and the bars refill, then hold toward 400 frames (unchecked)
+  knockdown  stand, crouch, one jump, walk in, jump in place until hit in the air, 240 more frames
   timeover   the random policy of v2_random worker 1 (use --seed 1 --jitter 30) until the round ends,
              then 600 idle frames; inputs are not checked on replay
 """
@@ -31,7 +32,8 @@ from sf2.ram import Var, load_map
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests"))
 from trace_mesen import save  # noqa: E402
 
-WINDOWS = [[0x0000, 0x200], [0x0D00, 0x80], [0x0F00, 0x80], [0x1AC0, 0x10]]  # low page, fighters, timer
+# low page, fighters (0x0D00 / 0x0F00), timer, fighter action state (0x0C00 / 0x0E00)
+WINDOWS = [[0x0000, 0x200], [0x0D00, 0x80], [0x0F00, 0x80], [0x1AC0, 0x10], [0x0C00, 0x80], [0x0E00, 0x80]]
 MY_WX, OPP_WX = 0x0D18, 0x0F18
 DECISION = 4
 
@@ -123,6 +125,20 @@ def plan_ko_round2(env, rec):
         env.run_frames([[toward(rec)]], capture=False)
 
 
+def plan_knockdown(env, rec):
+    env.run_frames([[]] * 30)                              # standing
+    env.run_frames([["down"]] * 32)                        # crouching
+    env.run_frames([["up"]] * 4 + [[]] * 60)               # one jump, landed
+    while env.f.dx > 90:                                   # walk in
+        env.run_frames([[toward(rec)]] * DECISION)
+    for _ in range(40):                                    # jump in place until knocked out of the air
+        hp = env.f.my_hp
+        env.run_frames([["up"]] * 4 + [[]] * 56)
+        if env.f.my_hp < hp and env.f.my_y != env.ground[0]:
+            break
+    env.run_frames([[]] * 240)                             # falling, down, getting up
+
+
 def plan_timeover(env, rec, seed):
     rng = random.Random(seed)
     while not env.act(rng.choice(ACTIONS)).round_over:
@@ -133,7 +149,7 @@ def plan_timeover(env, rec, seed):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_env_args(ap)
-    ap.add_argument("--plan", required=True, choices=["walk", "facing", "start", "ko_round2", "timeover"])
+    ap.add_argument("--plan", required=True, choices=["walk", "facing", "start", "ko_round2", "knockdown", "timeover"])
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     if args.plan != "timeover":

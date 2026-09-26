@@ -117,7 +117,10 @@ class FightEnv:
 
     # ------------------------------------------------------------------ state for model / teacher
     def airborne(self):
-        return abs(self.f.my_y - self.ground[0]) > AIR_DY, abs(self.f.opp_y - self.ground[1]) > AIR_DY
+        """Off the ground by choice (a jump or jump attack); being knocked into the air does not count."""
+        f = self.f
+        return (abs(f.my_y - self.ground[0]) > AIR_DY and f.my_state != ram.HIT_STATE,
+                abs(f.opp_y - self.ground[1]) > AIR_DY and f.opp_state != ram.HIT_STATE)
 
     def text(self) -> str:
         my_air, opp_air = self.airborne()

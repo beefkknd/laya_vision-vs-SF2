@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
-OPTIONAL = ["timer"]  # round clock (BCD on the SNES ROM); only "reached zero" is used
+OPTIONAL = ["timer", "my_state", "opp_state"]  # round clock (BCD; only "reached zero" is used), action states
+HIT_STATE = 0x0E  # action state while being hit, thrown or knocked down (00 stand, 02 crouch, 04 jump, 0A attack)
 
 # |x difference| in game pixels (the SNES screen is 256 wide; a fighter is ~50 wide). Check on day 1.
 CLOSE, MID = 55, 120
@@ -66,6 +67,8 @@ class Fighters:
     my_y: int
     opp_y: int
     timer: Optional[int] = None
+    my_state: Optional[int] = None
+    opp_state: Optional[int] = None
 
     @classmethod
     def from_values(cls, names: List[str], values: List[int]) -> "Fighters":
