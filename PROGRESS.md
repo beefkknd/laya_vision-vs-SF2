@@ -34,6 +34,7 @@ Treat held-out teacher agreement and frame accuracy as training diagnostics, not
 | t4_random | -56.0 | 7.4 | 3 / 42 | 2026-09-26, the 14-action set (basic + `throw sweep lightning_legs`), `play_teacher --policy random`. Dealt 114, taken 170 per round. Not comparable with base3_random (-42.5, a different action set); the difference, -13.5, is within noise (bar 24.0). |
 | t4_final | **+105.5** | 6.8 | 40 / 40 | 2026-09-26, the teacher now: t3b_apex_block + walk into throw range and throw + close anti-airs with fierce (TEACHER.md, Stage 4). +161.6 over t4_random = 16.1 SE. Dealt 176, taken 70 per round. |
 | r0_256_gate | +67.7 | 12.1 | 39 / 49 | 2026-09-26, Stage 5 first student: LoRA from the base checkpoint at 256 px on seed5_g10 (37,879 rows of `collect_teacher --greedy --eps 0.1`), 2 epochs, best val acc 0.938 (eval5 + seed val). Teacher agreement 0.823. -37.8 vs t4_final (bar 27.8): worse than the teacher, +123.7 over t4_random. 94% of its disagreements repeat its own last action. |
+| r1_gate | +80.6 | 9.6 | 39 / 46 | 2026-09-26, DAgger round 1: r0_256 + 1 epoch on seed5_g10 + dagger5_r1 (r0_256_gate relabelled, 12,230 rows) + its hot set at half weight. Teacher agreement 0.919. +12.9 vs r0_256 (bar 30.9): within noise; -24.9 vs t4_final (bar 23.5). Repeats its last action 0.826 (teacher 0.832). |
 
 Seed collection noise (Stage 5, 20 paired matches each, as `collect_teacher` plays): sampling from the teacher's
 soft target is what made the old collection weak (eps 0 / 0.05 / 0.1 / 0.25: +11.7 / -4.1 / +16.3 / +19.2 net, own
