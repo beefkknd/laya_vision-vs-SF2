@@ -45,7 +45,7 @@ def play(env: FightEnv, choose: Choose, matches: int, writer: Optional[Writer] =
             rnd["dmg_for"] += res.dmg_for
             rnd["dmg_against"] += res.dmg_against
             if res.round_over:
-                rnd["winner"] = res.winner
+                rnd["winner"], rnd["end_frame"] = res.winner, env.frame_no
                 rounds.append(rnd)
                 if log_every and len(rounds) % log_every == 0:
                     print("match %d round %d: %s  dealt %d taken %d  (%d decisions, %.0fs)"

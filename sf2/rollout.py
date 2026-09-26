@@ -3,6 +3,7 @@
 Every decision row's ``meta`` carries: episode, round, frame, frames (how long the action ran), action (what was
 executed), dmg_for / dmg_against (during that action), and round_result once the round is over.
 """
+import math
 from collections import Counter, defaultdict
 from typing import Dict, List
 
@@ -46,6 +47,12 @@ def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
     dealt = sum(r["dmg_for"] for r in rounds)
     taken = sum(r["dmg_against"] for r in rounds)
     acts = Counter(r["meta"]["action"] for r in rows)
+    matches = defaultdict(list)
+    for r in rounds:  # a match's signature: every round's damage, winner and end frame
+        matches[r["episode"]].append((r["round"], r["dmg_for"], r["dmg_against"], r["winner"], r.get("end_frame")))
+    per_round = [r["dmg_for"] for r in rounds]
+    mean = sum(per_round) / n if n else 0.0
+    sd = math.sqrt(sum((d - mean) ** 2 for d in per_round) / (n - 1)) if n > 1 else 0.0
     dealt_per_round = dealt / n if n else 0.0
     taken_per_round = taken / n if n else 0.0
     out = {
@@ -57,6 +64,10 @@ def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
         # It remains informative before the policy can reliably win rounds.
         "damage_score": 100.0 * dealt_per_round / ROUND_LIFE,
         "net_damage_per_round": dealt_per_round - taken_per_round,
+        "matches": len(matches),
+        "distinct_matches": len({tuple(v) for v in matches.values()}),
+        "dmg_dealt_sd": sd,
+        "damage_score_se": 100.0 * sd / ROUND_LIFE / math.sqrt(n) if n else 0.0,
         "decisions": len(rows),
         "action_mix": {a: round(c / max(1, len(rows)), 3) for a, c in acts.most_common()},
     }

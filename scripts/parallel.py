@@ -78,6 +78,9 @@ def merge(src_dirs, dst, script, model=None):
     if script != "collect_teacher" or rounds:
         g = gate(rows, rounds)
         g.update(model=model or script, workers=len(src_dirs))
+        if g["distinct_matches"] < g["matches"]:
+            print("WARNING: only %d of %d matches differ; the others replayed an identical fight"
+                  % (g["distinct_matches"], g["matches"]), flush=True)
         with open(os.path.join(dst, "gate.json"), "w") as f:
             json.dump(g, f, indent=2)
         return counts, g
