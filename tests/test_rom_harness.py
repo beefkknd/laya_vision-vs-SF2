@@ -170,3 +170,31 @@ def test_raw_capture_gives_the_same_image_as_png(env):
     finally:
         env.backend.set_capture("png")
     assert raw.shape == png.shape == (224, 256, 3) and np.array_equal(raw, png)
+
+
+def test_prev_is_four_frames_before_cur_after_resets_macros_and_round_starts(env):
+    """Replay the same inputs with a screenshot on every frame: each decision's images are frames n-4 and n."""
+    import numpy as np
+
+    from sf2 import actions as A
+
+    env.reset()
+    assert np.array_equal(env.prev_frame, env.frame)                 # nothing before the savestate
+    seen, inputs = [], []
+    for a in ["idle", "block", "forward", "hadouken", "lp", "lp", "shoryuken", "jump", "idle"]:
+        inputs += [A.to_physical(t, env.f.facing_right) for t in A.expand(a)]
+        env.act(a)
+        seen.append((env.frame_no, env.prev_frame, env.frame))
+    env.reset()
+    obs = env.backend.run(inputs, range(len(inputs) + 1))
+    for n, prev, cur in seen:
+        assert np.array_equal(cur, obs.images[n]) and np.array_equal(prev, obs.images[n - 4]), n
+
+    env.reset()                                                      # an idle round, then round 2's first image
+    while not env.act("idle").round_over:
+        pass
+    assert env.next_round()
+    n, prev, cur = env.frame_no, env.prev_frame, env.frame
+    env.reset()
+    obs = env.backend.run([[]] * n, [n - 4, n])
+    assert np.array_equal(cur, obs.images[n]) and np.array_equal(prev, obs.images[n - 4])
