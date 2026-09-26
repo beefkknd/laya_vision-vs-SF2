@@ -18,8 +18,9 @@ REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
 OPTIONAL = ["timer", "my_state", "opp_state"]  # round clock (BCD; only "reached zero" is used), action states
 HIT_STATE = 0x0E  # action state while being hit, thrown or knocked down (00 stand, 02 crouch, 04 jump, 0A attack)
 
-# |x difference| in game pixels (the SNES screen is 256 wide; a fighter is ~50 wide). Check on day 1.
-CLOSE, MID = 55, 120
+# |world x difference| in pixels. Measured from random play (TEACHER.md, 2026-09-25): Chun-Li's normals land below
+# CLOSE, Dhalsim's attacks reach up to MID.
+CLOSE, MID = 80, 120
 
 
 @dataclass

@@ -59,3 +59,10 @@ def test_ramsearch_finds_the_struct():
     assert got == {"my_hp": 0x530, "opp_hp": 0x730, "my_x": 0x522, "opp_x": 0x722, "my_y": 0x526,
                    "opp_y": 0x726}
     assert report["stride"] == stride
+
+
+def test_distance_bins_follow_the_measured_ranges():
+    # random play, fixed harness (2026-09-25): Chun-Li's normals land below ~80 px, Dhalsim's hits fade past 120
+    from sf2.ram import dist_bin
+
+    assert [dist_bin(d) for d in (40, 79, 80, 119, 120, 200)] == ["close", "close", "mid", "mid", "far", "far"]
