@@ -36,4 +36,15 @@ def test_rule5_jump_in_from_mid_range_when_he_is_not_attacking():
     p = teacher_policy(fighters(100), ctx(), "chunli")
     assert top(p) == "jump_forward" and soft(p)
     assert top(teacher_policy(fighters(100, opp_state=0x0A), ctx(), "chunli")) != "jump_forward"
-    assert top(teacher_policy(fighters(100), ctx(my_air=True), "chunli")) == "hk"      # kick on the way in
+
+
+def test_in_the_air_kick_only_near_the_top_of_the_jump():
+    """On the ROM a jump-in kick pressed near the apex (>= 88 px up) lands 65-75%; pressed on the way up, ~10%."""
+    def air(height):
+        return Fighters(my_hp=176, opp_hp=176, my_x=200, opp_x=260, my_y=192 - height, opp_y=192)
+    for h in (17, 45, 67, 83):
+        p = teacher_policy(air(h), ctx(my_air=True), "chunli")
+        assert top(p) == "idle" and soft(p)
+    for h in (92, 96):
+        p = teacher_policy(air(h), ctx(my_air=True), "chunli")
+        assert top(p) == "hk" and soft(p)

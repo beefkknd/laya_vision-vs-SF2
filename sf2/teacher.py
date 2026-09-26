@@ -14,6 +14,8 @@ from .env import Context
 from .ram import CLOSE, MID, Fighters
 
 SMOOTH = 0.01
+GROUND_Y = 192
+KICK_HEIGHT = 88  # jump-in: a kick pressed this high up (near the apex, ~24 frames in) lands; earlier ones whiff
 
 
 def _dist(weights: Dict[str, float]) -> Dict[str, float]:
@@ -27,8 +29,10 @@ def _dist(weights: Dict[str, float]) -> Dict[str, float]:
 def teacher_policy(f: Fighters, c: Context, character: str = "chunli") -> Dict[str, float]:
     """Chun-Li's rules; ``character`` is accepted for the callers' signature and ignored."""
     dx = f.dx
-    if c.my_air:  # jump-in: kick on the way down
-        return _dist({"hk": 0.8, "idle": 0.2})
+    if c.my_air:  # jump-in: wait for the top of the jump, then kick
+        if GROUND_Y - f.my_y >= KICK_HEIGHT:
+            return _dist({"hk": 0.8, "idle": 0.2})
+        return _dist({"idle": 0.7, "hk": 0.3})
     if c.opp_air and dx < MID and c.dx_trend <= 0:  # anti-air
         return _dist({"hk": 0.55, "hp": 0.25, "block": 0.15, "back": 0.05})
     if c.frames_since_hit < 20 and dx < CLOSE + 20:  # just got hit up close: guard
