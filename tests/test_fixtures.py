@@ -12,7 +12,7 @@ ROM_SHA1 = "7DDCB96E0D9FEA94D9370635262AC7C28DA85214"
 MAP = load_map(os.path.join(os.path.dirname(FIXTURES), "..", "ram_maps", "sf2_snes.txt"))
 
 
-@pytest.mark.parametrize("name", ["walk", "facing", "start", "ko_round2", "timeover"])
+@pytest.mark.parametrize("name", ["walk", "facing", "start", "ko_round2", "timeover", "walls"])
 def test_fixture_replays_its_recorded_inputs(name):
     t = load(os.path.join(FIXTURES, name + ".jsonl.gz"))
     assert t["header"]["rom_sha1"] == ROM_SHA1 and t["header"]["frames"] == len(t["rows"]) - 1

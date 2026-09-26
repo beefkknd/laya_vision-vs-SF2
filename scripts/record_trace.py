@@ -13,6 +13,8 @@ Plans:
   start      hold toward for 150 frames straight after the savestate loads
   ko_round2  idle until the round ends and the bars refill, then hold toward 400 frames (unchecked)
   knockdown  stand, crouch, one jump, walk in, jump in place until hit in the air, 240 more frames
+  walls      walk left until x stops (the left wall), idle 30, walk right through Dhalsim until x stops, idle 30,
+             walk left 300 decisions (Dhalsim jumps over her; she backs into the left wall), idle 60
   timeover   a random-policy round until it ends, then 600 idle frames; inputs are not checked on replay.
              From the Chun-Li savestate, --seed 4 --jitter 30 runs out the clock (33 vs 12)
 """
@@ -139,6 +141,26 @@ def plan_knockdown(env, rec):
     env.run_frames([[]] * 240)                             # falling, down, getting up
 
 
+def _to_wall(env, rec, direction, max_decisions):
+    """Hold ``direction`` until world x has not changed for 32 frames of walking (state 00: not blocking or hit)."""
+    xs = []
+    for _ in range(max_decisions):
+        env.run_frames([[direction]] * DECISION)
+        walking = bytes.fromhex(rec.rows[-1]["mem"][4])[3] == 0
+        xs = xs + [rec.world_x()[0]] if walking else []
+        if len(xs) >= 8 and len(set(xs[-8:])) == 1:
+            break
+
+
+def plan_walls(env, rec):
+    _to_wall(env, rec, "left", 200)                        # back to the left wall, Dhalsim in front
+    env.run_frames([[]] * 30)
+    _to_wall(env, rec, "right", 400)                       # through Dhalsim to the right wall
+    env.run_frames([[]] * 30)
+    hold(env, lambda: "left", 300)                         # toward him; from the ROM he jumps over her and
+    env.run_frames([[]] * 60)                              # she ends up backed into the left wall
+
+
 def plan_timeover(env, rec, seed):
     rng = random.Random(seed)
     while not env.act(rng.choice(ACTIONS)).round_over:
@@ -149,7 +171,7 @@ def plan_timeover(env, rec, seed):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_env_args(ap)
-    ap.add_argument("--plan", required=True, choices=["walk", "facing", "start", "ko_round2", "knockdown", "timeover"])
+    ap.add_argument("--plan", required=True, choices=["walk", "facing", "start", "ko_round2", "knockdown", "walls", "timeover"])
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     if args.plan != "timeover":
