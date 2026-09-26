@@ -430,3 +430,18 @@ def test_a_match_ends_after_the_fourth_round_even_on_draws():
             if not env.next_round():
                 break
     assert results == ["draw"] * 4
+
+
+def test_next_round_never_waits_into_the_next_opponents_fight():
+    """On the ROM the bars refill 600-940 frames after a round ends. After a won match the map screen and "VS"
+    follow, and the next opponent's bars refill ~1354 frames after the last round end: that is not a new round."""
+    from trace_mesen import make_trace
+
+    rows = [{"my_hp": 176 if i < 50 or i >= 1404 else 100, "opp_hp": 176 if i < 40 or i >= 1404 else 0,
+             "my_x": 200, "opp_x": 304, "my_y": 192, "opp_y": 192, "timer": 0x50, "my_state": 0, "opp_state": 0,
+             "fireball": 0, "fireball_x": 0, "result": 1 if 50 <= i < 1404 else 0} for i in range(3000)]
+    env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"")
+    env.reset()
+    while not env.act("idle").round_over:
+        pass
+    assert env.wins == {"me": 1, "opp": 0} and not env.next_round()

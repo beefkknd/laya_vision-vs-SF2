@@ -18,7 +18,7 @@ from .config import PREV_GAP
 
 AIR_DY = 6          # |y - standing y| above this = airborne
 INTRO_SKIP = 182    # frames from the life bars refilling to the first decision: input first moves her at +183..185
-MAX_WAIT = 1800     # safety cap while waiting through KO / time-over screens
+MAX_WAIT = 1200     # round end to refill: 600-940 frames on the ROM; the next opponent refills at ~1354
 MAX_ROUNDS = 4      # the 4th round is the "FINAL ROUND" on the ROM: no 5th, even after draws
 WAIT_CHUNK = 30
 
