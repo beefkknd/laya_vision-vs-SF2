@@ -21,3 +21,12 @@ def test_spread_and_standard_error_of_damage_per_round():
     sd = math.sqrt(sum((d - 70) ** 2 for d in dealt) / 3)
     assert abs(g["dmg_dealt_sd"] - sd) < 1e-9
     assert abs(g["damage_score_se"] - 100 * sd / 176 / 2) < 1e-9
+
+
+def test_standard_error_of_net_damage_per_round():
+    rounds = [{"episode": 0, "round": i, "dmg_for": f, "dmg_against": a, "winner": "opp", "end_frame": i}
+              for i, (f, a) in enumerate([(10, 176), (176, 40), (60, 176), (90, 176)])]
+    net = [f - a for f, a in [(10, 176), (176, 40), (60, 176), (90, 176)]]
+    mean = sum(net) / 4
+    sd = math.sqrt(sum((x - mean) ** 2 for x in net) / 3)
+    assert abs(gate([], rounds)["net_damage_se"] - sd / 2) < 1e-9

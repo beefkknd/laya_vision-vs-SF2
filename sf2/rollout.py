@@ -50,9 +50,12 @@ def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
     matches = defaultdict(list)
     for r in rounds:  # a match's signature: every round's damage, winner and end frame
         matches[r["episode"]].append((r["round"], r["dmg_for"], r["dmg_against"], r["winner"], r.get("end_frame")))
-    per_round = [r["dmg_for"] for r in rounds]
-    mean = sum(per_round) / n if n else 0.0
-    sd = math.sqrt(sum((d - mean) ** 2 for d in per_round) / (n - 1)) if n > 1 else 0.0
+    def sd(xs):
+        mean = sum(xs) / len(xs) if xs else 0.0
+        return math.sqrt(sum((x - mean) ** 2 for x in xs) / (len(xs) - 1)) if len(xs) > 1 else 0.0
+
+    dealt_sd = sd([r["dmg_for"] for r in rounds])
+    net_sd = sd([r["dmg_for"] - r["dmg_against"] for r in rounds])
     dealt_per_round = dealt / n if n else 0.0
     taken_per_round = taken / n if n else 0.0
     out = {
@@ -66,8 +69,9 @@ def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
         "net_damage_per_round": dealt_per_round - taken_per_round,
         "matches": len(matches),
         "distinct_matches": len({tuple(v) for v in matches.values()}),
-        "dmg_dealt_sd": sd,
-        "damage_score_se": 100.0 * sd / ROUND_LIFE / math.sqrt(n) if n else 0.0,
+        "dmg_dealt_sd": dealt_sd,
+        "damage_score_se": 100.0 * dealt_sd / ROUND_LIFE / math.sqrt(n) if n else 0.0,
+        "net_damage_se": net_sd / math.sqrt(n) if n else 0.0,
         "decisions": len(rows),
         "action_mix": {a: round(c / max(1, len(rows)), 3) for a, c in acts.most_common()},
     }
