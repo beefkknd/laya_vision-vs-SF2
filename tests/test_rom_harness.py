@@ -264,9 +264,10 @@ def test_every_action_does_what_it_says(env):
     f0, fs, st = got["jump"]
     assert 0x04 in st and min(f.my_y for f in fs) < f0.my_y - 80 and toward("jump") == 0     # straight up
     assert got["crouch"][2][:4] == [0x02] * 4 and got["block"][2][:6] == [0x02] * 6        # nothing to guard yet
-    frames = {a: got[a][2].count(0x0A) for a in ("lp", "hp", "lk", "hk", "throw")}
+    frames = {a: got[a][2].count(0x0A) for a in ("lp", "hp", "lk", "hk", "throw", "sweep")}
     assert (frames["lp"], frames["hp"], frames["lk"], frames["hk"]) == (13, 30, 17, 33)
     assert frames["throw"] == 30 and 0x14 not in [f.opp_state for f in got["throw"][1]]  # out of reach: a fierce
+    assert frames["sweep"] == 32                                     # crouching roundhouse (standing: 33)
 
 
 def test_the_same_button_on_consecutive_decisions_presses_again(env):
@@ -525,3 +526,39 @@ def test_throw_throws_him_up_close_on_both_sides(env):
             assert any(f.opp_state == 0x14 for f in fs), (side, arm)
             assert f0.life[1] - fs[-1].life[1] == 46, (side, arm)
             assert fs[-1].facing_right == (f0.facing_right if arm == "throw" else not f0.facing_right), (side, arm)
+
+
+def test_sweep_knocks_him_down_on_both_sides(env):
+    """Down + roundhouse from 50-68 px: when it connects he is knocked down (0E, sub-state 04); the standing
+    roundhouse from the same frame does not knock him down."""
+    for side in ("left", "right"):
+        env.reset()
+        env.run_frames([[]] * 4, capture=False)
+        if side == "right":
+            _to_other_side(env)
+            for _ in range(15):
+                env.act("back")
+        hits = 0
+        for _ in range(60):
+            f0 = env.f
+            if not (50 <= f0.dx <= 68 and not any(env.airborne()) and env.controllable() and f0.my_state in (0, 2)
+                    and f0.opp_state in (0, 2)):
+                env.act("forward" if f0.dx > 68 else "back" if f0.dx < 50 else "idle")
+                continue
+            state, out = env.backend.save_state(), {}
+            for a in ("sweep", "hk"):
+                env.backend.load_state(state)
+                env.f = f0
+                fs = []
+                env.act(a, on_frame=fs.append)
+                fs += env.run_frames([[]] * 60, capture=False)
+                out[a] = (f0.life[1] - fs[-1].life[1], any(f.opp_state == 0x0E and f.opp_sub == 0x04 for f in fs))
+            env.backend.load_state(state)
+            env.f = f0
+            if out["sweep"][0] > 0:
+                assert out["sweep"][1], (side, f0.dx)
+                assert not out["hk"][1], (side, f0.dx)
+                hits += 1
+                break
+            env.act("idle")
+        assert hits, side

@@ -45,3 +45,9 @@ def test_question_is_stable():
     q = A.question()
     assert q["type"] == "choice" and list(q["criteria"]) == A.ACTIONS
     assert A.question() == q
+
+
+def test_sweep_is_down_and_roundhouse_on_the_same_frame():
+    """Crouching roundhouse: on the ROM it knocks Dhalsim down when it connects (reach ~70 px)."""
+    assert "sweep" in A.ACTIONS
+    assert A.expand("sweep") == [("D", "hk")] * 2 + [("D",)] * 2
