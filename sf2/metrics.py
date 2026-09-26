@@ -5,7 +5,8 @@ random frame split puts the neighbours of every val frame in the training set an
 
 ``slice_metrics`` breaks one eval into situations: the teacher's move, time into the round, how much life is left,
 distance, opponent airborne, rounds where a hit is coming, and dataset; each with accuracy against the teacher, the
-probability the model gave the teacher's move, and soft cross-entropy. ``train.py`` appends one entry per eval to
+probability the model gave the teacher's move, soft cross-entropy, and ``t_of_pred``: the teacher's probability
+of the model's own top move (how acceptable the move it would play is). ``train.py`` appends one entry per eval to
 ``runs/<x>/eval_slices.jsonl``; ``scripts/report.py`` compares runs and steps.
 """
 import hashlib
@@ -79,14 +80,15 @@ def _softmax(z):
 
 def slice_metrics(recs: Sequence[Dict], logits: Sequence[Sequence[float]], targets: Sequence[Sequence[float]]) -> Dict:
     """Per-situation accuracy / p(teacher move) / soft cross-entropy, a teacher->model confusion, the model's move mix."""
-    acc: Dict[str, Dict[str, List]] = defaultdict(lambda: defaultdict(lambda: [0, 0.0, 0.0, 0.0]))
+    acc: Dict[str, Dict[str, List]] = defaultdict(lambda: defaultdict(lambda: [0, 0.0, 0.0, 0.0, 0.0]))
     confusion: Dict[str, Counter] = defaultdict(Counter)
     pred_mix = Counter()
     for rec, z, t in zip(recs, logits, targets):
         p = _softmax([float(v) for v in z])
         pred = max(range(len(p)), key=p.__getitem__)
         label = rec["label"]
-        stats = (pred == label, p[label], -sum(float(tj) * math.log(max(pj, 1e-12)) for tj, pj in zip(t, p)))
+        stats = (pred == label, p[label], -sum(float(tj) * math.log(max(pj, 1e-12)) for tj, pj in zip(t, p)),
+                 float(t[pred]) / max(1e-12, sum(float(tj) for tj in t)))
         cells = [("all", "all")] + list(situation(rec).items())
         for dim, val in cells:
             c = acc[dim][val]
@@ -98,7 +100,7 @@ def slice_metrics(recs: Sequence[Dict], logits: Sequence[Sequence[float]], targe
 
     def cell(c):
         n = c[0]
-        return {"n": n, "acc": c[1] / n, "p_teacher": c[2] / n, "soft_xent": c[3] / n}
+        return {"n": n, "acc": c[1] / n, "p_teacher": c[2] / n, "soft_xent": c[3] / n, "t_of_pred": c[4] / n}
 
     out = {dim: {val: cell(c) for val, c in sorted(vals.items())} for dim, vals in acc.items()}
     out["all"] = out["all"]["all"]
