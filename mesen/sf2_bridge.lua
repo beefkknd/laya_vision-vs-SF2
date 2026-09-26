@@ -28,6 +28,9 @@
 --   then <statelen> savestate bytes.
 
 local HOST, PORT = "127.0.0.1", 47800
+-- Headless copies (sf2/headless.py) set this: when Python goes away (exits, crashes, is killed) the socket closes and
+-- the test runner ends instead of emulating on for its whole --timeout.
+local EXIT_ON_DISCONNECT = false
 do  -- SF2_BRIDGE_PORT overrides the port (needs "Allow access to I/O and OS functions"; ignored otherwise)
   local ok, v = pcall(function() return os.getenv("SF2_BRIDGE_PORT") end)
   if ok and tonumber(v or "") then PORT = tonumber(v) end
@@ -53,19 +56,24 @@ local function tryConnect()
   return true
 end
 
+local function lost(e)
+  if EXIT_ON_DISCONNECT then emu.stop(1) end
+  error("sf2_bridge: socket " .. tostring(e))
+end
+
 local function send(s)
   local i = 1
   while i <= #s do
     local last, e, partial = conn:send(s, i)
     if last then i = last + 1
     elseif e == "timeout" then i = partial + 1
-    else error("sf2_bridge: socket " .. tostring(e)) end
+    else lost(e) end
   end
 end
 
 local function recvLine()
   local line, e = conn:receive("*l")
-  if not line then error("sf2_bridge: socket " .. tostring(e)) end
+  if not line then lost(e) end
   return line
 end
 
@@ -182,7 +190,8 @@ local function serve()
       mode = "watch"
       return
     elseif op == "LOADSTATE" then
-      local data = conn:receive(tonumber(cmd[2]))
+      local data, e = conn:receive(tonumber(cmd[2]))
+      if not data then lost(e) end
       armExec(data)
       return
     elseif op == "SAVESTATE" then

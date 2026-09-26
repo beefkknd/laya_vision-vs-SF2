@@ -25,10 +25,25 @@ Treat held-out teacher agreement and frame accuracy as training diagnostics, not
 
 | Run | Net damage / round | SE | Round wins | Notes |
 | --- | ---: | ---: | ---: | --- |
-| base_idle | -173.0 | 0.9 | 0 / 40 | 2026-09-25 baseline. 15 of 20 matches distinct (idling converges). |
-| base_random | -98.0 | 8.3 | 1 / 41 | 2026-09-25 baseline, `play_teacher --policy random`. Dealt 71 per round. |
-| base_teacher | -78.5 | 7.5 | 4 / 43 | 2026-09-25 baseline, eps 0, CLOSE/MID 55/120. +19.5 over random = 1.7 SE: not yet better. |
-| base_teacher_c80 | -75.2 | 9.0 | 3 / 43 | 2026-09-25, CLOSE/MID 80/120 (current). +22.8 over random = 1.9 SE: not yet better. |
+| base2_idle | -170.7 | 1.7 | 0 / 40 | 2026-09-26 baseline. |
+| base3_random | -42.5 | 9.4 | 14 / 50 | 2026-09-26, basic 11-action set (`jump_forward` added, specials dropped). Dealt 121 per round. |
+| base3_teacher | -84.5 | 6.8 | 1 / 41 | 2026-09-26, basic set; same argmax as base2_teacher, so the same fights. 42.0 below random = 3.6 SE. |
+| t3_jumpin_base | -2.0 | 9.4 | 21 / 52 | 2026-09-26, the Stage 3 teacher: base3_teacher + jump in from mid range (TEACHER.md, Stage 3). +40.5 over random = 3.0 SE: better. |
+| t3b_apex_block | +62.0 | 10.8 | 36 / 46 | 2026-09-26, the Stage 3b teacher: t3_jumpin_base + kick at the top of the jump + crouch-guard his attacks (TEACHER.md, Stage 3b). +104.5 over random = 7.3 SE. Dealt 165, taken 103 per round. |
+| t3b_eps25 | -23.0 | 8.6 | 12 / 50 | 2026-09-26, the same teacher as the seed collection plays it (`collect_teacher --eps 0.25`: 25% random, else sampled from the soft target; 5 matches per worker). Agrees with its own top choice 44% of the time. Data kept in `data/t3b_eps25` (18,578 rows, no val). |
+| t4_random | -56.0 | 7.4 | 3 / 42 | 2026-09-26, the 14-action set (basic + `throw sweep lightning_legs`), `play_teacher --policy random`. Dealt 114, taken 170 per round. Not comparable with base3_random (-42.5, a different action set); the difference, -13.5, is within noise (bar 24.0). |
+| t4_final | **+105.5** | 6.8 | 40 / 40 | 2026-09-26, the teacher now: t3b_apex_block + walk into throw range and throw + close anti-airs with fierce (TEACHER.md, Stage 4). +161.6 over t4_random = 16.1 SE. Dealt 176, taken 70 per round. |
+
+The t4 rows use the 14-action set (Stage 4); the teacher never picks `sweep` or `lightning_legs` (TEACHER.md).
+The base3 rows use the basic action set (`idle forward back jump jump_forward crouch lp hp lk hk block`) and
+supersede the 12-action base2_random (-89.7 ± 8.1, 2 / 42) and base2_teacher (-84.5 ± 6.8, 1 / 41). Idle does not
+depend on the action set; base2_idle stands. The 2026-09-26 base2 rows supersede base_idle (-173.0), base_random (-98.0), base_teacher (-78.5) and base_teacher_c80
+(-75.2) from 2026-09-25. Since then the harness renders every frame for screenshots, starts rounds 2+ when control
+returns, ends rounds on the ROM's round result (a KO books the loser's whole bar), books a hit's damage on the
+decision it lands in, tells block stun and dizzies from hit stun, and ends a match after its 4th round.
+All three arms had 20 distinct matches. A lost round can show 161 or 140 taken: with a worker's start jitter (up to
+95 idle frames) Dhalsim's first one or two hits can land before the first decision. A time-over loss shows the
+life she still had (random: 175, 172).
 
 Everything measured before 2026-09-25 (chunli_r*, v2_*) ran on a broken harness: wrong x addresses (distance
 and facing), knockdowns counted as jumps, time-overs scored as draws, and parallel workers replaying identical

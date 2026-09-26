@@ -19,12 +19,13 @@ def main():
     ap.add_argument("--data", action="append", required=True)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--image-size", type=int, default=None, help="as train.py --image-size; default: the checkpoint's")
     args = ap.parse_args()
 
     import laya
     import laya.vlm_train as vt
 
-    agent = laya.load_vlm(args.init, device=args.device)
+    agent = laya.load_vlm(args.init, device=args.device, **({"image_size": args.image_size} if args.image_size else {}))
     fp = vision_cache.fingerprint(agent.model, agent.model.prep)
     todo = vision_cache.missing(args.data, fp)
     print("vision cache %s: %d to build, %d present" % (fp, len(todo), len(args.data) - len(todo)), flush=True)

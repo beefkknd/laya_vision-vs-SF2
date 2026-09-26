@@ -55,7 +55,7 @@ def _blank(img) -> bool:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAMP = os.path.join(ROOT, "out", "harness_ok.json")
-HARNESS_FILES = ["sf2/env.py", "sf2/ram.py", "sf2/actions.py", "sf2/mesen.py", "mesen/sf2_bridge.lua"]
+HARNESS_FILES = ["sf2/env.py", "sf2/ram.py", "sf2/actions.py", "sf2/mesen.py", "sf2/headless.py", "mesen/sf2_bridge.lua"]
 
 
 def _harness(rom_sha1: str, ram_map: str) -> dict:

@@ -66,3 +66,75 @@ def test_distance_bins_follow_the_measured_ranges():
     from sf2.ram import dist_bin
 
     assert [dist_bin(d) for d in (40, 79, 80, 119, 120, 200)] == ["close", "close", "mid", "mid", "far", "far"]
+
+
+def test_cornered_means_the_stage_wall_is_close_behind_you():
+    # walls measured on the ROM (tests/fixtures/walls): world x 53 and 459
+    from sf2.ram import CORNER, LEFT_WALL, RIGHT_WALL, cornered
+
+    assert (LEFT_WALL, RIGHT_WALL) == (53, 459)
+    assert cornered(LEFT_WALL, facing_right=True) and cornered(LEFT_WALL + CORNER - 1, facing_right=True)
+    assert not cornered(LEFT_WALL + CORNER, facing_right=True)
+    assert not cornered(LEFT_WALL, facing_right=False)          # the wall is in front of her, not behind
+    assert cornered(RIGHT_WALL, facing_right=False) and not cornered(RIGHT_WALL - CORNER, facing_right=False)
+    assert not cornered(RIGHT_WALL, facing_right=True)
+
+
+def _f(**kw):
+    from sf2.ram import Fighters
+
+    d = dict(my_hp=176, opp_hp=132, my_x=208, opp_x=304, my_y=192, opp_y=192, timer=0x99, my_state=0, opp_state=0)
+    d.update(kw)
+    return Fighters(**d)
+
+
+def _note(f, my_air=False, opp_air=False, last="hk"):
+    from sf2.ram import text_state
+
+    return text_state(f, "chunli", "dhalsim", last, my_air, opp_air, 176)
+
+
+def test_text_state_reads_like_a_player_sees_the_screen():
+    assert _note(_f(opp_state=0x0A)) == \
+        "me=chunli stand hp=100 opp=dhalsim attack hp=75 dist=mid facing=right corner=none time=early last=hk " \
+        "fireball=none"
+
+
+def test_text_state_facing_and_corner():
+    from sf2.ram import LEFT_WALL, RIGHT_WALL
+
+    assert "facing=left corner=me" in _note(_f(my_x=RIGHT_WALL, opp_x=RIGHT_WALL - 100))
+    assert "facing=right corner=me" in _note(_f(my_x=LEFT_WALL + 10, opp_x=200))
+    assert "facing=right corner=opp" in _note(_f(my_x=RIGHT_WALL - 90, opp_x=RIGHT_WALL))
+    assert "facing=left corner=opp" in _note(_f(my_x=LEFT_WALL + 60, opp_x=LEFT_WALL))
+
+
+def test_text_state_round_clock_is_coarse():
+    # the clock is BCD seconds: 0x99 = 99 s
+    words = [_note(_f(timer=t)).split("time=")[1].split()[0] for t in (0x99, 0x60, 0x59, 0x30, 0x29, 0x00)]
+    assert words == ["early", "early", "mid", "mid", "late", "late"]
+
+
+def test_text_state_words_follow_the_action_state_and_the_airborne_rule():
+    def words(my_state, opp_state, my_air=False, opp_air=False):
+        n = _note(_f(my_state=my_state, opp_state=opp_state), my_air, opp_air).split()
+        return n[1], n[4]
+
+    assert words(0x00, 0x02) == ("stand", "crouch")
+    assert words(0x08, 0x0A) == ("block", "attack")
+    assert words(0x0E, 0x0E, my_air=False, opp_air=False) == ("hit", "hit")
+    assert words(0x04, 0x0A, my_air=True, opp_air=True) == ("jump", "jumpattack")   # an attack from the air
+    assert words(0x04, 0x04) == ("stand", "stand")      # jump state on the ground: take-off / landing frames
+    assert words(0x12, None) == ("other", "stand")      # end-of-round poses; no state in the RAM map
+
+
+def test_text_state_fireball():
+    assert _note(_f()).endswith(" fireball=none")
+    assert _note(_f(fireball=1, fireball_x=208 + 50)).endswith(" fireball=close")
+    assert _note(_f(fireball=1, fireball_x=208 + 100)).endswith(" fireball=mid")
+    assert _note(_f(fireball=1, fireball_x=208 - 150)).endswith(" fireball=far")
+
+
+def test_opponent_attacking_on_the_ground_or_from_the_air():
+    assert _f(opp_state=0x0A).opp_attacking and not _f(opp_state=0x04).opp_attacking
+    assert not _f(opp_state=None).opp_attacking

@@ -26,14 +26,17 @@ def save_png(arr: np.ndarray, path: str) -> None:
 
 
 class Writer:
-    """Append decision frames to <root>/<name>/{split}.jsonl; val = every ``val_every``-th episode."""
+    """Append decision frames to <root>/<name>/{split}.jsonl; val = every ``val_every``-th episode.
 
-    def __init__(self, root: str, name: str, source: str, val_every: int = 10):
+    ``skip_uncontrollable``: training data leaves out decisions where the stick did nothing (meta controllable
+    False: hit or knocked down); rollouts keep them for the gate."""
+
+    def __init__(self, root: str, name: str, source: str, val_every: int = 10, skip_uncontrollable: bool = False):
         self.dir = os.path.join(root, name)
         if os.path.exists(os.path.join(self.dir, "train.jsonl")):
             raise FileExistsError("%s already holds a dataset; pick another name or delete it" % self.dir)
         os.makedirs(os.path.join(self.dir, "images"), exist_ok=True)
-        self.source, self.val_every = source, val_every
+        self.source, self.val_every, self.skip_uncontrollable = source, val_every, skip_uncontrollable
         self.files = {s: open(os.path.join(self.dir, s + ".jsonl"), "w") for s in ("train", "val")}
         self.n = {"train": 0, "val": 0}
 
@@ -44,6 +47,8 @@ class Writer:
                target: Dict[str, float], meta: Optional[Dict] = None) -> Dict:
         """Save the images and build the record; ``add`` it once its meta is final."""
         rid = "%s-e%05d-s%06d" % (self.source, episode, step)
+        if self._skip(meta or {}):
+            return {"id": rid, "episode": episode, "step": step, "meta": meta or {}}
         cur_p = "images/%s.png" % rid
         save_png(cur, os.path.join(self.dir, cur_p))
         if np.array_equal(prev, cur):
@@ -57,7 +62,12 @@ class Writer:
                "source": self.source, "meta": meta or {}}
         return rec
 
+    def _skip(self, meta: Dict) -> bool:
+        return self.skip_uncontrollable and meta.get("controllable") is False
+
     def add(self, rec: Dict) -> None:
+        if self._skip(rec["meta"]):
+            return
         s = self.split(rec["episode"])
         self.files[s].write(json.dumps(rec) + "\n")
         self.files[s].flush()

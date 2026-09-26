@@ -88,6 +88,8 @@ def main():
     ap.add_argument("--max-minutes", type=float, default=None, help="wall-clock budget for the whole run")
     ap.add_argument("--workers", type=int, default=4, help="data-loader processes (0 = load on the GPU thread)")
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
+    ap.add_argument("--image-size", type=int, default=None,
+                    help="vision input side in px (256 = 16 tokens per frame, 512 = 64); default: the checkpoint's")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-vision-cache", action="store_true", help="run the frozen vision tower every step")
     args = ap.parse_args()
@@ -96,7 +98,7 @@ def main():
     import laya
     import laya.vlm_train as vt
 
-    agent = laya.load_vlm(args.init, device=args.device)
+    agent = laya.load_vlm(args.init, device=args.device, **({"image_size": args.image_size} if args.image_size else {}))
     train, val, per_dir, info = [], [], {}, {}
     for d in args.data + args.val_data:
         root, name = os.path.split(os.path.normpath(d))

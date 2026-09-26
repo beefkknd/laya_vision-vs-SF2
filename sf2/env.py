@@ -7,7 +7,7 @@ when either side has two round wins, and ``reset()`` reloads the savestate, so t
 the gate.
 """
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Deque, List, Optional
 
 import numpy as np
@@ -17,9 +17,9 @@ from . import ram
 from .config import PREV_GAP
 
 AIR_DY = 6          # |y - standing y| above this = airborne
-INTRO_SKIP = 200    # frames after the life bars refill before input works ("ROUND 2 ... FIGHT!"): 184 on the ROM
-MAX_WAIT = 1800     # safety cap while waiting through KO / time-over screens
-MAX_ROUNDS = 5      # SF2 ends a match after the 5th round even on draws; never loop forever
+INTRO_SKIP = 182    # frames from the life bars refilling to the first decision: input first moves her at +183..185
+MAX_WAIT = 1200     # round end to refill: 600-940 frames on the ROM; the next opponent refills at ~1354
+MAX_ROUNDS = 4      # the 4th round is the "FINAL ROUND" on the ROM: no 5th, even after draws
 WAIT_CHUNK = 30
 
 
@@ -38,8 +38,7 @@ class Context:
     my_air: bool
     opp_air: bool
     dx_trend: int                      # dx now minus dx 8 frames ago (negative = closing in)
-    frames_since_hit: int              # since my life last dropped
-    frames_since_fireball: int         # since I last threw a hadouken
+    frames_since_hit: int              # since my (true) life last dropped
     history: List[ram.Fighters] = field(default_factory=list)
 
 
@@ -61,6 +60,11 @@ class FightEnv:
     def _f(self, values) -> ram.Fighters:
         return ram.Fighters.from_values(self.names, values)
 
+    def life(self, f: ram.Fighters):
+        """(hers, his) true life (ram.Fighters.life). A KO blow can wrap it below zero to 255, 254, ...: anything
+        above a full bar is negative."""
+        return tuple(x - 256 if x > self.full_hp else x for x in f.life)
+
     def _ingest(self, rows: List[List[int]]) -> List[ram.Fighters]:
         """RAM rows *after* each executed frame -> Fighters, updating history / hit timer."""
         out = []
@@ -68,8 +72,11 @@ class FightEnv:
             prev, self.f = self.f, self._f(values)
             self.frame_no += 1
             self.hist.append(self.f)
-            if 0 <= self.f.my_hp < prev.my_hp:
+            if self.life(self.f)[0] < self.life(prev)[0]:
                 self.last_hit = self.frame_no
+            f = self.f
+            self.dizzy = (ram.dizzy(self.dizzy[0], f.my_state, f.my_sub, f.my_dizzy),
+                          ram.dizzy(self.dizzy[1], f.opp_state, f.opp_sub, f.opp_dizzy))
             out.append(self.f)
         return out
 
@@ -97,10 +104,10 @@ class FightEnv:
         self.hist: Deque[ram.Fighters] = deque(maxlen=120)
         self.f = self._f(obs.rams[0])
         self.hist.append(self.f)
+        self.dizzy = (False, False)                     # (me, opp): see ram.dizzy
         self.full_hp = max(self.f.my_hp, self.f.opp_hp)  # the savestate starts with full bars
         self.ground = (self.f.my_y, self.f.opp_y)
         self.last_hit = -10_000
-        self.last_fireball = -10_000
         self.in_round = True
         if self.jitter:  # a different idle count per worker (jitter_base) and match: a different CPU fight
             self.run_frames([[]] * (self.jitter_base + self.episode % self.jitter + 1))
@@ -117,27 +124,38 @@ class FightEnv:
 
     # ------------------------------------------------------------------ state for model / teacher
     def airborne(self):
-        """Off the ground by choice (a jump or jump attack); being knocked into the air does not count."""
+        """Off the ground by choice (a jump or jump attack): being knocked into the air (0E), lifted and thrown
+        (00 at y 136, then 14) or falling after a KO (00) does not count."""
         f = self.f
-        return (abs(f.my_y - self.ground[0]) > AIR_DY and f.my_state != ram.HIT_STATE,
-                abs(f.opp_y - self.ground[1]) > AIR_DY and f.opp_state != ram.HIT_STATE)
+        air = (None, ram.JUMP_STATE, ram.ATTACK_STATE)
+        return (abs(f.my_y - self.ground[0]) > AIR_DY and f.my_state in air,
+                abs(f.opp_y - self.ground[1]) > AIR_DY and f.opp_state in air)
+
+    def controllable(self) -> bool:
+        """Does the stick do anything now (checked on the ROM)? Not between rounds, in hit stun or knocked down
+        (0E), held up for a throw (00 off the ground) or thrown (14), or in the end-of-round poses (10, 12). It does
+        in block stun (0E: holding down switches her to a crouching guard) and when dizzy (0E: mashing shortens
+        it). Uncontrollable decisions stay in rollouts (gate, damage) but not in training data."""
+        f = self.f
+        if not self.in_round or f.my_state == ram.THROWN_STATE or f.my_state in ram.POSE_STATES:
+            return False
+        if f.my_state == ram.HIT_STATE:
+            return ram.in_block_stun(f.my_state, f.my_react) or self.dizzy[0]
+        return not (f.my_state == 0 and abs(f.my_y - self.ground[0]) > AIR_DY)
 
     def text(self) -> str:
         my_air, opp_air = self.airborne()
-        return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air, self.full_hp)
+        return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air, self.full_hp, self.dizzy)
 
     def context(self) -> Context:
         my_air, opp_air = self.airborne()
         old = self.hist[-9] if len(self.hist) >= 9 else self.hist[0]
-        return Context(my_air, opp_air, self.f.dx - old.dx, self.frame_no - self.last_hit,
-                       self.frame_no - self.last_fireball, list(self.hist))
+        return Context(my_air, opp_air, self.f.dx - old.dx, self.frame_no - self.last_hit, list(self.hist))
 
     # ------------------------------------------------------------------ one decision
     def act(self, action: str, on_frame: Optional[Callable[[ram.Fighters], None]] = None) -> ActResult:
         facing = self.f.facing_right
         start = self.f
-        if action == "hadouken":
-            self.last_fireball = self.frame_no
         frames = [A.to_physical(t, facing) for t in A.expand(action)]
         res = ActResult(len(frames), 0, 0)
         before = start
@@ -150,16 +168,26 @@ class FightEnv:
                 res.round_over, res.winner = True, winner
                 self.f = judged  # judge damage at the deciding frame
                 break
-        # KO life is clamped to zero on the SNES ROM; a time-over refill makes the difference negative.
-        res.dmg_for = max(0, start.opp_hp - max(0, self.f.opp_hp))
-        res.dmg_against = max(0, start.my_hp - max(0, self.f.my_hp))
+        # True life, so a hit counts in full on the decision it lands in (the bars drain for 4-9 decisions after it).
+        # A KO books the loser's rest (below); a refill makes the difference negative.
+        (me0, opp0), (me1, opp1) = self.life(start), self.life(self.f)
+        res.dmg_for = max(0, opp0 - max(0, opp1))
+        res.dmg_against = max(0, me0 - max(0, me1))
         self.last = action
         return res
 
     def _round_check(self, before: ram.Fighters, f: ram.Fighters):
         full = self.full_hp
         judged = f
-        if f.my_hp <= 0 and f.opp_hp <= 0 < min(before.my_hp, before.opp_hp):
+        if f.result is not None:
+            # the ROM's own round result (0x1ACF): 1 Chun-Li, 2 Dhalsim, FF draw, set on the KO frame or 30 frames
+            # after the clock shows 00. The rules below infer it from the life bars when the map lacks it.
+            if not f.result or before.result:
+                return False, None, f
+            winner = {1: "me", 2: "opp"}.get(f.result, "draw")
+            if f.timer and winner != "draw":  # KO: the loser's bar is still draining, his true life stops short
+                judged = replace(f, **dict.fromkeys(("opp_hp", "opp_life") if winner == "me" else ("my_hp", "my_life"), 0))
+        elif f.my_hp <= 0 and f.opp_hp <= 0 < min(before.my_hp, before.opp_hp):
             # both bars emptied on the same frame: the timer ran out and the ROM zeroed them; higher life won
             winner = "me" if before.my_hp > before.opp_hp else "opp" if before.opp_hp > before.my_hp else "draw"
             judged = before
@@ -186,13 +214,14 @@ class FightEnv:
         while True:
             fs = self.run_frames([[]] * WAIT_CHUNK, capture=False)
             waited += WAIT_CHUNK
-            if fs[-1].my_hp == self.full_hp and fs[-1].opp_hp == self.full_hp:
+            full = [i for i, f in enumerate(fs) if f.my_hp == self.full_hp and f.opp_hp == self.full_hp]
+            if full:
                 break
             if waited >= MAX_WAIT:  # bars never refilled (continue screen, match over): end the episode
                 print("next_round: life bars did not refill within %d frames; ending the match" % MAX_WAIT,
                       flush=True)
                 return False
-        self.run_frames([[]] * INTRO_SKIP)
+        self.run_frames([[]] * (INTRO_SKIP - (len(fs) - 1 - full[0])))   # counted from the refill frame
         self.round += 1
         self.last = "idle"
         self.ground = (self.f.my_y, self.f.opp_y)

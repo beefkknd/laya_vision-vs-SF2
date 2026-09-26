@@ -4,10 +4,11 @@
     python scripts/relabel.py --rollout rollouts/r0 --name filter_r1 --mode filter    # (b) cheap filter
 
 (a) dagger: the teacher's distribution is the gold on the *student's* frames. Frames around trouble (hits taken
-    in the next 0.5 s, knockdowns, whiffed specials) are also written to a separate "<name>_hot" set, so
+    in the next 0.5 s, knockdowns) are also written to a separate "<name>_hot" set, so
     train.py samples them as their own group instead of drowning them in neutral walking frames.
 (b) filter: keep only student actions followed by damage_for > damage_against in the next 0.5 s, with the
     student's own action as a one-hot gold. No teacher needed; weaker signal.
+Decisions where the stick did nothing (meta controllable False: hit or knocked down) are left out in both modes.
 (c) never: mark every frame of a lost round as wrong. round_result is kept in meta for analysis only.
 
 Val = every 10th match. Images are referenced from the rollout dir (relative paths), not copied.
@@ -43,6 +44,8 @@ def main():
                 continue
             for r in D.read(p):
                 m = r["meta"]
+                if m.get("controllable") is False:  # hit or knocked down: the stick did nothing, nothing to learn
+                    continue
                 sp = "val" if args.val_every and r["episode"] % args.val_every == args.val_every - 1 else "train"
                 if args.mode == "filter":
                     if m["dmg_for_next"] <= m["dmg_against_next"]:

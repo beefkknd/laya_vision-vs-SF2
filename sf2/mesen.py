@@ -47,15 +47,22 @@ class MesenBridge:
             else:
                 # Mesen's test runner emits emulator diagnostics for every worker.
                 self.proc = subprocess.Popen(list(launch), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        conn, _ = srv.accept()
-        srv.close()
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.sock = conn
-        self.f = conn.makefile("rwb", buffering=0)
-        self._send_lock = threading.Lock()
-        hello = self._line().split(" ", 2)
-        if hello[0] != "HELLO":
-            raise RuntimeError("unexpected greeting from Mesen: %r" % hello)
+        try:
+            conn, _ = srv.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self.sock = conn
+            self.f = conn.makefile("rwb", buffering=0)
+            self._send_lock = threading.Lock()
+            hello = self._line().split(" ", 2)
+            if hello[0] != "HELLO":
+                raise RuntimeError("unexpected greeting from Mesen: %r" % hello)
+        except BaseException:
+            if self.proc:  # a Mesen we launched must not outlive us (headless: --timeout is a week)
+                self.proc.kill()
+                self.proc.wait()
+            raise
+        finally:
+            srv.close()
         self.rom_sha1 = hello[1]
         self.rom_name = hello[2] if len(hello) > 2 else "?"
         print("Mesen connected: %s (sha1 %s)" % (self.rom_name, self.rom_sha1), flush=True)
@@ -117,7 +124,10 @@ class MesenBridge:
             h = self._line().split()
             if h[0] == "RAW":
                 idx, w, hgt, ln = map(int, h[1:5])
-                images[idx] = np.frombuffer(self._read(ln), np.uint8).reshape(hgt, w, 3).copy()
+                img = np.frombuffer(self._read(ln), np.uint8).reshape(hgt, w, 3)
+                if hgt == 239:  # the raw buffer keeps the overscan rows Mesen's PNGs crop (top 7, bottom 8)
+                    img = img[7:231]
+                images[idx] = img.copy()
             else:
                 images[int(h[1])] = decode_png(self._read(int(h[2])))
         state = self._read(slen) if slen else None

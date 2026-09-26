@@ -1,11 +1,11 @@
-"""Day 1: drive Mesen from Python, send each of the 12 actions, sanity-check the RAM map.
+"""Day 1: drive Mesen from Python, send each action, sanity-check the RAM map.
 
     python scripts/check_env.py            # then load mesen/sf2_bridge.lua in Mesen's Script Window
 
 Writes out/check/*.png. What to look for in the printout:
   * my_x grows while "forward" runs when you are on the left (and shrinks on the right).
-  * my_y changes during "jump" and comes back (airborne=1 in between).
-  * lp / hp / hadouken screenshots show the move.
+  * my_y changes during "jump" and comes back ("me=... jump" in the note in between).
+  * lp / hp screenshots show the move.
 If x/y never move, the RAM map is wrong: rerun scripts/find_ram.py or fix ram_maps/*.txt by hand.
 """
 import argparse

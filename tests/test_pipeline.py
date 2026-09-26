@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from sf2 import actions as A
 from sf2 import dataset as D
 from sf2.loop import play
 from sf2.rollout import gate
@@ -31,8 +32,8 @@ def test_collect_relabel_load(tmp_path):
     assert w.n["train"] > 0 and w.n["val"] > 0
     recs = D.read(str(tmp_path / "data/seed/train.jsonl"))
     r = recs[0]
-    assert len(r["target"]) == 12 and abs(sum(r["target"]) - 1) < 1e-6
-    assert r["state_text"].startswith("me=ryu opp=ken dist=")
+    assert len(r["target"]) == len(A.ACTIONS) and abs(sum(r["target"]) - 1) < 1e-6
+    assert r["state_text"].startswith("me=ryu ") and " opp=ken " in r["state_text"] and " dist=" in r["state_text"]
     for im in r["images"]:
         assert os.path.exists(tmp_path / "data/seed" / im)
     assert all("dmg_for_next" in x["meta"] and "round_result" in x["meta"] for x in recs)
@@ -55,6 +56,29 @@ def test_collect_relabel_load(tmp_path):
         ex = vt.load_jsonl_examples(str(tmp_path / "data"), name, "train")
         assert len(ex) == len(D.read(str(tmp_path / "data" / name / "train.jsonl")))
         e = ex[0]
-        assert e["q"]["t"] == "choice" and len(e["target"]) == 12
+        assert e["q"]["t"] == "choice" and len(e["target"]) == len(A.ACTIONS)
         assert len(e["state"]["images"]) == 2 and all(os.path.exists(p) for p in e["state"]["images"])
         assert e["state"]["context"].startswith("me=ryu")
+
+
+def test_relabel_leaves_out_decisions_where_the_stick_did_nothing(tmp_path):
+    ro = tmp_path / "rollouts" / "r0"
+    ro.mkdir(parents=True)
+    meta = dict(action="idle", teacher_action="block", dmg_for_next=5, dmg_against_next=0, hot=False)
+    recs = [{"id": "r%d" % i, "episode": 0, "step": i, "images": ["images/a.png", "images/a.png"], "label": 9,
+             "target": D.one_hot("block"), "meta": dict(meta, controllable=c)}
+            for i, c in enumerate([True, False, True])]
+    D.write_jsonl(str(ro / "train.jsonl"), recs)
+    for mode in ("dagger", "filter"):
+        out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts/relabel.py"), "--rollout", str(ro),
+                              "--name", mode, "--mode", mode, "--out", str(tmp_path / "data")],
+                             capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        assert [r["id"] for r in D.read(str(tmp_path / "data" / mode / "train.jsonl"))] == ["r0", "r2"]
+
+
+def test_rows_carry_her_action_state_at_decision_time():
+    """So a rollout can count her Lightning Legs (state 0C) and other states after the fact."""
+    env = make_env()
+    rows, _ = play(env, lambda *a: ("hk", {}), matches=1, max_decisions=20, log_every=0)
+    assert rows and all("my_state" in r["meta"] for r in rows)

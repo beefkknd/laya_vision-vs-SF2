@@ -32,11 +32,12 @@ def save(path: str, trace: Dict) -> None:
 
 
 def make_trace(ram_map, values: Sequence[Dict[str, int]], inputs: Optional[Sequence] = None) -> Dict:
-    """A hand-written trace: one window per map variable, ``values[i]`` = the variables after frame i."""
+    """A hand-written trace: one window per map variable, ``values[i]`` = the variables after frame i (0 if left
+    out)."""
     windows = [[v.addr, v.size] for v in ram_map]
     rows = []
     for i, vals in enumerate(values):
-        mem = [(vals[v.name] & ((1 << 8 * v.size) - 1)).to_bytes(v.size, "little").hex() for v in ram_map]
+        mem = [(vals.get(v.name, 0) & ((1 << 8 * v.size) - 1)).to_bytes(v.size, "little").hex() for v in ram_map]
         rows.append({"in": sorted(inputs[i]) if inputs is not None else None, "mem": mem})
     return {"header": {"windows": windows, "synthetic": True}, "rows": rows}
 
