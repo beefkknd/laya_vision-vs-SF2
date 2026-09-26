@@ -1,4 +1,4 @@
-"""The basic options laya-vision chooses from, and the frame-by-frame inputs the glue code stuffs for each.
+"""The options laya-vision chooses from, and the frame-by-frame inputs the glue code stuffs for each.
 
 Directions are *relative*: F = toward the opponent, B = away. The glue resolves them to LEFT/RIGHT from the
 fighters' x positions at decision time, so the model never has to know which side it is on. (The plan's
@@ -11,7 +11,7 @@ from .config import PAD
 ACTIONS: List[str] = [
     "idle", "forward", "back", "jump", "jump_forward", "crouch",
     "lp", "hp", "lk", "hk",
-    "block",
+    "block", "throw",
 ]
 INDEX = {a: i for i, a in enumerate(ACTIONS)}
 
@@ -27,6 +27,7 @@ CRITERIA: Dict[str, str] = {
     "lk": "light kick, fast low-risk poke",
     "hk": "roundhouse kick, long reach",
     "block": "crouching block against an incoming attack",
+    "throw": "throw the opponent when right next to him (a fierce punch otherwise)",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -47,6 +48,8 @@ MACROS: Dict[str, List[Step]] = {
     "lk": [(("lk",), _TAP), ((), _TAP)],
     "hk": [(("hk",), _TAP), ((), _TAP)],
     "block": [(("D", "B"), 6)],
+    # toward + fierce on the same frame: a throw within 42 px at the press (tests/test_rom_harness.py), else a fierce
+    "throw": [(("F", "hp"), _TAP), (("F",), _TAP)],
 }
 assert set(MACROS) == set(ACTIONS)
 

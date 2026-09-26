@@ -8,7 +8,15 @@ def test_every_action_has_a_macro_and_description():
 
 def test_the_basic_set_has_no_special_moves():
     """World Warrior Chun-Li has no fireball and no dragon punch: those macros only gave a fierce punch."""
-    assert A.ACTIONS == ["idle", "forward", "back", "jump", "jump_forward", "crouch", "lp", "hp", "lk", "hk", "block"]
+    assert A.ACTIONS[:11] == ["idle", "forward", "back", "jump", "jump_forward", "crouch", "lp", "hp", "lk", "hk",
+                              "block"]
+
+
+def test_throw_is_toward_and_fierce_on_the_same_frame():
+    """On the ROM toward (or back) + fierce throws Dhalsim when he is within 42 px at the press; further out a plain
+    fierce comes out. Pressing the direction first gains nothing."""
+    assert "throw" in A.ACTIONS
+    assert A.expand("throw") == [("F", "hp")] * 2 + [("F",)] * 2
 
 
 def test_jump_forward_is_up_and_toward_the_opponent():

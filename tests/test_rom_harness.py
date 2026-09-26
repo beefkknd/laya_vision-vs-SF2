@@ -11,6 +11,8 @@ import re
 
 import pytest
 
+from sf2 import actions as A
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAM_MAP = os.path.join(ROOT, "ram_maps", "sf2_snes.txt")
 SAVESTATE = os.path.join(ROOT, "states", "chunli_vs_dhalsim.state")
@@ -262,8 +264,9 @@ def test_every_action_does_what_it_says(env):
     f0, fs, st = got["jump"]
     assert 0x04 in st and min(f.my_y for f in fs) < f0.my_y - 80 and toward("jump") == 0     # straight up
     assert got["crouch"][2][:4] == [0x02] * 4 and got["block"][2][:6] == [0x02] * 6        # nothing to guard yet
-    frames = {a: got[a][2].count(0x0A) for a in ("lp", "hp", "lk", "hk")}
+    frames = {a: got[a][2].count(0x0A) for a in ("lp", "hp", "lk", "hk", "throw")}
     assert (frames["lp"], frames["hp"], frames["lk"], frames["hk"]) == (13, 30, 17, 33)
+    assert frames["throw"] == 30 and 0x14 not in [f.opp_state for f in got["throw"][1]]  # out of reach: a fierce
 
 
 def test_the_same_button_on_consecutive_decisions_presses_again(env):
@@ -486,3 +489,39 @@ def test_lightning_legs_need_ten_kick_decisions_in_a_row(env):
     for b in ("lk", "hk"):
         assert legs([b] * 9) == 0 and legs([b] * 11) > 0, b
     assert legs(["lk", "hk"] * 10) > 0
+
+
+def _up_close(env, reach=38):
+    """Walk in until Dhalsim is within ``reach`` px, both on the ground, him standing or crouching."""
+    for _ in range(300):
+        f = env.f
+        if (f.dx <= reach and not any(env.airborne()) and env.controllable() and f.my_state in (0, 2)
+                and f.opp_state in (0, 2) and f.opp_y == f.my_y):
+            return
+        env.act("forward" if f.dx > reach else "idle")
+    raise AssertionError("never got up close")
+
+
+def test_throw_throws_him_up_close_on_both_sides(env):
+    """Toward + fierce within 42 px: she holds him (0A, 61 frames), he is thrown (14) ~31 frames after the press and
+    loses 46 life, landing further away on the same side. Back + fierce throws him behind her: the sides swap."""
+    for side in ("left", "right"):
+        env.reset()
+        env.run_frames([[]] * 4, capture=False)
+        if side == "right":
+            _to_other_side(env)
+        _up_close(env)
+        state, f0 = env.backend.save_state(), env.f
+        for arm in ("throw", "back throw"):
+            env.backend.load_state(state)
+            env.f = f0
+            fs = []
+            if arm == "throw":
+                env.act("throw", on_frame=fs.append)
+            else:
+                fs += env.run_frames([A.to_physical(t, f0.facing_right) for t in [("B", "hp")] * 2 + [("B",)] * 2],
+                                     capture=False)
+            fs += env.run_frames([[]] * 70, capture=False)
+            assert any(f.opp_state == 0x14 for f in fs), (side, arm)
+            assert f0.life[1] - fs[-1].life[1] == 46, (side, arm)
+            assert fs[-1].facing_right == (f0.facing_right if arm == "throw" else not f0.facing_right), (side, arm)
