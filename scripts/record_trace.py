@@ -17,6 +17,8 @@ Plans:
              walk left 300 decisions (Dhalsim jumps over her; she backs into the left wall), idle 60
   fireball   seeded random back/idle/block/jump/forward until two of Dhalsim's Yoga Fires have come and gone,
              then 60 idle frames. From the Chun-Li savestate, --seed 1 gets them in round 2
+  close      seeded: walk in to 30 px, then random idle/idle/crouch/lp/forward until the match ends, then 600
+             idle frames. From the Chun-Li savestate, --seed 1 wins 2-0 and gets thrown, knocked down and dizzied
   timeover   a random-policy round until it ends, then 600 idle frames; inputs are not checked on replay.
              From the Chun-Li savestate, --seed 4 --jitter 30 runs out the clock (33 vs 12)
 """
@@ -36,8 +38,9 @@ from sf2.ram import Var, load_map
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests"))
 from trace_mesen import save  # noqa: E402
 
-# low page, fighters (0x0D00 / 0x0F00), timer, fighter action state (0x0C00 / 0x0E00), projectile slot (0x1050)
-WINDOWS = [[0x0000, 0x200], [0x0D00, 0x80], [0x0F00, 0x80], [0x1AC0, 0x10], [0x0C00, 0x80], [0x0E00, 0x80],
+# low page, fighters (0x0D00 / 0x0F00), timer, fighter action state and round wins (0x0C00 / 0x0E00, wins at +0xD0),
+# projectile slot (0x1050)
+WINDOWS = [[0x0000, 0x200], [0x0D00, 0x80], [0x0F00, 0x80], [0x1AC0, 0x10], [0x0C00, 0xE0], [0x0E00, 0xE0],
            [0x1000, 0x80]]
 MY_WX, OPP_WX = 0x0D18, 0x0F18
 DECISION = 4
@@ -179,6 +182,15 @@ def plan_fireball(env, rec, seed):
     env.run_frames([[]] * 60)
 
 
+def plan_close(env, rec, seed):
+    rng = random.Random(seed)
+    for _ in range(3000):
+        a = "forward" if env.f.dx > 30 else rng.choice(["idle", "idle", "crouch", "lp", "forward"])
+        if env.act(a).round_over and not env.next_round():
+            break
+    env.run_frames([[]] * 600)
+
+
 def plan_timeover(env, rec, seed):
     rng = random.Random(seed)
     while not env.act(rng.choice(ACTIONS)).round_over:
@@ -189,7 +201,7 @@ def plan_timeover(env, rec, seed):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_env_args(ap)
-    ap.add_argument("--plan", required=True, choices=["walk", "facing", "start", "ko_round2", "knockdown", "walls", "fireball", "timeover"])
+    ap.add_argument("--plan", required=True, choices=["walk", "facing", "start", "ko_round2", "knockdown", "walls", "fireball", "close", "timeover"])
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     if args.plan != "timeover":
@@ -200,7 +212,7 @@ def main():
     env.backend = rec
     rec.set_vars(load_map(args.ram_map))
     env.reset()
-    if args.plan in ("timeover", "fireball"):
+    if args.plan in ("timeover", "fireball", "close"):
         globals()["plan_" + args.plan](env, rec, args.seed)
     else:
         globals()["plan_" + args.plan](env, rec)
