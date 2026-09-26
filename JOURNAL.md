@@ -117,18 +117,13 @@ The student sees two screenshots and a short RAM-derived text note, and picks on
 3. Run `SF2_ROM=... pytest -q tests/test_rom_harness.py` to get the stamp.
 4. Re-measure training ex/s and play decisions/s before choosing worker counts.
 
-**DAgger round 3 on Dhalsim** (about 2 h here), from `runs/r2/best`:
+**DAgger round 3 on Dhalsim** (about 2 h here), from `runs/r2/best`: `scripts/loop/round.sh 3 r2` (relabel r2's gate
+rollout, train runs/r3 on the seed set plus every dagger set with hot sets at half weight, gate it as r3_gate), then
+`python scripts/gate.py rollouts/r2_gate rollouts/r3_gate`. `scripts/loop/run.sh` runs any step and appends it to
+out/training.log; `scripts/loop/since.sh "<header>"` prints the log from that step on.
 
-```sh
-python scripts/relabel.py --rollout rollouts/r2_gate --name dagger5_r3 --val-every 5
-python scripts/train.py --data data/seed5_g10 --data data/dagger5_r1 --data data/dagger5_r1_hot \
-  --data data/dagger5_r2 --data data/dagger5_r2_hot --data data/dagger5_r3 --data data/dagger5_r3_hot \
-  --mix dagger5_r1_hot=0.5 --mix dagger5_r2_hot=0.5 --mix dagger5_r3_hot=0.5 \
-  --val-data data/eval5 --init runs/r2/best --out runs/r3 --epochs 1 --eval-every 1000 --patience 3 --val-limit 8000
-python scripts/parallel.py --workers 4 play_student --model runs/r3/best --name r3_gate --matches 20 --seed 4242 \
-  --savestate states/chunli_vs_dhalsim.state --me chunli --opp dhalsim
-python scripts/gate.py rollouts/r2_gate rollouts/r3_gate
-```
+**Savestate on a new machine:** copy `states/`, or remake the Dhalsim start with
+`python scripts/make_savestate.py --out states/chunli_vs_dhalsim.state` (verified to play identically).
 
 **Arcade mode (stage 6), in order:**
 1. `my_char` / `opp_char` / `stage` in the RAM map, with the note's `opp=` read from RAM.
