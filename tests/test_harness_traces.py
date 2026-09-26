@@ -69,3 +69,15 @@ def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter()
     for _ in range(12):
         env.act("idle")                            # he has landed by now
     assert env.airborne() == (False, False)
+
+
+def test_time_over_goes_to_the_higher_life_without_counting_the_zeroed_bars_as_damage():
+    t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))   # timer ran out at 43 vs 25
+    env = FightEnv(TraceMesen(t), MAP, b"", seed=t["header"]["seed"], jitter=t["header"]["jitter"])
+    env.reset()
+    while True:
+        res = env.act("idle")                      # inputs are not checked in this trace
+        if res.round_over:
+            break
+    assert res.winner == "me" and env.wins == {"me": 1, "opp": 0}
+    assert (res.dmg_for, res.dmg_against) == (0, 0)
