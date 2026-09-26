@@ -9,4 +9,6 @@ MODEL=${2:-runs/r1/best}
 : ${SF2_ROM:="$HOME/Downloads/sf2/Street Fighter II (USA).sfc"}
 : ${SF2_MESEN:="$HOME/Applications/Mesen 2.app/Contents/MacOS/Mesen"}
 CMD="cd ${(q)PWD} && export SF2_ROM=${(q)SF2_ROM} SF2_MESEN=${(q)SF2_MESEN} && .venv/bin/python scripts/arcade.py --games $GAMES --model ${(q)MODEL}"
-osascript -e "tell application \"Terminal\" to do script \"${CMD//\"/\\\"}\"" -e 'tell application "Terminal" to activate' >/dev/null
+# the command goes in as an argument, not pasted into AppleScript source (paths have spaces and parentheses)
+osascript -e 'on run argv' -e 'tell application "Terminal"' -e 'do script (item 1 of argv)' -e 'activate' \
+    -e 'end tell' -e 'end run' "$CMD" >/dev/null
