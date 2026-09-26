@@ -57,3 +57,15 @@ def test_forward_and_back_press_toward_and_away_from_the_opponent():
     for _ in range(8):
         env.act("back")
     assert env.frame_no == n
+
+
+def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter():
+    from trace_mesen import make_trace
+
+    rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192,
+             "opp_y": 140 if 1 <= i <= 40 else 192} for i in range(101)]      # Dhalsim mid-jump early on
+    env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"", seed=0, jitter=20)
+    env.reset()                                    # the jitter idles 1..20 frames, while he is in the air
+    for _ in range(12):
+        env.act("idle")                            # he has landed by now
+    assert env.airborne() == (False, False)

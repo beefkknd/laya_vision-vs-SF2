@@ -107,7 +107,6 @@ class FightEnv:
         if self.jitter:  # desynchronise the CPU's randomness between workers / matches
             self.run_frames([[]] * self.rng.randint(1, self.jitter))
             self.frame_no = 0
-            self.ground = (self.f.my_y, self.f.opp_y)
         return self.frame
 
     @property
