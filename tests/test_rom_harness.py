@@ -216,3 +216,20 @@ def test_yoga_fire_is_read_from_the_projectile_slot(env):
     fs = env.run_frames([[]] * 12, capture=False)
     assert all(f.fireball for f in fs)
     assert all(2 <= (b.fireball_x - a.fireball_x) * toward <= 4 for a, b in zip(fs, fs[1:]))
+
+
+def test_the_stick_does_nothing_while_she_is_hit(env):
+    """From the first frame of a hit, every input gives the same RAM for as long as she stays in state 0E."""
+    env.reset()
+    while env.controllable():
+        env.act("idle")
+    state = env.backend.save_state()
+    col = env.names.index("my_state")
+    runs = []
+    for held in (["right"], ["left"], ["up"], ["down"], ["down", "left"], ["y"], []):
+        env.backend.load_state(state)
+        runs.append(env.backend.run([held] * 120).rams[1:])
+    hit = next(i for i, r in enumerate(runs[-1]) if r[col] != 0x0E)   # leaves the hit state (idle reference)
+    assert hit > 10
+    assert all(run[:hit] == runs[-1][:hit] for run in runs)
+    assert any(run[hit + 8] != runs[-1][hit + 8] for run in runs)      # afterwards the stick works again
