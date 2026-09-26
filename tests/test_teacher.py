@@ -75,3 +75,10 @@ def test_rule8_walk_into_throw_range_up_close_when_he_is_not_attacking():
         assert top(p) == "forward" and soft(p)
     assert top(teacher_policy(fighters(60, opp_state=0x0A), ctx(), "chunli")) == "block"
     assert top(teacher_policy(fighters(60, opp_state=0x0E), ctx(), "chunli")) != "forward"   # he is hit or blocking
+
+
+def test_close_anti_air_is_fierce_so_kick_runs_do_not_build_the_legs():
+    """Roundhouse anti-airs on consecutive decisions up close ran 10+ hk in a row: accidental Lightning Legs."""
+    p = teacher_policy(fighters(40), ctx(opp_air=True), "chunli")
+    assert top(p) == "hp" and soft(p)
+    assert top(teacher_policy(fighters(90), ctx(opp_air=True), "chunli")) == "hk"

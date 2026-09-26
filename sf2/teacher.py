@@ -35,6 +35,8 @@ def teacher_policy(f: Fighters, c: Context, character: str = "chunli") -> Dict[s
             return _dist({"hk": 0.8, "idle": 0.2})
         return _dist({"idle": 0.7, "hk": 0.3})
     if c.opp_air and dx < MID and c.dx_trend <= 0:  # anti-air
+        if dx < 60:  # up close hk runs build the Legs by accident: fierce instead
+            return _dist({"hp": 0.6, "hk": 0.2, "block": 0.15, "back": 0.05})
         return _dist({"hk": 0.55, "hp": 0.25, "block": 0.15, "back": 0.05})
     if (f.opp_attacking and dx < MID) or (f.fireball and abs(f.fireball_x - f.my_x) < CLOSE):  # guard
         return _dist({"block": 0.7, "back": 0.1, "hk": 0.1, "jump_forward": 0.1})
