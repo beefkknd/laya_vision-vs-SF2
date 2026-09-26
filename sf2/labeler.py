@@ -33,17 +33,23 @@ def relative(names: Sequence[str], facing_right: bool) -> Tuple[frozenset, Set[s
 
 def events(frames: Sequence[Tuple[Sequence[str], bool]]) -> List[Tuple[int, str]]:
     """(frame index, option) for every attack press. World Warrior Chun-Li has no motion specials, so a motion
-    followed by a punch is just that punch."""
-    atks = [relative(names, facing)[1] for names, facing in frames]
+    followed by a punch is what its last frame gives. Kick taps stay lk / hk: the Legs are not labelled."""
+    rel = [relative(names, facing) for names, facing in frames]
     out = []
     for t in range(len(frames)):
-        new = atks[t] - (atks[t - 1] if t else set())
+        dirs, atk = rel[t]
+        new = atk - (rel[t - 1][1] if t else set())
         if not new:
             continue
         # plain attack: strongest button pressed this frame
         order = ["hp", "hk", "mp", "mk", "lp", "lk"]
         b = next(x for x in order if x in new)
-        out.append((t, _ATTACK[b]))
+        if b in ("hp", "mp") and dirs & {"F", "B"} and not dirs & {"U", "D"}:
+            out.append((t, "throw"))       # toward / back + fierce or strong: a throw up close, else that punch
+        elif b == "hk" and "D" in dirs:
+            out.append((t, "sweep"))
+        else:
+            out.append((t, _ATTACK[b]))
     return out
 
 
