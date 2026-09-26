@@ -45,6 +45,7 @@ WINDOWS = [[0x0000, 0x200], [0x0D00, 0x80], [0x0F00, 0x80], [0x1AC0, 0x10], [0x0
            [0x1000, 0x80]]
 MY_WX, OPP_WX = 0x0D18, 0x0F18
 DECISION = 4
+CHUNK = 300         # frames per RUN (see Recorder.run)
 
 
 class Recorder:
@@ -77,10 +78,17 @@ class Recorder:
         return self._cut(obs)
 
     def run(self, frames, caps=()):
-        obs = self.inner.run(frames, caps)
-        for f, values in zip(frames, obs.rams[1:]):
-            self.rows.append({"in": sorted(f) if self.check_inputs else None, "mem": self._mem(values)})
-        return self._cut(obs)
+        """In RUNs of at most CHUNK frames: with every window byte in the report, Mesen's 1 s limit on a Lua call
+        is hit at ~1500 frames and the protocol desyncs."""
+        rams, images = None, {}
+        for s in range(0, max(1, len(frames)), CHUNK):
+            part = frames[s:s + CHUNK]
+            obs = self.inner.run(part, [c - s for c in caps if s <= c <= s + len(part)])
+            rams = rams + obs.rams[1:] if rams else obs.rams
+            images.update({i + s: img for i, img in obs.images.items()})
+            for f, values in zip(part, obs.rams[1:]):
+                self.rows.append({"in": sorted(f) if self.check_inputs else None, "mem": self._mem(values)})
+        return self._cut(Obs(rams, [], images, None))
 
     def world_x(self):
         mem = bytes.fromhex(self.rows[-1]["mem"][1]), bytes.fromhex(self.rows[-1]["mem"][2])
