@@ -44,7 +44,10 @@ means network access is not ticked in Mesen's script settings, or SF2_ROM is wro
 - Collection (`collect_teacher`, `play_teacher`) is CPU-bound: start with **workers = performance cores**
   (4 on the base M4), then check `top` and scale up while throughput still grows.
 - `play_student` loads the model once per worker (~1-2 GB each, sharing the one GPU): 2-3 workers on 16 GB,
-  4 on 24-32 GB. More workers than that just queue on the GPU.
+  4 on 24-32 GB. More workers than that just queue on the GPU. Measured on the M4 Pro (2026-09-26), a checkpoint
+  trained with `--image-size 256`: 1/2/3/4 workers = 9.8/14.7/17.8/19.7 decisions/s (512 px: 5.2 at 1, 7.2 at 3).
+  The GPU is compute-bound (batching 8 states in one forward only reaches ~26/s), so 4 workers is near the ceiling.
+- bf16 autocast on MPS does not pay: training no faster, play 10% faster but only 69% top-action agreement with fp32.
 - Training (`train.py`) is one process on the GPU. It is not parallelised; don't run two at once. Collection for
   the next round can run beside it.
 
