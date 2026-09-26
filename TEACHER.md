@@ -75,12 +75,15 @@ the time between 40 and 100 px, 24% at 100-120, 5-8% beyond. Hence CLOSE = 80, M
 - Rule-based bots key off "opponent attacking" and "fireball on screen"
   ([sf2-bot](https://github.com/SanjoSolutions/sf2-bot)). Both are read from RAM now (`opp_attacking`, `fireball`).
 
-## What is wrong in `sf2/teacher.py`
+## What was wrong in `sf2/teacher.py` (before Stage 3)
 
-- Mid and far range always pick `forward`: she walks into Yoga Fire and limbs and never guards.
-- Guard comes only *after* a hit, only up close, and `block` holds for 6 frames.
-- Anti-air requires `dx_trend <= 0`, so Dhalsim's neutral and back jumps are ignored.
-- The in-air rule is dead code: `jump` is never the top choice.
+- Mid and far range always pick `forward`: she walks into Yoga Fire and limbs and never guards. (Mid range now
+  jumps in when he is not attacking; rule 5 below.)
+- Guard comes only *after* a hit, only up close, and `block` holds for 6 frames. (Guarding on his attacks, rule 1,
+  did not clear the bar.)
+- Anti-air requires `dx_trend <= 0`, so Dhalsim's neutral and back jumps are ignored. (Dropping that, rule 6, made
+  it worse.)
+- The in-air rule was dead code: `jump` was never the top choice. It now kicks every jump-in.
 
 ## Stage 3: basic rules, one at a time (kept only if the gate improves)
 
@@ -93,13 +96,19 @@ if it changes that choice. Rollouts: `rollouts/t3_*`.
 | --- | --- | ---: | ---: | ---: | --- | --- |
 | (start) | base3_teacher | -84.5 | 6.8 | 1 / 41 | | best |
 | 1 block when Dhalsim attacks within MID or a Yoga Fire is within CLOSE | t3_block | -74.6 | 8.6 | 4 / 44 | +9.9 (21.9) | dropped |
-| 2 cornered up close: jump out over him (`jump_forward`); never `back` in the corner | t3_corner | -84.1 | 7.1 | 1 / 41 | +0.3 (19.6) | dropped |
+| 2 cornered up close: jump out over him (`jump_forward`); never `back` in the corner | t3_corner | -84.1 | 7.1 | 1 / 41 | +0.3 (19.7) | dropped |
 | 3 spacing: from far walk in with no buttons; at mid (his limbs) guard, don't walk in | t3_spacing | -90.2 | 7.8 | 1 / 41 | -5.7 (20.7) | dropped |
 | 4 up close: roundhouse (`hk` 0.6) instead of fierce | t3_normals | -84.1 | 9.4 | 2 / 42 | +0.3 (23.2) | dropped |
 | 5 at mid, when he is not attacking: `jump_forward` (the in-air rule kicks) | t3_jumpin_base | -2.0 | 9.4 | 21 / 52 | +82.5 (23.3) | **kept** |
+| 6 anti-air on any jump of his within MID, not only toward her (on top of 5) | t3_antiair | -12.7 | 9.2 | 22 / 51 | -10.8 (26.4) | dropped |
 
 Rule 5 was also run on top of rule 4 before rule 4's result was in (`t3_jumpin`: -1.1 ± 7.9, 18 / 51); rule 4 adds
 nothing there either.
+
+**Result:** the teacher is `base3_teacher` + rule 5: -2.0 ± 9.4 net damage per round, 21 of 52 rounds won, against
+random's -42.5 ± 9.4 (14 / 50): +40.5, 3.0 combined SE, so better than random by the gate's bar (26.7). Rules 1-3
+were judged against the teacher before the jump-in; with her now fighting up close and in the air they might score
+differently, but were not re-run.
 
 More random-play rollouts, from any machine, sharpen the action table above. Batches are self-contained dirs, so
 they can be copied over and pooled.
