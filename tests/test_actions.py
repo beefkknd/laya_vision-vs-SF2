@@ -8,7 +8,13 @@ def test_every_action_has_a_macro_and_description():
 
 def test_the_basic_set_has_no_special_moves():
     """World Warrior Chun-Li has no fireball and no dragon punch: those macros only gave a fierce punch."""
-    assert A.ACTIONS == ["idle", "forward", "back", "jump", "crouch", "lp", "hp", "lk", "hk", "block"]
+    assert A.ACTIONS == ["idle", "forward", "back", "jump", "jump_forward", "crouch", "lp", "hp", "lk", "hk", "block"]
+
+
+def test_jump_forward_is_up_and_toward_the_opponent():
+    assert A.expand("jump_forward") == [("U", "F")] * 4
+    assert A.to_physical(("U", "F"), facing_right=True) == ["up", "right"]
+    assert A.to_physical(("U", "F"), facing_right=False) == ["up", "left"]
 
 
 def test_forward_follows_facing():

@@ -9,7 +9,7 @@ from typing import Dict, List, Sequence, Tuple
 from .config import PAD
 
 ACTIONS: List[str] = [
-    "idle", "forward", "back", "jump", "crouch",
+    "idle", "forward", "back", "jump", "jump_forward", "crouch",
     "lp", "hp", "lk", "hk",
     "block",
 ]
@@ -20,6 +20,7 @@ CRITERIA: Dict[str, str] = {
     "forward": "walk toward the opponent",
     "back": "walk away from the opponent (standing guard)",
     "jump": "jump straight up",
+    "jump_forward": "jump toward the opponent",
     "crouch": "crouch down",
     "lp": "light punch, fast and short",
     "hp": "fierce punch, slow and strong",
@@ -39,6 +40,7 @@ MACROS: Dict[str, List[Step]] = {
     "forward": [(("F",), 4)],
     "back": [(("B",), 4)],
     "jump": [(("U",), 4)],
+    "jump_forward": [(("U", "F"), 4)],
     "crouch": [(("D",), 4)],
     "lp": [(("lp",), _TAP), ((), _TAP)],
     "hp": [(("hp",), _TAP), ((), _TAP)],

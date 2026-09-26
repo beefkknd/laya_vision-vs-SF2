@@ -376,3 +376,110 @@ def test_mashing_shortens_a_dizzy(env):
     end = {k: next(i for i, r in enumerate(r) if r[st] != 0x0E) for k, r in runs.items()}
     assert end[()] > 60 and all(e == end[()] for k, e in end.items() if k != "mash")
     assert end["mash"] < end[()] / 2
+
+
+def _to_other_side(env):
+    for _ in range(200):                # walk through Dhalsim
+        env.act("forward")
+        if not env.f.facing_right:
+            return
+    raise AssertionError("never got past Dhalsim")
+
+
+def test_jump_forward_leaves_the_ground_toward_dhalsim_on_both_sides_and_lands(env):
+    """Up + toward him: in the air for about 45 frames, rising 90+ px and travelling ~90 px toward him; after the
+    fighters swap sides it still goes toward him. A kick tapped in it is an air attack: the ROM keeps state 04 and
+    moves the sub-state from 02 to 06 (not 0A, which is Dhalsim's air attack)."""
+    for side in ("left", "right"):
+        env.reset()
+        env.run_frames([[]] * 4, capture=False)
+        if side == "right":
+            _to_other_side(env)
+        for _ in range(100):            # back off until she stands free at mid range
+            env.act("back")
+            if env.f.dx >= 110 and env.f.my_state == 0 and env.f.opp_state == 0 and env.controllable():
+                break
+        f0, fs = env.f, []
+        env.act("jump_forward", on_frame=fs.append)
+        for _ in range(3):
+            env.act("idle", on_frame=fs.append)
+        env.act("hk", on_frame=fs.append)
+        for _ in range(12):
+            env.act("idle", on_frame=fs.append)
+        toward = 1 if f0.facing_right else -1
+        assert (fs[24].my_x - f0.my_x) * toward > 25, side                  # rising, before anything connects
+        assert min(f.my_y for f in fs) < f0.my_y - 80, side
+        assert any(f.my_state == 0x04 and f.my_sub == 0x06 and f.my_y < f0.my_y - 6 for f in fs), side
+        assert not any(f.my_state == 0x0A for f in fs), side
+        assert fs[-1].my_y == f0.my_y, side                                # landed (sub-state 04), maybe across him
+
+
+def test_crouch_decisions_hold_the_crouch(env):
+    env.reset()
+    env.run_frames([[]] * 4, capture=False)
+    st = []
+    for _ in range(10):
+        env.act("crouch", on_frame=lambda f: st.append(f.my_state))
+    assert set(st) == {0x02}
+
+
+def test_block_is_a_crouching_guard_and_back_a_standing_one(env):
+    """block (down + back) guards Dhalsim's standing and low attacks with the crouching guard (+0x43 = 2) and loses
+    at most a Yoga Fire's chip over 20 s. back guards with the standing guard (+0x43 = 1); lows get through it."""
+    from sf2.ram import Var
+
+    env.reset()
+    runs = _hold_each(env, {"block": [["down", "left"]] * 1200, "back": [["left"]] * 1200},
+                      [Var("guard", 0x0C43, 1, False)])
+    st, life = env.names.index("my_state"), env.names.index("my_life")
+    for held, guard in (("block", 2), ("back", 1)):
+        r = runs[held]
+        entries = [i for i in range(1, len(r)) if r[i][st] == 0x08 and r[i - 1][st] != 0x08]
+        assert len(entries) >= 3 and all(r[i][-1] == guard for i in entries), held
+    assert FULL - runs["block"][-1][life] <= 8
+    assert FULL - runs["back"][-1][life] > FULL - runs["block"][-1][life]
+
+
+def test_every_action_near_both_walls(env):
+    """Cornered at either wall, every action keeps her inside the walls and facing Dhalsim; forward and
+    jump_forward go toward him, back goes nowhere."""
+    from sf2.actions import ACTIONS
+    from sf2.ram import LEFT_WALL, RIGHT_WALL
+
+    for side in ("left", "right"):
+        env.reset()
+        if side == "right":
+            _to_other_side(env)
+        assert _back_until_stopped(env) in (LEFT_WALL, RIGHT_WALL) and env.f.my_cornered, side
+        state, f0 = env.backend.save_state(), env.f
+        toward = 1 if f0.facing_right else -1
+        for a in ACTIONS:
+            env.backend.load_state(state)
+            env.f = f0
+            fs = []
+            env.act(a, on_frame=fs.append)
+            fs += env.run_frames([[]] * 12, capture=False)
+            assert all(LEFT_WALL <= f.my_x <= RIGHT_WALL for f in fs), (side, a)
+            assert all(f.facing_right == f0.facing_right for f in fs), (side, a)
+            moved = (fs[11].my_x - f0.my_x) * toward
+            if a in ("forward", "jump_forward"):
+                assert moved > 0, (side, a, moved)
+            elif a == "back":
+                assert moved == 0, (side, a, moved)
+
+
+def test_lightning_legs_need_ten_kick_decisions_in_a_row(env):
+    """Kick taps build Chun-Li's Lightning Legs (state 0C): nine lk or hk decisions in a row do not start them,
+    eleven do. Mixed kick patterns start them sooner (lk, lk, idle repeated; lk and hk alternating)."""
+    def legs(seq):
+        env.reset()
+        env.run_frames([[]] * 4, capture=False)
+        st = []
+        for a in seq:
+            env.act(a, on_frame=lambda f: st.append(f.my_state))
+        st += [f.my_state for f in env.run_frames([[]] * 30, capture=False)]
+        return st.count(0x0C)
+
+    for b in ("lk", "hk"):
+        assert legs([b] * 9) == 0 and legs([b] * 11) > 0, b
+    assert legs(["lk", "hk"] * 10) > 0

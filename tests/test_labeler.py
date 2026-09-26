@@ -21,9 +21,9 @@ def test_plain_attack_without_motion():
 
 
 def test_decision_grid_labels():
-    seq = [["left", "down"]] * 4 + [["right"]] * 4 + [[]] * 4 + [["up"]] * 4
-    lab = labeler.label_frames(frames(seq, pad_to=16), hold=4)
-    assert [a for _, a in lab] == ["block", "forward", "idle", "jump"]
+    seq = [["left", "down"]] * 4 + [["right"]] * 4 + [[]] * 4 + [["up"]] * 4 + [["up", "right"]] * 4
+    lab = labeler.label_frames(frames(seq, pad_to=20), hold=4)
+    assert [a for _, a in lab] == ["block", "forward", "idle", "jump", "jump_forward"]
 
 
 def test_every_label_is_an_action():

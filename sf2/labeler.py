@@ -49,7 +49,7 @@ def events(frames: Sequence[Tuple[Sequence[str], bool]]) -> List[Tuple[int, str]
 
 def stick_option(d: frozenset) -> str:
     if "U" in d:
-        return "jump"
+        return "jump_forward" if "F" in d else "jump"
     if "D" in d and "B" in d:
         return "block"
     if "D" in d:
