@@ -1,43 +1,45 @@
 # Chun-Li teacher: findings and plan (2026-09-25)
 
-The student imitates the scripted teacher (`sf2/teacher.py`), so the teacher is the ceiling. Right now it is worse
-than pressing buttons at random.
+The student imitates the scripted teacher (`sf2/teacher.py`), so the teacher is the ceiling. Right now it is no
+better than pressing buttons at random.
 
-## Baselines (fixed harness, gate protocol in PROGRESS.md, 20 paired matches each, 2026-09-25)
+## Baselines (gate protocol in PROGRESS.md, 20 paired matches each, 2026-09-26)
 
 | Policy | Rounds | Net damage / round | SE | Round wins | Dealt / round |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| idle | 40 | -173.0 | 0.9 | 0 | 0 |
-| random (`play_teacher --policy random`) | 41 | -98.0 | 8.3 | 1 | 71 |
-| teacher, eps 0, CLOSE/MID 55/120 | 43 | -78.5 | 7.5 | 4 | 91 |
-| teacher, eps 0, CLOSE/MID 80/120 (current) | 43 | -75.2 | 9.0 | 3 | 91 |
+| idle (`base2_idle`) | 40 | -170.7 | 1.7 | 0 | 0 |
+| random (`base2_random`, `play_teacher --policy random`) | 42 | -89.7 | 8.1 | 2 | 81 |
+| teacher, eps 0, CLOSE/MID 80/120 (`base2_teacher`) | 41 | -84.5 | 6.8 | 1 | 86 |
 
-The teacher is ahead of random by 19.5 net damage per round, 1.7 combined SE: not yet a proven improvement.
-(The earlier "teacher worse than random" finding came from the broken harness: inverted facing made its
-`forward` walk away.)
+The teacher is ahead of random by 5.2 net damage per round, 0.5 combined SE: no better than random.
+Superseded (2026-09-25, before the harness fixes listed in PROGRESS.md): idle -173.0, random -98.0, teacher 55/120
+-78.5, teacher 80/120 -75.2.
 
-## Which actions work (random rollouts, `rollouts/base_random`, 14,669 decisions)
+## Which actions work (random rollouts, `rollouts/base2_random`, 11,812 controllable of 15,509 decisions)
 
-Net damage (dealt minus taken) in the 0.5 s after each action, per decision, by real distance. Random play, one
-opponent, one savestate: the next 0.5 s also depends on the random actions around it, so read it for ranking only.
+Net damage (dealt minus taken) in the 0.5 s after each action, per decision, by real distance; only decisions where
+the stick does something (`controllable`). Damage is booked on the decision a hit lands in. Random play, one
+opponent, one savestate: the next 0.5 s also depends on the random actions around it, and each cell has 211-542
+decisions, so read it for ranking only. (Superseded: the 2026-09-25 table from `base_random`, all decisions, with
+damage smeared over the life bar's drain.)
 
 | Action | close (< 80) | mid (80–120) | far (≥ 120) |
 | --- | ---: | ---: | ---: |
-| idle | -1.82 | -3.77 | -0.54 |
-| forward | -2.55 | -3.28 | -0.53 |
-| back | -2.05 | -3.05 | -0.55 |
-| jump | -2.70 | -2.46 | -0.42 |
-| crouch | -1.87 | -2.69 | -0.78 |
-| lp | -2.75 | -3.94 | -0.29 |
-| hp | -2.17 | -2.76 | -0.60 |
-| lk | -3.06 | -2.67 | -0.48 |
-| hk | -2.17 | -2.66 | -0.69 |
-| block | -1.25 | -2.76 | -0.22 |
-| hadouken | -2.61 | -2.99 | -0.60 |
-| shoryuken | -2.52 | -2.95 | -0.38 |
+| idle | -1.02 | -4.32 | -0.55 |
+| forward | -2.85 | -4.12 | -0.06 |
+| back | -2.58 | -3.42 | -0.34 |
+| jump | -1.81 | -2.54 | -0.86 |
+| crouch | -0.54 | -4.39 | -0.54 |
+| lp | -2.23 | -3.98 | -0.35 |
+| hp | -0.99 | -4.07 | -0.28 |
+| lk | -0.91 | -3.83 | -1.14 |
+| hk | -1.68 | -4.18 | -0.32 |
+| block | -2.93 | -2.78 | -0.28 |
+| hadouken | -0.12 | -4.25 | -0.34 |
+| shoryuken | -1.05 | -4.53 | -0.90 |
 
-Hit rates by distance (same run): our attacks land most at 40-80 px; Dhalsim hits us 42-47% of the time between 40
-and 100 px, 24% at 100-120, 5-8% beyond. Hence CLOSE = 80, MID = 120 (`sf2/ram.py`).
+Hit rates by distance (2026-09-25, `base_random`): our attacks land most at 40-80 px; Dhalsim hits us 42-47% of
+the time between 40 and 100 px, 24% at 100-120, 5-8% beyond. Hence CLOSE = 80, MID = 120 (`sf2/ram.py`).
 
 ## Research (web, summarized)
 

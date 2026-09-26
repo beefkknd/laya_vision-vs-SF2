@@ -25,10 +25,17 @@ Treat held-out teacher agreement and frame accuracy as training diagnostics, not
 
 | Run | Net damage / round | SE | Round wins | Notes |
 | --- | ---: | ---: | ---: | --- |
-| base_idle | -173.0 | 0.9 | 0 / 40 | 2026-09-25 baseline. 15 of 20 matches distinct (idling converges). |
-| base_random | -98.0 | 8.3 | 1 / 41 | 2026-09-25 baseline, `play_teacher --policy random`. Dealt 71 per round. |
-| base_teacher | -78.5 | 7.5 | 4 / 43 | 2026-09-25 baseline, eps 0, CLOSE/MID 55/120. +19.5 over random = 1.7 SE: not yet better. |
-| base_teacher_c80 | -75.2 | 9.0 | 3 / 43 | 2026-09-25, CLOSE/MID 80/120 (current). +22.8 over random = 1.9 SE: not yet better. |
+| base2_idle | -170.7 | 1.7 | 0 / 40 | 2026-09-26 baseline. |
+| base2_random | -89.7 | 8.1 | 2 / 42 | 2026-09-26 baseline, `play_teacher --policy random`. Dealt 81 per round. |
+| base2_teacher | -84.5 | 6.8 | 1 / 41 | 2026-09-26 baseline, eps 0, CLOSE/MID 80/120. +5.2 over random = 0.5 SE: not better. |
+
+The 2026-09-26 rows supersede base_idle (-173.0), base_random (-98.0), base_teacher (-78.5) and base_teacher_c80
+(-75.2) from 2026-09-25. Since then the harness renders every frame for screenshots, starts rounds 2+ when control
+returns, ends rounds on the ROM's round result (a KO books the loser's whole bar), books a hit's damage on the
+decision it lands in, tells block stun and dizzies from hit stun, and ends a match after its 4th round.
+All three arms had 20 distinct matches. A lost round can show 161 or 140 taken: with a worker's start jitter (up to
+95 idle frames) Dhalsim's first one or two hits can land before the first decision. A time-over loss shows the
+life she still had (random: 175, 172).
 
 Everything measured before 2026-09-25 (chunli_r*, v2_*) ran on a broken harness: wrong x addresses (distance
 and facing), knockdowns counted as jumps, time-overs scored as draws, and parallel workers replaying identical
