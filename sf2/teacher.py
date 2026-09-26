@@ -16,6 +16,7 @@ from .ram import CLOSE, MID, Fighters
 SMOOTH = 0.01
 GROUND_Y = 192
 KICK_HEIGHT = 88  # jump-in: a kick pressed this high up (near the apex, ~24 frames in) lands; earlier ones whiff
+THROW_RANGE = 40  # toward + fierce throws within 42 px at the press (ROM); he can step a little before it
 
 
 def _dist(weights: Dict[str, float]) -> Dict[str, float]:
@@ -39,6 +40,10 @@ def teacher_policy(f: Fighters, c: Context, character: str = "chunli") -> Dict[s
         return _dist({"block": 0.7, "back": 0.1, "hk": 0.1, "jump_forward": 0.1})
     if c.frames_since_hit < 20 and dx < CLOSE + 20:  # just got hit up close: guard
         return _dist({"block": 0.7, "lk": 0.2, "back": 0.1})
+    if dx <= THROW_RANGE and f.opp_state in (0x00, 0x02) and not c.opp_air:  # he stands or crouches: throw
+        return _dist({"throw": 0.6, "hp": 0.15, "hk": 0.15, "block": 0.1})
+    if dx < CLOSE and f.opp_state in (0x00, 0x02) and not c.opp_air:  # walk into throw range
+        return _dist({"forward": 0.6, "hp": 0.15, "hk": 0.15, "block": 0.1})
     if dx < CLOSE:  # footsies range
         return _dist({"hp": 0.35, "hk": 0.3, "lk": 0.2, "block": 0.1, "back": 0.05})
     if dx < MID:

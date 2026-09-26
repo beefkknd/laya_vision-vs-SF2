@@ -57,3 +57,21 @@ def test_rule1_guard_when_he_attacks_in_range_or_a_yoga_fire_is_close():
     p = teacher_policy(fighters(160, fireball=1, fireball_x=260), ctx(), "chunli")         # 60 px from her
     assert top(p) == "block" and soft(p)
     assert top(teacher_policy(fighters(160, fireball=1, fireball_x=340), ctx(), "chunli")) != "block"
+
+
+def test_rule8_throw_when_he_stands_or_crouches_within_throw_range():
+    """On the ROM toward + fierce throws within 42 px (46 life); he must be on the ground and not attacking."""
+    for st in (0x00, 0x02):
+        p = teacher_policy(fighters(35, opp_state=st), ctx(), "chunli")
+        assert top(p) == "throw" and soft(p)
+    assert top(teacher_policy(fighters(60, opp_state=0), ctx(), "chunli")) != "throw"          # out of reach
+    assert top(teacher_policy(fighters(35, opp_state=0x0A), ctx(), "chunli")) == "block"       # he attacks: guard
+    assert top(teacher_policy(fighters(35, opp_state=0x04), ctx(opp_air=True), "chunli")) != "throw"
+
+
+def test_rule8_walk_into_throw_range_up_close_when_he_is_not_attacking():
+    for dx in (45, 60, 75):
+        p = teacher_policy(fighters(dx, opp_state=0), ctx(), "chunli")
+        assert top(p) == "forward" and soft(p)
+    assert top(teacher_policy(fighters(60, opp_state=0x0A), ctx(), "chunli")) == "block"
+    assert top(teacher_policy(fighters(60, opp_state=0x0E), ctx(), "chunli")) != "forward"   # he is hit or blocking
