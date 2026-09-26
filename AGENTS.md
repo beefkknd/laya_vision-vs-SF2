@@ -40,6 +40,8 @@ means network access is not ticked in Mesen's script settings, or SF2_ROM is wro
   the next round can run beside it.
 
 ## Rules
+- The harness must pass against the real ROM before any collection or training:
+  `SF2_ROM=... pytest -q tests/test_rom_harness.py` (headless Mesen on port 47960, under a minute).
 - Judge a round by `scripts/gate.py` (round win rate, damage per round), never by val loss or frame accuracy alone.
 - Don't reuse a `--name`: writers refuse to overwrite an existing dataset or rollout. Pick a new name or delete the old one.
 - `pytest -q` before every commit (22 tests, no ROM needed; the Lua tests need `lua5.4` + LuaSocket).
