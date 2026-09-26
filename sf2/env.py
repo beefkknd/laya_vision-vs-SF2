@@ -70,6 +70,9 @@ class FightEnv:
             self.hist.append(self.f)
             if 0 <= self.f.my_hp < prev.my_hp:
                 self.last_hit = self.frame_no
+            f = self.f
+            self.dizzy = (ram.dizzy(self.dizzy[0], f.my_state, f.my_sub, f.my_dizzy),
+                          ram.dizzy(self.dizzy[1], f.opp_state, f.opp_sub, f.opp_dizzy))
             out.append(self.f)
         return out
 
@@ -97,6 +100,7 @@ class FightEnv:
         self.hist: Deque[ram.Fighters] = deque(maxlen=120)
         self.f = self._f(obs.rams[0])
         self.hist.append(self.f)
+        self.dizzy = (False, False)                     # (me, opp): see ram.dizzy
         self.full_hp = max(self.f.my_hp, self.f.opp_hp)  # the savestate starts with full bars
         self.ground = (self.f.my_y, self.f.opp_y)
         self.last_hit = -10_000
@@ -133,12 +137,12 @@ class FightEnv:
         if not self.in_round or f.my_state == ram.THROWN_STATE or f.my_state in ram.POSE_STATES:
             return False
         if f.my_state == ram.HIT_STATE:
-            return ram.in_block_stun(f.my_state, f.my_react) or ram.is_dizzy(f.my_state, f.my_sub, f.my_dizzy)
+            return ram.in_block_stun(f.my_state, f.my_react) or self.dizzy[0]
         return not (f.my_state == 0 and abs(f.my_y - self.ground[0]) > AIR_DY)
 
     def text(self) -> str:
         my_air, opp_air = self.airborne()
-        return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air, self.full_hp)
+        return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air, self.full_hp, self.dizzy)
 
     def context(self) -> Context:
         my_air, opp_air = self.airborne()

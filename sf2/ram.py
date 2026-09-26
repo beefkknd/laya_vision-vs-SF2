@@ -26,8 +26,8 @@ OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result"
 #   0C special move (Chun-Li's Lightning Legs, from repeated kicks)
 #   0E hit stun and block stun alike; sub-state 02 reeling / knocked into the air, 04 down, 06 getting up,
 #      08 dizzy. The hit reaction at +0x4A (0x0C4A / 0x0E4A) tells them apart: 06 / 08 block stun (standing /
-#      crouching guard; no life lost, or a Yoga Fire's 4-8 chip), anything else a hit. Dizzy is sub-state 08 with
-#      the flag at +0x89 set; without it 08 is the last 16 frames of getting up
+#      crouching guard; no life lost, or a Yoga Fire's 4-8 chip), anything else a hit. Dizzy is sub-state 08
+#      entered with the flag at +0x89 set (see dizzy()); without it 08 is the last 16 frames of getting up
 #   10 winner's pose   12 time-over loser   14 thrown through the air (also the KO fall on some rounds)
 # Dhalsim uses the same values when Chun-Li hits (0E), throws or blocks him (08).
 HIT_STATE = 0x0E
@@ -155,8 +155,10 @@ def in_block_stun(state: Optional[int], react: Optional[int]) -> bool:
     return state == HIT_STATE and react in BLOCK_REACTS
 
 
-def is_dizzy(state: Optional[int], sub: Optional[int], flag: Optional[int]) -> bool:
-    return state == HIT_STATE and sub == DIZZY_SUB and bool(flag)
+def dizzy(was: bool, state: Optional[int], sub: Optional[int], flag: Optional[int]) -> bool:
+    """Dizzy: 0E with sub-state 08, entered with the flag at +0x89 set. The flag can clear long before the stars
+    end, so a fighter stays dizzy (``was``) for as long as it stays in 0E / 08."""
+    return state == HIT_STATE and sub == DIZZY_SUB and (bool(flag) or was)
 
 
 def state_word(state: Optional[int], air: bool, react: Optional[int] = None, dizzy: bool = False) -> str:
@@ -173,12 +175,13 @@ def clock_word(timer: Optional[int]) -> str:
     return "early" if s >= 60 else "mid" if s >= 30 else "late"
 
 
-def text_state(f: Fighters, me: str, opp: str, last: str, my_air: bool, opp_air: bool, full_hp: int) -> str:
+def text_state(f: Fighters, me: str, opp: str, last: str, my_air: bool, opp_air: bool, full_hp: int,
+               dizzy=(False, False)) -> str:
     corner = "me" if f.my_cornered else "opp" if f.opp_cornered else "none"  # never both: they are < 212 px apart
     fireball = dist_bin(abs(f.fireball_x - f.my_x)) if f.fireball else "none"  # how far it is from her
     return ("me=%s %s hp=%d opp=%s %s hp=%d dist=%s facing=%s corner=%s time=%s last=%s fireball=%s"
-            % (me, state_word(f.my_state, my_air, f.my_react, is_dizzy(f.my_state, f.my_sub, f.my_dizzy)),
+            % (me, state_word(f.my_state, my_air, f.my_react, dizzy[0]),
                pct(f.my_hp, full_hp), opp,
-               state_word(f.opp_state, opp_air, f.opp_react, is_dizzy(f.opp_state, f.opp_sub, f.opp_dizzy)),
+               state_word(f.opp_state, opp_air, f.opp_react, dizzy[1]),
                pct(f.opp_hp, full_hp), dist_bin(f.dx), "right" if f.facing_right else "left", corner,
                clock_word(f.timer), last, fireball))

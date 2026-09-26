@@ -515,3 +515,25 @@ def test_next_round_never_waits_into_the_next_opponents_fight():
     while not env.act("idle").round_over:
         pass
     assert env.wins == {"me": 1, "opp": 0} and not env.next_round()
+
+
+def test_a_dizzy_lasts_while_she_stays_in_its_sub_state_after_the_flag_clears():
+    """On the ROM (seed 12 of an attack-spamming close plan) the dizzy flag +0x89 cleared 24 frames into a dizzy
+    that went on for 250 more frames in 0E / 08, and mashing still shortened it (318 -> 144 frames). The 16-frame
+    08 at the end of getting up, never flagged, is not a dizzy."""
+    from trace_mesen import make_trace
+
+    base = {"my_hp": 100, "opp_hp": 176, "my_x": 200, "opp_x": 260, "my_y": 192, "opp_y": 192, "timer": 0x80}
+    phases = ([(0x00, 0, 0)] * 10 + [(0x0E, 4, 0)] * 20 + [(0x0E, 6, 0)] * 10 + [(0x0E, 8, 0)] * 16   # got up
+              + [(0x00, 0, 0)] * 10 + [(0x0E, 4, 1)] * 20 + [(0x0E, 8, 1)] * 24 + [(0x0E, 8, 0)] * 200  # dizzy
+              + [(0x00, 0, 0)] * 10)
+    rows = [dict(base, my_state=s, my_sub=sub, my_dizzy=flag) for s, sub, flag in phases]
+    env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"")
+    env.reset()
+    got = []
+    for _ in phases[1:]:
+        env.run_frames([[]], capture=False)
+        got.append((env.text().split()[1], env.controllable()))
+    assert got[39:55] == [("hit", False)] * 16                   # the end of getting up
+    assert got[84] == ("hit", False) and got[85:309] == [("dizzy", True)] * 224
+    assert got[-1] == ("stand", True)

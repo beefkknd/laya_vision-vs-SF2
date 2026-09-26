@@ -17,8 +17,9 @@ opp_state  0x0E03   1     0
 # anything else is a hit (00 02 reel, 0A 0E knockdown, 10 into the air, 18 ...). Checked by tests/test_harness_traces.py.
 my_react   0x0C4A   1     0
 opp_react  0x0E4A   1     0
-# Sub-state (the byte after the action state) and the dizzy flag (+0x89, set from the knockdown that dizzies until
-# the stars end): dizzy = state 0E, sub-state 08, flag 1. On the ROM mashing shortens it (99 -> 38, 223 -> 30 frames).
+# Sub-state (the byte after the action state) and the dizzy flag (+0x89, set from the knockdown that dizzies): dizzy =
+# state 0E, sub-state 08 entered with the flag set; the flag can clear before the stars end (sf2/ram.py dizzy()).
+# On the ROM mashing shortens a dizzy (223 -> 30 frames).
 my_sub     0x0C04   1     0
 opp_sub    0x0E04   1     0
 my_dizzy   0x0C89   1     0
