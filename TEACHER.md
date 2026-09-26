@@ -218,3 +218,25 @@ Measured on the ROM from 58 saved starts at 20-100 px, both sides of the screen,
 
 Alone, the throw rule rarely fires (20 throws in 20 matches: he is seldom that close and still); walking in alone
 only trades hits. Together she lands 49 throws in 20 matches, and he throws her less (19 vs 23).
+
+### Sweep (`sweep`: down + roundhouse on the same frame, 4 frames)
+
+Measured on the ROM from 79 saved starts at 20-150 px (`scratchpad/s4/sweep1.py`):
+- Down + roundhouse on the same frame is the sweep; pressing down first gives the same move. 32 frames of 0A
+  (standing roundhouse: 33).
+- **Every sweep that connects knocks him down** (0E, sub-state 04): 22 of 22 hits (with down + forward, 9 of 9 hits,
+  none knocked down). Standing roundhouse hits knocked him down 1 of 12 times.
+- **Reach ~70 px**: hits at 23-70 px, none from 73 px on. He blocks it often up close (16 of 24 at < 40 px).
+- Net damage in the next 80 frames by distance, sweep vs standing roundhouse: < 40 px -7.0 vs -4.2, 40-60 px -17.6 vs
+  -15.7, **60-80 px +11.5 vs -4.5**, beyond 80 px both whiff.
+
+| Rule | Arm | Net damage / round | SE | Round wins | vs best (bar) | Kept? |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| (start) rule 8 teacher | t4_throw_walk | +104.5 | 6.9 | 40 / 40 | | best |
+| 9a 55-75 px, him standing or crouching: `sweep` instead of walking in | t4_sweep_a | +107.7 | 8.2 | 40 / 41 | +3.2 (21.5) | dropped |
+| 9b up close otherwise (he is guarding, hit or landing): `sweep` instead of `hp` | t4_sweep_b | +118.8 | 7.2 | 40 / 41 | +14.3 (20.0) | dropped (near miss) |
+| 9a + 9b | t4_sweep_c | +114.9 | 6.8 | 40 / 40 | +10.4 (19.4) | dropped |
+
+The teacher already wins every round; what is left to gain is the ~70 life per round it still takes, and 20 paired
+matches cannot resolve 10-15 points of that. The sweep stays an action the student can pick; the teacher does not
+use it.
