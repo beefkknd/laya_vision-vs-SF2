@@ -1,7 +1,7 @@
 # Chun-Li teacher: findings and plan (2026-09-26)
 
-The student imitates the scripted teacher (`sf2/teacher.py`), so the teacher is the ceiling. After Stage 3b it
-wins 36 of 46 rounds, +104.5 net damage per round above random play (Stage 3b below).
+The student imitates the scripted teacher (`sf2/teacher.py`), so the teacher is the ceiling. After Stage 4 it
+wins 40 of 40 rounds, +161.6 net damage per round above random play with the 14-action set (Stage 4 below).
 
 ## Baselines (gate protocol in PROGRESS.md, 20 paired matches each, 2026-09-26)
 
@@ -224,8 +224,8 @@ only trades hits. Together she lands 49 throws in 20 matches, and he throws her 
 Measured on the ROM from 79 saved starts at 20-150 px (`scratchpad/s4/sweep1.py`):
 - Down + roundhouse on the same frame is the sweep; pressing down first gives the same move. 32 frames of 0A
   (standing roundhouse: 33).
-- **Every sweep that connects knocks him down** (0E, sub-state 04): 22 of 22 hits (with down + forward, 9 of 9 hits,
-  none knocked down). Standing roundhouse hits knocked him down 1 of 12 times.
+- **Every sweep that connects knocks him down** (0E, sub-state 04): 22 of 22 hits. The crouching forward kick
+  (down + A) hit 18 times and never knocked him down. Standing roundhouse hits knocked him down 1 of 12 times.
 - **Reach ~70 px**: hits at 23-70 px, none from 73 px on. He blocks it often up close (16 of 24 at < 40 px).
 - Net damage in the next 80 frames by distance, sweep vs standing roundhouse: < 40 px -7.0 vs -4.2, 40-60 px -17.6 vs
   -15.7, **60-80 px +11.5 vs -4.5**, beyond 80 px both whiff.
@@ -240,3 +240,43 @@ Measured on the ROM from 79 saved starts at 20-150 px (`scratchpad/s4/sweep1.py`
 The teacher already wins every round; what is left to gain is the ~70 life per round it still takes, and 20 paired
 matches cannot resolve 10-15 points of that. The sweep stays an action the student can pick; the teacher does not
 use it.
+
+### Lightning Legs (`lightning_legs`: 12 short-kick taps, 1 frame down and 1 up, 24 frames)
+
+Measured on the ROM (`scratchpad/s4/legs1.py`-`legs4.py`), from standing starts on both sides of the screen:
+- **12 short taps at 1 on / 1 off start the Legs (0C) from 39 of 40 starts**, at frame 18: the first tap is a
+  17-frame short, and the taps counted during it turn into Legs. 10 or 11 taps miss 5 of 20 up close on the right
+  side; 8 never do. 2-on / 1-off or 1-on / 2-off need the same count and start at frame 24; 2 / 2 at frame 40.
+- Roundhouse taps do not start them inside one decision (0 of 40 at 12 taps; 10+ `hk` decisions do, Stage 3), nor
+  do short / roundhouse alternating taps or all three kicks at once.
+- Starts where she is being hit fail, as any input would.
+
+| Rule | Arm | Net damage / round | SE | Round wins | vs best (bar) | Kept? |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| (start) rule 8 teacher | t4_throw_walk | +104.5 | 6.9 | 40 / 40 | | best |
+| 10a up close otherwise (he is guarding, hit or landing): `lightning_legs` instead of `hp` | t4_legs_b | +66.3 | 9.0 | 39 / 43 | -38.1 (22.7) | dropped (worse) |
+| 10b he attacks on the ground at 60-120 px: `lightning_legs` into his limbs instead of guarding | t4_legs_d | +31.7 | 9.6 | 34 / 51 | -72.7 (23.6) | dropped (worse) |
+| 11a anti-air: fierce, not roundhouse, on top (no `hk` runs) | t4_noacc | +90.8 | 9.2 | 39 / 42 | -13.7 (23.1) | dropped |
+| **11 anti-air within 60 px: fierce on top; roundhouse further out** | t4_noacc2 | **+105.5** | 6.8 | **40 / 40** | +1.1 (19.4) | **kept** (no cost, fewer accidental Legs) |
+
+Rule 11 is kept although it does not clear the bar: its job is to stop accidental Legs without costing gate
+score. The teacher never asks for the Legs; they lose to everything Dhalsim does here.
+
+**Accidental Legs** (Legs starts not on a `lightning_legs` decision, 20 matches each):
+
+| Arm | Legs starts | not from `lightning_legs` | longest plain kick run |
+| --- | ---: | ---: | ---: |
+| t4_throw_walk (rule 8) | 20 | 20 | 19 |
+| t4_noacc (all anti-airs fierce) | 0 | 0 | 7 |
+| t4_noacc2 = final teacher | 7 | 7 | 16 |
+| t4_legs_b / t4_legs_d (Legs as an action it uses) | 172 / 126 | 11 / 19 | 19 / 19 |
+| t4_random (14 actions) | 251 | 10 | 5 |
+
+Plain `hk` / `lk` runs still set them off exactly as before (the macros did not change): 10 `hk` or 11 `lk`
+decisions in a row (ROM check). Random play has no such runs, but its mixed kicks (`lk`, `hk`, `sweep` taps) still
+start a few.
+
+**Result (Stage 4):** the teacher is the Stage 3b teacher + rule 8 (walk into throw range, throw) + rule 11 (close
+anti-airs with fierce): **+105.5 ± 6.8** net damage per round, **40 of 40 rounds** won (`t4_final`, the same
+fights as `t4_noacc2`), dealt 176 and taken 70 per round. Random play with the 14-action set (`t4_random`):
+-56.0 ± 7.4, 3 of 42. The teacher is +161.6 ahead, 16.1 combined SE.
