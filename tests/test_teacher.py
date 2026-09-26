@@ -48,3 +48,12 @@ def test_in_the_air_kick_only_near_the_top_of_the_jump():
     for h in (92, 96):
         p = teacher_policy(air(h), ctx(my_air=True), "chunli")
         assert top(p) == "hk" and soft(p)
+
+
+def test_rule1_guard_when_he_attacks_in_range_or_a_yoga_fire_is_close():
+    assert top(teacher_policy(fighters(100, opp_state=0x0A), ctx(), "chunli")) == "block"
+    assert top(teacher_policy(fighters(50, opp_state=0x0A), ctx(), "chunli")) == "block"
+    assert top(teacher_policy(fighters(160, opp_state=0x0A), ctx(), "chunli")) != "block"   # out of his reach
+    p = teacher_policy(fighters(160, fireball=1, fireball_x=260), ctx(), "chunli")         # 60 px from her
+    assert top(p) == "block" and soft(p)
+    assert top(teacher_policy(fighters(160, fireball=1, fireball_x=340), ctx(), "chunli")) != "block"
