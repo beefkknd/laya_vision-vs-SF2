@@ -93,6 +93,13 @@ if it changes that choice. Rollouts: `rollouts/t3_*`.
 | --- | --- | ---: | ---: | ---: | --- | --- |
 | (start) | base3_teacher | -84.5 | 6.8 | 1 / 41 | | best |
 | 1 block when Dhalsim attacks within MID or a Yoga Fire is within CLOSE | t3_block | -74.6 | 8.6 | 4 / 44 | +9.9 (21.9) | dropped |
+| 2 cornered up close: jump out over him (`jump_forward`); never `back` in the corner | t3_corner | -84.1 | 7.1 | 1 / 41 | +0.3 (19.6) | dropped |
+| 3 spacing: from far walk in with no buttons; at mid (his limbs) guard, don't walk in | t3_spacing | -90.2 | 7.8 | 1 / 41 | -5.7 (20.7) | dropped |
+| 4 up close: roundhouse (`hk` 0.6) instead of fierce | t3_normals | -84.1 | 9.4 | 2 / 42 | +0.3 (23.2) | dropped |
+| 5 at mid, when he is not attacking: `jump_forward` (the in-air rule kicks) | t3_jumpin_base | -2.0 | 9.4 | 21 / 52 | +82.5 (23.3) | **kept** |
+
+Rule 5 was also run on top of rule 4 before rule 4's result was in (`t3_jumpin`: -1.1 ± 7.9, 18 / 51); rule 4 adds
+nothing there either.
 
 More random-play rollouts, from any machine, sharpen the action table above. Batches are self-contained dirs, so
 they can be copied over and pooled.

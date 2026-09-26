@@ -21,3 +21,19 @@ def test_a_distribution_over_the_actions_whoever_she_is():
             for c in (ctx(), ctx(my_air=True), ctx(opp_air=True), ctx(frames_since_hit=5)):
                 p = teacher_policy(fighters(dx), c, me)
                 assert list(p) == ACTIONS and abs(sum(p.values()) - 1) < 1e-9 and min(p.values()) > 0
+
+
+def top(p):
+    return max(p, key=p.get)
+
+
+def soft(p):
+    """A sensible soft target: a clear favourite, but not one-hot."""
+    return 0.5 <= max(p.values()) < 0.95 and sorted(p.values())[-2] >= 0.05
+
+
+def test_rule5_jump_in_from_mid_range_when_he_is_not_attacking():
+    p = teacher_policy(fighters(100), ctx(), "chunli")
+    assert top(p) == "jump_forward" and soft(p)
+    assert top(teacher_policy(fighters(100, opp_state=0x0A), ctx(), "chunli")) != "jump_forward"
+    assert top(teacher_policy(fighters(100), ctx(my_air=True), "chunli")) == "hk"      # kick on the way in

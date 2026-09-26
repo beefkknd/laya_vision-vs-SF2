@@ -36,6 +36,8 @@ def teacher_policy(f: Fighters, c: Context, character: str = "chunli") -> Dict[s
     if dx < CLOSE:  # footsies range
         return _dist({"hp": 0.35, "hk": 0.3, "lk": 0.2, "block": 0.1, "back": 0.05})
     if dx < MID:
+        if not f.opp_attacking:  # jump in over his limbs; the in-air rule kicks
+            return _dist({"jump_forward": 0.6, "forward": 0.15, "block": 0.15, "hk": 0.1})
         return _dist({"forward": 0.4, "hk": 0.25, "lk": 0.15, "block": 0.1, "crouch": 0.1})
     return _dist({"forward": 0.55, "jump": 0.15, "hk": 0.15, "block": 0.15})
 
