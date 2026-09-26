@@ -64,7 +64,7 @@ def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter()
     from trace_mesen import make_trace
 
     rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192, "timer": 0x79, "my_state": 0,
-             "fireball": 0, "fireball_x": 0,
+             "fireball": 0, "fireball_x": 0, "result": 0,
              "opp_y": 140 if 1 <= i <= 40 else 192, "opp_state": 4 if 1 <= i <= 40 else 0}
             for i in range(101)]                                               # Dhalsim mid-jump early on
     env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"", jitter=20)
@@ -86,14 +86,18 @@ def test_time_over_goes_to_the_higher_life_without_counting_the_zeroed_bars_as_d
     assert (res.dmg_for, res.dmg_against) == (0, 0)
 
 
-def test_round_ends_when_the_timer_reaches_zero():
+def test_time_over_is_judged_when_the_rom_judges_it():
+    """The clock shows 00 for a last 30 frames and hits still count in them; then the ROM sets its round result
+    (0x1ACF: 1 Chun-Li, 2 Dhalsim, FF draw). ~480 frames later it zeroes both bars."""
     t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))
     timer_zero = next(i for i, r in enumerate(t["rows"]) if r["mem"][3][16:18] == "00")   # 0x1AC8
+    judged = next(i for i, r in enumerate(t["rows"]) if r["mem"][3][30:32] != "00")      # 0x1ACF
+    assert judged == timer_zero + 30
     env = FightEnv(TraceMesen(t), MAP, b"", jitter=t["header"]["jitter"])
     env.reset()
     while not env.act("idle").round_over:
         pass
-    assert timer_zero <= env.backend.t < timer_zero + 4   # not ~480 frames later, when the ROM zeroes the bars
+    assert judged <= env.backend.t < judged + 4
 
 
 def test_first_decision_of_the_match_moves():
@@ -370,3 +374,39 @@ def test_dhalsim_reels_in_state_0E_when_her_hits_land_and_blocks_in_08_then_0E()
     stuns = [i for i in range(1, len(opp) - 5) if opp[i][3] == 0x0E and opp[i - 1][3] != 0x0E]
     blocked = [i for i in stuns if opp[i - 1][3] == 0x08 and opp[i + 5][0x35] == opp[i - 1][0x35]]
     assert len(blocked) > 10
+
+
+def _play_close(name, seed):
+    """Replay record_trace.py's close plan through the env (the trace checks every input)."""
+    import random
+
+    env, t = _env(name)
+    rng = random.Random(seed)
+    winners, ends, dealt, taken = [], [], [0], [0]
+    for _ in range(3000):
+        res = env.act("forward" if env.f.dx > 30 else rng.choice(["idle", "idle", "crouch", "lp", "forward"]))
+        dealt[-1] += res.dmg_for
+        taken[-1] += res.dmg_against
+        if res.round_over:
+            winners.append(res.winner)
+            ends.append(env.backend.t)
+            if not env.next_round():
+                break
+            dealt.append(0)
+            taken.append(0)
+    rom = [(bytes.fromhex(r["mem"][4])[0xD0], bytes.fromhex(r["mem"][5])[0xD0]) for r in t["rows"]]  # round wins
+    won = [i for i in range(1, len(rom)) if rom[i] != rom[i - 1] and rom[i] != (0, 0)]
+    return env, winners, ends, rom, won, list(zip(dealt, taken))
+
+
+def test_rounds_end_when_the_rom_ends_them_and_go_to_the_side_it_gives_them_to():
+    """The ROM counts round wins at 0x0CD0 / 0x0ED0 on the KO frame; the life bar only drains to zero up to ~35
+    frames later. A KO'd fighter has lost his whole bar."""
+    env, winners, ends, rom, won, dmg = _play_close("win", 13)                   # won, lost, won
+    assert winners == ["me", "opp", "me"] and env.round == 2
+    assert env.wins == {"me": 2, "opp": 1} == dict(zip(("me", "opp"), rom[won[-1]]))
+    assert all(0 <= e - w < 4 for e, w in zip(ends, won)) and [d if w == "me" else a for (d, a), w in zip(dmg, winners)] == [176] * 3
+    env, winners, ends, rom, won, dmg = _play_close("close", 1)                  # 1-1, then round 3 lost
+    assert winners == ["me", "opp", "opp"] and env.round == 2
+    assert env.wins == {"me": 1, "opp": 2} == dict(zip(("me", "opp"), rom[won[-1]]))
+    assert all(0 <= e - w < 4 for e, w in zip(ends, won)) and [d if w == "me" else a for (d, a), w in zip(dmg, winners)] == [176] * 3

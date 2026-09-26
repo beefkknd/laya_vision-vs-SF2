@@ -7,7 +7,7 @@ when either side has two round wins, and ``reset()`` reloads the savestate, so t
 the gate.
 """
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Deque, List, Optional
 
 import numpy as np
@@ -166,7 +166,15 @@ class FightEnv:
     def _round_check(self, before: ram.Fighters, f: ram.Fighters):
         full = self.full_hp
         judged = f
-        if f.my_hp <= 0 and f.opp_hp <= 0 < min(before.my_hp, before.opp_hp):
+        if f.result is not None:
+            # the ROM's own round result (0x1ACF): 1 Chun-Li, 2 Dhalsim, FF draw, set on the KO frame or 30 frames
+            # after the clock shows 00. The rules below infer it from the life bars when the map lacks it.
+            if not f.result or before.result:
+                return False, None, f
+            winner = {1: "me", 2: "opp"}.get(f.result, "draw")
+            if f.timer and winner != "draw":  # KO: the loser's bar is still draining to zero
+                judged = replace(f, **{"opp_hp" if winner == "me" else "my_hp": 0})
+        elif f.my_hp <= 0 and f.opp_hp <= 0 < min(before.my_hp, before.opp_hp):
             # both bars emptied on the same frame: the timer ran out and the ROM zeroed them; higher life won
             winner = "me" if before.my_hp > before.opp_hp else "opp" if before.opp_hp > before.my_hp else "draw"
             judged = before

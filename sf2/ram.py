@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
-# round clock (BCD seconds), action states, projectile slot (in use, world x)
-OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x"]
+# round clock (BCD seconds), action states, projectile slot (in use, world x), the ROM's round result
+OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result"]
 # Action state (0x0C03 Chun-Li, 0x0E03 Dhalsim), observed on the ROM (harness audit, 2026-09-26); the byte after it
 # is a sub-state.
 #   00 stand / walk (also while lifted for a throw at y 136, and falling after a KO)   02 crouch
@@ -89,6 +89,7 @@ class Fighters:
     opp_state: Optional[int] = None
     fireball: Optional[int] = None
     fireball_x: Optional[int] = None
+    result: Optional[int] = None
 
     @classmethod
     def from_values(cls, names: List[str], values: List[int]) -> "Fighters":

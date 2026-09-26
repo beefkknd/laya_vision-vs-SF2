@@ -19,7 +19,7 @@ Plans:
              then 60 idle frames. From the Chun-Li savestate, --seed 1 gets them in round 2
   close      seeded: walk in to 30 px, then random idle/idle/crouch/lp/forward until the match ends, then 600
              idle frames. From the Chun-Li savestate, --seed 1 wins round 1, loses rounds 2 and 3 and gets
-             thrown, knocked down and dizzied (fixtures/close); --seed 13 wins 2-0 (fixtures/win)
+             thrown, knocked down and dizzied (fixtures/close); --seed 13 wins 2-1 (fixtures/win)
   timeover   a random-policy round until it ends, then 600 idle frames; inputs are not checked on replay.
              From the Chun-Li savestate, --seed 4 --jitter 30 runs out the clock (33 vs 12)
 """
