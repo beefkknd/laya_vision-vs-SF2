@@ -51,3 +51,10 @@ def test_sweep_is_down_and_roundhouse_on_the_same_frame():
     """Crouching roundhouse: on the ROM it knocks Dhalsim down when it connects (reach ~70 px)."""
     assert "sweep" in A.ACTIONS
     assert A.expand("sweep") == [("D", "hk")] * 2 + [("D",)] * 2
+
+
+def test_lightning_legs_is_twelve_quick_short_taps():
+    """On the ROM 12 short taps, 1 frame down and 1 up, start the Legs (0C) at frame 18 from 39 of 40 standing
+    starts; 8 never do, 10 miss up close; roundhouse taps never do within one macro."""
+    assert "lightning_legs" in A.ACTIONS
+    assert A.expand("lightning_legs") == [("lk",), ()] * 12

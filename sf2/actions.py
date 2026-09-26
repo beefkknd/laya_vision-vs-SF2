@@ -11,7 +11,7 @@ from .config import PAD
 ACTIONS: List[str] = [
     "idle", "forward", "back", "jump", "jump_forward", "crouch",
     "lp", "hp", "lk", "hk",
-    "block", "throw", "sweep",
+    "block", "throw", "sweep", "lightning_legs",
 ]
 INDEX = {a: i for i, a in enumerate(ACTIONS)}
 
@@ -29,6 +29,7 @@ CRITERIA: Dict[str, str] = {
     "block": "crouching block against an incoming attack",
     "throw": "throw the opponent when right next to him (a fierce punch otherwise)",
     "sweep": "crouching roundhouse, knocks him down",
+    "lightning_legs": "Lightning Legs: a flurry of kicks, strong up close",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -53,6 +54,8 @@ MACROS: Dict[str, List[Step]] = {
     "throw": [(("F", "hp"), _TAP), (("F",), _TAP)],
     # down + roundhouse: knocks him down when it connects (reach ~70 px; tests/test_rom_harness.py)
     "sweep": [(("D", "hk"), _TAP), (("D",), _TAP)],
+    # 12 short taps, 1 frame down, 1 up: the Legs (state 0C) start at frame 18 (tests/test_rom_harness.py)
+    "lightning_legs": [(("lk",), 1), ((), 1)] * 12,
 }
 assert set(MACROS) == set(ACTIONS)
 

@@ -562,3 +562,25 @@ def test_sweep_knocks_him_down_on_both_sides(env):
                 break
             env.act("idle")
         assert hits, side
+
+
+def test_lightning_legs_action_starts_them_on_both_sides(env):
+    """One lightning_legs decision (12 short taps in 24 frames) starts the Legs (0C) at frame 18: after a 17-frame
+    short, the taps it counted turn into Legs."""
+    for side in ("left", "right"):
+        env.reset()
+        env.run_frames([[]] * 4, capture=False)
+        if side == "right":
+            _to_other_side(env)
+            for _ in range(10):
+                env.act("back")
+        for _ in range(60):
+            f = env.f
+            if (f.my_state == 0 and env.controllable() and not any(env.airborne()) and not f.opp_attacking
+                    and not f.fireball):
+                break
+            env.act("idle")
+        st = []
+        env.act("lightning_legs", on_frame=lambda f: st.append(f.my_state))
+        st += [f.my_state for f in env.run_frames([[]] * 30, capture=False)]
+        assert st.index(0x0C) == 18 and st.count(0x0C) > 20, (side, st)
