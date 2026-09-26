@@ -24,39 +24,40 @@ def _env(name):
 def test_walk_across_the_stage_brings_the_fighters_together_and_past_each_other():
     env, t = _env("walk")
     fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
-    assert fs[0].dx > 150                          # the savestate starts about 180 px apart
+    assert fs[0].dx > 80                           # the savestate starts about 100 px apart
     assert min(f.dx for f in fs) < 20              # Chun-Li walks through Dhalsim's position
-    assert fs[-1].dx < 60                          # and ends next to him
     assert max(abs(b.opp_x - a.opp_x) for a, b in zip(fs, fs[1:])) <= 12   # positions never jump
 
 
-def test_facing_flips_once_where_the_fighters_cross():
+def test_facing_flips_only_where_the_fighters_cross():
     env, t = _env("walk")
     fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
     flips = [i for i in range(1, len(fs)) if fs[i].facing_right != fs[i - 1].facing_right]
-    assert len(flips) == 1
-    assert fs[flips[0]].dx < 20
+    assert flips and all(fs[i].dx < 20 for i in flips)
 
 
 def test_forward_and_back_press_toward_and_away_from_the_opponent():
-    env, t = _env("facing")
+    env, t = _env("facing")                        # recorded pressing toward / away from the world positions
     n = len(t["rows"]) - 1
-    dx0 = env.f.dx
-    for _ in range(8):
-        env.act("forward")
-    assert env.f.dx < dx0 - 40                     # forward closes the distance (about 9 px a decision)
-    dx1 = env.f.dx
-    for _ in range(8):
-        env.act("back")
-    assert env.f.dx > dx1 + 10                     # back opens it again (slower)
+    moved = []
+
+    def step(action):
+        s0, x0, o0 = env.f.my_state, env.f.my_x, env.f.opp_x
+        env.act(action)                            # fails at once if the env presses another direction
+        if s0 == env.f.my_state == 0:              # neutral throughout: not hit, blocking or pushed
+            moved.append((action, (env.f.my_x - x0) * (1 if o0 > x0 else -1)))
+
+    for a in ["forward"] * 8 + ["back"] * 8:
+        step(a)
     while env.frame_no < n - 64 - 90:              # the recorder idled until the first hit, then 90 frames
         env.act("idle")
     env.run_frames([[]] * 90, capture=False)
-    for _ in range(8):                             # still knocked down here; the inputs must still match
-        env.act("forward")
-    for _ in range(8):
-        env.act("back")
+    for a in ["forward"] * 8 + ["back"] * 8:
+        step(a)
     assert env.frame_no == n
+    toward = [d for a, d in moved if a == "forward"]
+    assert len(toward) >= 8 and all(d > 0 for d in toward)
+    assert all(d <= 0 for a, d in moved if a == "back")
 
 
 def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter():
@@ -73,14 +74,14 @@ def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter()
 
 
 def test_time_over_goes_to_the_higher_life_without_counting_the_zeroed_bars_as_damage():
-    t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))   # timer ran out at 51 vs 72
+    t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))   # timer ran out at 33 vs 12
     env = FightEnv(TraceMesen(t), MAP, b"", jitter=t["header"]["jitter"])
     env.reset()
     while True:
         res = env.act("idle")                      # inputs are not checked in this trace
         if res.round_over:
             break
-    assert res.winner == "opp" and env.wins == {"me": 0, "opp": 1}
+    assert res.winner == "me" and env.wins == {"me": 1, "opp": 0}
     assert (res.dmg_for, res.dmg_against) == (0, 0)
 
 

@@ -13,8 +13,8 @@ Plans:
   start      hold toward for 150 frames straight after the savestate loads
   ko_round2  idle until the round ends and the bars refill, then hold toward 400 frames (unchecked)
   knockdown  stand, crouch, one jump, walk in, jump in place until hit in the air, 240 more frames
-  timeover   the random policy of v2_random worker 1 (use --seed 1 --jitter 30) until the round ends,
-             then 600 idle frames; inputs are not checked on replay
+  timeover   a random-policy round until it ends, then 600 idle frames; inputs are not checked on replay.
+             From the Chun-Li savestate, --seed 4 --jitter 30 runs out the clock (33 vs 12)
 """
 import argparse
 import os

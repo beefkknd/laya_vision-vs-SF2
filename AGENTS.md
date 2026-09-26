@@ -10,6 +10,12 @@ in parallel** without a person at the Mesen window.
 - A fight-start savestate in `states/` and a verified `ram_maps/sf2_snes.txt` (README, day 1).
 - `source .venv/bin/activate && pytest -q` passes.
 
+## The fight-start savestate
+`states/chunli_vs_dhalsim.state` (not in git) is arcade mode from power-on: title, GAME START, Chun-Li (down,
+right, jab), first opponent Dhalsim, saved on the first frame of round 1 where holding right moves her further
+than idling (clock 99, x 208 vs 304). The harness fixtures in `tests/fixtures` were recorded from it; re-record
+them with `scripts/record_trace.py` if it changes.
+
 ## Headless, one worker
 Add `--headless` to any emulator script. It starts a windowless Mesen (`--testrunner`) on its own port. Screenshots
 switch to the raw screen buffer automatically if PNGs come back blank:
