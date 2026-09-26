@@ -40,14 +40,58 @@ A trained run is an ordinary laya-vision checkpoint.
 
 ## How it's wired
 
-```
-Mesen 2 (SNES emulator) ── sf2_bridge.lua ── TCP ──▶ Python: env → teacher / laya → inputs back
-   runs N frames of input, returns RAM for every frame + screenshots; never runs ahead of Python
+### One decision: from the screen to the buttons
+
+Every 4 frames the emulator stops and waits. laya looks, picks a move, and the move becomes exact per-frame
+button presses.
+
+```mermaid
+flowchart LR
+    subgraph EMU["Mesen 2 running the SF2 ROM"]
+        SCR["Screen<br/>frame t-4 and frame t"]
+        RAM["Work RAM<br/>life, x / y, states, clock"]
+    end
+    subgraph LAYA["laya-vision: SmolVLM-256M + decision head"]
+        VT["Vision tower + connector<br/>frozen, features cached"]
+        TXT["Text layers<br/>+ LoRA rank 16, the only trained part"]
+        HEAD["Typed-decision head<br/>a probability for each of 14 moves"]
+        VT --> TXT --> HEAD
+    end
+    SCR -->|"2 images, 256 px"| VT
+    RAM -->|"note: me=chunli stand hp=100<br/>opp=dhalsim attack dist=mid ..."| TXT
+    Q["Question: which move now?<br/>14 options with descriptions"] --> TXT
+    HEAD -->|"top move, e.g. hk 62%"| MAC["Action macro<br/>hk = R held 2 frames, released 2<br/>forward / back resolved by facing"]
+    MAC -->|"per-frame SNES buttons"| BR["sf2_bridge.lua<br/>lockstep: the game waits for Python"]
+    BR --> EMU
 ```
 
-- A **scripted teacher** (`sf2/teacher.py`) reads RAM and labels each frame with a soft distribution over moves.
-- laya learns to copy it (imitation).
-- Then laya plays, and the teacher labels **laya's own** frames (DAgger), for two rounds.
+### The training loop
+
+A scripted teacher reads RAM and labels every frame with a soft distribution over moves, whoever is playing.
+laya first copies the teacher's own play (imitation). Then it plays, and the teacher labels **laya's own** frames
+(DAgger). Every round is judged by the gate, never by training loss.
+
+```mermaid
+flowchart TB
+    H["ROM acceptance suite, 30 checks<br/>writes the harness stamp"] -.->|"no stamp, no run"| C
+    C["Teacher plays, collecting data<br/>top choice + 10% random<br/>37,879 decisions"] --> D[("Dataset<br/>2 frames + note + teacher's soft label")]
+    D --> T["Train LoRA on laya<br/>256 px, 2 epochs, cached vision features"]
+    T --> P["laya plays the gate<br/>20 paired matches vs Dhalsim"]
+    P --> G{"Net damage per round<br/>better by 2 SE?"}
+    G -->|"better, or the first miss"| R["DAgger: the teacher's labels<br/>on laya's own frames join the data"]
+    R --> D
+    G -->|"two misses in a row"| S["Stop: keep the best round"]
+```
+
+Each round moved laya closer to its teacher:
+
+```mermaid
+xychart-beta
+    title "Net damage per round vs Dhalsim (20 paired matches)"
+    x-axis ["random", "r0 imitation", "r1 DAgger", "r2 DAgger", "teacher"]
+    y-axis "net damage per round" -60 --> 120
+    bar [-56.0, 67.7, 80.6, 93.1, 105.5]
+```
 
 | Policy | Net damage / round (± SE) | Rounds won |
 |---|---:|---:|
