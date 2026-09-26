@@ -1,4 +1,4 @@
-"""The 12 options laya-vision chooses from, and the frame-by-frame inputs the glue code stuffs for each.
+"""The basic options laya-vision chooses from, and the frame-by-frame inputs the glue code stuffs for each.
 
 Directions are *relative*: F = toward the opponent, B = away. The glue resolves them to LEFT/RIGHT from the
 fighters' x positions at decision time, so the model never has to know which side it is on. (The plan's
@@ -12,7 +12,6 @@ ACTIONS: List[str] = [
     "idle", "forward", "back", "jump", "crouch",
     "lp", "hp", "lk", "hk",
     "block",
-    "hadouken", "shoryuken",
 ]
 INDEX = {a: i for i, a in enumerate(ACTIONS)}
 
@@ -27,8 +26,6 @@ CRITERIA: Dict[str, str] = {
     "lk": "light kick, fast low-risk poke",
     "hk": "roundhouse kick, long reach",
     "block": "crouching block against an incoming attack",
-    "hadouken": "throw a fireball at the opponent from mid or far range",
-    "shoryuken": "dragon punch: anti-air uppercut against a jumping opponent",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -48,10 +45,6 @@ MACROS: Dict[str, List[Step]] = {
     "lk": [(("lk",), _TAP), ((), _TAP)],
     "hk": [(("hk",), _TAP), ((), _TAP)],
     "block": [(("D", "B"), 6)],
-    # quarter circle forward + fierce: D, DF, F+P
-    "hadouken": [(("D",), 3), (("D", "F"), 3), (("F", "hp"), 3), ((), 3)],
-    # dragon punch + fierce: F, D, DF+P
-    "shoryuken": [(("F",), 3), (("D",), 3), (("D", "F", "hp"), 3), ((), 3)],
 }
 assert set(MACROS) == set(ACTIONS)
 

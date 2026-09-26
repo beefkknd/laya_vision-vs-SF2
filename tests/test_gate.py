@@ -30,3 +30,16 @@ def test_standard_error_of_net_damage_per_round():
     mean = sum(net) / 4
     sd = math.sqrt(sum((x - mean) ** 2 for x in net) / 3)
     assert abs(gate([], rounds)["net_damage_se"] - sd / 2) < 1e-9
+
+
+def test_no_special_move_whiffs_and_hot_means_hit():
+    """No specials in the action set: nothing can whiff, and a decision is hot when she is hit soon after it."""
+    from sf2.rollout import annotate
+
+    meta = dict(episode=0, round=0, dmg_for=0, dmg_against=0)
+    rows = annotate([{"meta": dict(meta, frame=0, action="hp")}, {"meta": dict(meta, frame=4, action="idle", dmg_against=12)},
+                     {"meta": dict(meta, frame=200, action="lk")}])
+    assert [r["meta"]["hot"] for r in rows] == [True, True, False]
+    assert all("whiff" not in r["meta"] for r in rows)
+    g = gate(rows, _match(0, [(0, 300)]))
+    assert not [k for k in g if "whiff" in k]

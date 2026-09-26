@@ -20,7 +20,7 @@ Mesen 2 (your SNES ROM)                                Python (this repo)
 ```
 
 - **The emulator never runs ahead of Python.** At each input poll, the Lua script applies the next planned input. When the plan runs out, it blocks until Python sends the next command. How long the model takes to decide never changes the fight.
-- **Special moves are macros.** The model picks `hadouken`, and the glue sends the 12-frame quarter-circle + fierce input as one run.
+- **Each option is a short input.** The model picks `hk`, and the glue taps roundhouse (2 frames down, 2 up) as one run. World Warrior Chun-Li has no fireball or dragon punch, so the set has no special-move macros; her Lightning Legs come later.
 - **Python writes every file** (savestates, screenshots, logs). The Lua script only needs network access.
 - **The script can stay loaded all day.** When a Python script ends, it disconnects. The Lua script reconnects to the next one within a second.
 
@@ -44,7 +44,7 @@ Mesen 2 (your SNES ROM)                                Python (this repo)
 | Emulator | `mesen/sf2_bridge.lua` (inside Mesen) + `sf2/mesen.py` (Python end) |
 | Fight env | `sf2/env.py`. One call = one decision. It tracks rounds and matches from the life values; an episode is one match from your savestate |
 | RAM map (per cartridge) | `ram_maps/sf2_snes.txt`, found by `scripts/find_ram.py` (`sf2/ramsearch.py`) |
-| Action set (12) | `sf2/actions.py`: `idle forward back jump crouch lp hp lk hk block hadouken shoryuken` |
+| Action set (10) | `sf2/actions.py`: `idle forward back jump crouch lp hp lk hk block` |
 | Text state | `me=chunli stand hp=80 opp=dhalsim jump hp=45 dist=mid facing=right corner=opp time=late last=hk fireball=close` (`sf2/ram.py`: each fighter's state word stand/crouch/jump/jumpattack/block/attack/hit/dizzy/other, whose back is to a wall, round clock early/mid/late, how far a Yoga Fire is from her or none) |
 | Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` recognises fireball and dragon-punch motions |
 | Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
@@ -79,7 +79,7 @@ python scripts/record_human.py --no-log --save-state-to states/ryu_vs_ken.state
 python scripts/find_ram.py                     # scripted: Python walks, jumps, waits to get hit, punches
 python scripts/find_ram.py --manual --force    # if that fails: you play each phase in Mesen when prompted
 
-# 3. Send each of the 12 actions. x must move on forward/back, y on jump. Screenshots in out/check/
+# 3. Send each action. x must move on forward/back, y on jump. Screenshots in out/check/
 python scripts/check_env.py
 ```
 
@@ -131,7 +131,7 @@ Parallel workers make **collection and evaluation** faster. Training stays one p
 
 1. **RAM map.** `check_env.py` must show x moving on `forward`/`back` and y on `jump`. The teacher, the text note and facing all depend on them.
 2. **Buttons (`PAD`).** The `lp`/`hk` screenshots should show a jab and a roundhouse.
-3. **Macro timing (`sf2/actions.py`).** `out/check/11_hadouken.png` should show a fireball. If it doesn't, lengthen each motion step from 3 frames to 4.
+3. **Macro timing (`sf2/actions.py`).** `tests/test_rom_harness.py` checks every action's state and attack length on the ROM.
 4. **Estimates to tune:** `INTRO_SKIP` (`sf2/env.py`), and `CLOSE`/`MID` (`sf2/ram.py`, SNES pixels).
 5. **KO detection.** A round ends when a life value goes negative, or when both bars refill (time over, or a cart that stops at 0). If rounds never end in the logs, look at the life values around a KO in `check_env.py`.
 

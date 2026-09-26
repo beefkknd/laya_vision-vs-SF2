@@ -39,7 +39,6 @@ class Context:
     opp_air: bool
     dx_trend: int                      # dx now minus dx 8 frames ago (negative = closing in)
     frames_since_hit: int              # since my (true) life last dropped
-    frames_since_fireball: int         # since I last threw a hadouken
     history: List[ram.Fighters] = field(default_factory=list)
 
 
@@ -109,7 +108,6 @@ class FightEnv:
         self.full_hp = max(self.f.my_hp, self.f.opp_hp)  # the savestate starts with full bars
         self.ground = (self.f.my_y, self.f.opp_y)
         self.last_hit = -10_000
-        self.last_fireball = -10_000
         self.in_round = True
         if self.jitter:  # a different idle count per worker (jitter_base) and match: a different CPU fight
             self.run_frames([[]] * (self.jitter_base + self.episode % self.jitter + 1))
@@ -152,15 +150,12 @@ class FightEnv:
     def context(self) -> Context:
         my_air, opp_air = self.airborne()
         old = self.hist[-9] if len(self.hist) >= 9 else self.hist[0]
-        return Context(my_air, opp_air, self.f.dx - old.dx, self.frame_no - self.last_hit,
-                       self.frame_no - self.last_fireball, list(self.hist))
+        return Context(my_air, opp_air, self.f.dx - old.dx, self.frame_no - self.last_hit, list(self.hist))
 
     # ------------------------------------------------------------------ one decision
     def act(self, action: str, on_frame: Optional[Callable[[ram.Fighters], None]] = None) -> ActResult:
         facing = self.f.facing_right
         start = self.f
-        if action == "hadouken":
-            self.last_fireball = self.frame_no
         frames = [A.to_physical(t, facing) for t in A.expand(action)]
         res = ActResult(len(frames), 0, 0)
         before = start

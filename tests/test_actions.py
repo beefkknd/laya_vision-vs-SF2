@@ -3,13 +3,12 @@ from sf2 import actions as A
 
 def test_every_action_has_a_macro_and_description():
     assert set(A.ACTIONS) == set(A.MACROS) == set(A.CRITERIA)
-    assert len(A.ACTIONS) == 12
 
 
-def test_hadouken_expands_to_quarter_circle_then_release():
-    seq = A.expand("hadouken")
-    assert len(seq) == 12
-    assert seq[0] == ("D",) and seq[3] == ("D", "F") and seq[6] == ("F", "hp") and seq[-1] == ()
+
+def test_the_basic_set_has_no_special_moves():
+    """World Warrior Chun-Li has no fireball and no dragon punch: those macros only gave a fierce punch."""
+    assert A.ACTIONS == ["idle", "forward", "back", "jump", "crouch", "lp", "hp", "lk", "hk", "block"]
 
 
 def test_forward_follows_facing():

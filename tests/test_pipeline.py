@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from sf2 import actions as A
 from sf2 import dataset as D
 from sf2.loop import play
 from sf2.rollout import gate
@@ -31,7 +32,7 @@ def test_collect_relabel_load(tmp_path):
     assert w.n["train"] > 0 and w.n["val"] > 0
     recs = D.read(str(tmp_path / "data/seed/train.jsonl"))
     r = recs[0]
-    assert len(r["target"]) == 12 and abs(sum(r["target"]) - 1) < 1e-6
+    assert len(r["target"]) == len(A.ACTIONS) and abs(sum(r["target"]) - 1) < 1e-6
     assert r["state_text"].startswith("me=ryu ") and " opp=ken " in r["state_text"] and " dist=" in r["state_text"]
     for im in r["images"]:
         assert os.path.exists(tmp_path / "data/seed" / im)
@@ -55,7 +56,7 @@ def test_collect_relabel_load(tmp_path):
         ex = vt.load_jsonl_examples(str(tmp_path / "data"), name, "train")
         assert len(ex) == len(D.read(str(tmp_path / "data" / name / "train.jsonl")))
         e = ex[0]
-        assert e["q"]["t"] == "choice" and len(e["target"]) == 12
+        assert e["q"]["t"] == "choice" and len(e["target"]) == len(A.ACTIONS)
         assert len(e["state"]["images"]) == 2 and all(os.path.exists(p) for p in e["state"]["images"])
         assert e["state"]["context"].startswith("me=ryu")
 

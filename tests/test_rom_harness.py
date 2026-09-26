@@ -181,7 +181,7 @@ def test_prev_is_four_frames_before_cur_after_resets_macros_and_round_starts(env
     env.reset()
     assert np.array_equal(env.prev_frame, env.frame)                 # nothing before the savestate
     seen, inputs = [], []
-    for a in ["idle", "block", "forward", "hadouken", "lp", "lp", "shoryuken", "jump", "idle"]:
+    for a in ["idle", "block", "forward", "hk", "lp", "lp", "block", "jump", "idle"]:
         inputs += [A.to_physical(t, env.f.facing_right) for t in A.expand(a)]
         env.act(a)
         seen.append((env.frame_no, env.prev_frame, env.frame))
@@ -244,7 +244,7 @@ def test_headless_mesen_outlives_a_long_collection(env):
 def test_every_action_does_what_it_says(env):
     """From the savestate Dhalsim is ~96 px away and nothing connects for 45 frames. Chun-Li's action state per
     frame (0x0C03): 00 stand, 02 crouch, 04 jump, 0A attack. Attack lengths tell jab / fierce / short / roundhouse
-    apart (the PAD mapping); Chun-Li has no fireball or dragon punch in World Warrior, so those macros attack."""
+    apart (the PAD mapping)."""
     from sf2.actions import ACTIONS
 
     got = {}
@@ -262,9 +262,8 @@ def test_every_action_does_what_it_says(env):
     f0, fs, st = got["jump"]
     assert 0x04 in st and min(f.my_y for f in fs) < f0.my_y - 80 and toward("jump") == 0     # straight up
     assert got["crouch"][2][:4] == [0x02] * 4 and got["block"][2][:6] == [0x02] * 6        # nothing to guard yet
-    frames = {a: got[a][2].count(0x0A) for a in ("lp", "hp", "lk", "hk", "hadouken", "shoryuken")}
+    frames = {a: got[a][2].count(0x0A) for a in ("lp", "hp", "lk", "hk")}
     assert (frames["lp"], frames["hp"], frames["lk"], frames["hk"]) == (13, 30, 17, 33)
-    assert frames["hadouken"] > 0 and frames["shoryuken"] > 0
 
 
 def test_the_same_button_on_consecutive_decisions_presses_again(env):

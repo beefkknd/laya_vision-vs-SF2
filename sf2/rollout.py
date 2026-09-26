@@ -1,4 +1,4 @@
-"""Shared bookkeeping for rollouts: after-the-fact damage windows, whiffs, and the gate numbers.
+"""Shared bookkeeping for rollouts: after-the-fact damage windows, hot flags, and the gate numbers.
 
 Every decision row's ``meta`` carries: episode, round, frame, frames (how long the action ran), action (what was
 executed), dmg_for / dmg_against (during that action), and round_result once the round is over.
@@ -7,13 +7,13 @@ import math
 from collections import Counter, defaultdict
 from typing import Dict, List
 
-from .config import NEXT_WINDOW, ROUND_LIFE, WHIFF_WINDOW
+from .config import NEXT_WINDOW, ROUND_LIFE
 
 BIG_HIT = 20  # life points (of 176) taken inside the next window ~ a combo or knockdown
 
 
-def annotate(rows: List[Dict], window: int = NEXT_WINDOW, whiff_window: int = WHIFF_WINDOW) -> List[Dict]:
-    """Add dmg_for_next / dmg_against_next (the next ``window`` frames), whiff and hot flags to each row's meta."""
+def annotate(rows: List[Dict], window: int = NEXT_WINDOW) -> List[Dict]:
+    """Add dmg_for_next / dmg_against_next (the next ``window`` frames) and hot flags to each row's meta."""
     by_round = defaultdict(list)
     for r in rows:
         m = r["meta"]
@@ -23,25 +23,20 @@ def annotate(rows: List[Dict], window: int = NEXT_WINDOW, whiff_window: int = WH
         for i, r in enumerate(rs):
             m = r["meta"]
             f0 = m["frame"]
-            fwd = agn = fwd_w = 0
+            fwd = agn = 0
             for s in rs[i:]:
-                f = s["meta"]["frame"]
-                if f < f0 + window:
-                    fwd += s["meta"]["dmg_for"]
-                    agn += s["meta"]["dmg_against"]
-                if f < f0 + whiff_window:
-                    fwd_w += s["meta"]["dmg_for"]
-                else:
+                if s["meta"]["frame"] >= f0 + window:
                     break
+                fwd += s["meta"]["dmg_for"]
+                agn += s["meta"]["dmg_against"]
             m["dmg_for_next"], m["dmg_against_next"] = fwd, agn
-            m["whiff"] = m["action"] in ("hadouken", "shoryuken") and fwd_w == 0
-            m["hot"] = agn > 0 or m["whiff"]          # hits taken (incl. knockdowns) and whiffed specials
+            m["hot"] = agn > 0                          # hits taken (incl. knockdowns)
             m["big_hit"] = agn >= BIG_HIT
     return rows
 
 
 def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
-    """Round win rate, damage per round, special-move whiff rates, action mix."""
+    """Round win rate, damage per round, action mix."""
     n = len(rounds)
     wins = sum(r["winner"] == "me" for r in rounds)
     dealt = sum(r["dmg_for"] for r in rounds)
@@ -75,9 +70,6 @@ def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
         "decisions": len(rows),
         "action_mix": {a: round(c / max(1, len(rows)), 3) for a, c in acts.most_common()},
     }
-    for sp in ("hadouken", "shoryuken"):
-        tries = [r for r in rows if r["meta"]["action"] == sp]
-        out[sp + "_whiff_rate"] = sum(r["meta"]["whiff"] for r in tries) / len(tries) if tries else None
     agree = [r for r in rows if r["meta"].get("teacher_action")]
     if agree:
         out["teacher_agreement"] = sum(r["meta"]["action"] == r["meta"]["teacher_action"] for r in agree) / len(agree)

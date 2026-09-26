@@ -14,7 +14,7 @@ def main():
         print(__doc__)
         return
     cols = ["rounds", "distinct_matches", "damage_score", "damage_score_se", "net_damage_per_round", "net_damage_se", "round_win_rate", "dmg_dealt_per_round",
-            "dmg_taken_per_round", "hadouken_whiff_rate", "shoryuken_whiff_rate", "teacher_agreement"]
+            "dmg_taken_per_round", "teacher_agreement"]
     print("%-22s" % "run" + "".join("%22s" % c for c in cols))
     for d in sys.argv[1:]:
         with open(os.path.join(d, "gate.json")) as f:

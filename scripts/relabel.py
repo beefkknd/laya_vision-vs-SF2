@@ -4,7 +4,7 @@
     python scripts/relabel.py --rollout rollouts/r0 --name filter_r1 --mode filter    # (b) cheap filter
 
 (a) dagger: the teacher's distribution is the gold on the *student's* frames. Frames around trouble (hits taken
-    in the next 0.5 s, knockdowns, whiffed specials) are also written to a separate "<name>_hot" set, so
+    in the next 0.5 s, knockdowns) are also written to a separate "<name>_hot" set, so
     train.py samples them as their own group instead of drowning them in neutral walking frames.
 (b) filter: keep only student actions followed by damage_for > damage_against in the next 0.5 s, with the
     student's own action as a one-hot gold. No teacher needed; weaker signal.

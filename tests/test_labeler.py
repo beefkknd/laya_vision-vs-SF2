@@ -7,19 +7,12 @@ def frames(seq, facing=True, pad_to=16):
     return out + [([], facing)] * (pad_to - len(out))
 
 
-def test_hadouken_facing_right():
+def test_a_fireball_or_dragon_punch_motion_is_just_its_punch():
+    """World Warrior Chun-Li has neither special: the motion gives the plain punch."""
     seq = [["down"]] * 2 + [["down", "right"]] * 2 + [["right", PAD["hp"]]] * 2
-    assert labeler.events(frames(seq)) == [(0, "hadouken")]
-
-
-def test_hadouken_facing_left_mirrors():
-    seq = [["down"]] * 2 + [["down", "left"]] * 2 + [["left", PAD["lp"]]]
-    assert labeler.events(frames(seq, facing=False)) == [(0, "hadouken")]
-
-
-def test_shoryuken():
-    seq = [[]] * 2 + [["right"]] * 2 + [["down"]] * 2 + [["down", "right", PAD["hp"]]]
-    assert labeler.events(frames(seq)) == [(2, "shoryuken")]
+    assert labeler.events(frames(seq)) == [(4, "hp")]
+    seq = [[]] * 2 + [["right"]] * 2 + [["down"]] * 2 + [["down", "right", PAD["lp"]]]
+    assert labeler.events(frames(seq)) == [(6, "lp")]
 
 
 def test_plain_attack_without_motion():
@@ -33,7 +26,8 @@ def test_decision_grid_labels():
     assert [a for _, a in lab] == ["block", "forward", "idle", "jump"]
 
 
-def test_special_labels_the_window_where_the_motion_started():
+def test_every_label_is_an_action():
+    from sf2.actions import ACTIONS
+
     seq = [[]] * 4 + [["down"]] * 2 + [["down", "right"]] * 2 + [["right", PAD["hp"]]] + [[]] * 7
-    lab = dict(labeler.label_frames(frames(seq), hold=4))
-    assert lab[4] == "hadouken"
+    assert {a for _, a in labeler.label_frames(frames(seq), hold=4)} <= set(ACTIONS)
