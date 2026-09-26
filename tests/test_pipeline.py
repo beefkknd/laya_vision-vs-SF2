@@ -75,3 +75,10 @@ def test_relabel_leaves_out_decisions_where_the_stick_did_nothing(tmp_path):
                              capture_output=True, text=True)
         assert out.returncode == 0, out.stderr
         assert [r["id"] for r in D.read(str(tmp_path / "data" / mode / "train.jsonl"))] == ["r0", "r2"]
+
+
+def test_rows_carry_her_action_state_at_decision_time():
+    """So a rollout can count her Lightning Legs (state 0C) and other states after the fact."""
+    env = make_env()
+    rows, _ = play(env, lambda *a: ("hk", {}), matches=1, max_decisions=20, log_every=0)
+    assert rows and all("my_state" in r["meta"] for r in rows)

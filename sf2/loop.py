@@ -36,7 +36,7 @@ def play(env: FightEnv, choose: Choose, matches: int, writer: Optional[Writer] =
             frame0, round0, controllable = env.frame_no, env.round, env.controllable()
             res = env.act(action)
             meta = dict(episode=env.episode, round=round0, frame=frame0, frames=res.frames, action=action,
-                        teacher_action=argmax(t_dist), my_hp=f.my_hp, opp_hp=f.opp_hp, dx=f.dx,
+                        teacher_action=argmax(t_dist), my_state=f.my_state, my_hp=f.my_hp, opp_hp=f.opp_hp, dx=f.dx,
                         dmg_for=res.dmg_for, dmg_against=res.dmg_against, controllable=controllable, **extra)
             rec = writer.record(env.episode, step, prev, cur, text, t_dist, meta) if writer else {
                 "episode": env.episode, "meta": meta}
