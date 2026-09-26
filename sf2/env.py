@@ -6,7 +6,6 @@ end). Rounds and matches are tracked from the life values. An episode is one mat
 when either side has two round wins, and ``reset()`` reloads the savestate, so the opponent never changes under
 the gate.
 """
-import random
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Deque, List, Optional
@@ -48,7 +47,7 @@ class FightEnv:
     """``backend``: a MesenBridge (or a test fake) with set_vars / run / load_state."""
 
     def __init__(self, backend, ram_map: List[ram.Var], savestate: bytes, me: str = "ryu", opp: str = "ken",
-                 seed: int = 0, jitter: int = 0):
+                 jitter: int = 0, jitter_base: int = 0):
         self.backend = backend
         self.names = [v.name for v in ram_map]
         backend.set_vars(ram_map)
@@ -56,8 +55,7 @@ class FightEnv:
         self.me, self.opp = me, opp
         self.episode = -1
         self.done = False
-        self.rng = random.Random(seed)
-        self.jitter = jitter
+        self.jitter, self.jitter_base = jitter, jitter_base
 
     # ------------------------------------------------------------------ helpers
     def _f(self, values) -> ram.Fighters:
@@ -104,8 +102,8 @@ class FightEnv:
         self.last_hit = -10_000
         self.last_fireball = -10_000
         self.in_round = True
-        if self.jitter:  # desynchronise the CPU's randomness between workers / matches
-            self.run_frames([[]] * self.rng.randint(1, self.jitter))
+        if self.jitter:  # a different idle count per worker (jitter_base) and match: a different CPU fight
+            self.run_frames([[]] * (self.jitter_base + self.episode % self.jitter + 1))
             self.frame_no = 0
         return self.frame
 

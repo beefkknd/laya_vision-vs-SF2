@@ -21,8 +21,10 @@ def add_env_args(ap: argparse.ArgumentParser, savestate: bool = True, ram_map: b
                    help="screenshot path; auto switches to raw when PNGs come back blank (headless)")
     g.add_argument("--seed", type=int, default=0)
     g.add_argument("--jitter", type=int, default=30,
-                   help="up to this many idle frames after each savestate load, so parallel workers and "
-                        "repeated matches do not replay the identical fight")
+                   help="idle 1..N frames after each savestate load, a different count per match, so repeated "
+                        "matches do not replay the identical fight (0 = no idle)")
+    g.add_argument("--jitter-base", type=int, default=0,
+                   help="added to the idle count; parallel.py gives each worker its own range")
     if savestate:
         g.add_argument("--savestate", default=DEFAULT_SAVESTATE, help="fight-start savestate (record_human.py, F9)")
     if ram_map:
@@ -62,4 +64,11 @@ def make_env(args):
         if _blank(b.load_state(state).images.get(0)):
             print("screenshots came back blank: switching to the raw screen buffer", flush=True)
             b.set_capture("raw")
-    return FightEnv(b, ram_map, state, me=args.me, opp=args.opp, seed=args.seed, jitter=args.jitter)
+    return fight_env(b, ram_map, state, args)
+
+
+def fight_env(backend, ram_map, state, args):
+    from .env import FightEnv
+
+    return FightEnv(backend, ram_map, state, me=args.me, opp=args.opp, jitter=args.jitter,
+                     jitter_base=args.jitter_base)

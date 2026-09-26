@@ -25,7 +25,7 @@ def env():
     from sf2.cli import make_env
 
     args = argparse.Namespace(port=PORT, launch=None, headless=True, rom=os.environ["SF2_ROM"],
-                              mesen=os.environ.get("SF2_MESEN"), capture="auto", seed=0, jitter=0,
+                              mesen=os.environ.get("SF2_MESEN"), capture="auto", seed=0, jitter=0, jitter_base=0,
                               savestate=SAVESTATE, ram_map=RAM_MAP, me="chunli", opp="dhalsim")
     e = make_env(args)
     yield e

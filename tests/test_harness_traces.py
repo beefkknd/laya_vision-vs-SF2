@@ -64,8 +64,8 @@ def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter()
 
     rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192, "timer": 0x79,
              "opp_y": 140 if 1 <= i <= 40 else 192} for i in range(101)]      # Dhalsim mid-jump early on
-    env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"", seed=0, jitter=20)
-    env.reset()                                    # the jitter idles 1..20 frames, while he is in the air
+    env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"", jitter=20)
+    env.reset()                                    # the jitter idles while he is in the air
     for _ in range(12):
         env.act("idle")                            # he has landed by now
     assert env.airborne() == (False, False)
@@ -73,7 +73,7 @@ def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter()
 
 def test_time_over_goes_to_the_higher_life_without_counting_the_zeroed_bars_as_damage():
     t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))   # timer ran out at 51 vs 72
-    env = FightEnv(TraceMesen(t), MAP, b"", seed=t["header"]["seed"], jitter=t["header"]["jitter"])
+    env = FightEnv(TraceMesen(t), MAP, b"", jitter=t["header"]["jitter"])
     env.reset()
     while True:
         res = env.act("idle")                      # inputs are not checked in this trace
@@ -86,7 +86,7 @@ def test_time_over_goes_to_the_higher_life_without_counting_the_zeroed_bars_as_d
 def test_round_ends_when_the_timer_reaches_zero():
     t = load(os.path.join(ROOT, "tests", "fixtures", "timeover.jsonl.gz"))
     timer_zero = next(i for i, r in enumerate(t["rows"]) if r["mem"][3][16:18] == "00")   # 0x1AC8
-    env = FightEnv(TraceMesen(t), MAP, b"", seed=t["header"]["seed"], jitter=t["header"]["jitter"])
+    env = FightEnv(TraceMesen(t), MAP, b"", jitter=t["header"]["jitter"])
     env.reset()
     while not env.act("idle").round_over:
         pass
@@ -112,3 +112,24 @@ def test_ko_then_the_first_decision_of_round_two_moves():
     x0 = env.f.my_x
     env.act("forward")                             # before "FIGHT!" the ROM ignores it
     assert env.f.my_x != x0
+
+
+def test_parallel_workers_and_matches_all_start_differently():
+    import argparse
+    import sys
+
+    from fake_mesen import MAP as FAKE_MAP, FakeMesen
+    from sf2.cli import add_env_args, fight_env
+
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import parallel
+
+    ap = argparse.ArgumentParser()
+    add_env_args(ap)
+    idles = []
+    for i in range(4):                             # parallel.py --workers 4 ... --seed 4242 --matches 12
+        env = fight_env(FakeMesen(), FAKE_MAP, b"", ap.parse_args(parallel.worker_seed_args(4242, i)))
+        for _ in range(3):
+            env.reset()
+            idles.append(env.backend.t)            # frames idled before the first decision
+    assert len(set(idles)) == 12, sorted(idles)

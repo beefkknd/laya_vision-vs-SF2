@@ -32,6 +32,11 @@ def split(total: int, n: int):
     return [total // n + (1 if i < total % n else 0) for i in range(n)]
 
 
+def worker_seed_args(seed, i):
+    """What makes worker i's matches differ from every other worker's."""
+    return ["--seed", str(seed * 1000 + i), "--jitter-base", str(i * 30)]
+
+
 def worker_dirs(out: str, name: str, n: int):
     """Workers write inside the batch dir, so ``<out>/<name>`` alone is the whole batch (copyable between machines)."""
     return [os.path.join(out, name, "%s_w%d" % (name, i)) for i in range(n)]  # batch name keeps row ids unique
@@ -106,7 +111,7 @@ def main():
     for i in range(n):
         name = "%s_w%d" % (known.name, i)
         argv = [sys.executable, os.path.join(HERE, args.script + ".py"), *passthrough, "--headless",
-                "--port", str(args.base_port + i), "--seed", str(known.seed * 1000 + i), "--name", name,
+                "--port", str(args.base_port + i), *worker_seed_args(known.seed, i), "--name", name,
                 "--out", os.path.join(known.out, known.name)]
         if dec[i] is not None:
             argv += ["--decisions", str(dec[i])]
