@@ -1,5 +1,9 @@
 # Chun-Li teacher: findings and plan (2026-09-25)
 
+**The tables below are invalid** (2026-09-25): they were measured on the broken harness (camera-byte distance,
+inverted facing, knockdowns counted as jumps, time-overs scored as draws) and their data is deleted. They are
+re-measured under the gate protocol in PROGRESS.md. The research notes still stand.
+
 The student imitates the scripted teacher (`sf2/teacher.py`), so the teacher is the ceiling. Right now it is worse
 than pressing buttons at random.
 
