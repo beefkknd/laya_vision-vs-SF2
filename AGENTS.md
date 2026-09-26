@@ -6,6 +6,9 @@ in parallel** without a person at the Mesen window.
 ## One-time setup (a person does this once)
 - Mesen 2 installed (default `/Applications/Mesen.app/Contents/MacOS/Mesen`). In Mesen: Debug > Script Window >
   Settings > Restrictions > tick **Allow network access**. The headless test runner uses the same settings.
+  Headless runs pass `--snes.disableFrameSkipping=true` (screenshots are otherwise stale by 0-3 frames and differ
+  run to run); a windowed Mesen at maximum speed needs Settings > SNES > "Disable frame skipping when fast
+  forwarding" ticked for the same reason.
 - `export SF2_ROM=/path/to/Street\ Fighter\ II\ (USA).sfc` (and `SF2_MESEN=...` if Mesen is elsewhere).
 - A fight-start savestate in `states/` and a verified `ram_maps/sf2_snes.txt` (README, day 1).
 - `source .venv/bin/activate && pytest -q` passes.

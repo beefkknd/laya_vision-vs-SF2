@@ -143,3 +143,16 @@ def test_walking_back_stops_at_the_stage_walls(env):
             break
     assert not env.f.facing_right
     assert _back_until_stopped(env) == RIGHT_WALL and env.f.my_cornered
+
+
+def test_screenshots_are_deterministic_and_show_every_frame(env):
+    """Mesen skips rendering frames when it runs fast, which made screenshots stale and different run to run."""
+    import numpy as np
+
+    runs = []
+    for _ in range(2):
+        env.reset()
+        obs = env.backend.run([["up"]] * 4 + [[]] * 56, range(61))
+        runs.append(np.stack([obs.images[i] for i in range(61)]))
+    assert (runs[0] == runs[1]).all()
+    assert all((runs[0][i] != runs[0][i - 1]).any() for i in range(10, 50))   # in the air: every frame differs
