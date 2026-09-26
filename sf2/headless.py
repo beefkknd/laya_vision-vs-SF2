@@ -18,8 +18,9 @@ def bridge_for_port(port: int, out_dir: str = os.path.join(ROOT, "out", "bridge"
     with open(BRIDGE) as f:
         src = f.read()
     src, n = re.subn(r'local HOST, PORT = "127\.0\.0\.1", \d+', 'local HOST, PORT = "127.0.0.1", %d' % port, src)
-    if n != 1:
-        raise RuntimeError("could not find the PORT line in %s" % BRIDGE)
+    src, m = re.subn(r"local EXIT_ON_DISCONNECT = false", "local EXIT_ON_DISCONNECT = true", src)
+    if n != 1 or m != 1:
+        raise RuntimeError("could not find the PORT / EXIT_ON_DISCONNECT lines in %s" % BRIDGE)
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "sf2_bridge_%d.lua" % port)
     with open(path, "w") as f:

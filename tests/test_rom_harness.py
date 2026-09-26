@@ -584,3 +584,40 @@ def test_lightning_legs_action_starts_them_on_both_sides(env):
         env.act("lightning_legs", on_frame=lambda f: st.append(f.my_state))
         st += [f.my_state for f in env.run_frames([[]] * 30, capture=False)]
         assert st.index(0x0C) == 18 and st.count(0x0C) > 20, (side, st)
+
+
+CRASH = """
+import argparse, os, signal, sys
+sys.path.insert(0, %r)
+from sf2.cli import make_env
+args = argparse.Namespace(port=%d, launch=None, headless=True, rom=os.environ["SF2_ROM"], mesen=os.environ.get("SF2_MESEN"),
+                          capture="auto", seed=0, jitter=0, jitter_base=0, savestate=%r, ram_map=%r, me="chunli",
+                          opp="dhalsim")
+env = make_env(args, verified=False)
+env.reset()
+env.act("idle")
+print("MESEN_PID", env.backend.proc.pid, flush=True)
+if sys.argv[1] == "kill":
+    os.kill(os.getpid(), signal.SIGKILL)
+raise RuntimeError("a script dies mid-run")
+"""
+
+
+def test_headless_mesen_exits_when_its_python_dies():
+    """A script that raises (or is killed) mid-run leaves no Mesen behind: the headless bridge ends the process
+    when the socket closes."""
+    import subprocess
+    import sys
+    import time
+
+    code = CRASH % (ROOT, PORT + 1, SAVESTATE, RAM_MAP)
+    for how in ("raise", "kill"):  # one test function: the stamp counts functions
+        out = subprocess.run([sys.executable, "-c", code, how], capture_output=True, text=True, timeout=120)
+        pid = int(re.search(r"MESEN_PID (\d+)", out.stdout).group(1))
+        for _ in range(100):
+            if subprocess.run(["kill", "-0", str(pid)], capture_output=True).returncode:
+                break
+            time.sleep(0.1)
+        else:
+            subprocess.run(["kill", str(pid)])
+            raise AssertionError("Mesen %d outlived its Python (%s)" % (pid, how))
