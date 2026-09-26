@@ -1,9 +1,9 @@
 # Street Fighter II: The World Warrior (USA), SHA1 7DDCB96E0D9FEA94D9370635262AC7C28DA85214
-# Fighter state. Player 1 starts on the left. The opponent-side anchor keeps
-# the directional controller facing right during the opening approach.
+# Fighter structs at 0x0D00 (player 1) and 0x0F00 (player 2): y at +0x10, life at +0x12, world x at +0x18.
+# World x exceeds 255, so it is read as 2 bytes. Checked by tests/test_harness_traces.py.
 my_hp      0x0D12   2     0
 opp_hp     0x0F12   2     0
-my_x       0x00B2   1     0
-opp_x      0x001B   1     0
+my_x       0x0D18   2     0
+opp_x      0x0F18   2     0
 my_y       0x0D10   2     0
 opp_y      0x0F10   2     0

@@ -49,3 +49,26 @@ def test_idle_is_one_four_frame_decision(env):
     env.reset()
     res = env.act("idle")
     assert res.frames == 4 and env.frame_no == 4 and env.frame.shape == (224, 256, 3)
+
+
+def test_forward_closes_and_back_opens_the_distance_on_both_sides(env):
+    env.reset()
+    dx0 = env.f.dx
+    for _ in range(10):
+        env.act("forward")
+    assert env.f.dx < dx0 - 40
+    dx1 = env.f.dx
+    for _ in range(10):
+        env.act("back")
+    assert env.f.dx > dx1 + 10
+    side = env.f.facing_right
+    for _ in range(150):                # walk through the opponent to the other side
+        env.act("forward")
+        if env.f.facing_right != side:
+            break
+    assert env.f.facing_right != side
+    env.run_frames([[]] * 30)
+    dx2 = env.f.dx
+    for _ in range(10):
+        env.act("back")
+    assert env.f.dx > dx2 + 10
