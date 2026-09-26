@@ -70,6 +70,33 @@ def test_cache_for_another_fingerprint_is_missing(tmp_path):
     assert vc.missing([ds], "fp1") == [] and vc.missing([ds], "fp2") == [ds]
 
 
+def test_cache_still_serves_rows_after_the_data_dir_moves(tmp_path):
+    # a data dir copied to another machine (or folder) must keep its cache: rows are keyed by image path
+    import shutil
+
+    paths = _images(tmp_path, 4)
+    vc.build(str(tmp_path / "ds"), _examples(paths), _fake_encode, "fp1")
+    shutil.move(str(tmp_path / "ds"), str(tmp_path / "moved"))
+    moved = str(tmp_path / "moved")
+    assert vc.missing([moved], "fp1") == []
+    got = vc.load([moved], "fp1").get([os.path.join(moved, "images", "2.png")])
+    assert float(got[0, 0, 0]) == 2.0
+
+
+def test_old_cache_keyed_by_another_machines_paths_is_rebuilt(tmp_path):
+    import json
+
+    paths = _images(tmp_path, 3)
+    ds = str(tmp_path / "ds")
+    vc.build(ds, _examples(paths), _fake_encode, "fp1")
+    idx = os.path.join(ds, "vision", "fp1.json")
+    with open(idx, "w") as f:  # the pre-fix format: absolute paths from the machine that built it
+        json.dump({"fingerprint": "fp1", "images": ["/Users/claw/x/ds/images/%d.png" % i for i in range(3)]}, f)
+    assert vc.missing([ds], "fp1") == [ds]
+    vc.build(ds, _examples(paths), _fake_encode, "fp1")
+    assert float(vc.load([ds], "fp1").get([paths[1]])[0, 0, 0]) == 1.0
+
+
 def test_cache_pickles_small_for_loader_workers(tmp_path):
     paths = _images(tmp_path, 40)
     ds = str(tmp_path / "ds")

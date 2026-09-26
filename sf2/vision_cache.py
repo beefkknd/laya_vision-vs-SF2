@@ -6,7 +6,8 @@ features through ``VLMDecisionModel.forward(image_hidden_states=...)`` gives ide
 them by < 1e-3) at 2.4x the step rate.
 
 Layout: ``<data dir>/vision/<fingerprint>.npy`` (fp16 ``[n_images, seq, d]``, memory-mapped) and
-``<fingerprint>.json`` (image path -> row; written last, so its presence means the cache is complete). The
+``<fingerprint>.json`` (image path relative to the data dir -> row; written last, so its presence means the cache
+is complete; relative, so a data dir copied to another machine keeps its cache). The
 fingerprint hashes the vision + connector weights and the image preprocessing, so a checkpoint that changed either
 simply has no cache yet.
 
@@ -56,15 +57,30 @@ def _paths(data_dir: str, fp: str):
     return os.path.join(d, fp + ".npy"), os.path.join(d, fp + ".json")
 
 
+def _keys(data_dir: str, fp: str) -> Optional[List[str]]:
+    """The cache's image keys as absolute paths here, or None if there is no usable cache."""
+    idx = _paths(data_dir, fp)[1]
+    if not os.path.exists(idx):
+        return None
+    with open(idx) as f:
+        meta = json.load(f)
+    keys = meta["images"]
+    if meta.get("relative"):
+        return [image_key(os.path.join(data_dir, k)) for k in keys]
+    if keys and not os.path.exists(keys[0]):
+        return None  # old format, absolute paths from the machine that built it: rebuild
+    return keys
+
+
 def missing(data_dirs: Sequence[str], fp: str) -> List[str]:
-    return [d for d in data_dirs if not os.path.exists(_paths(d, fp)[1])]
+    return [d for d in data_dirs if _keys(d, fp) is None]
 
 
 def build(data_dir: str, examples: Sequence[Dict], encode: Callable[[List[str]], np.ndarray], fp: str,
           batch: int = 4096, log: Callable[[str], None] = lambda s: None) -> None:
     """Encode every distinct image the examples use (once each) into ``data_dir``'s cache. No-op when complete."""
     npy, idx = _paths(data_dir, fp)
-    if os.path.exists(idx):
+    if not missing([data_dir], fp):
         return
     keys = sorted({image_key(p) for ex in examples for p in example_images(ex)})
     os.makedirs(os.path.dirname(npy), exist_ok=True)
@@ -81,7 +97,8 @@ def build(data_dir: str, examples: Sequence[Dict], encode: Callable[[List[str]],
         del out
         os.replace(tmp, npy)
     with open(idx + ".tmp", "w") as f:
-        json.dump({"fingerprint": fp, "images": keys}, f)
+        json.dump({"fingerprint": fp, "relative": True,
+                   "images": [os.path.relpath(k, image_key(data_dir)) for k in keys]}, f)
     os.replace(idx + ".tmp", idx)
 
 
@@ -104,9 +121,8 @@ class FeatureCache:
 def load(data_dirs: Sequence[str], fp: str) -> FeatureCache:
     files, index = [], {}
     for d in data_dirs:
-        npy, idx = _paths(d, fp)
-        with open(idx) as f:
-            keys = json.load(f)["images"]
+        npy = _paths(d, fp)[0]
+        keys = _keys(d, fp)
         if keys:
             files.append(npy)
             for r, k in enumerate(keys):
