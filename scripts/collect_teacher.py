@@ -4,7 +4,8 @@
 
 The teacher plays full matches from the savestate. With probability ``--eps`` it executes a random option
 instead of its own (epsilon-expert), so the data covers states its own play would never reach; every frame is
-still labelled with the teacher's distribution. Every 10th match goes to val. Decisions where the stick does
+still labelled with the teacher's distribution. Its own move is sampled from that distribution, or with
+``--greedy`` its top choice (sampling alone plays far below the teacher: the targets are soft). Every 10th match goes to val. Decisions where the stick does
 nothing (hit, knocked down) are played but not written.
 """
 import argparse
@@ -16,6 +17,19 @@ from sf2.dataset import Writer
 from sf2.cli import add_env_args, make_env
 from sf2.loop import play, save_rounds
 from sf2.rollout import gate
+from sf2.teacher import argmax
+
+
+def make_choose(eps, greedy, rng):
+    def choose(env, prev, cur, text, t_dist):
+        if rng.random() < eps:
+            return rng.choice(A.ACTIONS), {"actor": "random"}
+        if greedy:
+            return argmax(t_dist), {"actor": "teacher"}
+        acts = list(t_dist)
+        return rng.choices(acts, weights=[t_dist[a] for a in acts])[0], {"actor": "teacher"}
+
+    return choose
 
 
 def main():
@@ -26,14 +40,9 @@ def main():
     ap.add_argument("--decisions", type=int, default=30000)
     ap.add_argument("--max-matches", type=int, default=10000)
     ap.add_argument("--eps", type=float, default=0.25)
+    ap.add_argument("--greedy", action="store_true", help="play the teacher's top choice instead of sampling it")
     args = ap.parse_args()
-    rng = random.Random(args.seed)
-
-    def choose(env, prev, cur, text, t_dist):
-        if rng.random() < args.eps:
-            return rng.choice(A.ACTIONS), {"actor": "random"}
-        acts = list(t_dist)
-        return rng.choices(acts, weights=[t_dist[a] for a in acts])[0], {"actor": "teacher"}
+    choose = make_choose(args.eps, args.greedy, random.Random(args.seed))
 
     env = make_env(args)
     w = Writer(args.out, args.name, source=args.name, skip_uncontrollable=True)
