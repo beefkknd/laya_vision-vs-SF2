@@ -19,7 +19,8 @@ def _frames(n_rounds, per_round, dataset="d"):
         for f in range(per_round):
             i = "%s-%d-%d" % (dataset, r, f)
             exs.append({"id": i, "dataset": dataset})
-            info[i] = {"id": i, "dataset": dataset, "episode": 0, "meta": {"episode": 0, "round": r, "frame": f}}
+            info[(dataset, i)] = {"id": i, "dataset": dataset, "episode": 0,
+                                  "meta": {"episode": 0, "round": r, "frame": f}}
     return exs, info
 
 
@@ -27,8 +28,8 @@ def test_fallback_val_holds_out_whole_rounds_and_keeps_them_out_of_training():
     # no val.jsonl anywhere (true of every Chun-Li dataset): neighbouring frames must not straddle the split
     exs, info = _frames(40, 50)
     tr, val = train.split_val(exs, [], limit=600, seed=0, info=info)
-    val_rounds = {info[e["id"]]["meta"]["round"] for e in val}
-    train_rounds = {info[e["id"]]["meta"]["round"] for e in tr}
+    val_rounds = {train.info_for(info, e)["meta"]["round"] for e in val}
+    train_rounds = {train.info_for(info, e)["meta"]["round"] for e in tr}
     assert val and not val_rounds & train_rounds
     assert len(val) <= 600
 
@@ -180,3 +181,15 @@ def test_worker_names_carry_the_batch_name_so_row_ids_stay_unique():
     a = parallel.worker_dirs("data", "batch_a", 2)
     b = parallel.worker_dirs("data", "batch_b", 2)
     assert not {os.path.basename(d) for d in a} & {os.path.basename(d) for d in b}
+
+
+def test_a_subset_sharing_ids_keeps_each_datasets_own_metadata():
+    # dagger_hot holds copies of some dagger rows (same ids); its annotation must not overwrite dagger's
+    rows = lambda: [{"id": "e0-%d" % f, "episode": 0, "meta": {"episode": 0, "round": 0, "frame": f}}  # noqa: E731
+                    for f in range(0, 200, 4)]
+    info = {}
+    train.add_info(info, "dagger", rows())
+    train.add_info(info, "dagger_hot", [r for r in rows() if r["meta"]["frame"] >= 100])
+    rec = train.info_for(info, {"id": "e0-120", "dataset": "dagger"})
+    assert rec["dataset"] == "dagger" and rec["meta"]["t_round"] == 2.0        # 120 frames into the round
+    assert train.info_for(info, {"id": "e0-120", "dataset": "dagger_hot"})["meta"]["t_round"] == 20 / 60

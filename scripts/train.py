@@ -31,12 +31,24 @@ class EarlyStop(Exception):
     pass
 
 
+def add_info(info, name, raw):
+    """``info``: raw record per example, for val splitting and per-situation eval slices."""
+    for r in raw:
+        r["dataset"] = name
+    metrics.annotate(raw)  # time into round, from all of the dataset's frames
+    info.update(((name, r["id"]), r) for r in raw)  # a subset (dagger_hot) reuses its parent's ids
+
+
+def info_for(info, ex):
+    return info[(ex["dataset"], ex["id"])]
+
+
 def split_val(train, val, limit, seed, info, every=10):
     """Cap val at ``limit`` frames. With no val anywhere, hold out every ``every``-th round of the training data
     (``info``: example id -> raw record); the held-out rounds leave training entirely, even past ``limit``."""
     rng = random.Random(seed)
     if not val:
-        held = metrics.holdout_round_ids([info[ex["id"]] for ex in train], every)
+        held = metrics.holdout_round_ids([info_for(info, ex) for ex in train], every)
         val = [ex for ex in train if ex["id"] in held]
         train = [ex for ex in train if ex["id"] not in held]
     if len(val) > limit:
@@ -97,10 +109,7 @@ def main():
             per_dir[d] += rows
             (val if split == "val" or d in args.val_data else train).extend(rows)
             raw += D.read(os.path.join(d, split + ".jsonl"))
-        for r in raw:
-            r["dataset"] = name
-        metrics.annotate(raw)  # time into round, from all of the dataset's frames
-        info.update((r["id"], r) for r in raw)
+        add_info(info, name, raw)
     train, val = split_val(train, val, args.val_limit, args.seed, info)
     print("train %d frames, val %d frames, init %s, mode %s" % (len(train), len(val), args.init, args.mode))
 
@@ -155,7 +164,7 @@ def main():
         agent.model.train()
         hist.append({"step": step, "seconds": time.time() - t, **{k: v for k, v in m.items()}})
         print("eval step %d (%.0fs): %s" % (step, hist[-1]["seconds"], vt.format_metrics(m)), flush=True)
-        sl = metrics.slice_metrics([info[ex["id"]] for ex in val], [r["logits"].tolist() for r in res],
+        sl = metrics.slice_metrics([info_for(info, ex) for ex in val], [r["logits"].tolist() for r in res],
                                    [r["target"].tolist() for r in res])
         with open(os.path.join(args.out, "eval_slices.jsonl"), "a") as f:
             f.write(json.dumps({"step": step, "time": time.time(), "slices": sl}) + "\n")
