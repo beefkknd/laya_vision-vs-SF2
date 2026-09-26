@@ -26,7 +26,7 @@ import time
 
 import _path  # noqa: F401
 from sf2 import dataset as D
-from sf2 import lora, metrics, vision_cache
+from sf2 import lora, metrics, policy, vision_cache
 from sf2.config import BASE_MODEL
 
 
@@ -48,6 +48,19 @@ def track_best(best, vals, step):
 
 def checkpoint_name(metric, select):
     return "best" if metric == select else "best_" + metric
+
+
+def drop_note_fields(examples, fields):
+    for ex in examples:
+        if isinstance(ex.get("state"), dict) and "context" in ex["state"]:
+            ex["state"]["context"] = policy.drop_fields(ex["state"]["context"], fields)
+
+
+def write_note(path, fields):
+    """Tell sf2.policy.LayaPolicy which note fields this checkpoint never saw."""
+    os.makedirs(path, exist_ok=True)
+    with open(os.path.join(path, policy.NOTE_FILE), "w") as f:
+        json.dump({"drop": list(fields)}, f)
 
 
 def add_info(info, name, raw):
@@ -112,6 +125,8 @@ def main():
     ap.add_argument("--image-size", type=int, default=None,
                     help="vision input side in px (256 = 16 tokens per frame, 512 = 64); default: the checkpoint's")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--drop-note-field", action="append", default=[],
+                    help="train without this note field (e.g. last); the checkpoint's note.json makes play drop it too")
     ap.add_argument("--no-vision-cache", action="store_true", help="run the frozen vision tower every step")
     args = ap.parse_args()
     t_start = time.time()
@@ -134,6 +149,7 @@ def main():
             raw += D.read(os.path.join(d, split + ".jsonl"))
         add_info(info, name, raw)
     train, val = split_val(train, val, args.val_limit, args.seed, info)
+    drop_note_fields(train + val, args.drop_note_field)
     print("train %d frames, val %d frames, init %s, mode %s" % (len(train), len(val), args.init, args.mode))
 
     image_seq_len = agent.model.prep.image_seq_len
@@ -173,6 +189,8 @@ def main():
             agent.temperature = [1.0] + list(keep_t)[1:]
             agent.temperature_by_options = {k: v for k, v in keep_tb.items() if not k.startswith("choice")}
         agent.save(path, include_backbone=args.mode != "head")
+        if args.drop_note_field:
+            write_note(path, args.drop_note_field)
         agent.model, agent.temperature, agent.temperature_by_options = keep_model, keep_t, keep_tb
 
     os.makedirs(args.out, exist_ok=True)
