@@ -210,14 +210,16 @@ def test_dhalsim_cornered_at_the_left_wall():
 
 
 def _notes(name):
-    """(Fighters, note fields, note words, airborne, recorded state bytes) after every frame of a trace."""
+    """(Fighters, note fields, note words, airborne, recorded state bytes) after every frame of a trace; a state
+    byte is (0E, reaction) in 0E."""
     env, t = _env(name)
     out = []
     for r in t["rows"][1:]:
         env.run_frames([r["in"] or []], capture=False)
         words = env.text().split()
         out.append((env.f, dict(kv.split("=") for kv in words if "=" in kv), words, env.airborne(),
-                    (int(r["mem"][4][6:8], 16), int(r["mem"][5][6:8], 16))))
+                    tuple((b[3], b[0x4A]) if b[3] == 0x0E else b[3] for b in (bytes.fromhex(r["mem"][4]),
+                                                                              bytes.fromhex(r["mem"][5])))))
     return out
 
 
@@ -242,8 +244,8 @@ def test_note_state_words_match_the_recorded_state_bytes():
     for name in ("walls", "knockdown", "timeover", "ko_round2"):
         for f, n, words, airs, states in _notes(name):
             for word, air, state in zip((words[1], words[4]), airs, states):
-                want = ("hit" if state == 0x0E else ("jumpattack" if state == 0x0A else "jump") if air
-                        else WORD.get(state, "other"))
+                want = (("block" if state[1] in (6, 8) else "hit") if isinstance(state, tuple) else
+                        ("jumpattack" if state == 0x0A else "jump") if air else WORD.get(state, "other"))
                 assert word == want, (name, f, words)
                 seen.add(word)
     assert seen == {"stand", "crouch", "jump", "jumpattack", "block", "attack", "hit", "other"}
@@ -287,6 +289,53 @@ def test_note_at_the_start_of_round_two():
     n = dict(kv.split("=") for kv in words if "=" in kv)
     assert (words[1], words[4], n["facing"], n["corner"], n["time"]) == ("stand", "stand", "right", "none", "early")
     assert "hp=100" in env.text() and n["last"] == "idle"
+
+
+def _stuns(t, base):
+    """0E episodes of the fighter whose state byte is at ``base`` + 3 (0x0C00 Chun-Li, 0x0E00 Dhalsim), from the
+    recorded bytes: (first frame, frame after, blocked). Blocked = entered from guard (08, or 0A on the frame an
+    attack came) and cost at most a Yoga Fire's chip (8) of the true life at +0x35; hits cost 10 or more."""
+    w = [s for s, _ in t["header"]["windows"]].index(base)
+    b = [bytes.fromhex(r["mem"][w]) for r in t["rows"]]
+    out, i = [], 1
+    while i < len(b):
+        if b[i][3] == 0x0E and b[i - 1][3] != 0x0E:
+            j = i
+            while j < len(b) and b[j][3] == 0x0E:
+                j += 1
+            out.append((i, j, b[i - 1][3] in (0x08, 0x0A) and b[i - 1][0x35] - min(x[0x35] for x in b[i:j]) <= 8))
+            i = j
+        i += 1
+    return out
+
+
+def test_block_stun_reads_block_and_hit_stun_reads_hit():
+    """0E is hit stun and block stun alike; the note tells them apart (for her and for him)."""
+    n = {("me", True): 0, ("me", False): 0, ("opp", True): 0, ("opp", False): 0}
+    for name in ("walls", "walk", "facing", "fireball", "timeover", "close", "win", "knockdown", "ko_round2"):
+        t = load(os.path.join(ROOT, "tests", "fixtures", name + ".jsonl.gz"))
+        notes = _notes(name)
+        for who, base, k in (("me", 0x0C00, 1), ("opp", 0x0E00, 4)):
+            for i, j, blocked in _stuns(t, base):
+                words = {notes[f - 1][2][k] for f in range(i, j)}
+                assert words == {"block" if blocked else "hit"}, (name, who, i, words)
+                n[who, blocked] += 1
+    assert n[("me", True)] >= 5 and n[("opp", True)] >= 15 and min(n.values()) >= 5, n
+
+
+def test_block_stun_is_controllable_hit_stun_is_not():
+    """On the ROM holding down in block stun switches her to a crouching guard (tests/test_rom_harness.py); in hit
+    stun no input changes anything."""
+    for name in ("walls", "walk", "facing", "timeover"):
+        env, t = _env(name)
+        stuns = _stuns(t, 0x0C00)
+        ctl = []
+        for r in t["rows"][1:]:
+            env.run_frames([r["in"] or []], capture=False)
+            ctl.append(env.controllable())
+        for i, j, blocked in stuns:
+            assert all(ctl[f - 1] == blocked for f in range(i, j)), (name, i, blocked)
+        assert any(b for *_, b in stuns) and not all(b for *_, b in stuns)
 
 
 def test_knocked_down_is_not_controllable():

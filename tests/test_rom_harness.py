@@ -293,3 +293,34 @@ def test_block_guards_on_the_right_side_too(env):
         env.act("block", on_frame=lambda f: st.append(f.my_state))
     guarded = [i for i in range(1, len(st)) if st[i] == 0x0E and st[i - 1] == 0x08]
     assert len(guarded) >= 3 and env.f.my_hp == hp
+
+
+def test_in_block_stun_only_down_does_anything(env):
+    """Block stun is state 0E like hit stun, with reaction 06 / 08 at 0x0C4A. Holding down in it switches her to a
+    crouching guard (+0x43: 1 standing, 2 crouching) before it ends, so it is controllable; nothing else changes
+    her until it ends."""
+    from sf2.ram import Var, load_map
+
+    env.reset()
+    for _ in range(100):
+        env.act("block")
+        if env.f.my_state == 0x0E:
+            break
+    assert env.f.my_state == 0x0E and env.f.my_react in (6, 8) and env.f.my_hp == FULL
+    assert env.controllable() and env.text().split()[1] == "block"
+    state = env.backend.save_state()
+    ram_map = load_map(RAM_MAP)
+    env.backend.set_vars(ram_map + [Var("guard", 0x0C43, 1, False)])
+    runs = {}
+    try:
+        for held in ([], ["right"], ["left"], ["up"], ["y"], ["r"], ["down"], ["down", "left"], ["down", "right"]):
+            env.backend.load_state(state)
+            runs[tuple(held)] = env.backend.run([held] * 150).rams[1:]
+    finally:
+        env.backend.set_vars(ram_map)
+        env.backend.load_state(state)
+    ref, col = runs[()], env.names.index("my_state")
+    end = next(i for i, r in enumerate(ref) if r[col] != 0x0E)
+    assert end > 10
+    assert all(r[:end] == ref[:end] for held, r in runs.items() if "down" not in held)
+    assert all(any(a[-1] == 2 != b[-1] for a, b in zip(r[:end], ref[:end])) for held, r in runs.items() if "down" in held)
