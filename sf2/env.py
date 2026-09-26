@@ -117,10 +117,12 @@ class FightEnv:
 
     # ------------------------------------------------------------------ state for model / teacher
     def airborne(self):
-        """Off the ground by choice (a jump or jump attack); being knocked into the air does not count."""
+        """Off the ground by choice (a jump or jump attack): being knocked into the air (0E), lifted and thrown
+        (00 at y 136, then 14) or falling after a KO (00) does not count."""
         f = self.f
-        return (abs(f.my_y - self.ground[0]) > AIR_DY and f.my_state != ram.HIT_STATE,
-                abs(f.opp_y - self.ground[1]) > AIR_DY and f.opp_state != ram.HIT_STATE)
+        air = (None, ram.JUMP_STATE, ram.ATTACK_STATE)
+        return (abs(f.my_y - self.ground[0]) > AIR_DY and f.my_state in air,
+                abs(f.opp_y - self.ground[1]) > AIR_DY and f.opp_state in air)
 
     def controllable(self) -> bool:
         """Does the stick do anything now? Not while she is hit, thrown or knocked down (state 0E), or between

@@ -166,6 +166,17 @@ def test_knocked_into_the_air_is_not_airborne_but_a_jump_is():
     assert len(knocked) > 50 and not any(knocked)
 
 
+def test_thrown_is_not_airborne():
+    """Dhalsim lifts her to y 136 (state 00) and throws her across the screen (state 14): not a jump."""
+    env, t = _env("close")
+    thrown = []
+    for r in t["rows"][1:]:
+        env.run_frames([r["in"]], capture=False)
+        if env.f.my_state == 0x14 or (env.f.my_state == 0 and env.f.my_y == 136):
+            thrown.append(env.airborne()[0])
+    assert len(thrown) > 80 and not any(thrown)
+
+
 def test_walking_back_stops_at_the_measured_walls():
     from sf2.ram import LEFT_WALL, RIGHT_WALL
 
