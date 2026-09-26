@@ -189,3 +189,32 @@ random's -42.5 ± 9.4: +104.5, 7.3 combined SE.
 
 More random-play rollouts, from any machine, sharpen the action table above. Batches are self-contained dirs, so
 they can be copied over and pooled.
+
+## Stage 4: fancy moves (2026-09-26)
+
+Same gate protocol and keep bar. Rollouts: `rollouts/t4_*`. Each move is an action (`sf2/actions.py`), checked on
+the ROM (`tests/test_rom_harness.py`), then given a teacher rule.
+
+### Throw (`throw`: toward + fierce on the same frame, 4 frames)
+
+Measured on the ROM from 58 saved starts at 20-100 px, both sides of the screen, both fighters on the ground
+(`scratchpad/s4/throw1.py`, `throw2.py`):
+- **Toward or back + fierce, or + strong,** throws Dhalsim when he is **within 42 px at the press frame** (23 of 23
+  at ≤ 42; none at 44+). No kick throw (toward / back + roundhouse or forward: 0 of 58). Pressing the direction first
+  gains nothing: direction and button on the same frame throw just as well.
+- She is in 0A for 61 frames; he stays 00 for ~31 frames, then 14 (thrown) and loses **46** life.
+- Toward throws him forward (he lands 33-52 px further away, same side); **back throws him behind her** (the sides
+  swap). The action is the toward throw.
+- He must be on the ground: taking off (04) he cannot be thrown.
+- Out of range it is a plain fierce: the same 30 frames of 0A as `hp`.
+
+| Rule | Arm | Net damage / round | SE | Round wins | vs best (bar) | Kept? |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| (start) Stage 3b teacher | t3b_apex_block | +62.0 | 10.8 | 36 / 46 | | best |
+| 8a within 40 px, him standing or crouching: `throw` | t4_throw | +70.9 | 10.2 | 37 / 45 | +8.9 (29.7) | dropped |
+| 8a, before the just-hit guard | t4_throw_b | +69.7 | 10.1 | 37 / 45 | +7.8 (29.5) | dropped |
+| 8b 40-80 px, him standing or crouching: walk in (`forward`), no throw | t4_walk_only | +59.2 | 9.9 | 37 / 47 | -2.8 (29.2) | dropped |
+| **8 = 8a + 8b: walk in, then throw** | t4_throw_walk | **+104.5** | 6.9 | **40 / 40** | +42.5 (25.6) | **kept** |
+
+Alone, the throw rule rarely fires (20 throws in 20 matches: he is seldom that close and still); walking in alone
+only trades hits. Together she lands 49 throws in 20 matches, and he throws her less (19 vs 23).
