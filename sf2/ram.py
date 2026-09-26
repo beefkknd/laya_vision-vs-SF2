@@ -21,7 +21,8 @@ OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result"
 # Action state (0x0C03 Chun-Li, 0x0E03 Dhalsim), observed on the ROM (harness audit, 2026-09-26); the byte after it
 # is a sub-state.
 #   00 stand / walk (also while lifted for a throw at y 136, and falling after a KO)   02 crouch
-#   04 jump (on the ground for take-off / landing)   06 turning round after the fighters cross
+#   04 jump (on the ground for take-off / landing); sub-state 02 rising and falling, 04 landing, 06 Chun-Li's air
+#      attack (Dhalsim's air attacks are 0A)   06 turning round after the fighters cross
 #   08 guard: holding back while an attack comes (+0x43: 1 standing, 2 crouching)   0A attack, on the ground or in the air
 #   0C special move (Chun-Li's Lightning Legs, from repeated kicks)
 #   0E hit stun and block stun alike; sub-state 02 reeling / knocked into the air, 04 down, 06 getting up,
@@ -33,6 +34,7 @@ OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result"
 HIT_STATE = 0x0E
 ATTACK_STATE = 0x0A
 JUMP_STATE = 0x04
+AIR_ATTACK_SUB = 0x06   # in JUMP_STATE
 BLOCK_REACTS = (0x06, 0x08)
 DIZZY_SUB = 0x08
 THROWN_STATE = 0x14
@@ -154,7 +156,7 @@ def pct(hp: int, full: int) -> int:
 
 # Action state -> the word in the note. 08 shows while holding back against his attacks with no life lost (walls
 # trace): block. 04 on the ground is take-off / landing, so "jump" comes only from the airborne rule (env.airborne);
-# an attack in the air is "jumpattack".
+# an attack in the air is "jumpattack": 0A for Dhalsim, 04 with sub-state 06 for Chun-Li.
 # Anything else (06 turning, 0C special, 10-14 end-of-round poses and throws) is "other".
 STATE_WORDS = {0x00: "stand", 0x02: "crouch", 0x04: "stand", 0x08: "block", ATTACK_STATE: "attack", HIT_STATE: "hit"}
 
@@ -169,11 +171,13 @@ def dizzy(was: bool, state: Optional[int], sub: Optional[int], flag: Optional[in
     return state == HIT_STATE and sub == DIZZY_SUB and (bool(flag) or was)
 
 
-def state_word(state: Optional[int], air: bool, react: Optional[int] = None, dizzy: bool = False) -> str:
+def state_word(state: Optional[int], air: bool, react: Optional[int] = None, dizzy: bool = False,
+               sub: Optional[int] = None) -> str:
     if state == HIT_STATE:
         return "block" if react in BLOCK_REACTS else "dizzy" if dizzy else "hit"
     if air:
-        return "jumpattack" if state == ATTACK_STATE else "jump"
+        attack = state == ATTACK_STATE or (state == JUMP_STATE and sub == AIR_ATTACK_SUB)
+        return "jumpattack" if attack else "jump"
     return "stand" if state is None else STATE_WORDS.get(state, "other")
 
 
@@ -188,8 +192,8 @@ def text_state(f: Fighters, me: str, opp: str, last: str, my_air: bool, opp_air:
     corner = "me" if f.my_cornered else "opp" if f.opp_cornered else "none"  # never both: they are < 212 px apart
     fireball = dist_bin(abs(f.fireball_x - f.my_x)) if f.fireball else "none"  # how far it is from her
     return ("me=%s %s hp=%d opp=%s %s hp=%d dist=%s facing=%s corner=%s time=%s last=%s fireball=%s"
-            % (me, state_word(f.my_state, my_air, f.my_react, dizzy[0]),
+            % (me, state_word(f.my_state, my_air, f.my_react, dizzy[0], f.my_sub),
                pct(f.my_hp, full_hp), opp,
-               state_word(f.opp_state, opp_air, f.opp_react, dizzy[1]),
+               state_word(f.opp_state, opp_air, f.opp_react, dizzy[1], f.opp_sub),
                pct(f.opp_hp, full_hp), dist_bin(f.dx), "right" if f.facing_right else "left", corner,
                clock_word(f.timer), last, fireball))

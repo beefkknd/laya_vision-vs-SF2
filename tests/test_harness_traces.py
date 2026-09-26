@@ -211,14 +211,15 @@ def test_dhalsim_cornered_at_the_left_wall():
 
 def _notes(name):
     """(Fighters, note fields, note words, airborne, recorded state bytes) after every frame of a trace; a state
-    byte is (0E, reaction) in 0E."""
+    byte is (0E, reaction) in 0E and (04, sub-state) in 04."""
     env, t = _env(name)
     out = []
     for r in t["rows"][1:]:
         env.run_frames([r["in"] or []], capture=False)
         words = env.text().split()
         out.append((env.f, dict(kv.split("=") for kv in words if "=" in kv), words, env.airborne(),
-                    tuple((b[3], b[0x4A]) if b[3] == 0x0E else b[3] for b in (bytes.fromhex(r["mem"][4]),
+                    tuple((b[3], b[0x4A]) if b[3] == 0x0E else (b[3], b[4]) if b[3] == 0x04 else b[3]
+                          for b in (bytes.fromhex(r["mem"][4]),
                                                                               bytes.fromhex(r["mem"][5])))))
     return out
 
@@ -240,15 +241,22 @@ def test_note_corner_and_facing_on_the_walls_trace():
 
 
 def test_note_state_words_match_the_recorded_state_bytes():
-    seen = set()
+    """An attack from the air is 0A for Dhalsim, and 04 with sub-state 06 for Chun-Li (checked on the ROM)."""
+    seen, her_air_attacks = set(), 0
     for name in ("walls", "knockdown", "timeover", "ko_round2"):
         for f, n, words, airs, states in _notes(name):
             for word, air, state in zip((words[1], words[4]), airs, states):
-                want = (("block" if state[1] in (6, 8) else "hit") if isinstance(state, tuple) else
-                        ("jumpattack" if state == 0x0A else "jump") if air else WORD.get(state, "other"))
+                if isinstance(state, tuple) and state[0] == 0x0E:
+                    want = "block" if state[1] in (6, 8) else "hit"
+                elif air:
+                    want = "jumpattack" if state in (0x0A, (0x04, 0x06)) else "jump"
+                else:
+                    want = WORD.get(state[0] if isinstance(state, tuple) else state, "other")
                 assert word == want, (name, f, words)
                 seen.add(word)
+            her_air_attacks += airs[0] and states[0] == (0x04, 0x06)
     assert seen == {"stand", "crouch", "jump", "jumpattack", "block", "attack", "hit", "other"}
+    assert her_air_attacks > 50
 
 
 def test_opponent_attacking_matches_the_recorded_state_byte():

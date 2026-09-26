@@ -389,7 +389,7 @@ def _to_other_side(env):
 def test_jump_forward_leaves_the_ground_toward_dhalsim_on_both_sides_and_lands(env):
     """Up + toward him: in the air for about 45 frames, rising 90+ px and travelling ~90 px toward him; after the
     fighters swap sides it still goes toward him. A kick tapped in it is an air attack: the ROM keeps state 04 and
-    moves the sub-state from 02 to 06 (not 0A, which is Dhalsim's air attack)."""
+    moves the sub-state from 02 to 06 (not 0A, which is Dhalsim's air attack); the note says jumpattack."""
     for side in ("left", "right"):
         env.reset()
         env.run_frames([[]] * 4, capture=False)
@@ -404,8 +404,11 @@ def test_jump_forward_leaves_the_ground_toward_dhalsim_on_both_sides_and_lands(e
         for _ in range(3):
             env.act("idle", on_frame=fs.append)
         env.act("hk", on_frame=fs.append)
+        words = [env.text().split()[1]]
         for _ in range(12):
             env.act("idle", on_frame=fs.append)
+            words.append(env.text().split()[1])
+        assert "jumpattack" in words, (side, words)
         toward = 1 if f0.facing_right else -1
         assert (fs[24].my_x - f0.my_x) * toward > 25, side                  # rising, before anything connects
         assert min(f.my_y for f in fs) < f0.my_y - 80, side
