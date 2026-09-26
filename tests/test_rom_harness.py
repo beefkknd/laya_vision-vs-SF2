@@ -277,3 +277,19 @@ def test_the_same_button_on_consecutive_decisions_presses_again(env):
         env.act("lp", on_frame=lambda f: st.append(f.my_state))
     starts = [i for i in range(len(st)) if st[i] == 0x0A and (i == 0 or st[i - 1] != 0x0A)]
     assert starts == [0, 16]
+
+
+def test_block_guards_on_the_right_side_too(env):
+    """After the fighters swap sides, block is down + right: Dhalsim's attacks are guarded (08, then 0E block
+    stun) and cost no life."""
+    env.reset()
+    for _ in range(200):
+        env.act("forward")
+        if not env.f.facing_right:
+            break
+    assert not env.f.facing_right
+    hp, st = env.f.my_hp, []
+    for _ in range(200):
+        env.act("block", on_frame=lambda f: st.append(f.my_state))
+    guarded = [i for i in range(1, len(st)) if st[i] == 0x0E and st[i - 1] == 0x08]
+    assert len(guarded) >= 3 and env.f.my_hp == hp
