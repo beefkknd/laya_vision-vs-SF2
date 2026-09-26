@@ -41,8 +41,8 @@ def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
     rom = os.path.expanduser(rom or os.environ.get("SF2_ROM", ""))
     if not rom or not os.path.exists(rom):
         raise FileNotFoundError("ROM not found: pass --rom or set SF2_ROM")
-    # The test runner's default wall-clock limit is 100 seconds, shorter than a full student match.
+    # --timeout is the test runner's total wall-clock limit (default 100 s); past it Mesen exits mid-run. A week.
     # Running unthrottled, Mesen skips rendering frames on a wall-clock timer: screenshots would lag the RAM by
     # 0-3 frames, differently every run. Rendering every frame makes them exact and deterministic.
-    return [find_mesen(mesen), "--testrunner", "--timeout=3600", "--snes.disableFrameSkipping=true", rom,
+    return [find_mesen(mesen), "--testrunner", "--timeout=604800", "--snes.disableFrameSkipping=true", rom,
             bridge_for_port(port)]

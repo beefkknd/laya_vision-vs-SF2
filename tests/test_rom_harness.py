@@ -233,3 +233,9 @@ def test_the_stick_does_nothing_while_she_is_hit(env):
     assert hit > 10
     assert all(run[:hit] == runs[-1][:hit] for run in runs)
     assert any(run[hit + 8] != runs[-1][hit + 8] for run in runs)      # afterwards the stick works again
+
+
+def test_headless_mesen_outlives_a_long_collection(env):
+    """--timeout is the test runner's total wall-clock limit: Mesen exits mid-run when it passes, keep_alive or not."""
+    timeout = [a for a in env.backend.proc.args if a.startswith("--timeout=")]
+    assert timeout and int(timeout[0].split("=")[1]) >= 7 * 24 * 3600
