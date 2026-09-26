@@ -295,11 +295,30 @@ def test_block_guards_on_the_right_side_too(env):
     assert len(guarded) >= 3 and env.f.my_hp == hp
 
 
+def _hold_each(env, runs, extra=()):
+    """RAM rows (the map's variables, then ``extra``) of each named input sequence from the current state; the
+    state is restored afterwards."""
+    from sf2.ram import load_map
+
+    state = env.backend.save_state()
+    ram_map = load_map(RAM_MAP)
+    env.backend.set_vars(ram_map + list(extra))
+    try:
+        out = {}
+        for name, frames in runs.items():
+            env.backend.load_state(state)
+            out[name] = env.backend.run(frames).rams[1:]
+    finally:
+        env.backend.set_vars(ram_map)
+        env.backend.load_state(state)
+    return out
+
+
 def test_in_block_stun_only_down_does_anything(env):
     """Block stun is state 0E like hit stun, with reaction 06 / 08 at 0x0C4A. Holding down in it switches her to a
     crouching guard (+0x43: 1 standing, 2 crouching) before it ends, so it is controllable; nothing else changes
     her until it ends."""
-    from sf2.ram import Var, load_map
+    from sf2.ram import Var
 
     env.reset()
     for _ in range(100):
@@ -308,19 +327,53 @@ def test_in_block_stun_only_down_does_anything(env):
             break
     assert env.f.my_state == 0x0E and env.f.my_react in (6, 8) and env.f.my_hp == FULL
     assert env.controllable() and env.text().split()[1] == "block"
-    state = env.backend.save_state()
-    ram_map = load_map(RAM_MAP)
-    env.backend.set_vars(ram_map + [Var("guard", 0x0C43, 1, False)])
-    runs = {}
-    try:
-        for held in ([], ["right"], ["left"], ["up"], ["y"], ["r"], ["down"], ["down", "left"], ["down", "right"]):
-            env.backend.load_state(state)
-            runs[tuple(held)] = env.backend.run([held] * 150).rams[1:]
-    finally:
-        env.backend.set_vars(ram_map)
-        env.backend.load_state(state)
+    inputs = ([], ["right"], ["left"], ["up"], ["y"], ["r"], ["down"], ["down", "left"], ["down", "right"])
+    runs = _hold_each(env, {tuple(h): [h] * 150 for h in inputs}, [Var("guard", 0x0C43, 1, False)])
     ref, col = runs[()], env.names.index("my_state")
     end = next(i for i, r in enumerate(ref) if r[col] != 0x0E)
     assert end > 10
     assert all(r[:end] == ref[:end] for held, r in runs.items() if "down" not in held)
     assert all(any(a[-1] == 2 != b[-1] for a, b in zip(r[:end], ref[:end])) for held, r in runs.items() if "down" in held)
+
+
+def _close_plan(env, seed, until):
+    """record_trace.py's close plan (fixtures/close is seed 1, fixtures/win seed 13) until ``until(env)``."""
+    import random
+
+    rng = random.Random(seed)
+    env.reset()
+    for _ in range(3000):
+        res = env.act("forward" if env.f.dx > 30 else rng.choice(["idle", "idle", "crouch", "lp", "forward"]))
+        if until(env):
+            return True
+        if res.round_over and not env.next_round():
+            return False
+    return False
+
+
+HELD = ([], ["right"], ["left"], ["up"], ["down"], ["down", "left"], ["y"], ["l"], ["r"], ["b"])
+MASH = [[["y"], []][k % 2] if k % 4 < 2 else [["left"], ["right"]][k % 2] for k in range(400)]  # jab, left, right
+
+
+def test_the_stick_does_nothing_while_she_is_held_up_or_thrown(env):
+    """Dhalsim's throw lifts her to y 136 in state 00, then throws her in state 14 (seed 1: at frame ~323)."""
+    assert _close_plan(env, 1, lambda e: e.f.my_state == 0 and e.f.my_y < 185)
+    assert not env.controllable()
+    runs = _hold_each(env, dict({tuple(h): [h] * 250 for h in HELD}, mash=MASH[:250]))
+    ref, st, y = runs[()], env.names.index("my_state"), env.names.index("my_y")
+    end = next(i for i, r in enumerate(ref) if not (r[st] == 0x14 or (r[st] == 0 and r[y] < 185)))
+    assert end > 80 and any(r[st] == 0x14 for r in ref[:end])
+    assert all(r[:end] == ref[:end] for r in runs.values())
+    assert any(r[end + 8] != ref[end + 8] for r in runs.values())       # afterwards the stick works again
+
+
+def test_mashing_shortens_a_dizzy(env):
+    """Dizzy is state 0E, sub-state 08 with the flag at 0x0C89 (seed 13: at frame ~2095). Holding any one input
+    changes nothing; mashing gets her out far sooner, so a dizzy is controllable."""
+    assert _close_plan(env, 13, lambda e: e.text().split()[1] == "dizzy")
+    assert env.controllable()
+    runs = _hold_each(env, dict({tuple(h): [h] * 400 for h in HELD}, mash=MASH))
+    st = env.names.index("my_state")
+    end = {k: next(i for i, r in enumerate(r) if r[st] != 0x0E) for k, r in runs.items()}
+    assert end[()] > 60 and all(e == end[()] for k, e in end.items() if k != "mash")
+    assert end["mash"] < end[()] / 2

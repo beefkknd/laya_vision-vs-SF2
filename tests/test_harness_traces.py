@@ -318,7 +318,7 @@ def test_block_stun_reads_block_and_hit_stun_reads_hit():
         for who, base, k in (("me", 0x0C00, 1), ("opp", 0x0E00, 4)):
             for i, j, blocked in _stuns(t, base):
                 words = {notes[f - 1][2][k] for f in range(i, j)}
-                assert words == {"block" if blocked else "hit"}, (name, who, i, words)
+                assert words == {"block"} if blocked else "hit" in words <= {"hit", "dizzy"}, (name, who, i, words)
                 n[who, blocked] += 1
     assert n[("me", True)] >= 5 and n[("opp", True)] >= 15 and min(n.values()) >= 5, n
 
@@ -346,6 +346,27 @@ def test_knocked_down_is_not_controllable():
         assert env.controllable() == (env.f.my_state != 0x0E)
         hit.append(not env.controllable())
     assert sum(hit) > 200
+
+
+def test_held_thrown_and_end_of_round_poses_are_not_controllable_but_dizzy_is():
+    """Checked on the ROM (tests/test_rom_harness.py): no input changes anything while Dhalsim holds her up for a
+    throw (state 00 at y 136) or throws her (14), or in the winner's / loser's poses (10 / 12); mashing shortens
+    a dizzy (0E, sub-state 08, flag +0x89), so a dizzy is controllable and the note says so."""
+    seen = {"held": 0, "thrown": 0, "pose": 0, "dizzy": 0, "down": 0}
+    for name in ("close", "win", "timeover", "ko_round2", "knockdown"):
+        env, t = _env(name)
+        for r in t["rows"][1:]:
+            env.run_frames([r["in"] or []], capture=False)
+            b = bytes.fromhex(r["mem"][4])                      # 0x0C00: state +03, sub-state +04, dizzy +89
+            f = env.f
+            kind = ("held" if b[3] == 0 and f.my_y == 136 else "thrown" if b[3] == 0x14 else
+                    "pose" if b[3] in (0x10, 0x12) else "dizzy" if (b[3], b[4], b[0x89]) == (0x0E, 8, 1) else
+                    "down" if b[3] == 0x0E and b[4] in (4, 6) else None)
+            if kind:
+                seen[kind] += 1
+                assert env.controllable() == (kind == "dizzy"), (name, kind, f)
+                assert (env.text().split()[1] == "dizzy") == (kind == "dizzy")
+    assert seen["held"] > 30 and seen["thrown"] > 80 and seen["pose"] > 100 and seen["dizzy"] > 100, seen
 
 
 def test_uncontrollable_decisions_stay_in_the_rollout_but_not_in_the_dataset(tmp_path):

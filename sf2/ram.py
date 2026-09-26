@@ -16,7 +16,8 @@ from typing import Dict, List, Optional
 
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
 # round clock (BCD seconds), action states, projectile slot (in use, world x), the ROM's round result
-OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result", "my_react", "opp_react"]
+OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result", "my_react", "opp_react", "my_sub",
+            "opp_sub", "my_dizzy", "opp_dizzy"]
 # Action state (0x0C03 Chun-Li, 0x0E03 Dhalsim), observed on the ROM (harness audit, 2026-09-26); the byte after it
 # is a sub-state.
 #   00 stand / walk (also while lifted for a throw at y 136, and falling after a KO)   02 crouch
@@ -25,13 +26,17 @@ OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result"
 #   0C special move (Chun-Li's Lightning Legs, from repeated kicks)
 #   0E hit stun and block stun alike; sub-state 02 reeling / knocked into the air, 04 down, 06 getting up,
 #      08 dizzy. The hit reaction at +0x4A (0x0C4A / 0x0E4A) tells them apart: 06 / 08 block stun (standing /
-#      crouching guard; no life lost, or a Yoga Fire's 4-8 chip), anything else a hit
+#      crouching guard; no life lost, or a Yoga Fire's 4-8 chip), anything else a hit. Dizzy is sub-state 08 with
+#      the flag at +0x89 set; without it 08 is the last 16 frames of getting up
 #   10 winner's pose   12 time-over loser   14 thrown through the air (also the KO fall on some rounds)
 # Dhalsim uses the same values when Chun-Li hits (0E), throws or blocks him (08).
 HIT_STATE = 0x0E
 ATTACK_STATE = 0x0A
 JUMP_STATE = 0x04
 BLOCK_REACTS = (0x06, 0x08)
+DIZZY_SUB = 0x08
+THROWN_STATE = 0x14
+POSE_STATES = (0x10, 0x12)
 
 # |world x difference| in pixels. Measured from random play (TEACHER.md, 2026-09-25): Chun-Li's normals land below
 # CLOSE, Dhalsim's attacks reach up to MID.
@@ -94,6 +99,10 @@ class Fighters:
     result: Optional[int] = None
     my_react: Optional[int] = None
     opp_react: Optional[int] = None
+    my_sub: Optional[int] = None
+    opp_sub: Optional[int] = None
+    my_dizzy: Optional[int] = None
+    opp_dizzy: Optional[int] = None
 
     @classmethod
     def from_values(cls, names: List[str], values: List[int]) -> "Fighters":
@@ -146,9 +155,13 @@ def in_block_stun(state: Optional[int], react: Optional[int]) -> bool:
     return state == HIT_STATE and react in BLOCK_REACTS
 
 
-def state_word(state: Optional[int], air: bool, react: Optional[int] = None) -> str:
+def is_dizzy(state: Optional[int], sub: Optional[int], flag: Optional[int]) -> bool:
+    return state == HIT_STATE and sub == DIZZY_SUB and bool(flag)
+
+
+def state_word(state: Optional[int], air: bool, react: Optional[int] = None, dizzy: bool = False) -> str:
     if state == HIT_STATE:
-        return "block" if react in BLOCK_REACTS else "hit"
+        return "block" if react in BLOCK_REACTS else "dizzy" if dizzy else "hit"
     if air:
         return "jumpattack" if state == ATTACK_STATE else "jump"
     return "stand" if state is None else STATE_WORDS.get(state, "other")
@@ -164,7 +177,8 @@ def text_state(f: Fighters, me: str, opp: str, last: str, my_air: bool, opp_air:
     corner = "me" if f.my_cornered else "opp" if f.opp_cornered else "none"  # never both: they are < 212 px apart
     fireball = dist_bin(abs(f.fireball_x - f.my_x)) if f.fireball else "none"  # how far it is from her
     return ("me=%s %s hp=%d opp=%s %s hp=%d dist=%s facing=%s corner=%s time=%s last=%s fireball=%s"
-            % (me, state_word(f.my_state, my_air, f.my_react), pct(f.my_hp, full_hp), opp,
-               state_word(f.opp_state, opp_air, f.opp_react),
+            % (me, state_word(f.my_state, my_air, f.my_react, is_dizzy(f.my_state, f.my_sub, f.my_dizzy)),
+               pct(f.my_hp, full_hp), opp,
+               state_word(f.opp_state, opp_air, f.opp_react, is_dizzy(f.opp_state, f.opp_sub, f.opp_dizzy)),
                pct(f.opp_hp, full_hp), dist_bin(f.dx), "right" if f.facing_right else "left", corner,
                clock_word(f.timer), last, fireball))

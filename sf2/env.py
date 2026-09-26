@@ -125,11 +125,16 @@ class FightEnv:
                 abs(f.opp_y - self.ground[1]) > AIR_DY and f.opp_state in air)
 
     def controllable(self) -> bool:
-        """Does the stick do anything now? Not while she is hit, thrown or knocked down (state 0E), or between
-        rounds. In block stun (also 0E) it does: holding down switches her to a crouching guard. Uncontrollable
-        decisions stay in rollouts (gate, damage) but not in training data."""
+        """Does the stick do anything now (checked on the ROM)? Not between rounds, in hit stun or knocked down
+        (0E), held up for a throw (00 off the ground) or thrown (14), or in the end-of-round poses (10, 12). It does
+        in block stun (0E: holding down switches her to a crouching guard) and when dizzy (0E: mashing shortens
+        it). Uncontrollable decisions stay in rollouts (gate, damage) but not in training data."""
         f = self.f
-        return self.in_round and (f.my_state != ram.HIT_STATE or ram.in_block_stun(f.my_state, f.my_react))
+        if not self.in_round or f.my_state == ram.THROWN_STATE or f.my_state in ram.POSE_STATES:
+            return False
+        if f.my_state == ram.HIT_STATE:
+            return ram.in_block_stun(f.my_state, f.my_react) or ram.is_dizzy(f.my_state, f.my_sub, f.my_dizzy)
+        return not (f.my_state == 0 and abs(f.my_y - self.ground[0]) > AIR_DY)
 
     def text(self) -> str:
         my_air, opp_air = self.airborne()
