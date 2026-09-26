@@ -1,29 +1,31 @@
 # Training scorecard
 
-Use one fixed headless evaluation after each completed model:
+## Gate protocol (decided 2026-09-25)
+
+Every model, baseline or teacher change is judged by the same paired evaluation:
 
 ```sh
 python scripts/parallel.py --workers 4 play_student --model runs/<run>/best \
-  --name <run>_gate --matches 12 --seed 4242 \
+  --name <run>_gate --matches 20 --seed 4242 \
   --savestate states/chunli_vs_dhalsim.state --me chunli --opp dhalsim
-python scripts/gate.py rollouts/<run>_gate
+python scripts/gate.py rollouts/<baseline>_gate rollouts/<run>_gate
 ```
 
-The primary measure is **damage score**: average opponent health removed each
-round, as a percentage of the 176-point full bar. It is useful while round wins
-are still rare. A higher score is better.
+- **20 matches per arm** (at least 40 rounds). Per-round damage varies a lot (sd about 30 points), so smaller
+  gates cannot tell models apart.
+- **Paired starts**: always `--workers 4 --seed 4242`. Worker i, match e starts after i*30 + e + 1 idle frames,
+  so every arm fights the same 20 openings. `distinct_matches` must equal `matches`.
+- **Primary number: `net_damage_per_round`** (dealt minus taken). Also read `round_win_rate` and `damage_score`.
+- **Better** means net damage per round higher by at least 2 x sqrt(se_a^2 + se_b^2), using each arm's
+  `net_damage_se`. Anything smaller is noise.
+- Only on a verified harness: `SF2_ROM=... pytest -q tests/test_rom_harness.py` must pass (it writes the stamp the
+  collection scripts check).
 
-Keep `net_damage_per_round` alongside it: damage dealt minus damage taken. It
-prevents a score increase caused only by reckless trading. Treat held-out teacher
-agreement as a training diagnostic, not a performance score.
+Treat held-out teacher agreement and frame accuracy as training diagnostics, not performance scores.
 
-| Run | Damage score | Net damage / round | Notes |
-| --- | ---: | ---: | --- |
-| chunli_r0 | 33.5 | -117.0 | Two-round exploratory gate; not protocol-comparable. |
-| chunli_r1 | 25.0 | -132.0 | Two-round exploratory gate; not protocol-comparable. |
-| v2_random | 54.6 | -79.9 | v2 baseline: random policy, 14 rounds. |
-| v2_teacher | 21.0 | -139.1 | v2 baseline: scripted teacher, eps 0, 12 rounds. Worse than random; see TEACHER.md. |
+| Run | Net damage / round | SE | Round wins | Notes |
+| --- | ---: | ---: | ---: | --- |
 
-Old data (the chunli_r* datasets and rollouts) was deleted on 2026-09-25; the v2 loop starts over. The earlier
-val accuracies were optimistic: no dataset had val rows, so val was random frames whose neighbours were in training.
-Val now uses held-out rounds or eval-only sets (`--val-data`).
+Everything measured before 2026-09-25 (chunli_r*, v2_*) ran on a broken harness: wrong x addresses (distance
+and facing), knockdowns counted as jumps, time-overs scored as draws, and parallel workers replaying identical
+matches. Those numbers are invalid and their data was deleted; baselines are re-measured under this protocol.
