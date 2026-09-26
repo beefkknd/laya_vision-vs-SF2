@@ -28,6 +28,7 @@ Treat held-out teacher agreement and frame accuracy as training diagnostics, not
 | base_idle | -173.0 | 0.9 | 0 / 40 | 2026-09-25 baseline. 15 of 20 matches distinct (idling converges). |
 | base_random | -98.0 | 8.3 | 1 / 41 | 2026-09-25 baseline, `play_teacher --policy random`. Dealt 71 per round. |
 | base_teacher | -78.5 | 7.5 | 4 / 43 | 2026-09-25 baseline, eps 0, CLOSE/MID 55/120. +19.5 over random = 1.7 SE: not yet better. |
+| base_teacher_c80 | -75.2 | 9.0 | 3 / 43 | 2026-09-25, CLOSE/MID 80/120 (current). +22.8 over random = 1.9 SE: not yet better. |
 
 Everything measured before 2026-09-25 (chunli_r*, v2_*) ran on a broken harness: wrong x addresses (distance
 and facing), knockdowns counted as jumps, time-overs scored as draws, and parallel workers replaying identical

@@ -10,6 +10,7 @@ than pressing buttons at random.
 | idle | 40 | -173.0 | 0.9 | 0 | 0 |
 | random (`play_teacher --policy random`) | 41 | -98.0 | 8.3 | 1 | 71 |
 | teacher, eps 0, CLOSE/MID 55/120 | 43 | -78.5 | 7.5 | 4 | 91 |
+| teacher, eps 0, CLOSE/MID 80/120 (current) | 43 | -75.2 | 9.0 | 3 | 91 |
 
 The teacher is ahead of random by 19.5 net damage per round, 1.7 combined SE: not yet a proven improvement.
 (The earlier "teacher worse than random" finding came from the broken harness: inverted facing made its
