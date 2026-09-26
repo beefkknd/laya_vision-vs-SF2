@@ -123,7 +123,7 @@ def test_text_state_words_follow_the_action_state_and_the_airborne_rule():
     assert words(0x00, 0x02) == ("stand", "crouch")
     assert words(0x08, 0x0A) == ("block", "attack")
     assert words(0x0E, 0x0E, my_air=False, opp_air=False) == ("hit", "hit")
-    assert words(0x04, 0x0A, my_air=True, opp_air=True) == ("jump", "jump")      # a jump attack is still a jump
+    assert words(0x04, 0x0A, my_air=True, opp_air=True) == ("jump", "jumpattack")   # an attack from the air
     assert words(0x04, 0x04) == ("stand", "stand")      # jump state on the ground: take-off / landing frames
     assert words(0x12, None) == ("other", "stand")      # end-of-round poses; no state in the RAM map
 
@@ -133,3 +133,8 @@ def test_text_state_fireball():
     assert _note(_f(fireball=1, fireball_x=208 + 50)).endswith(" fireball=close")
     assert _note(_f(fireball=1, fireball_x=208 + 100)).endswith(" fireball=mid")
     assert _note(_f(fireball=1, fireball_x=208 - 150)).endswith(" fireball=far")
+
+
+def test_opponent_attacking_on_the_ground_or_from_the_air():
+    assert _f(opp_state=0x0A).opp_attacking and not _f(opp_state=0x04).opp_attacking
+    assert not _f(opp_state=None).opp_attacking

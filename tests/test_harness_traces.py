@@ -214,10 +214,20 @@ def test_note_state_words_match_the_recorded_state_bytes():
     for name in ("walls", "knockdown", "timeover", "ko_round2"):
         for f, n, words, airs, states in _notes(name):
             for word, air, state in zip((words[1], words[4]), airs, states):
-                want = "hit" if state == 0x0E else "jump" if air else WORD.get(state, "other")
+                want = ("hit" if state == 0x0E else ("jumpattack" if state == 0x0A else "jump") if air
+                        else WORD.get(state, "other"))
                 assert word == want, (name, f, words)
                 seen.add(word)
-    assert seen == {"stand", "crouch", "jump", "block", "attack", "hit", "other"}
+    assert seen == {"stand", "crouch", "jump", "jumpattack", "block", "attack", "hit", "other"}
+
+
+def test_opponent_attacking_matches_the_recorded_state_byte():
+    for name in ("walls", "timeover"):
+        n = 0
+        for f, _, _, _, (_, his) in _notes(name):
+            assert f.opp_attacking == (his == 0x0A)
+            n += f.opp_attacking
+        assert n > 500
 
 
 def test_note_sees_dhalsim_cornered_and_hit():

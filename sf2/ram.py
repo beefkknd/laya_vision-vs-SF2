@@ -18,6 +18,7 @@ REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
 # round clock (BCD seconds), action states, projectile slot (in use, world x)
 OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x"]
 HIT_STATE = 0x0E  # action state while being hit, thrown or knocked down (00 stand, 02 crouch, 04 jump, 0A attack)
+ATTACK_STATE = 0x0A
 
 # |world x difference| in pixels. Measured from random play (TEACHER.md, 2026-09-25): Chun-Li's normals land below
 # CLOSE, Dhalsim's attacks reach up to MID.
@@ -92,6 +93,11 @@ class Fighters:
         return self.my_x <= self.opp_x
 
     @property
+    def opp_attacking(self) -> bool:
+        """Dhalsim is in an attack (a limb, a slide, a Yoga Fire throw or a jump attack): time to guard."""
+        return self.opp_state == ATTACK_STATE
+
+    @property
     def my_cornered(self) -> bool:
         return cornered(self.my_x, self.facing_right)
 
@@ -114,16 +120,17 @@ def pct(hp: int, full: int) -> int:
 
 
 # Action state -> the word in the note. 08 shows while holding back against his attacks with no life lost (walls
-# trace): block. 04 on the ground is take-off / landing, so "jump" comes only from the airborne rule (env.airborne).
+# trace): block. 04 on the ground is take-off / landing, so "jump" comes only from the airborne rule (env.airborne);
+# an attack in the air is "jumpattack".
 # Anything else (06 throws, 10-14 end-of-round poses) is "other".
-STATE_WORDS = {0x00: "stand", 0x02: "crouch", 0x04: "stand", 0x08: "block", 0x0A: "attack", HIT_STATE: "hit"}
+STATE_WORDS = {0x00: "stand", 0x02: "crouch", 0x04: "stand", 0x08: "block", ATTACK_STATE: "attack", HIT_STATE: "hit"}
 
 
 def state_word(state: Optional[int], air: bool) -> str:
     if state == HIT_STATE:
         return "hit"
     if air:
-        return "jump"
+        return "jumpattack" if state == ATTACK_STATE else "jump"
     return "stand" if state is None else STATE_WORDS.get(state, "other")
 
 

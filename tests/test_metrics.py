@@ -71,6 +71,8 @@ def test_slices_cover_phase_hp_distance_and_danger():
     assert s["by_opp_air"]["air"]["n"] == 1 and s["by_opp_air"]["ground"]["n"] == 1
     old_note = "me=chunli opp=dhalsim dist=close my_hp=100 opp_hp=100 last=idle airborne=0 opp_airborne=1"
     assert M.situation(_rec(0, 0, 0, 0, 0, text=old_note))["by_opp_air"] == "air"   # the note before 2026-09-26
+    kick = "me=chunli stand hp=100 opp=dhalsim jumpattack hp=100 dist=close facing=right corner=none time=early"
+    assert M.situation(_rec(0, 0, 0, 0, 0, text=kick))["by_opp_air"] == "air"
     assert s["by_danger"]["hit_next"]["acc"] == 0.0
     assert 0.0 < s["all"]["p_teacher"] < 1.0
 

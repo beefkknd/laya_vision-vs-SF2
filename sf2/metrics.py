@@ -62,7 +62,7 @@ def situation(rec: Dict) -> Dict[str, str]:
         "by_time": _bin(m.get("t_round", 0.0), TIME_BINS),
         "by_hp": _bin(hp, HP_BINS),
         "by_dist": _field(text, "dist"),
-        "by_opp_air": "air" if re.search(r"\bopp=\S+ jump\b", text or "") or _field(text, "opp_airborne") == "1"
+        "by_opp_air": "air" if re.search(r"\bopp=\S+ jump", text or "") or _field(text, "opp_airborne") == "1"
                       else "ground",
         "by_round": "r%d" % (rnd + 1) if rnd < 2 else "r3+",
         "by_danger": "hit_next" if m.get("hot") else "safe",
