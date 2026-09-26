@@ -38,7 +38,7 @@ class Context:
     my_air: bool
     opp_air: bool
     dx_trend: int                      # dx now minus dx 8 frames ago (negative = closing in)
-    frames_since_hit: int              # since my life last dropped
+    frames_since_hit: int              # since my (true) life last dropped
     frames_since_fireball: int         # since I last threw a hadouken
     history: List[ram.Fighters] = field(default_factory=list)
 
@@ -61,6 +61,11 @@ class FightEnv:
     def _f(self, values) -> ram.Fighters:
         return ram.Fighters.from_values(self.names, values)
 
+    def life(self, f: ram.Fighters):
+        """(hers, his) true life (ram.Fighters.life). A KO blow can wrap it below zero to 255, 254, ...: anything
+        above a full bar is negative."""
+        return tuple(x - 256 if x > self.full_hp else x for x in f.life)
+
     def _ingest(self, rows: List[List[int]]) -> List[ram.Fighters]:
         """RAM rows *after* each executed frame -> Fighters, updating history / hit timer."""
         out = []
@@ -68,7 +73,7 @@ class FightEnv:
             prev, self.f = self.f, self._f(values)
             self.frame_no += 1
             self.hist.append(self.f)
-            if 0 <= self.f.my_hp < prev.my_hp:
+            if self.life(self.f)[0] < self.life(prev)[0]:
                 self.last_hit = self.frame_no
             f = self.f
             self.dizzy = (ram.dizzy(self.dizzy[0], f.my_state, f.my_sub, f.my_dizzy),
@@ -168,9 +173,11 @@ class FightEnv:
                 res.round_over, res.winner = True, winner
                 self.f = judged  # judge damage at the deciding frame
                 break
-        # KO life is clamped to zero on the SNES ROM; a time-over refill makes the difference negative.
-        res.dmg_for = max(0, start.opp_hp - max(0, self.f.opp_hp))
-        res.dmg_against = max(0, start.my_hp - max(0, self.f.my_hp))
+        # True life, so a hit counts in full on the decision it lands in (the bars drain for 4-9 decisions after it).
+        # A KO books the loser's rest (below); a refill makes the difference negative.
+        (me0, opp0), (me1, opp1) = self.life(start), self.life(self.f)
+        res.dmg_for = max(0, opp0 - max(0, opp1))
+        res.dmg_against = max(0, me0 - max(0, me1))
         self.last = action
         return res
 
@@ -183,8 +190,8 @@ class FightEnv:
             if not f.result or before.result:
                 return False, None, f
             winner = {1: "me", 2: "opp"}.get(f.result, "draw")
-            if f.timer and winner != "draw":  # KO: the loser's bar is still draining to zero
-                judged = replace(f, **{"opp_hp" if winner == "me" else "my_hp": 0})
+            if f.timer and winner != "draw":  # KO: the loser's bar is still draining, his true life stops short
+                judged = replace(f, **dict.fromkeys(("opp_hp", "opp_life") if winner == "me" else ("my_hp", "my_life"), 0))
         elif f.my_hp <= 0 and f.opp_hp <= 0 < min(before.my_hp, before.opp_hp):
             # both bars emptied on the same frame: the timer ran out and the ROM zeroed them; higher life won
             winner = "me" if before.my_hp > before.opp_hp else "opp" if before.opp_hp > before.my_hp else "draw"

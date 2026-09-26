@@ -3,6 +3,10 @@
 # World x exceeds 255, so it is read as 2 bytes. Checked by tests/test_harness_traces.py.
 my_hp      0x0D12   2     0
 opp_hp     0x0F12   2     0
+# True life (same scale): drops by the whole hit on the hit frame, while the bars above drain 1 per frame after it.
+# On a KO blow it stops at a few points (or wraps to 255); the env books the rest from the round result.
+my_life    0x0C35   1     0
+opp_life   0x0E35   1     0
 my_x       0x0D18   2     0
 opp_x      0x0F18   2     0
 my_y       0x0D10   2     0

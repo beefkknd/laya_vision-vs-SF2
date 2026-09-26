@@ -537,3 +537,29 @@ def test_a_dizzy_lasts_while_she_stays_in_its_sub_state_after_the_flag_clears():
     assert got[39:55] == [("hit", False)] * 16                   # the end of getting up
     assert got[84] == ("hit", False) and got[85:309] == [("dizzy", True)] * 224
     assert got[-1] == ("stand", True)
+
+
+def test_a_hits_damage_lands_on_the_decision_it_hit_in():
+    """The life bars (0x0D12 / 0x0F12) drain 1 per frame after a hit, so read per decision they smear a hit over
+    4-9 decisions. The true life at +0x35 of 0x0C00 / 0x0E00 drops by the whole hit on the hit frame."""
+    import random
+
+    env, t = _env("close")
+    true = [tuple(0 if x > 176 else x for x in (bytes.fromhex(r["mem"][4])[0x35], bytes.fromhex(r["mem"][5])[0x35]))
+            for r in t["rows"]]                    # a KO blow can wrap it to 255
+    drops = lambda k, a, b: sum(max(0, true[i - 1][k] - true[i][k]) for i in range(a + 1, b + 1))  # noqa: E731
+    rng = random.Random(1)
+    hits = []
+    for _ in range(3000):
+        f0 = env.backend.t
+        res = env.act("forward" if env.f.dx > 30 else rng.choice(["idle", "idle", "crouch", "lp", "forward"]))
+        if res.round_over:
+            if not env.next_round():
+                break
+            continue
+        assert (res.dmg_against, res.dmg_for) == (drops(0, f0, env.backend.t), drops(1, f0, env.backend.t))
+        if res.dmg_against:
+            hit = next(i for i in range(f0 + 1, env.backend.t + 1) if true[i][0] < true[i - 1][0])
+            assert env.context().frames_since_hit == env.backend.t - hit < 4
+            hits.append(res.dmg_against)
+    assert len(hits) >= 8 and min(hits) >= 10          # whole hits, not 1-3 life points of a draining bar

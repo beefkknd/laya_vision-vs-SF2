@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
 # round clock (BCD seconds), action states, projectile slot (in use, world x), the ROM's round result
 OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result", "my_react", "opp_react", "my_sub",
-            "opp_sub", "my_dizzy", "opp_dizzy"]
+            "opp_sub", "my_dizzy", "opp_dizzy", "my_life", "opp_life"]
 # Action state (0x0C03 Chun-Li, 0x0E03 Dhalsim), observed on the ROM (harness audit, 2026-09-26); the byte after it
 # is a sub-state.
 #   00 stand / walk (also while lifted for a throw at y 136, and falling after a KO)   02 crouch
@@ -103,11 +103,19 @@ class Fighters:
     opp_sub: Optional[int] = None
     my_dizzy: Optional[int] = None
     opp_dizzy: Optional[int] = None
+    my_life: Optional[int] = None
+    opp_life: Optional[int] = None
 
     @classmethod
     def from_values(cls, names: List[str], values: List[int]) -> "Fighters":
         d: Dict[str, int] = dict(zip(names, values))
         return cls(*(int(d[n]) for n in REQUIRED), *(d.get(n) for n in OPTIONAL))
+
+    @property
+    def life(self):
+        """(hers, his) true life, which drops by the whole hit on the hit frame; the bars if the map lacks it."""
+        return (self.my_hp if self.my_life is None else self.my_life,
+                self.opp_hp if self.opp_life is None else self.opp_life)
 
     @property
     def dx(self) -> int:
