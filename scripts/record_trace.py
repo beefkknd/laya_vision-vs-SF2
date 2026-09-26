@@ -155,7 +155,7 @@ def main():
     if args.plan != "timeover":
         args.jitter = 0
 
-    env = make_env(args)
+    env = make_env(args, verified=False)
     rec = Recorder(env.backend, check_inputs=args.plan != "timeover")
     env.backend = rec
     rec.set_vars(load_map(args.ram_map))

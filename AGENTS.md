@@ -41,7 +41,9 @@ means network access is not ticked in Mesen's script settings, or SF2_ROM is wro
 
 ## Rules
 - The harness must pass against the real ROM before any collection or training:
-  `SF2_ROM=... pytest -q tests/test_rom_harness.py` (headless Mesen on port 47960, under a minute).
+  `SF2_ROM=... pytest -q tests/test_rom_harness.py` (headless Mesen on port 47960, under a minute). A full
+  passing run writes `out/harness_ok.json`; collect_teacher / play_teacher / play_student refuse to start without
+  a stamp matching the ROM, the RAM map and the harness code (`SF2_UNVERIFIED=1` overrides, loudly).
 - Judge a round by `scripts/gate.py` (round win rate, damage per round), never by val loss or frame accuracy alone.
 - Don't reuse a `--name`: writers refuse to overwrite an existing dataset or rollout. Pick a new name or delete the old one.
 - `pytest -q` before every commit (22 tests, no ROM needed; the Lua tests need `lua5.4` + LuaSocket).

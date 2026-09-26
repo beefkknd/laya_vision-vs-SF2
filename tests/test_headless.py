@@ -27,6 +27,7 @@ def work(tmp_path, monkeypatch):
     from PIL import Image
 
     monkeypatch.delenv("SF2_BRIDGE_PORT", raising=False)
+    monkeypatch.setenv("SF2_UNVERIFIED", "1")  # the fake Mesen is not the ROM the harness was verified on
     Image.fromarray(np.full((224, 256, 3), 77, np.uint8)).save(tmp_path / "rom.png")
     (tmp_path / "map.txt").write_text(MAP)
     (tmp_path / "start.state").write_bytes(b"0,144,144,80,176,200,200")  # the mock's savestate format

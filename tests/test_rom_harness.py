@@ -2,7 +2,8 @@
 
     SF2_ROM=... pytest -q tests/test_rom_harness.py
 
-Collection and training are only meaningful once this passes.
+Collection and training are only meaningful once this passes. A full passing run writes out/harness_ok.json,
+which collect_teacher / play_teacher / play_student require (sf2.cli.check_harness).
 """
 import argparse
 import os
@@ -27,9 +28,22 @@ def env():
     args = argparse.Namespace(port=PORT, launch=None, headless=True, rom=os.environ["SF2_ROM"],
                               mesen=os.environ.get("SF2_MESEN"), capture="auto", seed=0, jitter=0, jitter_base=0,
                               savestate=SAVESTATE, ram_map=RAM_MAP, me="chunli", opp="dhalsim")
-    e = make_env(args)
+    e = make_env(args, verified=False)
     yield e
     e.close()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def stamp(request, env):
+    """Every check in this module ran and none failed: collection and play may use this harness."""
+    from sf2.cli import write_harness_stamp
+
+    failed = request.session.testsfailed
+    yield
+    ran = [i for i in request.session.items if i.module is request.module]
+    every = [n for n in dir(request.module) if n.startswith("test_")]
+    if request.session.testsfailed == failed and len(ran) == len(every):
+        write_harness_stamp(env.backend.rom_sha1, RAM_MAP)
 
 
 def test_rom_is_the_one_the_ram_map_was_made_for(env):

@@ -24,7 +24,7 @@ def main():
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
-    env = make_env(args)
+    env = make_env(args, verified=False)
     img = env.reset()
     print("frame shape:", img.shape, " full life:", env.full_hp, " start:", env.f)
     print("text:", env.text())
