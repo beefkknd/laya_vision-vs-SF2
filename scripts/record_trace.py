@@ -11,7 +11,7 @@ Plans:
   walk       idle 60 frames, walk left 80 decisions, right 150, left 60 (crosses the opponent once)
   facing     toward x8, away x8, idle until first hit, idle 90 frames, toward x8, away x8
   start      hold toward for 150 frames straight after the savestate loads
-  ko_round2  idle until the round ends, next_round(), hold toward 60 frames
+  ko_round2  idle until the round ends and the bars refill, then hold toward 400 frames (unchecked)
   timeover   the random policy of v2_random worker 1 (use --seed 1 --jitter 30) until the round ends,
              then 600 idle frames; inputs are not checked on replay
 """
@@ -116,9 +116,11 @@ def plan_start(env, rec):
 def plan_ko_round2(env, rec):
     while not env.act("idle").round_over:
         pass
-    env.next_round()
-    for _ in range(60):
-        env.run_frames([[toward(rec)]])
+    while not env.f.my_hp == env.f.opp_hp == env.full_hp:
+        env.run_frames([[]], capture=False)
+    rec.check_inputs = False  # replay idles through the round intro here; the ROM ignores input until "FIGHT!"
+    for _ in range(400):
+        env.run_frames([[toward(rec)]], capture=False)
 
 
 def plan_timeover(env, rec, seed):

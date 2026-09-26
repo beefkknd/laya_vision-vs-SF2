@@ -18,7 +18,7 @@ from . import ram
 from .config import PREV_GAP
 
 AIR_DY = 6          # |y - standing y| above this = airborne
-INTRO_SKIP = 90     # frames after the life bars refill before a round really starts ("ROUND 2 ... FIGHT!")
+INTRO_SKIP = 200    # frames after the life bars refill before input works ("ROUND 2 ... FIGHT!"): 184 on the ROM
 MAX_WAIT = 1800     # safety cap while waiting through KO / time-over screens
 MAX_ROUNDS = 5      # SF2 ends a match after the 5th round even on draws; never loop forever
 WAIT_CHUNK = 30

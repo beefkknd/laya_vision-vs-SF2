@@ -81,3 +81,24 @@ def test_time_over_goes_to_the_higher_life_without_counting_the_zeroed_bars_as_d
             break
     assert res.winner == "me" and env.wins == {"me": 1, "opp": 0}
     assert (res.dmg_for, res.dmg_against) == (0, 0)
+
+
+def test_first_decision_of_the_match_moves():
+    env, t = _env("start")
+    x0 = env.f.my_x
+    env.act("forward")
+    assert env.f.my_x != x0
+
+
+def test_ko_then_the_first_decision_of_round_two_moves():
+    env, t = _env("ko_round2")
+    while True:
+        res = env.act("idle")
+        if res.round_over:
+            break
+    assert res.winner == "opp"
+    assert env.next_round() and env.round == 1
+    assert (env.f.my_hp, env.f.opp_hp) == (176, 176)
+    x0 = env.f.my_x
+    env.act("forward")                             # before "FIGHT!" the ROM ignores it
+    assert env.f.my_x != x0

@@ -72,3 +72,18 @@ def test_forward_closes_and_back_opens_the_distance_on_both_sides(env):
     for _ in range(10):
         env.act("back")
     assert env.f.dx > dx2 + 10
+
+
+def test_an_idle_match_is_two_lost_rounds_and_every_round_starts_controllable(env):
+    env.reset()
+    winners = []
+    while True:
+        x0 = env.f.my_x
+        res = env.act("forward")
+        assert env.f.my_x != x0, "round %d: the first decision did not move" % env.round
+        while not res.round_over:
+            res = env.act("idle")
+        winners.append(res.winner)
+        if not env.next_round():
+            break
+    assert winners == ["opp", "opp"]
