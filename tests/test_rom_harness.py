@@ -239,3 +239,41 @@ def test_headless_mesen_outlives_a_long_collection(env):
     """--timeout is the test runner's total wall-clock limit: Mesen exits mid-run when it passes, keep_alive or not."""
     timeout = [a for a in env.backend.proc.args if a.startswith("--timeout=")]
     assert timeout and int(timeout[0].split("=")[1]) >= 7 * 24 * 3600
+
+
+def test_every_action_does_what_it_says(env):
+    """From the savestate Dhalsim is ~96 px away and nothing connects for 45 frames. Chun-Li's action state per
+    frame (0x0C03): 00 stand, 02 crouch, 04 jump, 0A attack. Attack lengths tell jab / fierce / short / roundhouse
+    apart (the PAD mapping); Chun-Li has no fireball or dragon punch in World Warrior, so those macros attack."""
+    from sf2.actions import ACTIONS
+
+    got = {}
+    for a in ACTIONS:
+        env.reset()
+        env.run_frames([[]] * 4, capture=False)
+        f0 = env.f
+        fs = []
+        env.act(a, on_frame=fs.append)
+        fs += env.run_frames([[]] * 41, capture=False)
+        got[a] = (f0, fs, [f.my_state for f in fs])
+    toward = lambda a: (got[a][1][-1].my_x - got[a][0].my_x) * (1 if got[a][0].facing_right else -1)  # noqa: E731
+    assert set(got["idle"][2]) == {0} and toward("idle") == 0
+    assert toward("forward") > 0 and toward("back") < 0 and set(got["forward"][2]) == set(got["back"][2]) == {0}
+    f0, fs, st = got["jump"]
+    assert 0x04 in st and min(f.my_y for f in fs) < f0.my_y - 80 and toward("jump") == 0     # straight up
+    assert got["crouch"][2][:4] == [0x02] * 4 and got["block"][2][:6] == [0x02] * 6        # nothing to guard yet
+    frames = {a: got[a][2].count(0x0A) for a in ("lp", "hp", "lk", "hk", "hadouken", "shoryuken")}
+    assert (frames["lp"], frames["hp"], frames["lk"], frames["hk"]) == (13, 30, 17, 33)
+    assert frames["hadouken"] > 0 and frames["shoryuken"] > 0
+
+
+def test_the_same_button_on_consecutive_decisions_presses_again(env):
+    """Each tap is 2 frames down, 2 up, so back-to-back jabs are separate presses: a new jab starts on the first
+    decision after the last one ends (13 frames). Held down, the button would give one jab."""
+    env.reset()
+    env.run_frames([[]] * 4, capture=False)
+    st = []
+    for _ in range(8):
+        env.act("lp", on_frame=lambda f: st.append(f.my_state))
+    starts = [i for i in range(len(st)) if st[i] == 0x0A and (i == 0 or st[i - 1] != 0x0A)]
+    assert starts == [0, 16]
