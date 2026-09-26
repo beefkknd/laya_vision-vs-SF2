@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
-OPTIONAL = ["timer", "my_state", "opp_state"]  # round clock (BCD; only "reached zero" is used), action states
+# round clock (BCD seconds), action states, projectile slot (in use, world x)
+OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x"]
 HIT_STATE = 0x0E  # action state while being hit, thrown or knocked down (00 stand, 02 crouch, 04 jump, 0A attack)
 
 # |world x difference| in pixels. Measured from random play (TEACHER.md, 2026-09-25): Chun-Li's normals land below
@@ -74,6 +75,8 @@ class Fighters:
     timer: Optional[int] = None
     my_state: Optional[int] = None
     opp_state: Optional[int] = None
+    fireball: Optional[int] = None
+    fireball_x: Optional[int] = None
 
     @classmethod
     def from_values(cls, names: List[str], values: List[int]) -> "Fighters":
@@ -132,7 +135,8 @@ def clock_word(timer: Optional[int]) -> str:
 
 def text_state(f: Fighters, me: str, opp: str, last: str, my_air: bool, opp_air: bool, full_hp: int) -> str:
     corner = "me" if f.my_cornered else "opp" if f.opp_cornered else "none"  # never both: they are < 212 px apart
-    return ("me=%s %s hp=%d opp=%s %s hp=%d dist=%s facing=%s corner=%s time=%s last=%s"
+    fireball = dist_bin(abs(f.fireball_x - f.my_x)) if f.fireball else "none"  # how far it is from her
+    return ("me=%s %s hp=%d opp=%s %s hp=%d dist=%s facing=%s corner=%s time=%s last=%s fireball=%s"
             % (me, state_word(f.my_state, my_air), pct(f.my_hp, full_hp), opp, state_word(f.opp_state, opp_air),
                pct(f.opp_hp, full_hp), dist_bin(f.dx), "right" if f.facing_right else "left", corner,
-               clock_word(f.timer), last))
+               clock_word(f.timer), last, fireball))

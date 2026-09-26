@@ -64,6 +64,7 @@ def test_ground_level_comes_from_the_savestate_not_the_end_of_the_start_jitter()
     from trace_mesen import make_trace
 
     rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 384, "my_y": 192, "timer": 0x79, "my_state": 0,
+             "fireball": 0, "fireball_x": 0,
              "opp_y": 140 if 1 <= i <= 40 else 192, "opp_state": 4 if 1 <= i <= 40 else 0}
             for i in range(101)]                                               # Dhalsim mid-jump early on
     env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"", jitter=20)
@@ -283,3 +284,44 @@ def test_uncontrollable_decisions_stay_in_the_rollout_but_not_in_the_dataset(tmp
     written = read(str(tmp_path / "ctx" / "train.jsonl"))
     assert len(written) == 500 - len(off) and all(r["meta"]["controllable"] for r in written)
     assert len(os.listdir(tmp_path / "ctx" / "images")) <= 2 * len(written)
+
+
+def _flights(fs):
+    """Stretches of consecutive frames with a projectile on screen."""
+    out, cur = [], []
+    for f in fs:
+        if f.fireball:
+            cur.append(f)
+        elif cur:
+            out.append(cur)
+            cur = []
+    return out + ([cur] if cur else [])
+
+
+def test_yoga_fire_flies_from_dhalsim_toward_chun_li():
+    for name, n in (("fireball", 2), ("walls", 1)):
+        env, t = _env(name)
+        fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
+        flights = _flights(fs)
+        assert len(flights) == n
+        for fl in flights:
+            toward = 1 if fl[0].my_x > fl[0].opp_x else -1
+            assert 30 < (fl[0].fireball_x - fl[0].opp_x) * toward < 70         # spawns just in front of him
+            steps = [(b.fireball_x - a.fireball_x) * toward for a, b in zip(fl, fl[1:])]
+            assert all(2 <= s <= 4 for s in steps[:-1]) and 0 <= steps[-1] <= 4   # ~3 px/frame toward her;
+                                                                                   # stops on the frame it hits
+    env, t = _env("fireball")
+    fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
+    last = _flights(fs)[-1][-1]
+    end = fs.index(last)
+    assert fs[end + 1].my_state == 0x0E and fs[end + 1].my_hp < fs[end - 1].my_hp   # the second one hits her
+
+
+def test_note_shows_the_fireball_by_distance_to_her():
+    from sf2.ram import dist_bin
+
+    for name in ("fireball", "walls"):
+        for f, n, *_ in _notes(name):
+            assert n["fireball"] == (dist_bin(abs(f.fireball_x - f.my_x)) if f.fireball else "none")
+    words = {n["fireball"] for _, n, *_ in _notes("fireball")}
+    assert words == {"none", "close", "mid"}

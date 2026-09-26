@@ -96,7 +96,8 @@ def _note(f, my_air=False, opp_air=False, last="hk"):
 
 def test_text_state_reads_like_a_player_sees_the_screen():
     assert _note(_f(opp_state=0x0A)) == \
-        "me=chunli stand hp=100 opp=dhalsim attack hp=75 dist=mid facing=right corner=none time=early last=hk"
+        "me=chunli stand hp=100 opp=dhalsim attack hp=75 dist=mid facing=right corner=none time=early last=hk " \
+        "fireball=none"
 
 
 def test_text_state_facing_and_corner():
@@ -125,3 +126,10 @@ def test_text_state_words_follow_the_action_state_and_the_airborne_rule():
     assert words(0x04, 0x0A, my_air=True, opp_air=True) == ("jump", "jump")      # a jump attack is still a jump
     assert words(0x04, 0x04) == ("stand", "stand")      # jump state on the ground: take-off / landing frames
     assert words(0x12, None) == ("other", "stand")      # end-of-round poses; no state in the RAM map
+
+
+def test_text_state_fireball():
+    assert _note(_f()).endswith(" fireball=none")
+    assert _note(_f(fireball=1, fireball_x=208 + 50)).endswith(" fireball=close")
+    assert _note(_f(fireball=1, fireball_x=208 + 100)).endswith(" fireball=mid")
+    assert _note(_f(fireball=1, fireball_x=208 - 150)).endswith(" fireball=far")

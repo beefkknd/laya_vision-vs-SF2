@@ -198,3 +198,21 @@ def test_prev_is_four_frames_before_cur_after_resets_macros_and_round_starts(env
     env.reset()
     obs = env.backend.run([[]] * n, [n - 4, n])
     assert np.array_equal(cur, obs.images[n]) and np.array_equal(prev, obs.images[n - 4])
+
+
+def test_yoga_fire_is_read_from_the_projectile_slot(env):
+    import random
+
+    rng = random.Random(1)                          # record_trace.py --plan fireball --seed 1: one in round 2
+    env.reset()
+    for _ in range(600):
+        if env.act(rng.choice(["back", "back", "idle", "block", "jump", "forward"])).round_over:
+            assert env.next_round()
+        if env.f.fireball:
+            break
+    assert env.f.fireball, "no Yoga Fire within 600 decisions"
+    toward = 1 if env.f.my_x > env.f.opp_x else -1
+    assert 30 < (env.f.fireball_x - env.f.opp_x) * toward < 80
+    fs = env.run_frames([[]] * 12, capture=False)
+    assert all(f.fireball for f in fs)
+    assert all(2 <= (b.fireball_x - a.fireball_x) * toward <= 4 for a, b in zip(fs, fs[1:]))

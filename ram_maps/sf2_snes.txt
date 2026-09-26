@@ -12,3 +12,7 @@ timer      0x1AC8   1     0
 # Action state per fighter: 00 stand, 02 crouch, 04 jump, 0A attack, 0E hit / thrown / knocked down.
 my_state   0x0C03   1     0
 opp_state  0x0E03   1     0
+# Projectile slot (Dhalsim's Yoga Fire; Chun-Li has none in this version): 1 while one is on screen, world x at
+# 0x1057 (0x1056 is the sub-pixel). About 3 px per frame toward her. Checked by tests/test_harness_traces.py.
+fireball   0x1050   1     0
+fireball_x 0x1057   2     0
