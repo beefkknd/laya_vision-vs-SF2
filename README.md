@@ -44,14 +44,14 @@ Mesen 2 (your SNES ROM)                                Python (this repo)
 | Emulator | `mesen/sf2_bridge.lua` (inside Mesen) + `sf2/mesen.py` (Python end) |
 | Fight env | `sf2/env.py`. One call = one decision. It tracks rounds and matches from the life values; an episode is one match from your savestate |
 | RAM map (per cartridge) | `ram_maps/sf2_snes.txt`, found by `scripts/find_ram.py` (`sf2/ramsearch.py`) |
-| Action set (11) | `sf2/actions.py`: `idle forward back jump jump_forward crouch lp hp lk hk block` |
+| Action set (14) | `sf2/actions.py`: `idle forward back jump jump_forward crouch lp hp lk hk block` + `throw sweep lightning_legs` (Stage 4, checked on the ROM) |
 | Text state | `me=chunli stand hp=80 opp=dhalsim jump hp=45 dist=mid facing=right corner=opp time=late last=hk fireball=close` (`sf2/ram.py`: each fighter's state word stand/crouch/jump/jumpattack/block/attack/hit/dizzy/other, whose back is to a wall, round clock early/mid/late, how far a Yoga Fire is from her or none) |
-| Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` recognises fireball and dragon-punch motions |
+| Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` turns toward/back + fierce into `throw` and down + roundhouse into `sweep` |
 | Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
 | LoRA | `scripts/train.py` + `sf2/lora.py`. Early stopping uses held-out teacher frames |
 | Student plays / relabel / gate | `scripts/play_student.py`, `scripts/relabel.py` (`dagger` or `filter`), `scripts/play_teacher.py`, `scripts/gate.py`. `scripts/dagger_round.sh N` runs one turn of the loop |
 
-Directions are relative: `forward` is toward the opponent, `back` is away, and `block` is down-back. Buttons follow SF2's default SNES layout: **Y X L = jab / strong / fierce, B A R = short / forward / roundhouse**. If your in-game button config differs, change `PAD` in `sf2/config.py`.
+Directions are relative: `forward` is toward the opponent, `back` is away, and `block` is down-back. `throw` is toward + fierce (a throw within 42 px, a fierce further out), `sweep` down + roundhouse, `lightning_legs` 12 short-kick taps in 24 frames. Buttons follow SF2's default SNES layout: **Y X L = jab / strong / fierce, B A R = short / forward / roundhouse**. If your in-game button config differs, change `PAD` in `sf2/config.py`.
 
 ## Setup (Mac Studio)
 

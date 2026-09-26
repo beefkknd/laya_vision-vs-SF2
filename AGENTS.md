@@ -58,4 +58,8 @@ means network access is not ticked in Mesen's script settings, or SF2_ROM is wro
   a stamp matching the ROM, the RAM map and the harness code (`SF2_UNVERIFIED=1` overrides, loudly).
 - Judge a round by `scripts/gate.py` (round win rate, damage per round), never by val loss or frame accuracy alone.
 - Don't reuse a `--name`: writers refuse to overwrite an existing dataset or rollout. Pick a new name or delete the old one.
-- `pytest -q` before every commit (22 tests, no ROM needed; the Lua tests need `lua5.4` + LuaSocket).
+- `pytest -q` before every commit (no ROM needed; the Lua tests need `lua5.4` + LuaSocket).
+- A headless Mesen ends when its Python script does (exit, exception or kill: the bridge stops the test runner when
+  the socket closes), so `pgrep -fl "Mesen --testrunner"` should be empty after a run.
+- The action set is 14 actions since Stage 4 (`throw sweep lightning_legs` added), so the question the model reads
+  changed: datasets, caches and checkpoints from the 11-action question must be re-collected / re-trained.

@@ -1,4 +1,4 @@
-"""laya-vision as the student policy: two frames + the text note -> probabilities over the 11 options.
+"""laya-vision as the student policy: two frames + the text note -> probabilities over the action set (sf2/actions.py).
 
 The state built here must match what ``laya.vlm_train.jsonl_example`` builds from a dataset record:
 ``{"images": [prev, cur], "context": state_text}``. Both sides load images as RGB PIL images (PNG is lossless),
