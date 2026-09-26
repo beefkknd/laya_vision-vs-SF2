@@ -28,7 +28,9 @@ Treat held-out teacher agreement and frame accuracy as training diagnostics, not
 | base2_idle | -170.7 | 1.7 | 0 / 40 | 2026-09-26 baseline. |
 | base3_random | -42.5 | 9.4 | 14 / 50 | 2026-09-26, basic 11-action set (`jump_forward` added, specials dropped). Dealt 121 per round. |
 | base3_teacher | -84.5 | 6.8 | 1 / 41 | 2026-09-26, basic set; same argmax as base2_teacher, so the same fights. 42.0 below random = 3.6 SE. |
-| t3_jumpin_base | -2.0 | 9.4 | 21 / 52 | 2026-09-26, the teacher now: base3_teacher + jump in from mid range (TEACHER.md, Stage 3). +40.5 over random = 3.0 SE: better. |
+| t3_jumpin_base | -2.0 | 9.4 | 21 / 52 | 2026-09-26, the Stage 3 teacher: base3_teacher + jump in from mid range (TEACHER.md, Stage 3). +40.5 over random = 3.0 SE: better. |
+| t3b_apex_block | **+62.0** | 10.8 | 36 / 46 | 2026-09-26, the teacher now: t3_jumpin_base + kick at the top of the jump + crouch-guard his attacks (TEACHER.md, Stage 3b). +104.5 over random = 7.3 SE. Dealt 165, taken 103 per round. |
+| t3b_eps25 | -23.0 | 8.6 | 12 / 50 | 2026-09-26, the same teacher as the seed collection plays it (`collect_teacher --eps 0.25`: 25% random, else sampled from the soft target; 5 matches per worker). Agrees with its own top choice 44% of the time. Data kept in `data/t3b_eps25` (18,578 rows, no val). |
 
 The base3 rows use the basic action set (`idle forward back jump jump_forward crouch lp hp lk hk block`) and
 supersede the 12-action base2_random (-89.7 ± 8.1, 2 / 42) and base2_teacher (-84.5 ± 6.8, 1 / 41). Idle does not

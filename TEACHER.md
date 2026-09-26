@@ -1,7 +1,7 @@
 # Chun-Li teacher: findings and plan (2026-09-26)
 
-The student imitates the scripted teacher (`sf2/teacher.py`), so the teacher is the ceiling. Right now it is no
-better than pressing buttons at random.
+The student imitates the scripted teacher (`sf2/teacher.py`), so the teacher is the ceiling. After Stage 3b it
+wins 36 of 46 rounds, +104.5 net damage per round above random play (Stage 3b below).
 
 ## Baselines (gate protocol in PROGRESS.md, 20 paired matches each, 2026-09-26)
 
@@ -53,9 +53,9 @@ the time between 40 and 100 px, 24% at 100-120, 5-8% beyond. Hence CLOSE = 80, M
 - `jump_forward` (up + toward him): rises ~96 px, travels ~90 px toward Dhalsim on either side of the screen, lands
   after ~50 frames (it can carry her over him). A button in the air is an air attack: state 04 with sub-state 06
   (Dhalsim's air attacks are 0A); the note says `jumpattack`.
-- `crouch` on consecutive decisions holds state 02. `block` (down-back) is the crouching guard: 17 of 17 attacks
-  guarded on the right side, 14 on the left, with at most chip damage; `back` is the standing guard and his lows get
-  through it (21-63 life lost over the same 300 decisions).
+- `crouch` on consecutive decisions holds state 02. `block` (down-back) is the crouching guard and guards every
+  attack Dhalsim has here, his air attacks included; `back` is the standing guard and his crouching limbs (the lows)
+  get through it. Measured by holding each for 500 decisions, both sides, 3 starts each (Stage 3b guard table below).
 - Near both walls every action keeps her inside the walls and facing him; `back` goes nowhere.
 - Lightning Legs (state 0C) start after 10 `hk` or 11 `lk` decisions in a row (9 do not); mixed kick patterns start
   them sooner (`lk lk idle` repeated, `lk`/`hk` alternating). Random play never did (0 of 6,513 decisions in 6
@@ -80,10 +80,11 @@ the time between 40 and 100 px, 24% at 100-120, 5-8% beyond. Hence CLOSE = 80, M
 - Mid and far range always pick `forward`: she walks into Yoga Fire and limbs and never guards. (Mid range now
   jumps in when he is not attacking; rule 5 below.)
 - Guard comes only *after* a hit, only up close, and `block` holds for 6 frames. (Guarding on his attacks, rule 1,
-  did not clear the bar.)
+  did not clear the bar in Stage 3; on top of the apex jump-in kick it did, Stage 3b.)
 - Anti-air requires `dx_trend <= 0`, so Dhalsim's neutral and back jumps are ignored. (Dropping that, rule 6, made
   it worse.)
-- The in-air rule was dead code: `jump` was never the top choice. It now kicks every jump-in.
+- The in-air rule was dead code: `jump` was never the top choice. It now kicks every jump-in, near the top of the
+  arc (Stage 3b).
 
 ## Stage 3: basic rules, one at a time (kept only if the gate improves)
 
@@ -105,10 +106,86 @@ if it changes that choice. Rollouts: `rollouts/t3_*`.
 Rule 5 was also run on top of rule 4 before rule 4's result was in (`t3_jumpin`: -1.1 ± 7.9, 18 / 51); rule 4 adds
 nothing there either.
 
-**Result:** the teacher is `base3_teacher` + rule 5: -2.0 ± 9.4 net damage per round, 21 of 52 rounds won, against
-random's -42.5 ± 9.4 (14 / 50): +40.5, 3.0 combined SE, so better than random by the gate's bar (26.7). Rules 1-3
-were judged against the teacher before the jump-in; with her now fighting up close and in the air they might score
-differently, but were not re-run.
+**Result (Stage 3):** the teacher was `base3_teacher` + rule 5: -2.0 ± 9.4 net damage per round, 21 of 52 rounds
+won, against random's -42.5 ± 9.4 (14 / 50). Rules 1-3 were re-run on top of it in Stage 3b.
+
+## Stage 3b: the dropped rules again, jump-in timing, guarding (2026-09-26)
+
+Same protocol and keep bar. Rollouts: `rollouts/t3b_*`. Every arm is a teacher variant; its rollout rows now carry
+her action state (`my_state`). The gate is deterministic: `t3b_teacher` (the Stage 3 teacher again) and
+`t3b_antiair` reproduced `t3_jumpin_base` and `t3_antiair` to the last digit.
+
+| Rule | Arm | Net damage / round | SE | Round wins | vs best (bar) | Kept? |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| (start) Stage 3 teacher (rule 5) | t3_jumpin_base | -2.0 | 9.4 | 21 / 52 | | best |
+| 1 block when he attacks within MID or a Yoga Fire is within CLOSE | t3b_block | -5.3 | 10.0 | 23 / 49 | -3.3 (27.6) | dropped |
+| 2 cornered up close: `jump_forward` out over him | t3b_corner | -3.0 | 9.6 | 21 / 49 | -1.1 (26.9) | dropped |
+| 3 spacing: at mid, when he attacks, `block` instead of walking in | t3b_spacing | +23.3 | 10.1 | 29 / 47 | +25.3 (27.7) | dropped (near miss) |
+| 6 anti-air on any jump of his within MID | t3b_antiair | -12.7 | 9.2 | 22 / 51 | -10.8 (26.4) | dropped |
+| 7 in a jump, kick only once 88+ px up (near the apex); `idle` before | t3b_apex | +31.6 | 8.9 | 34 / 48 | +33.6 (25.9) | **kept** |
+| 3 spacing, on top of 7 | t3b_apex_spacing | +44.4 | 8.5 | 37 / 52 | +12.8 (24.6) | dropped |
+| 2 corner, on top of 7 | t3b_apex_corner | +31.9 | 8.2 | 33 / 50 | +0.3 (24.2) | dropped |
+| 1 guard, on top of 7 | t3b_apex_block | **+62.0** | 10.8 | 36 / 46 | +30.4 (27.9) | **kept** |
+| 2 corner, on top of 7 + 1 | t3b_g_corner | +72.0 | 9.5 | 37 / 44 | +10.0 (28.8) | dropped |
+| 6 anti-air, on top of 7 + 1 | t3b_g_antiair | +52.6 | 8.4 | 38 / 44 | -9.3 (27.3) | dropped |
+
+Rule 3 was not re-run on top of rule 1: at mid, rule 1 already guards when he attacks, which is all rule 3 does now.
+The guard is always `block` (crouching): see the guard table.
+
+**Jump-in timing (rule 7), measured on the ROM.** 95 starts (48 on the left of the screen, 47 on the right) at
+80 ≤ dx < 120 with her on the ground and him not attacking; from one saved state per start, `jump_forward`, then `hk`
+at decision k after it (idle otherwise), 96 frames scored. She is airborne from decision 2 on (the Stage 3 rule
+kicked there) and lands after decision 12.
+
+| k | height (px) | hit rate | dealt | taken | net ± SE |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| no kick | | 0.00 | 0.0 | 3.9 | -3.9 ± 0.8 |
+| 1 (take-off) | 0 | 0.11 | 2.9 | 3.8 | -0.9 ± 1.4 |
+| 2 | 17 | 0.11 | 2.9 | 4.2 | -1.3 ± 1.4 |
+| 3 | 45 | 0.13 | 3.5 | 4.3 | -0.7 ± 1.4 |
+| 4 | 67 | 0.09 | 2.6 | 4.0 | -1.4 ± 1.3 |
+| 5 | 83 | 0.27 | 7.7 | 2.1 | +5.5 ± 1.5 |
+| 6 | 92 | **0.69** | 19.4 | 0.6 | **+18.7 ± 1.3** |
+| 7 (apex) | 96 | 0.52 | 14.4 | 0.0 | +14.4 ± 1.4 |
+| 8 | 94 | 0.65 | 18.2 | 0.4 | +17.8 ± 1.4 |
+| 9 | 85 | 0.54 | 14.9 | 0.2 | +14.7 ± 1.4 |
+| 10 | 71 | 0.42 | 11.8 | 0.4 | +11.4 ± 1.5 |
+
+The same shape on both sides of the screen (k 6: 0.65 left, 0.74 right) and at both halves of mid range (0.76 at
+dx < 100, 0.66 at ≥ 100), so the rule is one height, not a function of distance or side: kick at ≥ 88 px up, which
+is decision 6.
+
+**Guard table (R3), measured on the ROM.** Hold one guard for 500 decisions from 3 starts on each side of the
+screen; every Dhalsim attack (a run of his state 0A, or a Yoga Fire) is scored by what happened to her.
+
+| His attack | `block` (crouching) | `back` (standing) |
+| --- | --- | --- |
+| ground limbs (0A) | 66 guarded, 5 hit, 10 no contact | 22 guarded, **22 hit**, 18 no contact |
+| air attacks (0A in the air) | 18 guarded, 1 hit (1 life) | 12 guarded |
+| Yoga Fire | 24 guarded, 2 hit | 15 guarded, 2 hit |
+| life lost per 1,000 frames | 26.1 (454 in 17,406 frames) | 48.1 (577 in 12,000 frames) |
+
+- Crouching guard stops everything here, air attacks included, so the guard rule needs no high/low cue.
+- The limbs that beat standing guard are his crouching ones: he was crouching (state 02) or landing (04) just
+  before 22 of the 22 that hit; standing (00) before 16 of the 22 that were guarded. 0x0E44 (01 crouching, 00 standing)
+  tells them apart at the attack's first frame (22 / 22 hits, 4 / 22 guarded, 18 of 18 standing ones guarded).
+- What still costs life under `block` is not his limbs but **throws** (6 in 17,406 frames, 40 life each) and **chip**
+  from blocked Yoga Fire and Yoga Flame (8 each). A third arm, standing guard only against air attacks, lost
+  19.1 per 1,000 frames; the difference from `block` is 2 throws instead of 6, not the air attacks.
+
+**Lightning Legs (state 0C) in the teacher's own play.** The Stage 3 teacher pressed `hk` on every airborne decision,
+so a jump-in plus the next kicks ran 9-16 `hk` in a row: 103 Legs in 20 matches, 9.4% of all decisions in 0C
+(`t3b_teacher`). Kicking only at the apex cut that to 15 (`t3b_apex`); the final teacher does 19 in 20 matches, 1.2%
+of decisions. Nothing in the teacher asks for them; they come from `hk` runs of 9-10 (a jump-in, then roundhouses up
+close).
+
+**Dhalsim's state 04 with sub-state 08** is the main, floaty part of his jump: 15 frames of 04 / 02 rising from y 192
+to 140, then 51 frames of 04 / 08 (up to y 106 and down to 179, drifting 38 px or not at all), then 04 / 04 landing
+(35 of 35 in the fixtures). The note's `jump` is right.
+
+**Result (Stage 3b):** the teacher is the Stage 3 teacher + rule 7 (apex kick) + rule 1 (crouch-guard his attacks
+and close Yoga Fires): **+62.0 ± 10.8** net damage per round, 36 of 46 rounds won (`t3b_apex_block`), against
+random's -42.5 ± 9.4: +104.5, 7.3 combined SE.
 
 More random-play rollouts, from any machine, sharpen the action table above. Batches are self-contained dirs, so
 they can be copied over and pooled.
