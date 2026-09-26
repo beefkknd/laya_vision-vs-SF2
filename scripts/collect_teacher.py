@@ -4,7 +4,8 @@
 
 The teacher plays full matches from the savestate. With probability ``--eps`` it executes a random option
 instead of its own (epsilon-expert), so the data covers states its own play would never reach; every frame is
-still labelled with the teacher's distribution. Every 10th match goes to val.
+still labelled with the teacher's distribution. Every 10th match goes to val. Decisions where the stick does
+nothing (hit, knocked down) are played but not written.
 """
 import argparse
 import random
@@ -35,8 +36,10 @@ def main():
         return rng.choices(acts, weights=[t_dist[a] for a in acts])[0], {"actor": "teacher"}
 
     env = make_env(args)
-    w = Writer(args.out, args.name, source=args.name)
+    w = Writer(args.out, args.name, source=args.name, skip_uncontrollable=True)
     rows, rounds = play(env, choose, args.max_matches, writer=w, max_decisions=args.decisions)
+    off = sum(r["meta"]["controllable"] is False for r in rows)
+    print("left out %d of %d decisions where the stick did nothing (hit / knocked down)" % (off, len(rows)))
     w.close()
     env.close()
     save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)

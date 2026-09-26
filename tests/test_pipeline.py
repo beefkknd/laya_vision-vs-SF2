@@ -58,3 +58,19 @@ def test_collect_relabel_load(tmp_path):
         assert e["q"]["t"] == "choice" and len(e["target"]) == 12
         assert len(e["state"]["images"]) == 2 and all(os.path.exists(p) for p in e["state"]["images"])
         assert e["state"]["context"].startswith("me=ryu")
+
+
+def test_relabel_leaves_out_decisions_where_the_stick_did_nothing(tmp_path):
+    ro = tmp_path / "rollouts" / "r0"
+    ro.mkdir(parents=True)
+    meta = dict(action="idle", teacher_action="block", dmg_for_next=5, dmg_against_next=0, hot=False)
+    recs = [{"id": "r%d" % i, "episode": 0, "step": i, "images": ["images/a.png", "images/a.png"], "label": 9,
+             "target": D.one_hot("block"), "meta": dict(meta, controllable=c)}
+            for i, c in enumerate([True, False, True])]
+    D.write_jsonl(str(ro / "train.jsonl"), recs)
+    for mode in ("dagger", "filter"):
+        out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts/relabel.py"), "--rollout", str(ro),
+                              "--name", mode, "--mode", mode, "--out", str(tmp_path / "data")],
+                             capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        assert [r["id"] for r in D.read(str(tmp_path / "data" / mode / "train.jsonl"))] == ["r0", "r2"]

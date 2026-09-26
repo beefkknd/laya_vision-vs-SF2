@@ -248,3 +248,38 @@ def test_note_at_the_start_of_round_two():
     n = dict(kv.split("=") for kv in words if "=" in kv)
     assert (words[1], words[4], n["facing"], n["corner"], n["time"]) == ("stand", "stand", "right", "none", "early")
     assert "hp=100" in env.text() and n["last"] == "idle"
+
+
+def test_knocked_down_is_not_controllable():
+    env, t = _env("knockdown")
+    hit = []
+    for r in t["rows"][1:]:
+        env.run_frames([r["in"]], capture=False)
+        assert env.controllable() == (env.f.my_state != 0x0E)
+        hit.append(not env.controllable())
+    assert sum(hit) > 200
+
+
+def test_uncontrollable_decisions_stay_in_the_rollout_but_not_in_the_dataset(tmp_path):
+    from sf2.dataset import Writer, read
+    from sf2.loop import play
+    from sf2.rollout import gate
+
+    t = load(os.path.join(ROOT, "tests", "fixtures", "knockdown.jsonl.gz"))
+    for r in t["rows"]:
+        r["in"] = None                             # replay the ROM's frames under idle decisions
+
+    def run(writer):
+        env = FightEnv(TraceMesen(t), MAP, b"", me="chunli", opp="dhalsim")
+        return play(env, lambda *a: ("idle", {"actor": "idle"}), 1, writer=writer, max_decisions=500, log_every=0)
+
+    rows, rounds = run(None)
+    w = Writer(str(tmp_path), "ctx", source="ctx", val_every=0, skip_uncontrollable=True)
+    rows_w, rounds_w = run(w)
+    w.close()
+    off = [r for r in rows if r["meta"]["controllable"] is False]
+    assert len(rows) == 500 and len(off) > 40
+    assert gate(rows_w, rounds_w) == gate(rows, rounds)             # the gate still counts every decision
+    written = read(str(tmp_path / "ctx" / "train.jsonl"))
+    assert len(written) == 500 - len(off) and all(r["meta"]["controllable"] for r in written)
+    assert len(os.listdir(tmp_path / "ctx" / "images")) <= 2 * len(written)

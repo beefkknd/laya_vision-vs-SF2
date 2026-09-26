@@ -122,6 +122,11 @@ class FightEnv:
         return (abs(f.my_y - self.ground[0]) > AIR_DY and f.my_state != ram.HIT_STATE,
                 abs(f.opp_y - self.ground[1]) > AIR_DY and f.opp_state != ram.HIT_STATE)
 
+    def controllable(self) -> bool:
+        """Does the stick do anything now? Not while she is hit, thrown or knocked down (state 0E), or between
+        rounds. Such decisions stay in rollouts (gate, damage) but not in training data."""
+        return self.in_round and self.f.my_state != ram.HIT_STATE
+
     def text(self) -> str:
         my_air, opp_air = self.airborne()
         return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air, self.full_hp)
