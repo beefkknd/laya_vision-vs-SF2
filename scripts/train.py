@@ -6,7 +6,10 @@
 
 Each --data dir is sampled as its own group, in equal shares by default (``--mix name=weight`` to change it),
 which is how seed and DAgger rows are merged 50/50 without one swamping the other.
-Early stopping watches val *frame accuracy against the teacher*; the real verdict is scripts/gate.py.
+Checkpoints: ``best`` is the step with the best ``--select`` metric on val (frame accuracy against the teacher,
+soft cross-entropy against its distribution, or ``tpred``, the teacher's probability of the model's top move);
+the other two metrics' best steps are saved as ``best_<metric>``. Training stops after ``--patience`` evals in which
+none of them improved. The real verdict is scripts/gate.py.
 Val comes from ``--val-data`` dirs (eval only, never trained on), else val.jsonl, else whole held-out rounds of the
 training data (``sf2.metrics``): never single frames, whose neighbours would sit in the training set. Every eval
 appends a per-situation breakdown (teacher move, time into round, life left, distance, ...) to
@@ -29,6 +32,22 @@ from sf2.config import BASE_MODEL
 
 class EarlyStop(Exception):
     pass
+
+
+HIGHER_IS_BETTER = {"acc": True, "xent": False, "tpred": True}
+
+
+def track_best(best, vals, step):
+    """Record the selection metrics (``HIGHER_IS_BETTER``) that improved on their best so far; return their names."""
+    up = [k for k, v in vals.items()
+          if k not in best or (v > best[k]["value"] if HIGHER_IS_BETTER[k] else v < best[k]["value"])]
+    for k in up:
+        best[k] = {"value": vals[k], "step": step}
+    return up
+
+
+def checkpoint_name(metric, select):
+    return "best" if metric == select else "best_" + metric
 
 
 def add_info(info, name, raw):
@@ -79,7 +98,9 @@ def main():
     ap.add_argument("--lr-head", type=float, default=1e-4)
     ap.add_argument("--lr-backbone", type=float, default=None, help="default 2e-4 for lora, 2e-5 otherwise")
     ap.add_argument("--eval-every", type=int, default=500)
-    ap.add_argument("--patience", type=int, default=3, help="evals without val-accuracy gain before stopping")
+    ap.add_argument("--patience", type=int, default=3, help="evals in which no selection metric improved before stopping")
+    ap.add_argument("--select", choices=sorted(HIGHER_IS_BETTER), default="acc",
+                    help="val metric that picks <out>/best (the others go to best_<metric>)")
     ap.add_argument("--val-limit", type=int, default=1200, help="val frames per eval (~20 ms each, cached)")
     ap.add_argument("--mix", action="append", default=[], help="group=weight, e.g. dagger_r1_hot=0.5")
     ap.add_argument("--temperature", choices=["one", "keep"], default="one",
@@ -155,7 +176,7 @@ def main():
         agent.model, agent.temperature, agent.temperature_by_options = keep_model, keep_t, keep_tb
 
     os.makedirs(args.out, exist_ok=True)
-    hist, best = [], {"acc": -1.0, "step": None, "bad": 0}
+    hist, best, bad = [], {}, [0]
 
     def eval_fn(step):
         t = time.time()
@@ -171,15 +192,17 @@ def main():
         with open(os.path.join(args.out, "eval_slices.jsonl"), "a") as f:
             f.write(json.dumps({"step": step, "time": time.time(), "slices": sl}) + "\n")
         print("  " + metrics.summary(sl), flush=True)
-        if m["all"]["acc"] > best["acc"]:
-            best.update(acc=m["all"]["acc"], step=step, bad=0)
+        hist[-1]["t_of_pred"] = sl["all"]["t_of_pred"]
+        up = track_best(best, {"acc": m["all"]["acc"], "xent": m["all"]["soft_xent"], "tpred": sl["all"]["t_of_pred"]},
+                        step)
+        for k in up:
             ts = time.time()
-            save(os.path.join(args.out, "best"))
-            print("  saved best -> %s/best (%.0fs)" % (args.out, time.time() - ts), flush=True)
-        else:
-            best["bad"] += 1
-            if best["bad"] >= args.patience:
-                raise EarlyStop()
+            name = checkpoint_name(k, args.select)
+            save(os.path.join(args.out, name))
+            print("  %s improved: saved -> %s/%s (%.0fs)" % (k, args.out, name, time.time() - ts), flush=True)
+        bad[0] = 0 if up else bad[0] + 1
+        if bad[0] >= args.patience:
+            raise EarlyStop()
         return True
 
     eval_fn(0)
@@ -196,10 +219,11 @@ def main():
                  warmup=min(100, steps // 10), eval_fn=eval_fn, eval_every=args.eval_every, mix_weights=mix)
         eval_fn(steps)
     except EarlyStop:
-        print("early stop: no val gain in %d evals" % args.patience)
+        print("early stop: no selection metric improved in %d evals" % args.patience)
     with open(os.path.join(args.out, "train_log.json"), "w") as f:
         json.dump({"args": vars(args), "best": best, "evals": hist}, f, indent=2)
-    print("best val frame accuracy %.3f at step %s -> %s/best" % (best["acc"], best["step"], args.out))
+    for k, v in sorted(best.items()):
+        print("best val %s %.4f at step %s -> %s/%s" % (k, v["value"], v["step"], args.out, checkpoint_name(k, args.select)))
 
 
 if __name__ == "__main__":

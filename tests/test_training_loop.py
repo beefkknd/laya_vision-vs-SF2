@@ -193,3 +193,19 @@ def test_a_subset_sharing_ids_keeps_each_datasets_own_metadata():
     rec = train.info_for(info, {"id": "e0-120", "dataset": "dagger"})
     assert rec["dataset"] == "dagger" and rec["meta"]["t_round"] == 2.0        # 120 frames into the round
     assert train.info_for(info, {"id": "e0-120", "dataset": "dagger_hot"})["meta"]["t_round"] == 20 / 60
+
+
+def test_each_selection_metric_keeps_its_own_best_step():
+    # accuracy peaks at step 500, soft cross-entropy (lower is better) at 1000, t_of_pred at 1500
+    best = {}
+    assert sorted(train.track_best(best, {"acc": 0.50, "xent": 1.20, "tpred": 0.40}, 0)) == ["acc", "tpred", "xent"]
+    assert train.track_best(best, {"acc": 0.60, "xent": 1.30, "tpred": 0.39}, 500) == ["acc"]
+    assert train.track_best(best, {"acc": 0.55, "xent": 1.10, "tpred": 0.38}, 1000) == ["xent"]
+    assert train.track_best(best, {"acc": 0.55, "xent": 1.15, "tpred": 0.45}, 1500) == ["tpred"]
+    assert train.track_best(best, {"acc": 0.55, "xent": 1.15, "tpred": 0.45}, 2000) == []  # ties do not count
+    assert {k: v["step"] for k, v in best.items()} == {"acc": 500, "xent": 1000, "tpred": 1500}
+
+
+def test_the_selected_metric_saves_best_and_the_others_best_name():
+    assert train.checkpoint_name("xent", select="xent") == "best"
+    assert train.checkpoint_name("acc", select="xent") == "best_acc"
