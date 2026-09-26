@@ -117,6 +117,19 @@ def test_ko_then_the_first_decision_of_round_two_moves():
     assert env.f.my_x != x0
 
 
+def test_round_two_starts_on_its_first_controllable_frame():
+    """On the ROM, holding forward from the refill first moves her 183-185 frames after it (6 round ends: KO
+    won / lost, time over, rounds 1-2 and 2-3). The env used to idle 22-51 frames into the fight."""
+    env, t = _env("ko_round2")
+    while not env.act("idle").round_over:
+        pass
+    ko = env.backend.t
+    assert env.next_round()
+    life = [(int(r["mem"][1][0x24:0x28], 16), int(r["mem"][2][0x24:0x28], 16)) for r in t["rows"]]   # 0x0D12, 0x0F12
+    refill = next(i for i in range(ko, len(life)) if life[i] == (0xB000, 0xB000))     # 176 little-endian
+    assert env.backend.t == refill + 182
+
+
 def test_parallel_workers_and_matches_all_start_differently():
     import argparse
     import sys

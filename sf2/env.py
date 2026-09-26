@@ -17,7 +17,7 @@ from . import ram
 from .config import PREV_GAP
 
 AIR_DY = 6          # |y - standing y| above this = airborne
-INTRO_SKIP = 200    # frames after the life bars refill before input works ("ROUND 2 ... FIGHT!"): 184 on the ROM
+INTRO_SKIP = 182    # frames from the life bars refilling to the first decision: input first moves her at +183..185
 MAX_WAIT = 1800     # safety cap while waiting through KO / time-over screens
 MAX_ROUNDS = 5      # SF2 ends a match after the 5th round even on draws; never loop forever
 WAIT_CHUNK = 30
@@ -191,13 +191,14 @@ class FightEnv:
         while True:
             fs = self.run_frames([[]] * WAIT_CHUNK, capture=False)
             waited += WAIT_CHUNK
-            if fs[-1].my_hp == self.full_hp and fs[-1].opp_hp == self.full_hp:
+            full = [i for i, f in enumerate(fs) if f.my_hp == self.full_hp and f.opp_hp == self.full_hp]
+            if full:
                 break
             if waited >= MAX_WAIT:  # bars never refilled (continue screen, match over): end the episode
                 print("next_round: life bars did not refill within %d frames; ending the match" % MAX_WAIT,
                       flush=True)
                 return False
-        self.run_frames([[]] * INTRO_SKIP)
+        self.run_frames([[]] * (INTRO_SKIP - (len(fs) - 1 - full[0])))   # counted from the refill frame
         self.round += 1
         self.last = "idle"
         self.ground = (self.f.my_y, self.f.opp_y)
