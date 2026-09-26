@@ -60,3 +60,26 @@ def test_vars_run_and_images():
     assert seen[4] == "QUIT"
     assert obs.rams[0] == [176, 80] and obs.rams[-1] == [172, 84] and len(obs.rams) == 5
     assert set(obs.images) == {4} and obs.images[4].shape == (224, 256, 3) and obs.images[4][0, 0, 0] == 200
+
+
+def test_a_launched_mesen_is_killed_when_it_never_connects():
+    """If Python gives up waiting (or the greeting fails), the Mesen it launched must not outlive it."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    procs = []
+    real = subprocess.Popen
+
+    def spy(*a, **k):
+        procs.append(real(*a, **k))
+        return procs[-1]
+
+    subprocess.Popen = spy
+    try:
+        with pytest.raises(OSError):
+            MesenBridge(47989, launch=[sys.executable, "-c", "import time; time.sleep(60)"], timeout=0.5)
+    finally:
+        subprocess.Popen = real
+    assert procs and procs[0].wait(5) is not None

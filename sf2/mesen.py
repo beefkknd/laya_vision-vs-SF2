@@ -47,15 +47,22 @@ class MesenBridge:
             else:
                 # Mesen's test runner emits emulator diagnostics for every worker.
                 self.proc = subprocess.Popen(list(launch), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        conn, _ = srv.accept()
-        srv.close()
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.sock = conn
-        self.f = conn.makefile("rwb", buffering=0)
-        self._send_lock = threading.Lock()
-        hello = self._line().split(" ", 2)
-        if hello[0] != "HELLO":
-            raise RuntimeError("unexpected greeting from Mesen: %r" % hello)
+        try:
+            conn, _ = srv.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self.sock = conn
+            self.f = conn.makefile("rwb", buffering=0)
+            self._send_lock = threading.Lock()
+            hello = self._line().split(" ", 2)
+            if hello[0] != "HELLO":
+                raise RuntimeError("unexpected greeting from Mesen: %r" % hello)
+        except BaseException:
+            if self.proc:  # a Mesen we launched must not outlive us (headless: --timeout is a week)
+                self.proc.kill()
+                self.proc.wait()
+            raise
+        finally:
+            srv.close()
         self.rom_sha1 = hello[1]
         self.rom_name = hello[2] if len(hello) > 2 else "?"
         print("Mesen connected: %s (sha1 %s)" % (self.rom_name, self.rom_sha1), flush=True)
