@@ -9,7 +9,8 @@ my_y       0x0D10   2     0
 opp_y      0x0F10   2     0
 # Round clock, BCD (0x79 = 79 s at the Chun-Li savestate); the env only uses "reached zero".
 timer      0x1AC8   1     0
-# Action state per fighter: 00 stand, 02 crouch, 04 jump, 0A attack, 0E hit / thrown / knocked down.
+# Action state per fighter: 00 stand, 02 crouch, 04 jump, 08 guard, 0A attack, 0E hit / block stun / down, 14 thrown
+# (full table in sf2/ram.py).
 my_state   0x0C03   1     0
 opp_state  0x0E03   1     0
 # Projectile slot (Dhalsim's Yoga Fire; Chun-Li has none in this version): 1 while one is on screen, world x at

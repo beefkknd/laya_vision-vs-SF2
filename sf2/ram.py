@@ -17,7 +17,17 @@ from typing import Dict, List, Optional
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
 # round clock (BCD seconds), action states, projectile slot (in use, world x)
 OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x"]
-HIT_STATE = 0x0E  # action state while being hit, thrown or knocked down (00 stand, 02 crouch, 04 jump, 0A attack)
+# Action state (0x0C03 Chun-Li, 0x0E03 Dhalsim), observed on the ROM (harness audit, 2026-09-26); the byte after it
+# is a sub-state.
+#   00 stand / walk (also while lifted for a throw at y 136, and falling after a KO)   02 crouch
+#   04 jump (on the ground for take-off / landing)   06 turning round after the fighters cross
+#   08 guard: holding back while an attack comes (+0x43: 1 standing, 2 crouching)   0A attack, on the ground or in the air
+#   0C special move (Chun-Li's Lightning Legs, from repeated kicks)
+#   0E hit stun and block stun alike (a block loses no life); sub-state 02 reeling / knocked into the air,
+#      04 down, 06 getting up, 08 dizzy
+#   10 winner's pose   12 time-over loser   14 thrown through the air (also the KO fall on some rounds)
+# Dhalsim uses the same values when Chun-Li hits (0E), throws or blocks him (08).
+HIT_STATE = 0x0E
 ATTACK_STATE = 0x0A
 JUMP_STATE = 0x04
 
@@ -123,7 +133,7 @@ def pct(hp: int, full: int) -> int:
 # Action state -> the word in the note. 08 shows while holding back against his attacks with no life lost (walls
 # trace): block. 04 on the ground is take-off / landing, so "jump" comes only from the airborne rule (env.airborne);
 # an attack in the air is "jumpattack".
-# Anything else (06 throws, 10-14 end-of-round poses) is "other".
+# Anything else (06 turning, 0C special, 10-14 end-of-round poses and throws) is "other".
 STATE_WORDS = {0x00: "stand", 0x02: "crouch", 0x04: "stand", 0x08: "block", ATTACK_STATE: "attack", HIT_STATE: "hit"}
 
 

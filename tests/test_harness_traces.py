@@ -359,3 +359,14 @@ def test_note_shows_the_fireball_by_distance_to_her():
             assert n["fireball"] == (dist_bin(abs(f.fireball_x - f.my_x)) if f.fireball else "none")
     words = {n["fireball"] for _, n, *_ in _notes("fireball")}
     assert words == {"none", "close", "mid"}
+
+
+def test_dhalsim_reels_in_state_0E_when_her_hits_land_and_blocks_in_08_then_0E():
+    """sf2.ram's state table on the close trace: 0E is hit stun and block stun alike; only a hit costs life."""
+    t = load(os.path.join(ROOT, "tests", "fixtures", "close.jsonl.gz"))
+    opp = [bytes.fromhex(r["mem"][5]) for r in t["rows"]]                   # 0x0E00: state +03, life +35
+    hits = [i for i in range(1, len(opp)) if 0 < opp[i][0x35] < opp[i - 1][0x35]]     # 0: cleared between rounds
+    assert len(hits) > 10 and all(opp[i][3] == 0x0E for i in hits)
+    stuns = [i for i in range(1, len(opp) - 5) if opp[i][3] == 0x0E and opp[i - 1][3] != 0x0E]
+    blocked = [i for i in stuns if opp[i - 1][3] == 0x08 and opp[i + 5][0x35] == opp[i - 1][0x35]]
+    assert len(blocked) > 10
