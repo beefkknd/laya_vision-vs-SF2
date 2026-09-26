@@ -26,10 +26,12 @@ Treat held-out teacher agreement and frame accuracy as training diagnostics, not
 | Run | Net damage / round | SE | Round wins | Notes |
 | --- | ---: | ---: | ---: | --- |
 | base2_idle | -170.7 | 1.7 | 0 / 40 | 2026-09-26 baseline. |
-| base2_random | -89.7 | 8.1 | 2 / 42 | 2026-09-26 baseline, `play_teacher --policy random`. Dealt 81 per round. |
-| base2_teacher | -84.5 | 6.8 | 1 / 41 | 2026-09-26 baseline, eps 0, CLOSE/MID 80/120. +5.2 over random = 0.5 SE: not better. |
+| base3_random | -42.5 | 9.4 | 14 / 50 | 2026-09-26, basic 11-action set (`jump_forward` added, specials dropped). Dealt 121 per round. |
+| base3_teacher | -84.5 | 6.8 | 1 / 41 | 2026-09-26, basic set; same argmax as base2_teacher, so the same fights. 42.0 below random = 3.6 SE. |
 
-The 2026-09-26 rows supersede base_idle (-173.0), base_random (-98.0), base_teacher (-78.5) and base_teacher_c80
+The base3 rows use the basic action set (`idle forward back jump jump_forward crouch lp hp lk hk block`) and
+supersede the 12-action base2_random (-89.7 ± 8.1, 2 / 42) and base2_teacher (-84.5 ± 6.8, 1 / 41). Idle does not
+depend on the action set; base2_idle stands. The 2026-09-26 base2 rows supersede base_idle (-173.0), base_random (-98.0), base_teacher (-78.5) and base_teacher_c80
 (-75.2) from 2026-09-25. Since then the harness renders every frame for screenshots, starts rounds 2+ when control
 returns, ends rounds on the ROM's round result (a KO books the loser's whole bar), books a hit's damage on the
 decision it lands in, tells block stun and dizzies from hit stun, and ends a match after its 4th round.
