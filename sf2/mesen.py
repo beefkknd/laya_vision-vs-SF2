@@ -117,7 +117,10 @@ class MesenBridge:
             h = self._line().split()
             if h[0] == "RAW":
                 idx, w, hgt, ln = map(int, h[1:5])
-                images[idx] = np.frombuffer(self._read(ln), np.uint8).reshape(hgt, w, 3).copy()
+                img = np.frombuffer(self._read(ln), np.uint8).reshape(hgt, w, 3)
+                if hgt == 239:  # the raw buffer keeps the overscan rows Mesen's PNGs crop (top 7, bottom 8)
+                    img = img[7:231]
+                images[idx] = img.copy()
             else:
                 images[int(h[1])] = decode_png(self._read(int(h[2])))
         state = self._read(slen) if slen else None

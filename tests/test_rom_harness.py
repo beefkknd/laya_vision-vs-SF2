@@ -156,3 +156,17 @@ def test_screenshots_are_deterministic_and_show_every_frame(env):
         runs.append(np.stack([obs.images[i] for i in range(61)]))
     assert (runs[0] == runs[1]).all()
     assert all((runs[0][i] != runs[0][i - 1]).any() for i in range(10, 50))   # in the air: every frame differs
+
+
+def test_raw_capture_gives_the_same_image_as_png(env):
+    import numpy as np
+
+    env.reset()
+    png = env.backend.run([[]] * 30, [30]).images[30]
+    env.backend.set_capture("raw")
+    try:
+        env.reset()
+        raw = env.backend.run([[]] * 30, [30]).images[30]
+    finally:
+        env.backend.set_capture("png")
+    assert raw.shape == png.shape == (224, 256, 3) and np.array_equal(raw, png)
