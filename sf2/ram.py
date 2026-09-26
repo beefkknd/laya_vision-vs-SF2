@@ -21,6 +21,10 @@ HIT_STATE = 0x0E  # action state while being hit, thrown or knocked down (00 sta
 # |world x difference| in pixels. Measured from random play (TEACHER.md, 2026-09-25): Chun-Li's normals land below
 # CLOSE, Dhalsim's attacks reach up to MID.
 CLOSE, MID = 80, 120
+# Stage walls in world x, measured on the ROM (tests/fixtures/walls, 2026-09-26): walking back, Chun-Li stops at 53
+# and 459. Dhalsim reaches 52 (48 for a frame when thrown). Fighters are also never more than ~212 px apart.
+LEFT_WALL, RIGHT_WALL = 53, 459
+CORNER = 40  # the wall is less than this far behind you: cornered (about 24 frames of walking back)
 
 
 @dataclass
@@ -83,6 +87,19 @@ class Fighters:
     @property
     def facing_right(self) -> bool:
         return self.my_x <= self.opp_x
+
+    @property
+    def my_cornered(self) -> bool:
+        return cornered(self.my_x, self.facing_right)
+
+    @property
+    def opp_cornered(self) -> bool:
+        return cornered(self.opp_x, not self.facing_right)
+
+
+def cornered(x: int, facing_right: bool) -> bool:
+    """The stage wall is close behind a fighter at world x facing that way."""
+    return x - LEFT_WALL < CORNER if facing_right else RIGHT_WALL - x < CORNER
 
 
 def dist_bin(dx: int) -> str:

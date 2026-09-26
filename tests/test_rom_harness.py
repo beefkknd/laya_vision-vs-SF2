@@ -117,3 +117,29 @@ def test_block_guards_the_attack_that_hits_an_idle_fighter(env):
     if not attacked:
         pytest.xfail("Dhalsim did not attack while Chun-Li blocked")
     assert env.f.my_hp == FULL
+
+
+def _back_until_stopped(env, limit=300):
+    """``back`` until world x has not changed for 8 decisions of plain walking (state 00). About 212 px apart the
+    screen edge stops her too, so stops there don't count: Dhalsim walks in again and she carries on."""
+    xs = []
+    for _ in range(limit):
+        env.act("back")
+        xs = xs + [env.f.my_x] if env.f.my_state == 0 and env.f.dx < 200 else []
+        if len(xs) >= 8 and len(set(xs[-8:])) == 1:
+            return xs[-1]
+    return None
+
+
+def test_walking_back_stops_at_the_stage_walls(env):
+    from sf2.ram import LEFT_WALL, RIGHT_WALL
+
+    env.reset()
+    assert env.f.facing_right
+    assert _back_until_stopped(env) == LEFT_WALL and env.f.my_cornered
+    for _ in range(200):                # through Dhalsim to the other side
+        env.act("forward")
+        if not env.f.facing_right:
+            break
+    assert not env.f.facing_right
+    assert _back_until_stopped(env) == RIGHT_WALL and env.f.my_cornered

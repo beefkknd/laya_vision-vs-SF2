@@ -66,3 +66,15 @@ def test_distance_bins_follow_the_measured_ranges():
     from sf2.ram import dist_bin
 
     assert [dist_bin(d) for d in (40, 79, 80, 119, 120, 200)] == ["close", "close", "mid", "mid", "far", "far"]
+
+
+def test_cornered_means_the_stage_wall_is_close_behind_you():
+    # walls measured on the ROM (tests/fixtures/walls): world x 53 and 459
+    from sf2.ram import CORNER, LEFT_WALL, RIGHT_WALL, cornered
+
+    assert (LEFT_WALL, RIGHT_WALL) == (53, 459)
+    assert cornered(LEFT_WALL, facing_right=True) and cornered(LEFT_WALL + CORNER - 1, facing_right=True)
+    assert not cornered(LEFT_WALL + CORNER, facing_right=True)
+    assert not cornered(LEFT_WALL, facing_right=False)          # the wall is in front of her, not behind
+    assert cornered(RIGHT_WALL, facing_right=False) and not cornered(RIGHT_WALL - CORNER, facing_right=False)
+    assert not cornered(RIGHT_WALL, facing_right=True)

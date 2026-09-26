@@ -150,3 +150,31 @@ def test_knocked_into_the_air_is_not_airborne_but_a_jump_is():
             knocked.append(env.airborne()[0])
     assert len(jump) > 100 and all(jump)
     assert len(knocked) > 50 and not any(knocked)
+
+
+def test_walking_back_stops_at_the_measured_walls():
+    from sf2.ram import LEFT_WALL, RIGHT_WALL
+
+    env, t = _env("walls")
+    fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
+    assert min(f.my_x for f in fs) == LEFT_WALL and max(f.my_x for f in fs) == RIGHT_WALL
+    # the walls hold whoever is on the other side: she is pinned there facing both ways in this trace
+    pinned = {(f.my_x, f.facing_right) for f in fs if f.my_x in (LEFT_WALL, RIGHT_WALL)}
+    assert pinned == {(LEFT_WALL, True), (RIGHT_WALL, False)}
+
+
+def test_cornered_on_both_walls_and_not_in_mid_stage():
+    env, t = _env("walls")
+    fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
+    at_wall = [f for f in fs if f.my_x in (53, 459)]
+    mid = [f for f in fs if 150 <= f.my_x <= 360]
+    assert len(at_wall) > 500 and all(f.my_cornered for f in at_wall)
+    assert len(mid) > 300 and not any(f.my_cornered for f in mid)
+    assert not any(f.opp_cornered for f in fs)                    # Dhalsim stays between 148 and 377 here
+
+
+def test_dhalsim_cornered_at_the_left_wall():
+    env, t = _env("knockdown")                                     # he backs to the left wall late in this trace
+    fs = env.run_frames([r["in"] for r in t["rows"][1:]], capture=False)
+    near = [f for f in fs if f.opp_x <= 60 and f.opp_x < f.my_x]   # his back to the wall, she is in front
+    assert len(near) > 10 and all(f.opp_cornered and not f.my_cornered for f in near)
