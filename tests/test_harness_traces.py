@@ -410,3 +410,23 @@ def test_rounds_end_when_the_rom_ends_them_and_go_to_the_side_it_gives_them_to()
     assert winners == ["me", "opp", "opp"] and env.round == 2
     assert env.wins == {"me": 1, "opp": 2} == dict(zip(("me", "opp"), rom[won[-1]]))
     assert all(0 <= e - w < 4 for e, w in zip(ends, won)) and [d if w == "me" else a for (d, a), w in zip(dmg, winners)] == [176] * 3
+
+
+def test_a_match_ends_after_the_fourth_round_even_on_draws():
+    """On the ROM (draws forced by writing equal life and a 1 s clock) the 4th round is the "FINAL ROUND"; after
+    a draw in it there is no 5th round, the game goes back to the title screen."""
+    from trace_mesen import make_trace
+
+    rows = [{"my_hp": 176, "opp_hp": 176, "my_x": 200, "opp_x": 304, "my_y": 192, "opp_y": 192, "timer": 0,
+             "my_state": 0, "opp_state": 0, "fireball": 0, "fireball_x": 0,
+             "result": 0xFF if 100 <= i % 300 < 110 else 0} for i in range(1600)]     # a draw every 300 frames
+    env = FightEnv(TraceMesen(make_trace(MAP, rows)), MAP, b"")
+    env.reset()
+    results = []
+    while True:
+        res = env.act("idle")
+        if res.round_over:
+            results.append(res.winner)
+            if not env.next_round():
+                break
+    assert results == ["draw"] * 4
