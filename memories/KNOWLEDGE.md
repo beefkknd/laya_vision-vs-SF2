@@ -53,3 +53,10 @@ Plan: docs/TWO_SYSTEM_PLAN.md. Runs: `out/results.jsonl`.
   with `scripts/paired.py`. Verdicts only on the eval openings.
 - Build a playbook the way the teacher was built: add one rule group at a time to an empty memory, and keep a group
   only if the paired dev gain is positive. Don't start from a full playbook and cut: v1 as a whole was −62.6.
+
+## Qwen as System 2 (qwen38-27b-oq4e-mtp)
+- **Thinking off works.** From 30 real moments (r2 vs Ryu) and only the game's description, it wrote 5 valid rules
+  and 0 rejected, in 58 s on claw. (live test, 2026-09-27)
+- **Thinking on did not finish** within 8,000 tokens (651 s on claw, about 12 tokens/s), and its reasoning arrives
+  without an opening `<think>` tag. Only text after `</think>` is an answer; an unfinished reply yields no rules.
+  Use thinking only on the Studio (about 3× faster) and with a larger budget.

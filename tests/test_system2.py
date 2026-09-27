@@ -65,3 +65,32 @@ def test_a_later_rule_for_the_same_situation_replaces_the_earlier_one(tmp_path):
     S.merge(str(tmp_path), [C.parse_rule("dist=far -> jump_forward # revised")], replace=True)
     mem = M.load(str(tmp_path))
     assert [r.move for r in mem.rules] == ["jump_forward"]
+
+
+def test_moment_selection_takes_the_worst_hits_first_then_audits():
+    ms = [_moment(i, taken=t) for i, t in enumerate([5, 40, 12])] + [_moment(9, why="audit", taken=0)]
+    ms += [_moment(10 + i, why="unsure", taken=0) for i in range(3)]
+    picked = S.select_moments(ms, n=3)
+    assert [m["taken"] for m in picked[:2]] == [40, 12] and len(picked) == 3
+    assert all(m["why"] != "unsure" for m in picked)  # unsure does not predict hits (KNOWLEDGE.md)
+    assert "audit" in {m["why"] for m in S.select_moments(ms, n=10)}
+
+
+def test_feedback_reports_the_batch_against_no_memory_and_each_rule():
+    fb = S.feedback(batch=2, net=12.5, control=40.0, paired=(-27.5, (-40.0, -15.0)), fired=0.11, changed=0.04,
+                    per_rule={"dist=far -> forward": (120, 3)})
+    assert "batch 2" in fb and "+12.5" in fb and "+40.0" in fb and "-27.5" in fb
+    assert "fired on 11%" in fb and "changed 4%" in fb and "dist=far -> forward: fired 120, changed 3" in fb
+
+
+def test_reasoning_without_an_opening_tag_is_not_mined_for_rules():
+    # Qwen's chat template opens <think> in the prompt, so the reply carries only the closing tag
+    reply = "We could write dist=close -> sweep? Maybe opp_state=hit -> hp.\n</think>\n\ndist=far -> forward # walk in\n"
+    rules, rejected = S.parse_reply(reply)
+    assert [r.move for r in rules] == ["forward"] and rejected == []
+
+
+def test_unfinished_thinking_gives_no_rules():
+    reply = "We need to infer... maybe dist=close -> sweep. Could opp_state=hit -> hp? Need more"
+    rules, rejected = S.parse_reply(reply, thinking=True)
+    assert rules == [] and rejected and "did not finish" in rejected[0][1]

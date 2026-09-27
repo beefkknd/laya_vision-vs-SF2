@@ -65,8 +65,15 @@ _THINK = re.compile(r"<think>.*?(</think>|$)", re.S)
 _BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
 
 
-def parse_reply(text: str) -> Tuple[List[C.Rule], List[Tuple[str, str]]]:
-    """Qwen's reply -> (valid rules, [(line, why it was rejected)]). Lines without '->' are prose, not rules."""
+def parse_reply(text: str, thinking: bool = False) -> Tuple[List[C.Rule], List[Tuple[str, str]]]:
+    """Qwen's reply -> (valid rules, [(line, why it was rejected)]). Lines without '->' are prose, not rules.
+
+    Only the answer counts: text inside <think>...</think>, or before a bare </think> (the chat template opens the
+    tag in the prompt), is reasoning. With ``thinking`` on and no </think>, the reasoning never finished: no rules."""
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[1]
+    elif thinking:
+        return [], [(text[-200:], "thinking did not finish within the token budget: no answer, no rules")]
     rules, rejected, seen = [], [], set()
     for raw in _THINK.sub("", text).splitlines():
         if "->" not in raw:
@@ -103,3 +110,22 @@ def merge(folder: str, new: Sequence[C.Rule], replace: bool = False, author: str
     with open(path, "w") as f:
         f.write("".join(str(with_fields(r, author=author)) + "\n" for r in old))
     return changed
+
+
+def select_moments(moments: Sequence[Dict], n: int = 30) -> List[Dict]:
+    """The hits first, worst first; then audits. Unsure moments are left out: they do not predict hits."""
+    hits = sorted((m for m in moments if m["why"] == "surprised"), key=lambda m: -m["taken"])
+    audits = [m for m in moments if m["why"] == "audit"]
+    n_hits = min(len(hits), max(n - min(len(audits), n // 5), 0))
+    return hits[:n_hits] + audits[:n - n_hits]
+
+
+def feedback(batch: int, net: float, control: float, paired, fired: float, changed: float,
+             per_rule: Dict[str, Tuple[int, int]]) -> str:
+    """How the last batch went, in words Qwen can act on."""
+    mean, (lo, hi) = paired
+    lines = ["batch %d: net damage per round %+.1f (the same openings with an empty memory: %+.1f)" % (batch, net, control),
+             "paired difference vs the empty memory: %+.1f (95%% interval %+.1f to %+.1f)" % (mean, lo, hi),
+             "your rules fired on %.0f%% of decisions and changed %.0f%% of moves" % (100 * fired, 100 * changed)]
+    lines += ["  %s: fired %d, changed %d" % (rule, f, c) for rule, (f, c) in per_rule.items()]
+    return "\n".join(lines)
