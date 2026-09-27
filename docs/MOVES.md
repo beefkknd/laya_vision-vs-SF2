@@ -248,6 +248,17 @@ WW quirks: holding `DB` charges both moves at once. After a store, the fluxcore 
 Flash Kick charge is kept for about 3 seconds. WW Guile also has famous glitches (handcuffs,
 "free Sonic Boom" after a mp throw while holding F). Do not rely on them.
 
+**Verified on ROM (2026-09-27, tests/test_rom_moves.py, both facings, vs the CPU Ryu):** both inputs work as written
+(macros in `sf2/actions.py`, fierce / roundhouse, the whole charge inside one macro). What the sheet did not say:
+
+- **Minimum charge: 61 frames** of `B` (or `D`) held before the release frame; 60 never works. Same for both moves,
+  both facings, in the open and at the wall (scan of 40-70 frames at 3-4 moments each). Charging with `DB` for 70
+  frames also gives both. The macros hold 64, then the release + button for 2 frames: 68 frames, 17 decisions.
+- Both are action state `0C`; `0x0D80` says which: `00` Sonic Boom, `02` Flash Kick. The Sonic Boom's projectile is in
+  player 1's slot `0x1000` (x at `0x1007`), appearing ~13 frames after the press ~37 px in front of him.
+- The roundhouse Flash Kick rises over 100 px and is in the air ~50 frames.
+- The CPU Ryu walks in during a 64-frame charge, so a boom thrown from far often hits at once.
+
 ### Throws
 
 | Throw | Input | Look |

@@ -26,7 +26,8 @@ OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result"
 #      attack (Dhalsim's air attacks are 0A)   06 turning round after the fighters cross
 #   08 guard: holding back while an attack comes (+0x43: 1 standing, 2 crouching)   0A attack, on the ground or in the air
 #   0C special move, player input only (the CPU's specials show as 0A). Which one is +0x180 (0x0D80), set on entering
-#      0C: Ryu 00 Hadoken, 02 Hurricane Kick, 04 Shoryuken. Chun-Li's Lightning Legs are 0C too.
+#      0C: Ryu 00 Hadoken, 02 Hurricane Kick, 04 Shoryuken; Guile 00 Sonic Boom (in slot 0x1000), 02 Flash Kick.
+#      Chun-Li's Lightning Legs are 0C too.
 #   0E hit stun and block stun alike; sub-state 02 reeling / knocked into the air, 04 down, 06 getting up,
 #      08 dizzy. The hit reaction at +0x4A (0x0C4A / 0x0E4A) tells them apart: 06 / 08 block stun (standing /
 #      crouching guard; no life lost, or a Yoga Fire's 4-8 chip), anything else a hit. Dizzy is sub-state 08

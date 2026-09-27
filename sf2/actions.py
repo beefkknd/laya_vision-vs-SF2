@@ -21,6 +21,7 @@ BASICS: List[str] = [
 SPECIALS: Dict[str, List[str]] = {
     "ryu": ["hadoken", "shoryuken", "tatsumaki"],
     "ken": ["hadoken", "shoryuken", "tatsumaki"],
+    "guile": ["sonic_boom", "flash_kick"],
     "chunli": ["lightning_legs"],
 }
 
@@ -54,6 +55,8 @@ CRITERIA: Dict[str, str] = {
     "hadoken": "Hadoken: a fireball that travels along the ground toward him",
     "shoryuken": "Shoryuken: a rising uppercut, beats jump-ins",
     "tatsumaki": "Hurricane Kick: spins forward through the air with one leg out",
+    "sonic_boom": "Sonic Boom: charges back, then throws a spinning wave that travels toward him",
+    "flash_kick": "Flash Kick: charges down, then a rising backflip kick, beats jump-ins",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -61,6 +64,7 @@ INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II
 
 # One step = (tokens held, number of frames). Tokens: U D F B + attack names from config.PAD.
 Step = Tuple[Tuple[str, ...], int]
+_CHARGE = 64  # frames a charge special holds its charge direction (Guile: 61 needed on the ROM, + a margin)
 _TAP = 2  # frames an attack button is held, then released for _TAP frames so the next press registers
 MACROS: Dict[str, List[Step]] = {
     "idle": [((), 4)],
@@ -87,6 +91,10 @@ MACROS: Dict[str, List[Step]] = {
     "hadoken": [(("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2)],
     "shoryuken": [(("F",), 2), (("D",), 2), (("D", "F", "hp"), 2), ((), 2)],
     "tatsumaki": [(("D",), 2), (("D", "B"), 2), (("B", "hk"), 2), ((), 2)],
+    # Guile (docs/MOVES.md; tests/test_rom_moves.py): the whole charge is in the macro, so one decision is one special.
+    # On the ROM the charge must be held 61 frames before the release frame (60 never works); 64 leaves a margin.
+    "sonic_boom": [(("B",), _CHARGE), (("F", "hp"), 2), ((), 2)],
+    "flash_kick": [(("D",), _CHARGE), (("U", "hk"), 2), ((), 2)],
 }
 # Moves that only travel: resolved from x, so "forward" walks toward him even while the ROM's facing byte lags (the
 # ROM does not turn her round while its own forward is held, so she would walk on away from him: tests/test_rom_*.py).
