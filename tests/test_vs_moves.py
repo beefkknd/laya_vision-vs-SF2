@@ -189,3 +189,19 @@ def test_system2_vet_keeps_laya_lessons_short_unique_and_backed():
     whys = [r["why"] for r in rej]
     assert any("repeats" in w for w in whys) and any("numbers" in w for w in whys)
     assert any("characters" in w for w in whys) and any("tries" in w for w in whys)
+
+
+def test_short_memory_evidence_uses_all_games_until_this_opponent_has_enough():
+    from sf2.system2 import vet
+    a = lambda act, res, st="stand": {"kind": "attack", "action": act, "range": "close", "actual": res,  # noqa: E731
+                                       "i_was_hit": False, "opp_state": st, "game": 0, "frame": 0}
+    all_games = [a("lp", "hit") for _ in range(20)]
+    vs_him = [a("lp", "whiff"), a("hp", "hit", "jump"), a("hp", "hit", "jump"), a("hp", "hit", "jump")]
+    L = lambda text, kind, action, claim: dict(text=text, kind=kind, action=action, range=None, claim=claim)  # noqa
+    kept, rej = vet([L("use more lp up close", "use_more", "lp", "lands"),
+                     L("when he jumps in, use hp", "counter", "hp", "counter:jump"),
+                     L("he jumps in a lot", "opponent_habit", None, "habit:jump")], vs_him, 5, fallback=all_games)
+    by = {k["text"]: k["evidence"] for k in kept}
+    assert by["use more lp up close"]["scope"] == "all opponents" and by["use more lp up close"]["tries"] == 20
+    assert by["when he jumps in, use hp"]["scope"] == "this opponent" and by["when he jumps in, use hp"]["tries"] == 3
+    assert by["he jumps in a lot"]["tries"] == 4                          # habits: his games only, never the fallback

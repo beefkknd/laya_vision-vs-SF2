@@ -3,11 +3,12 @@
  "opp": "dhalsim",
  "source": [
   "games_v1/chunli",
-  "games_v2/chunli"
+  "games_v2/chunli",
+  "learn/chunli/20260927-193816"
  ],
  "lessons": [
   {
-   "text": "use more lp at close: lands 57% of the time",
+   "text": "use more lp up close",
    "kind": "use_more",
    "action": "lp",
    "range": "close",
@@ -22,83 +23,48 @@
      "games_v1/chunli/g1f892",
      "games_v1/chunli/g2f1264",
      "games_v1/chunli/g2f1524"
-    ]
+    ],
+    "scope": "all opponents"
    }
   },
   {
-   "text": "avoid spinning_bird_kick at mid: punished 71% of the time",
+   "text": "avoid spinning_bird_kick: he punishes it at every range",
    "kind": "avoid",
    "action": "spinning_bird_kick",
-   "range": "mid",
+   "range": null,
    "claim": "punished",
    "evidence": {
-    "tries": 78,
-    "count": 55,
-    "rate": 0.71,
+    "tries": 151,
+    "count": 95,
+    "rate": 0.63,
     "refs": [
      "games_v1/chunli/g0f60",
      "games_v1/chunli/g0f264",
      "games_v1/chunli/g0f444",
-     "games_v1/chunli/g1f16",
-     "games_v1/chunli/g2f0"
-    ]
-   }
-  },
-  {
-   "text": "avoid spinning_bird_kick at far: punished 47% of the time",
-   "kind": "avoid",
-   "action": "spinning_bird_kick",
-   "range": "far",
-   "claim": "punished",
-   "evidence": {
-    "tries": 57,
-    "count": 27,
-    "rate": 0.47,
-    "refs": [
      "games_v1/chunli/g0f640",
-     "games_v1/chunli/g0f756",
-     "games_v1/chunli/g1f1168",
-     "games_v1/chunli/g1f1276",
-     "games_v1/chunli/g3f232"
-    ]
+     "games_v1/chunli/g0f756"
+    ],
+    "scope": "all opponents"
    }
   },
   {
-   "text": "avoid spinning_bird_kick at close: punished 92% of the time",
-   "kind": "avoid",
-   "action": "spinning_bird_kick",
-   "range": "close",
-   "claim": "punished",
+   "text": "he jumps in at far range",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "far",
+   "claim": "habit:jump",
    "evidence": {
-    "tries": 12,
+    "tries": 17,
     "count": 11,
-    "rate": 0.92,
+    "rate": 0.65,
     "refs": [
-     "games_v2/chunli/g0f604",
-     "games_v2/chunli/g1f1792",
-     "games_v2/chunli/g2f1240",
-     "games_v2/chunli/g3f1036",
-     "games_v2/chunli/g4f0"
-    ]
-   }
-  },
-  {
-   "text": "use more spinning_bird_kick when he jumps: lands 50% of the time",
-   "kind": "counter",
-   "action": "spinning_bird_kick",
-   "range": null,
-   "claim": "counter:jump",
-   "evidence": {
-    "tries": 24,
-    "count": 12,
-    "rate": 0.5,
-    "refs": [
-     "games_v1/chunli/g2f1280",
-     "games_v1/chunli/g3f644",
-     "games_v1/chunli/g6f44",
-     "games_v1/chunli/g7f1520",
-     "games_v1/chunli/g9f904"
-    ]
+     "learn/chunli/20260927-193816/g0f1104",
+     "learn/chunli/20260927-193816/g0f1108",
+     "learn/chunli/20260927-193816/g0f1112",
+     "learn/chunli/20260927-193816/g0f1116",
+     "learn/chunli/20260927-193816/g0f1120"
+    ],
+    "scope": "this opponent"
    }
   }
  ]

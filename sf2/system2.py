@@ -97,7 +97,20 @@ def digest(acts: List[Dict], games: List[Dict], title: str) -> str:
     return "\n".join(lines)
 
 
-def vet(lessons: List[Dict], acts: List[Dict], limit: int) -> Tuple[List[Dict], List[Dict]]:
+OWN_MIN_TRIES = 6          # own-move claims use this opponent's games from this many tries on, else all games
+
+
+def evidence_for(les: Dict, acts: List[Dict], fallback: Optional[List[Dict]]) -> Dict:
+    """Habit / counter claims are about the opponent: only his games. Claims about my own moves use his games once
+    they hold OWN_MIN_TRIES tries, else every game so far (``fallback``), marked scope 'all opponents'."""
+    ev = evidence(acts, les["claim"], les["action"], les["range"])
+    if fallback is None or les["claim"].startswith(("habit:", "counter:")) or ev["tries"] >= OWN_MIN_TRIES:
+        return dict(ev, scope="this opponent" if fallback is not None else "all games")
+    return dict(evidence(fallback, les["claim"], les["action"], les["range"]), scope="all opponents")
+
+
+def vet(lessons: List[Dict], acts: List[Dict], limit: int,
+        fallback: Optional[List[Dict]] = None) -> Tuple[List[Dict], List[Dict]]:
     """Qwen's lessons, in its order, that fit laya's prompt and the log: (kept with evidence, rejected with why).
     Rejected: unknown kind / claim / range, too long, numbers in the text, not backed by the log, or a second
     lesson on a move already covered (one lesson per move and kind; laya gets no repeats)."""
@@ -115,7 +128,7 @@ def vet(lessons: List[Dict], acts: List[Dict], limit: int) -> Tuple[List[Dict], 
         elif key in seen:
             why = "repeats a lesson already given for %s" % (les["action"] or les["claim"])
         else:
-            ev = evidence(acts, les["claim"], les["action"], les["range"])
+            ev = evidence_for(les, acts, fallback)
             why = supported(les, ev)
             if not why:
                 kept.append(dict(les, evidence=ev))
@@ -148,7 +161,8 @@ def _rules(me: str) -> str:
         % (me, me, ", ".join(actions(me)), MAX_TEXT, ", ".join(KINDS), ", ".join(CLAIMS)))
 
 
-def _ask(me: str, task: str, prompt: str, acts: List[Dict], limit: int) -> Tuple[Optional[List[Dict]], Dict]:
+def _ask(me: str, task: str, prompt: str, acts: List[Dict], limit: int,
+         fallback: Optional[List[Dict]] = None) -> Tuple[Optional[List[Dict]], Dict]:
     """Qwen's lessons with verified evidence (None if unusable twice), plus a report of what was kept / rejected."""
     msgs = [{"role": "system", "content": _rules(me)}, {"role": "user", "content": prompt}]
     report: Dict = {"task": task, "attempts": []}
@@ -159,7 +173,7 @@ def _ask(me: str, task: str, prompt: str, acts: List[Dict], limit: int) -> Tuple
             report["attempts"].append({"error": "%s: %s" % (type(e).__name__, e)})
             msgs.append({"role": "user", "content": "Your reply was not usable (%s). Reply with the JSON only." % e})
             continue
-        kept, rejected = vet(reply.get("lessons", []), acts, limit)
+        kept, rejected = vet(reply.get("lessons", []), acts, limit, fallback)
         report["attempts"].append({"notes": reply.get("notes"), "kept": len(kept), "rejected": rejected})
         if kept and not check({"lessons": kept}, list(actions(me))):
             report["notes"] = reply.get("notes")
@@ -192,7 +206,7 @@ def populate(me: str, opp: str, playbook: Optional[Dict], vs_opp: Tuple[List[Dic
               "per move; merge a move's ranges into one lesson when it holds at every range.\n\nPlaybook:\n%s\n\n%s\n\n%s" % (
                   me, opp, MAX_PROMPT_LESSONS, opp, _show(playbook), past,
                   digest(everything, [], "my moves against all opponents")))
-    return _ask(me, "populate_%s_vs_%s" % (me, opp), prompt, acts or everything, MAX_PROMPT_LESSONS)
+    return _ask(me, "populate_%s_vs_%s" % (me, opp), prompt, acts, MAX_PROMPT_LESSONS, fallback=everything)
 
 
 def _show(mem: Optional[Dict]) -> str:
