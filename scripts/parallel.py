@@ -102,13 +102,20 @@ def main():
     sub.add_argument("--seed", type=int, default=0)
     sub.add_argument("--port", type=int)
     sub.add_argument("--model")
+    sub.add_argument("--openings", help="a saved opening schedule; split across workers, one match per opening")
     known, passthrough = sub.parse_known_args(rest)
     if known.model:
         passthrough += ["--model", known.model]
 
     n = args.workers
+    chunks = None
+    if known.openings:  # pairing comes from the schedule, not from the worker layout
+        from sf2 import openings as O
+
+        chunks = O.split(O.parse(known.openings), n)
+        n = len(chunks)
     dec = split(known.decisions, n) if known.decisions else [None] * n
-    mat = split(known.matches, n) if known.matches else [None] * n
+    mat = [len(c) for c in chunks] if chunks else split(known.matches, n) if known.matches else [None] * n
     os.makedirs("out/parallel", exist_ok=True)
     procs, dirs = [], worker_dirs(known.out, known.name, n)
     for i in range(n):
@@ -120,6 +127,8 @@ def main():
             argv += ["--decisions", str(dec[i])]
         if mat[i] is not None:
             argv += ["--matches", str(mat[i])]
+        if chunks:
+            argv += ["--openings", ",".join(map(str, chunks[i]))]
         log = open("out/parallel/%s.log" % name, "w")
         procs.append((subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT), log, name))
         print("worker %d: port %d -> %s (log out/parallel/%s.log)" % (i, args.base_port + i, dirs[i], name),

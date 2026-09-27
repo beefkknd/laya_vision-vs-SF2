@@ -27,7 +27,8 @@ def play(env: FightEnv, choose: Choose, matches: int, writer: Optional[Writer] =
     for _ in range(matches):
         env.reset()
         step, match_rows = 0, []
-        rnd = {"episode": env.episode, "round": env.round, "dmg_for": 0, "dmg_against": 0}
+        rnd = {"episode": env.episode, "round": env.round, "dmg_for": 0, "dmg_against": 0,
+               "opening": getattr(env, "opening", None)}
         while True:
             prev, cur = env.prev_frame.copy(), env.frame.copy()
             text, f, ctx = env.text(), env.f, env.context()
@@ -53,7 +54,8 @@ def play(env: FightEnv, choose: Choose, matches: int, writer: Optional[Writer] =
                              len(rows) + len(match_rows), time.time() - t0), flush=True)
                 if not env.next_round():
                     break
-                rnd = {"episode": env.episode, "round": env.round, "dmg_for": 0, "dmg_against": 0}
+                rnd = {"episode": env.episode, "round": env.round, "dmg_for": 0, "dmg_against": 0,
+                       "opening": getattr(env, "opening", None)}
             elif env.done:
                 break
             if max_decisions and len(rows) + len(match_rows) >= max_decisions:

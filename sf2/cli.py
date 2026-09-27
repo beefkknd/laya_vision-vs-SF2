@@ -27,6 +27,9 @@ def add_env_args(ap: argparse.ArgumentParser, savestate: bool = True, ram_map: b
                         "matches do not replay the identical fight (0 = no idle)")
     g.add_argument("--jitter-base", type=int, default=0,
                    help="added to the idle count; parallel.py gives each worker its own range")
+    g.add_argument("--openings", default=None,
+                   help="a saved opening schedule (file, or idle counts like 12,57): match k idles schedule[k] frames "
+                        "instead of --jitter, so arms are compared opening by opening (sf2/openings.py)")
     if savestate:
         g.add_argument("--savestate", default=DEFAULT_SAVESTATE, help="fight-start savestate (record_human.py, F9)")
     if ram_map:
@@ -119,5 +122,10 @@ def make_env(args, verified: bool = True):
 def fight_env(backend, ram_map, state, args):
     from .env import FightEnv
 
-    return FightEnv(backend, ram_map, state, me=args.me, opp=args.opp, jitter=args.jitter,
-                     jitter_base=args.jitter_base)
+    env = FightEnv(backend, ram_map, state, me=args.me, opp=args.opp, jitter=args.jitter,
+                   jitter_base=args.jitter_base)
+    if getattr(args, "openings", None):
+        from . import openings
+
+        openings.apply(env, openings.parse(args.openings))
+    return env
