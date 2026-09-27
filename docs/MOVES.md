@@ -144,6 +144,13 @@ blue in WW). The differences are small:
 - Kick throw (Tomoe Nage, `F`/`B` + mk or hk): Ken somersaults with the opponent first, and the
   opponent lands farther away. This is described as the "better kick throw".
 
+**Verified on ROM (2026-09-27, tests/test_rom_moves.py, both facings, against CPU Ryu):** Ken uses Ryu's macros
+unchanged, and the RAM shows his specials exactly like Ryu's: state `0C`, `0x0D80` = `00` Hadoken, `02` Hurricane
+Kick, `04` Shoryuken; the Hadoken's projectile is in player 1's slot `0x1000`, first seen 17 frames after the motion
+starts, ~3 px per frame. His far jab / fierce / short / roundhouse last 13 / 36 / 21 / 33 frames in state `0A`, the
+same as Ryu's. Not checked: the knockdown difference (Uncertain 4) and the Shoryuken's range. Test note: CPU Ryu backs
+into the corner and throws Ken back when he walks past, so the left-facing tests jump over him instead.
+
 Throws: the same as Ryu (mp/hp shoulder throw, mk/hk back roll). Combos: the same as Ryu
 (`c.mk xx Hadoken`, `c.mk xx Shoryuken`, `j.hk, cl.hp xx Hadoken`). Facing and spacing: the same
 as Ryu.
