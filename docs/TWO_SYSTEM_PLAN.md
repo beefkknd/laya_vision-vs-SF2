@@ -47,6 +47,34 @@ What is known now:
   net damage per round. The 95% match bar for CP4 is reachable: the teacher's tactics already clear it.
 - laya r1 has both beaten and lost to Ryu (1 win and 2 losses, far too few to mean anything).
 
+## Two tracks
+
+- **Track A (this plan's phases, Mac Pro):** build and prove the two-system loop with Chun-Li, the character whose
+  System 1 already exists.
+- **Track B (the real System 1, Mac Studio):** a laya checkpoint that plays **every playable character** and
+  understands their moves. The Chun-Li loop is the setup; the all-character checkpoint is the real task (owner,
+  2026-09-27). laya's question lists its options as text, so one checkpoint can take a different move list per
+  character.
+
+### Track B tasks (Mac Studio, `~/work/hobby/laya_vision_vs_SF2`)
+- [ ] **B0 setup:** repo, a venv pinned to the Mac Pro's exact package versions, the same Mesen build and settings,
+  the ROM, the savestates, the base model. The ROM suite passes 30/30 and the Dhalsim replay reproduces +93.1.
+- [ ] **B0 measure:** training examples per second and play decisions per second on the M3 Ultra, with Qwen idle and
+  with Qwen answering (they share the Studio's GPU)
+- [ ] **B1 pick any character:** boot and select for each of the 8 playable World Warrior characters (Ryu, E. Honda,
+  Blanka, Guile, Ken, Chun-Li, Zangief, Dhalsim) as player 1; a fight-start savestate per character vs Ryu, verified
+- [ ] **B2 moves:** an action set per character: the shared basics plus that character's specials as verified macros
+  (motion inputs: fireball, dragon punch, hurricane kick, spinning pile driver; charge inputs: sonic boom, flash kick,
+  rolling attack, headbutt; mashes: hundred hand slap, electricity). Each one is checked on the ROM, as Lightning Legs
+  was.
+- [ ] **B2 note:** the RAM note and state words hold for each character (the per-character checks JOURNAL.md lists)
+- [ ] **B3 labels (the hard part):** choose the label source per character. Options: a generic teacher built from
+  per-character move data (range, speed, which move anti-airs); outcome-filtered exploration (`relabel.py --mode
+  filter`); System 2 as the teacher. Prototype the cheapest one on one character first.
+- [ ] **B4 train:** one multi-character checkpoint from r2 (so Chun-Li is kept), with a per-character move list in
+  the question; the gate is per character vs Ryu on the saved openings, and Chun-Li must not get worse
+- [ ] **B5:** the two-system loop from Track A on top of the all-character checkpoint
+
 ---
 
 ## 1. The idea
