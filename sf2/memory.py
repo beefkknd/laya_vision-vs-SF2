@@ -4,7 +4,8 @@ A memory is a folder of rule files, one per author, in rank order: ``owner.txt``
 The file decides the author, whatever a line says. For each decision:
 
 - the most specific matching rule is picked (most conditions; ties go to the higher-ranked author, then weight);
-- its move is played only if laya already half-agrees: ``p[top] - p[move] <= tau`` (a nudge, not an override);
+- its move is played only if ``p[top] - p[move] <= tau``, where tau is the rule's own weight (how firmly it pushes:
+  0 never, 1 always), unless the caller fixes one tau for every rule;
 - the use is reported as *fired* (a rule matched) and *changed* (the move played is not laya's top move).
 """
 import os
@@ -14,7 +15,6 @@ from typing import Dict, List, Optional, Tuple
 from . import contract as C
 
 AUTHORS = ("owner", "claude", "qwen")  # rank order
-TAU = 0.3
 
 
 class Memory:
@@ -27,13 +27,14 @@ class Memory:
             return None
         return min(matches, key=lambda r: (-len(r.when), AUTHORS.index(r.author), -r.weight))
 
-    def apply(self, note: str, probs: Dict[str, float], top: str, tau: float = TAU) -> Tuple[str, Dict]:
+    def apply(self, note: str, probs: Dict[str, float], top: str, tau: Optional[float] = None) -> Tuple[str, Dict]:
         if not self.rules:
             return top, {"rule": None, "author": None, "fired": False, "changed": False}
         rule = self.pick(C.parse_note(note))
         if rule is None:
             return top, {"rule": None, "author": None, "fired": False, "changed": False}
-        change = rule.move != top and probs.get(top, 0.0) - probs.get(rule.move, 0.0) <= tau
+        limit = rule.weight if tau is None else tau
+        change = rule.move != top and probs.get(top, 0.0) - probs.get(rule.move, 0.0) <= limit
         return (rule.move if change else top), {"rule": str(rule), "author": rule.author, "fired": True,
                                                  "changed": change}
 

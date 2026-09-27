@@ -14,7 +14,6 @@ from contextlib import nullcontext
 import _path  # noqa: F401
 from sf2 import memory
 from sf2.dataset import Writer
-from sf2.memory import TAU
 from sf2.cli import add_env_args, make_env
 from sf2.loop import play, save_rounds
 from sf2.policy import LayaPolicy
@@ -32,14 +31,16 @@ def main():
     ap.add_argument("--device", default=None)
     ap.add_argument("--memory", default=None, help="a memory folder (owner.txt, claude.txt, qwen.txt): situation rules "
                                                   "that nudge the move (sf2/memory.py); unset = laya alone")
-    ap.add_argument("--tau", type=float, default=TAU, help="a rule's move is played if laya's probability of it is "
-                                                         "within tau of its top move")
+    ap.add_argument("--tau", type=float, default=None, help="one tau for every rule (default: each rule's weight): a "
+                                                          "rule's move is played if laya's probability of it is within "
+                                                          "tau of its top move")
     args = ap.parse_args()
 
     pol = LayaPolicy(args.model, device=args.device, sample=args.sample, seed=args.seed)
     mem = memory.load(args.memory) if args.memory else None
     if mem:
-        print("memory %s: %d rules, tau %.2f" % (args.memory, len(mem.rules), args.tau), flush=True)
+        print("memory %s: %d rules, tau %s" % (args.memory, len(mem.rules),
+                                                "per rule" if args.tau is None else args.tau), flush=True)
 
     def choose(env, prev, cur, text, t_dist):
         keep_alive = getattr(env.backend, "keep_alive", None)
@@ -58,7 +59,7 @@ def main():
     env.close()
     save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)
     g = gate(rows, rounds)
-    g.update(model=args.model, savestate=args.savestate, memory=args.memory, tau=args.tau if mem else None)
+    g.update(model=args.model, savestate=args.savestate, memory=args.memory, tau=args.tau)
     with open("%s/%s/gate.json" % (args.out, args.name), "w") as f:
         json.dump(g, f, indent=2)
     print(json.dumps(g, indent=2))

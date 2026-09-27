@@ -7,6 +7,7 @@ import json
 import os
 
 import _path  # noqa: F401
+from sf2 import memory
 from sf2.cli import add_env_args, make_env
 from sf2.dataset import write_jsonl
 from sf2.loop import play, save_rounds
@@ -21,17 +22,29 @@ def main():
     add_env_args(ap)
     ap.add_argument("--matches", type=int, default=10)
     ap.add_argument("--policy", choices=["teacher", "random", "idle"], default="teacher")
+    ap.add_argument("--memory", default=None, help="a memory folder applied on top of the policy (arm D: the same rules "
+                                                  "on a random player); the random policy's moves are all equally "
+                                                  "likely, so a matching rule always wins")
     args = ap.parse_args()
     import random
 
     rng = random.Random(args.seed)
+    mem = memory.load(args.memory) if args.memory else None
+
+    def pick(t_dist):
+        if args.policy == "random":
+            a = rng.choice(list(t_dist))
+            return a, {m: 1 / len(t_dist) for m in t_dist}, {"actor": "random"}
+        if args.policy == "idle":
+            return "idle", {m: float(m == "idle") for m in t_dist}, {"actor": "idle"}
+        return argmax(t_dist), t_dist, {"actor": "teacher"}
 
     def choose(env, prev, cur, text, t_dist):
-        if args.policy == "random":
-            return rng.choice(list(t_dist)), {"actor": "random"}
-        if args.policy == "idle":
-            return "idle", {"actor": "idle"}
-        return argmax(t_dist), {"actor": "teacher"}
+        a, probs, meta = pick(t_dist)
+        if mem is None:
+            return a, meta
+        move, use = mem.apply(text, probs, a)
+        return move, {**meta, "policy_top": a, **{"memory_" + k: v for k, v in use.items()}}
 
     env = make_env(args)
     rows, rounds = play(env, choose, args.matches)
@@ -40,7 +53,7 @@ def main():
     save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)
     write_jsonl("%s/%s/rows.jsonl" % (args.out, args.name), ({"episode": r["episode"], "meta": r["meta"]} for r in rows))
     g = gate(rows, rounds)
-    g.update(model=args.policy, savestate=args.savestate)
+    g.update(model=args.policy, savestate=args.savestate, memory=args.memory)
     with open("%s/%s/gate.json" % (args.out, args.name), "w") as f:
         json.dump(g, f, indent=2)
     print(json.dumps(g, indent=2))

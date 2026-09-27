@@ -77,3 +77,19 @@ def test_loop_guard_rejects_a_rule_that_repeats_its_own_last_move():
     with pytest.raises(ValueError, match="repeat"):
         C.parse_rule("last=lp dist=close -> lp")
     C.parse_rule("last=lp dist=close -> hp")  # a follow-up to a different move is fine
+
+
+def test_each_rule_pushes_with_its_own_weight_by_default(tmp_path):
+    mem = _mem(tmp_path, owner="opp_state=jump dist=mid -> hp weight=1\n",
+               claude="opp_state=jump dist=close -> hp weight=0.2\n")
+    move, info = mem.apply(NOTE, _probs(jump_forward=0.9, hp=0.02), "jump_forward")  # gap 0.88 <= weight 1
+    assert move == "hp" and info["changed"]
+    close = NOTE.replace("dist=mid", "dist=close")
+    move, info = mem.apply(close, _probs(jump_forward=0.5, hp=0.2), "jump_forward")  # gap 0.3 > weight 0.2
+    assert move == "jump_forward" and info["fired"] and not info["changed"]
+
+
+def test_an_explicit_tau_overrides_every_rule_weight(tmp_path):
+    mem = _mem(tmp_path, claude="opp_state=jump dist=mid -> hp weight=1\n")
+    move, _ = mem.apply(NOTE, _probs(jump_forward=0.9, hp=0.02), "jump_forward", tau=0.3)
+    assert move == "jump_forward"
