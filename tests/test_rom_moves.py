@@ -295,7 +295,7 @@ def test_chunli_specials_have_their_own_id_and_thresholds(env, facing):
     if env.me != "chunli":
         pytest.skip("Chun-Li's ids")
     tries = {"legs": _taps(12), "taps10": _taps(10), "taps9": _taps(9),
-             "sbk": _charge(64), "hold61": _charge(61), "hold60": _charge(60)}
+             "sbk": _down_charge(64), "hold61": _down_charge(61), "hold60": _down_charge(60)}
 
     def attempt(f0):
         runs = {m: _run(env, _physical(t, f0.facing_right) + [[]] * 40) for m, t in tries.items()}
