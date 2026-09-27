@@ -2,7 +2,7 @@ from sf2 import actions as A
 
 
 def test_every_action_has_a_macro_and_description():
-    assert set(A.ACTIONS) == set(A.MACROS) == set(A.CRITERIA)
+    assert set(A.ACTIONS) <= set(A.MACROS) == set(A.CRITERIA)
 
 
 
@@ -83,3 +83,14 @@ def test_the_question_lists_the_characters_own_moves():
     assert list(A.question("chunli")["criteria"]) == A.ACTIONS
     for c in A.CHARACTERS:
         assert list(A.question(c)["criteria"]) == A.moves(c)
+
+
+def test_ryu_specials_are_the_sheets_motions_with_fierce_and_roundhouse():
+    """docs/MOVES.md: Hadoken D, DF, F + P; Shoryuken F, D, DF + P; Hurricane Kick D, DB, B + K (verified on the ROM
+    from both facings, tests/test_rom_moves.py). Facing left, forward is left."""
+    assert A.moves("ryu") == A.BASICS + ["hadoken", "shoryuken", "tatsumaki"]
+    assert A.expand("hadoken") == [("D",)] * 2 + [("D", "F")] * 2 + [("F", "hp")] * 2 + [()] * 2
+    assert A.expand("shoryuken") == [("F",)] * 2 + [("D",)] * 2 + [("D", "F", "hp")] * 2 + [()] * 2
+    assert A.expand("tatsumaki") == [("D",)] * 2 + [("D", "B")] * 2 + [("B", "hk")] * 2 + [()] * 2
+    assert A.to_physical(("D", "F", "hp"), facing_right=False) == ["down", "left", "l"]
+    assert A.to_physical(("D", "B"), facing_right=False) == ["down", "right"]

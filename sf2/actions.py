@@ -18,6 +18,7 @@ BASICS: List[str] = [
 # Each character's specials, in the order the model is shown them. A character missing here has no specials in the
 # code yet (the ALL-8 gate counts that as missing moves).
 SPECIALS: Dict[str, List[str]] = {
+    "ryu": ["hadoken", "shoryuken", "tatsumaki"],
     "chunli": ["lightning_legs"],
 }
 
@@ -48,6 +49,9 @@ CRITERIA: Dict[str, str] = {
     "throw": "throw the opponent when right next to him (a fierce punch otherwise)",
     "sweep": "crouching roundhouse, knocks him down",
     "lightning_legs": "Lightning Legs: a flurry of kicks, strong up close",
+    "hadoken": "Hadoken: a fireball that travels along the ground toward him",
+    "shoryuken": "Shoryuken: a rising uppercut, beats jump-ins",
+    "tatsumaki": "Hurricane Kick: spins forward through the air with one leg out",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -74,6 +78,12 @@ MACROS: Dict[str, List[Step]] = {
     "sweep": [(("D", "hk"), _TAP), (("D",), _TAP)],
     # 12 short taps, 1 frame down, 1 up: the Legs (state 0C) start at frame 18 (tests/test_rom_harness.py)
     "lightning_legs": [(("lk",), 1), ((), 1)] * 12,
+    # Ryu (docs/MOVES.md; tests/test_rom_moves.py): 2 frames per direction, the button on the last one, 2 released.
+    # Fierce / roundhouse: every strength "works as defined" the same way; the strongest shows it most (fastest
+    # fireball, highest rise, longest spin). Walking forward just before a Hadoken turns it into a Shoryuken on the ROM.
+    "hadoken": [(("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2)],
+    "shoryuken": [(("F",), 2), (("D",), 2), (("D", "F", "hp"), 2), ((), 2)],
+    "tatsumaki": [(("D",), 2), (("D", "B"), 2), (("B", "hk"), 2), ((), 2)],
 }
 assert set(MACROS) == set(CRITERIA) == set(BASICS).union(*SPECIALS.values())
 
