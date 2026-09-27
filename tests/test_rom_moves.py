@@ -440,9 +440,6 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
         finally:
             env.backend.set_vars(ram_map)
             env.backend.load_state(state)
-        # the CPU jumping over him within 5 s leaves too little to judge (seen: CPU Ken at frame 60): another moment
-        if any(_crossed(rows, f0) < 300 for rows in runs.values()):
-            return None
         return f0, runs
 
     st, react, guard = env.names.index("my_state"), env.names.index("my_react"), len(env.names)
