@@ -60,3 +60,21 @@ life she still had (random: 175, 172).
 Everything measured before 2026-09-25 (chunli_r*, v2_*) ran on a broken harness: wrong x addresses (distance
 and facing), knockdowns counted as jumps, time-overs scored as draws, and parallel workers replaying identical
 matches. Those numbers are invalid and their data was deleted; baselines are re-measured under this protocol.
+
+## Two-system phase: CP1, the gap against Ryu (2026-09-27, Mac Pro)
+
+Plan: docs/TWO_SYSTEM_PLAN.md. Savestate `states/arcade_chunli_vs_ryu.state` (verified: start, state words, rounds,
+walls 53/459, fireball slot). Openings are saved schedules (`openings/dev.txt` 20, `openings/eval.txt` 40, disjoint);
+arms are compared opening by opening with `scripts/paired.py`. The machine was verified first: the r2 Dhalsim gate
+replayed here exactly (+93.1 ± 8.3, 40/41).
+
+| Run | Openings | Matches won | Rounds won | Net damage / round | Dealt / taken per round |
+| --- | --- | ---: | ---: | ---: | ---: |
+| r2 alone (arm A) | dev | 20 / 20 | 69% | +40.2 ± 10.9 | |
+| scripted teacher | dev | 20 / 20 | 93% | +93.8 ± 7.6 | |
+| **r2 alone (arm A)** | **eval** | **37 / 40** | **69% (108)** | **+40.7 ± 7.5** | 153 / 112 |
+| **scripted teacher** | **eval** | **40 / 40** | **87% (92)** | **+89.3 ± 5.8** | 173 / 84 |
+
+Paired (r2 − teacher), eval: **−50.0**, 95% CI (−68.4, −31.5), sd of the per-opening difference 57.3.
+r2 beats Ryu but narrowly: it loses about a third of rounds, and it deals less and takes more than the teacher. So
+CP2 has room: the frozen playbook (teacher tactics as rules) should close part of a 50-point gap.

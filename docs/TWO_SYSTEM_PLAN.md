@@ -24,7 +24,7 @@ The live demo *shows* learning. The verdicts (CP2, CP3) still come from frozen r
 
 Each checkpoint is a result you can see. The bars are set before any run.
 
-- [ ] **CP1: we know the gap (Phase 1).** On the eval openings, measure against Ryu:
+- [x] **CP1: we know the gap (Phase 1).** On the eval openings, measure against Ryu:
   - r2 alone (arm A), the starting point;
   - the scripted teacher, the ceiling for a playbook built from its tactics.
 
@@ -173,11 +173,11 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [x] Save the opening schedules: 20 `dev` and at least 40 `eval` start delays, drawn at random
 - [x] Parallel runner plays a saved opening schedule (openings assigned explicitly, not by worker index) with a frozen memory file
 - [x] **Measure:** the wall time of a 20-opening headless pilot with 4 workers: 7.6 min (the Dhalsim replay)
-- [ ] Control A: r2 vs Ryu on the dev openings. Record the paired-difference variance.
+- [x] Control A: r2 vs Ryu on the dev openings: 20/20 matches, 69% of rounds, +40.2 ± 10.9
 - [x] The teacher vs Ryu on the same openings: dev 20/20 matches, +93.8; eval 40/40 matches, 87% of rounds, +89.3
 - [x] Every run is logged: `out/live.log` (tail) and `out/results.jsonl` (append-only)
-- [ ] **CP1:** A and the teacher on the eval openings. Write the gap in PROGRESS.md.
-- [ ] Check: A leaves room to improve (not 40/40). If it doesn't, pick the next weakest opponent from a 3-opponent scan.
+- [x] **CP1:** on eval, r2 +40.7 ± 7.5 (37/40 matches, 69% of rounds) vs the teacher +89.3 ± 5.8; paired gap −50.0 (−68, −32). In PROGRESS.md.
+- [x] Check: A leaves room to improve: yes (31% of rounds lost, 50 points below the teacher), so Ryu stays
 - [x] **Verify** the Studio's omlx is reachable from the Mac Pro: yes, as `qwen38-27b-oq4e-mtp` (fixed on the Studio side 2026-09-27)
 
 ### Phase 2: the memory, with a frozen playbook (arms C and D)
