@@ -70,6 +70,14 @@ def test_every_character_has_the_shared_basics_and_its_own_specials():
         assert A.moves(c)[:13] == A.BASICS and set(A.moves(c)) <= set(A.MACROS) == set(A.CRITERIA)
 
 
+def test_blankas_specials_are_a_jab_mash_and_a_whole_back_charge():
+    """On the ROM Electricity starts on the 11th jab tap (1 frame down, 1 up); the Rolling Attack needs back held 62
+    frames before toward + fierce. Each macro is one decision: 14 taps; 66 frames of back, then the release."""
+    assert A.moves("blanka") == A.BASICS + ["electricity", "rolling_attack"]
+    assert A.expand("electricity") == [("lp",), ()] * 14
+    assert A.expand("rolling_attack") == [("B",)] * 66 + [("F", "hp")] * 2 + [()] * 2
+
+
 def test_an_unknown_character_has_no_move_list():
     import pytest
 

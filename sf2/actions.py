@@ -21,6 +21,7 @@ BASICS: List[str] = [
 SPECIALS: Dict[str, List[str]] = {
     "ryu": ["hadoken", "shoryuken", "tatsumaki"],
     "ken": ["hadoken", "shoryuken", "tatsumaki"],
+    "blanka": ["electricity", "rolling_attack"],
     "guile": ["sonic_boom", "flash_kick"],
     "chunli": ["lightning_legs", "spinning_bird_kick"],
     "zangief": ["spinning_piledriver", "clothesline"],
@@ -62,6 +63,8 @@ CRITERIA: Dict[str, str] = {
     "flash_kick": "Flash Kick: charges down, then a rising backflip kick, beats jump-ins",
     "spinning_piledriver": "Spinning Pile Driver: grabs him when close and slams him head first, big damage",
     "clothesline": "Spinning Clothesline: spins in place with both arms out, hits on both sides",
+    "electricity": "Electricity: his body sparks in place, shocks him if he touches you",
+    "rolling_attack": "Rolling Attack: curls into a ball and rolls across the screen at him",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -110,6 +113,11 @@ MACROS: Dict[str, List[Step]] = {
                             (("U", "lp"), 2), ((), 2)],
     # any two punches together are the same move on the ROM; all three as on the sheet
     "clothesline": [(("lp", "mp", "hp"), 2), ((), 2)],
+    # Blanka (docs/MOVES.md; tests/test_rom_moves.py). Electricity: 14 jab taps, 1 frame down, 1 up; on the ROM it
+    # starts (0C) on the 11th such tap, at frame 20 (10 taps never start it). Rolling Attack: the whole charge in one
+    # decision: back held 66 frames (the ROM's minimum is 62, both facings), then toward + fierce.
+    "electricity": [(("lp",), 1), ((), 1)] * 14,
+    "rolling_attack": [(("B",), 66), (("F", "hp"), 2), ((), 2)],
 }
 # Moves that only travel: resolved from x, so "forward" walks toward him even while the ROM's facing byte lags (the
 # ROM does not turn her round while its own forward is held, so she would walk on away from him: tests/test_rom_*.py).

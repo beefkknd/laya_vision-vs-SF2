@@ -209,6 +209,19 @@ Source: GameFAQs SNES FAQ; Shoryuken wiki WW/Blanka.
 
 Not in WW: Vertical Roll (Super SF2) and Backstep Roll (Super SF2).
 
+**Verified on ROM (2026-09-27, tests/test_rom_moves.py, both facings, vs CPU Ryu):** macros in `sf2/actions.py`.
+What the sheet did not say, from the SNES ROM:
+
+- Both are action state `0C`; `0x0D80` says which: `00` Electricity, `02` Rolling Attack. Neither uses the projectile
+  slot `0x1000`.
+- **Rolling Attack charge: back must be held at least 62 frames** (the same at every moment tried, both facings); the
+  macro holds 66, then toward + fierce. 56 frames gives a plain fierce.
+- **Electricity needs ~9-11 presses, not ~5.** Jab tapped 1 frame down / 1 up starts it on the 11th tap (frame 20);
+  strong on the 9th (frame 16). Presses 13 frames apart still count (9-10 presses), so there is no short maximum gap.
+  Once started it lasts well past the last press. He does not move while in it. The macro is 14 jab taps.
+- His standing roundhouse also knocks Ryu down at sweep range; the Head Bite (`F` + hp, close) drains life while the
+  opponent stays in state `00` (no hit stun), it is not state `14` like the other throws.
+
 ### Throws
 
 | Throw | Input | Look |
