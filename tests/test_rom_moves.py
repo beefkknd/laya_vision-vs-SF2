@@ -96,7 +96,7 @@ def _clean(f0, fs):
     return all(f.my_state not in (ram.HIT_STATE, ram.THROWN_STATE) and f.my_life == f0.my_life for f in fs)
 
 
-def _find(env, facing, lo, hi, attempt, limit=2000):
+def _find(env, facing, lo, hi, attempt, limit=5000):
     """At each moment the character stands free facing ``facing`` with the opponent ``lo``..``hi`` px away,
     ``attempt(f0)`` runs inputs from there and returns a verdict, or None when the CPU interfered. Returns the first
     verdict."""
@@ -333,6 +333,12 @@ CHECKS = {
 }
 
 
+def _grounded(fs):
+    """The opponent stood or crouched until the first hit or block on him (the CPU did not jump or attack)."""
+    end = next((i for i, f in enumerate(fs) if f.opp_state == ram.HIT_STATE), len(fs))
+    return all(f.opp_state in (0, 2) for f in fs[:end])
+
+
 def _record(env, move, facing, request):
     from sf2 import verified
 
@@ -355,8 +361,8 @@ def test_move_does_what_it_is_defined_to_do(env, move, facing, request):
         if not (_clean(f0, right) and _clean(f0, bad)):
             return None
         if move == "sweep" and (right[-1].opp_life >= f0.opp_life     # it must connect to show the knockdown,
-                                or any(f.opp_state == ram.ATTACK_STATE for f in right + bad)):
-            return None       # and not while the CPU attacks: a roundhouse knocks him down out of a Shoryuken too
+                                or not (_grounded(right) and _grounded(bad))):
+            return None       # on him standing: any hit knocks him down out of a jump or a Shoryuken
         if move in ("lp", "hp", "lk", "hk") and any(f.opp_state == ram.HIT_STATE for f in right + bad):
             return None                                                 # ATTACK_FRAMES are whiffs
 
