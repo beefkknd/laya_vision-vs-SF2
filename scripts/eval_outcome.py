@@ -30,8 +30,13 @@ def score(agent, vt, char: str, split: str) -> List[Dict]:
     return [dict(r, pred=OUTCOMES[int(o["logits"].argmax())]) for r, o in zip(recs, out)]
 
 
-def acc(rows: List[Dict]) -> float:
-    return sum(r["pred"] == r["outcome"] for r in rows) / max(len(rows), 1)
+def acc(rows: List[Dict]):
+    """Share correct; None for no rows (an absent class is not 0% recall)."""
+    return sum(r["pred"] == r["outcome"] for r in rows) / len(rows) if rows else None
+
+
+def fmt(x) -> str:
+    return "  n/a  " if x is None else "%-7.3f" % x
 
 
 def main() -> int:
@@ -65,10 +70,12 @@ def main() -> int:
             "attack_only": acc([r for r in rows if r["kind"] == "attack"]),
             "recall_by_outcome": per_class, "combos": len(combos), "combos_passing": len(combos) - len(bad),
             "failing_combos": bad, "confusion": {"%s->%s" % k: v for k, v in sorted(confusion.items())},
+            "rows": [{k: r[k] for k in ("id", "side", "action", "range", "posture", "gap", "gap_index", "outcome",
+                                         "pred")} for r in rows],
         }
         x = report[char]
         print("%-8s %6.3f %6.3f %6.3f | %s | %d/%d" % (char, x["left"], x["right"], x["attack_only"], "  ".join(
-            "%-7.3f" % per_class[o] for o in OUTCOMES), x["combos_passing"], x["combos"]), flush=True)
+            fmt(per_class[o]) for o in OUTCOMES), x["combos_passing"], x["combos"]), flush=True)
     path = os.path.join(args.model, "eval_outcome.json")
     with open(path, "w") as f:
         json.dump({"model": args.model, "bar": args.bar, "chars": report}, f, indent=1)
