@@ -18,6 +18,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 
 import _path  # noqa: F401
@@ -26,6 +27,30 @@ from sf2.rollout import gate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = {"collect_teacher": "data", "play_student": "rollouts", "play_teacher": "rollouts"}
+LIVE_LOG = "out/live.log"  # every run's workers, interleaved and timestamped: tail -F out/live.log
+RESULTS = "out/results.jsonl"  # one row per finished run, appended forever: the data for learning curves
+LEDGER_KEYS = ["matches", "distinct_matches", "rounds", "round_win_rate", "net_damage_per_round", "net_damage_se",
+               "dmg_dealt_per_round", "dmg_taken_per_round", "decisions", "teacher_agreement"]
+
+
+def record_result(path, name, script, model, openings, workers, argv, gate):
+    """Append one run's summary to the results ledger (never rewritten)."""
+    opt = lambda flag: argv[argv.index(flag) + 1] if flag in argv else None  # noqa: E731
+    row = {"time": time.strftime("%Y-%m-%dT%H:%M:%S"), "name": name, "script": script, "model": model,
+           "savestate": opt("--savestate"), "me": opt("--me"), "opp": opt("--opp"), "openings": openings,
+           "workers": workers, **{k: gate.get(k) for k in LEDGER_KEYS if k in gate}}
+    with open(path, "a") as f:
+        f.write(json.dumps(row) + "\n")
+
+
+def pump(proc, own_log, name, live, lock):
+    """Copy a worker's output to its own log and, prefixed with the time and its name, to the shared live log."""
+    for line in proc.stdout:
+        own_log.write(line)
+        own_log.flush()
+        with lock:
+            live.write("%s [%s] %s" % (time.strftime("%H:%M:%S"), name, line))
+            live.flush()
 
 
 def split(total: int, n: int):
@@ -118,9 +143,18 @@ def main():
     mat = [len(c) for c in chunks] if chunks else split(known.matches, n) if known.matches else [None] * n
     os.makedirs("out/parallel", exist_ok=True)
     procs, dirs = [], worker_dirs(known.out, known.name, n)
+    live, lock, pumps = open(LIVE_LOG, "a"), threading.Lock(), []
+
+    def say(msg):
+        print(msg, flush=True)
+        with lock:
+            live.write("%s [%s] %s\n" % (time.strftime("%H:%M:%S"), known.name, msg))
+            live.flush()
+
+    say("start: %d workers, %s %s" % (n, args.script, " ".join(rest)))
     for i in range(n):
         name = "%s_w%d" % (known.name, i)
-        argv = [sys.executable, os.path.join(HERE, args.script + ".py"), *passthrough, "--headless",
+        argv = [sys.executable, "-u", os.path.join(HERE, args.script + ".py"), *passthrough, "--headless",
                 "--port", str(args.base_port + i), *worker_seed_args(known.seed, i), "--name", name,
                 "--out", os.path.join(known.out, known.name)]
         if dec[i] is not None:
@@ -130,22 +164,30 @@ def main():
         if chunks:
             argv += ["--openings", ",".join(map(str, chunks[i]))]
         log = open("out/parallel/%s.log" % name, "w")
-        procs.append((subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT), log, name))
+        p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        pumps.append(threading.Thread(target=pump, args=(p, log, name, live, lock), daemon=True))
+        pumps[-1].start()
+        procs.append((p, log, name))
         print("worker %d: port %d -> %s (log out/parallel/%s.log)" % (i, args.base_port + i, dirs[i], name),
               flush=True)
     t0, failed = time.time(), []
-    for p, log, name in procs:
+    for (p, log, name), t in zip(procs, pumps):
         if p.wait():
             failed.append(name)
+        t.join()
         log.close()
-    print("workers done in %.0fs" % (time.time() - t0))
+    say("workers done in %.0fs" % (time.time() - t0))
     if failed:
-        print("FAILED: %s (see out/parallel/<name>.log); merging the rest" % ", ".join(failed))
+        say("FAILED: %s (see out/parallel/<name>.log); merging the rest" % ", ".join(failed))
     ok = [d for d, (_, _, name) in zip(dirs, procs) if name not in failed]
     if not ok:  # an empty dataset marked _READY would look trainable and block re-using the name
         sys.exit("every worker failed; nothing merged")
     counts, g = merge(ok, os.path.join(known.out, known.name), args.script, known.model)
-    print("merged %s -> %s" % (counts, os.path.join(known.out, known.name)))
+    say("merged %s -> %s" % (counts, os.path.join(known.out, known.name)))
+    if g:
+        say("gate: rounds %d, round win rate %.3f, net damage per round %.1f +- %.1f"
+            % (g["rounds"], g["round_win_rate"], g["net_damage_per_round"], g["net_damage_se"]))
+        record_result(RESULTS, known.name, args.script, known.model, known.openings, n, rest, g)
     if g:
         print(json.dumps(g, indent=2))
     sys.exit(1 if failed else 0)

@@ -112,6 +112,8 @@ def test_queue_refuses_a_collection_without_a_rom(tmp_path, monkeypatch):
 
 
 class _FailedWorker:
+    stdout = iter(())  # parallel.py reads each worker's output from its pipe
+
     def __init__(self, *a, **kw):
         pass
 
