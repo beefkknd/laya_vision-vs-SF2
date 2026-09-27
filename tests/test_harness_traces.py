@@ -7,11 +7,10 @@ fails on the first frame the env's idea of facing is wrong.
 import os
 
 from sf2.env import FightEnv
-from sf2.ram import load_map
-from trace_mesen import TraceMesen, load
+from trace_mesen import TraceMesen, fixture_map, load
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MAP = load_map(os.path.join(ROOT, "ram_maps", "sf2_snes.txt"))
+MAP = fixture_map(os.path.join(ROOT, "ram_maps", "sf2_snes.txt"))
 
 
 def _env(name):

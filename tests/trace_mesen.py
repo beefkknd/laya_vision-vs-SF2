@@ -18,6 +18,17 @@ import numpy as np
 from sf2.mesen import Obs
 
 
+# RAM map variables outside the windows of the fixtures recorded on 2026-09-26 (checked on the ROM instead, in
+# tests/test_rom_moves.py).
+NOT_RECORDED = ("my_special", "my_facing")
+
+
+def fixture_map(path: str):
+    from sf2.ram import load_map
+
+    return [v for v in load_map(path) if v.name not in NOT_RECORDED]
+
+
 def load(path: str) -> Dict:
     with gzip.open(path, "rt") as f:
         header = json.loads(f.readline())

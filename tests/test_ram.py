@@ -138,3 +138,29 @@ def test_text_state_fireball():
 def test_opponent_attacking_on_the_ground_or_from_the_air():
     assert _f(opp_state=0x0A).opp_attacking and not _f(opp_state=0x04).opp_attacking
     assert not _f(opp_state=None).opp_attacking
+
+
+def _fs(*opp):
+    """Fighters per frame with the opponent's (state, react)."""
+    return [ram.Fighters(176, 176, 200, 280, 192, 192, opp_state=s, opp_react=r) for s, r in opp]
+
+
+def test_attack_result_hit_blocked_whiffed():
+    """The opponent entering 0E is the contact: reaction 06 / 08 is block stun, anything else a hit (checked on the
+    ROM in tests/test_rom_moves.py). No 0E before the attack ended: a whiff."""
+    assert ram.attack_result(_fs((0, 0), (0, 0), (0x0E, 0x14), (0x0E, 0x14))) == "hit"
+    assert ram.attack_result(_fs((0, 0), (0x08, 0), (0x0E, 0x06))) == "blocked"
+    assert ram.attack_result(_fs((0x02, 0), (0x08, 0), (0x0E, 0x08))) == "blocked"
+    assert ram.attack_result(_fs((0, 0), (0x0A, 0), (0x08, 0), (0, 0))) == "whiffed"
+    assert ram.attack_result(_fs((0, 0), (0x0E, 0x00))) == "hit"       # reaction 00 (a reel) is a hit
+
+
+def test_attack_result_only_counts_contact_during_the_attack():
+    """Already in hit stun when the attack started: that stun is not this attack's contact."""
+    assert ram.attack_result(_fs((0x0E, 0x14), (0x0E, 0x14), (0, 0))) == "whiffed"
+
+
+def test_the_rom_facing_byte():
+    f = ram.Fighters(176, 176, 300, 200, 192, 192, my_facing=0x40)
+    assert f.facing_right is False and f.game_facing_right is True
+    assert ram.Fighters(176, 176, 300, 200, 192, 192).game_facing_right is None

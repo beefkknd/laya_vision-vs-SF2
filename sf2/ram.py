@@ -12,19 +12,21 @@ memory viewer:
 Addresses are hex WRAM offsets; SNES bus addresses 7E0000-7FFFFF are accepted and converted.
 """
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
 # round clock (BCD seconds), action states, projectile slot (in use, world x), the ROM's round result
 OPTIONAL = ["timer", "my_state", "opp_state", "fireball", "fireball_x", "result", "my_react", "opp_react", "my_sub",
-            "opp_sub", "my_dizzy", "opp_dizzy", "my_life", "opp_life"]
+            "opp_sub", "my_dizzy", "opp_dizzy", "my_life", "opp_life", "my_special", "my_fireball", "my_fireball_x",
+            "my_facing"]
 # Action state (0x0C03 Chun-Li, 0x0E03 Dhalsim), observed on the ROM (harness audit, 2026-09-26); the byte after it
 # is a sub-state.
 #   00 stand / walk (also while lifted for a throw at y 136, and falling after a KO)   02 crouch
 #   04 jump (on the ground for take-off / landing); sub-state 02 rising and falling, 04 landing, 06 Chun-Li's air
 #      attack (Dhalsim's air attacks are 0A)   06 turning round after the fighters cross
 #   08 guard: holding back while an attack comes (+0x43: 1 standing, 2 crouching)   0A attack, on the ground or in the air
-#   0C special move (Chun-Li's Lightning Legs, from repeated kicks)
+#   0C special move, player input only (the CPU's specials show as 0A). Which one is +0x180 (0x0D80), set on entering
+#      0C: Ryu 00 Hadoken, 02 Hurricane Kick, 04 Shoryuken. Chun-Li's Lightning Legs are 0C too.
 #   0E hit stun and block stun alike; sub-state 02 reeling / knocked into the air, 04 down, 06 getting up,
 #      08 dizzy. The hit reaction at +0x4A (0x0C4A / 0x0E4A) tells them apart: 06 / 08 block stun (standing /
 #      crouching guard; no life lost, or a Yoga Fire's 4-8 chip), anything else a hit. Dizzy is sub-state 08
@@ -38,6 +40,8 @@ AIR_ATTACK_SUB = 0x06   # in JUMP_STATE
 BLOCK_REACTS = (0x06, 0x08)
 DIZZY_SUB = 0x08
 THROWN_STATE = 0x14
+SPECIAL_STATE = 0x0C
+FACING_RIGHT = 0x40     # my_facing (0x0CF4): the side the ROM mirrors the stick for
 POSE_STATES = (0x10, 0x12)
 
 # |world x difference| in pixels. Measured from random play (2026-09-25): Chun-Li's normals land below
@@ -107,6 +111,10 @@ class Fighters:
     opp_dizzy: Optional[int] = None
     my_life: Optional[int] = None
     opp_life: Optional[int] = None
+    my_special: Optional[int] = None
+    my_fireball: Optional[int] = None
+    my_fireball_x: Optional[int] = None
+    my_facing: Optional[int] = None
 
     @classmethod
     def from_values(cls, names: List[str], values: List[int]) -> "Fighters":
@@ -126,6 +134,12 @@ class Fighters:
     @property
     def facing_right(self) -> bool:
         return self.my_x <= self.opp_x
+
+    @property
+    def game_facing_right(self) -> Optional[bool]:
+        """The side the ROM itself has her facing (and mirrors the stick for). It lags ``facing_right`` while
+        turning round, in the air and in guard / hit stun; None if the map lacks it."""
+        return None if self.my_facing is None else self.my_facing == FACING_RIGHT
 
     @property
     def opp_attacking(self) -> bool:
@@ -163,6 +177,16 @@ STATE_WORDS = {0x00: "stand", 0x02: "crouch", 0x04: "stand", 0x08: "block", ATTA
 
 def in_block_stun(state: Optional[int], react: Optional[int]) -> bool:
     return state == HIT_STATE and react in BLOCK_REACTS
+
+
+def attack_result(frames: Sequence[Fighters]) -> str:
+    """What an attack did, from its frames (the press until it ended, or until its projectile was gone): the
+    opponent entering 0E is the contact, with reaction 06 / 08 "blocked", anything else "hit"; no contact
+    "whiffed". Checked on the ROM (tests/test_rom_moves.py). A stun he was already in at the start is not counted."""
+    for a, b in zip(frames, frames[1:]):
+        if b.opp_state == HIT_STATE and a.opp_state != HIT_STATE:
+            return "blocked" if b.opp_react in BLOCK_REACTS else "hit"
+    return "whiffed"
 
 
 def dizzy(was: bool, state: Optional[int], sub: Optional[int], flag: Optional[int]) -> bool:
