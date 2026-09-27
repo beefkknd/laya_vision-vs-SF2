@@ -55,7 +55,26 @@ def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
 
 def window_argv(port: int, rom: str = None, mesen: str = None, speed: int = 100) -> List[str]:
     """A Mesen window you can watch, running the bridge for ``port`` (same bridge copy as headless). ``speed``: emulation
-    speed in percent for this run only (Mesen's saved settings are not changed; 150 measured at 90 fps)."""
+    speed in percent (150 measured at 90 fps). The window saves these overrides into Mesen's settings when it closes:
+    run it inside KeepMesenSettings."""
     argv = launch_argv(port, rom, mesen)
     return [argv[0], "--emulation.emulationSpeed=%d" % speed] + [
         a for a in argv[1:] if not a.startswith(("--testrunner", "--timeout"))]
+
+
+SETTINGS = os.path.expanduser("~/Library/Application Support/MesenCE/settings.json")
+
+
+class KeepMesenSettings:
+    """A windowed Mesen writes its settings back when it closes, including this run's command-line overrides (speed,
+    controller 2). Use around a window's lifetime: the settings file is put back exactly as it was before."""
+
+    def __enter__(self):
+        self.saved = open(SETTINGS, "rb").read() if os.path.exists(SETTINGS) else None
+        return self
+
+    def __exit__(self, *exc):
+        if self.saved is not None:
+            with open(SETTINGS, "wb") as f:
+                f.write(self.saved)
+        return False

@@ -31,7 +31,7 @@ from typing import Dict, List, Tuple
 
 import _path  # noqa: F401
 from sf2.boot import CHARACTERS, next_fight, start_arcade
-from sf2.headless import launch_argv, window_argv
+from sf2.headless import KeepMesenSettings, launch_argv, window_argv
 from sf2.memory import load, playbook_path, short_path
 from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
@@ -145,6 +145,7 @@ def main() -> int:
                                                              {o: len(r) for o, (_, r) in by_opp.items()}))
     s1 = System1(args.model, me)
     argv = launch_argv(args.port, None) if args.headless else window_argv(args.port, None, speed=args.speed)
+    keep = KeepMesenSettings().__enter__()     # the window saves its overrides on exit: put the settings back after
     b = MesenBridge(args.port, launch=argv)
     files = {k: open(os.path.join(out, k + ".jsonl"), "a") for k in ("actions", "rounds", "games")}
     rng, n, game, opp = random.Random(0), 0, 0, None
@@ -192,6 +193,7 @@ def main() -> int:
         say("Ctrl-C: stopping after %d games (%d rounds)" % (game, n))
     finally:
         b.close()
+        keep.__exit__(None, None, None)
         for f in files.values():
             f.close()
         say("session %s saved in %s" % (session, out))
