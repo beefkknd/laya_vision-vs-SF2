@@ -102,3 +102,14 @@ def test_guiles_charge_specials_hold_the_whole_charge_in_one_macro():
     assert A.moves("guile") == A.BASICS + ["sonic_boom", "flash_kick"]
     assert A.expand("sonic_boom") == [("B",)] * 64 + [("F", "hp")] * 2 + [()] * 2
     assert A.expand("flash_kick") == [("D",)] * 64 + [("U", "hk")] * 2 + [()] * 2
+
+
+def test_zangief_specials_are_a_four_way_circle_without_up_back_and_all_three_punches():
+    """On the ROM the Spinning Pile Driver needs F, D, B and U; the sheet's F..UB + P is a throw or a jab, and a UB
+    step starts a jump that comes out when he is out of range. The jab goes on the first U frame. Any two punches
+    give the Clothesline; all three as on the sheet (tests/test_rom_moves.py)."""
+    assert A.moves("zangief") == A.BASICS + ["spinning_piledriver", "clothesline"]
+    assert A.expand("spinning_piledriver") == ([("F",)] * 2 + [("D", "F")] * 2 + [("D",)] * 2 + [("D", "B")] * 2
+                                               + [("B",)] * 2 + [("U", "lp")] * 2 + [()] * 2)
+    assert not any(t == ("U", "B") for t in A.expand("spinning_piledriver"))
+    assert A.expand("clothesline") == [("lp", "mp", "hp")] * 2 + [()] * 2
