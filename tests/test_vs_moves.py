@@ -134,3 +134,20 @@ def test_outcome_labels():
     assert outcome(rs({}), "hp")["outcome"] == "whiff"
     assert outcome(rs({}, a_state=0), "hp")["executed"] is False
     assert outcome(rs({}, a_state=0), "forward")["outcome"] == "none"
+
+
+def test_short_memory_pulls_the_model_toward_what_really_happened():
+    from sf2.short_memory import ShortMemory, situation
+    m, s = ShortMemory(prior=2.0), situation(40, 0x00)
+    assert m.score("lp", s, 1.0) == 1.0                                  # blank: the model's P(hit)
+    m.record("lp", s, "whiff")
+    m.record("lp", s, "whiff")
+    assert m.score("lp", s, 1.0) == 0.5                                  # (2*1 + 0) / (2 + 2)
+    assert m.score("lp", situation(90, 0x00), 1.0) == 1.0                # another gap bucket: untouched
+    assert m.score("hp", s, 0.2) == 0.2                                  # another move: untouched
+    m.record("hp", s, "hit")
+    assert m.score("hp", s, 0.2) > 0.2
+    small = ShortMemory(keep=2)
+    for o in ("whiff", "whiff", "hit", "hit"):
+        small.record("lp", s, o)
+    assert small.counts("lp", s) == (2, 2)                               # only the last 2 remembered
