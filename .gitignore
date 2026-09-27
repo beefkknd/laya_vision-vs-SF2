@@ -12,6 +12,8 @@ test_data/
 data/
 rollouts/
 human/
+# The game ROM (copied from ~/Downloads; never committed)
+roms/
 # Savestates (made per run; the dataset keeps its own boot states under test_data/_shards/)
 states/*.state
 # Editor / tool caches

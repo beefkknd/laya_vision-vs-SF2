@@ -2,11 +2,22 @@
 
 # Emulator: Mesen 2 running SNES Street Fighter II, driven over a local socket by mesen/sf2_bridge.lua.
 MESEN_PORT = 47800
+# The ROM: Street Fighter II (USA), SHA1 7DDCB96E0D9FEA94D9370635262AC7C28DA85214 (git-ignored; $SF2_ROM overrides)
+DEFAULT_ROM = "roms/Street Fighter II (USA).sfc"
 # RAM addresses differ per cartridge (World Warrior / Turbo / Super SF2, region). Find yours with
 # scripts/find_ram.py; it writes this file.
 DEFAULT_RAM_MAP = "ram_maps/sf2_snes.txt"
 # A savestate at the start of a fight, made with scripts/record_human.py (press F9 in Mesen).
 DEFAULT_SAVESTATE = "states/ryu_vs_ken.state"
+
+# System 2: Qwen 3.8 27B (Q4, MTP) served by omlx on this machine (OpenAI-style chat API); start it with
+# ~/work/omlx/start. Thinking is OFF and the reply capped: with it on, one playbook review spent 11,593 tokens
+# (331 s) reasoning for a 1,177-character answer (the same lesson as agent_harness's model_client.py).
+QWEN_URL = "http://127.0.0.1:8000/v1/chat/completions"
+QWEN_MODEL = "Jundot--Qwen3.8-27B-oQ4e-mtp"
+QWEN_THINKING = False
+QWEN_MAX_TOKENS = 8192
+QWEN_TEMPERATURE = 0.0
 
 # laya-vision: SmolVLM-256M backbone + Laya typed-decision head (PyTorch, runs on Apple MPS).
 BASE_MODEL = "thaitea/laya-vision-smolvlm-256m"

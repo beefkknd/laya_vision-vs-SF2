@@ -82,12 +82,16 @@ def _run(bridge, frames: List[List[str]]):
     return [dict(zip(NAMES, r)) for r in obs.rams], obs.images[n - 4], obs.images[n]
 
 
-def play_round(bridge, s1: System1, opp: str, state: bytes, rng: random.Random, img_dir: Optional[str],
+def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: random.Random, img_dir: Optional[str],
                game: int) -> Round:
-    """One game (round 1 from the savestate) until the ROM's round result is set. Every action is logged from its
-    decision to the next decision, so the opponent's reaction (and a punish while System 1 cannot act) is part of it."""
-    bridge.load_state(state)
-    rows, prev, cur = _run(bridge, [[]] * (4 + rng.randrange(40)))    # a random start so games differ
+    """One game (a round) until the ROM's round result is set: from ``state`` (a savestate), or with ``state`` None
+    from wherever the game is now (arcade play from power-on). Every action is logged from its decision to the next
+    decision, so the opponent's reaction (and a punish while System 1 cannot act) is part of it."""
+    if state is not None:
+        bridge.load_state(state)
+        rows, prev, cur = _run(bridge, [[]] * (4 + rng.randrange(40)))    # a random start so games differ
+    else:
+        rows, prev, cur = _run(bridge, [[]] * 4)
     rnd = Round()
     pending = None          # (decision row, rows since, decision, actual, frame, images) of the last action
     while True:

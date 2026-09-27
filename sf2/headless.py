@@ -9,6 +9,8 @@ import os
 import re
 from typing import List
 
+from .config import DEFAULT_ROM
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRIDGE = os.path.join(ROOT, "mesen", "sf2_bridge.lua")
 MAC_MESEN = "/Applications/Mesen.app/Contents/MacOS/Mesen"
@@ -39,9 +41,9 @@ def find_mesen(explicit: str = None) -> str:
 
 
 def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
-    rom = os.path.expanduser(rom or os.environ.get("SF2_ROM", ""))
-    if not rom or not os.path.exists(rom):
-        raise FileNotFoundError("ROM not found: pass --rom or set SF2_ROM")
+    rom = os.path.expanduser(rom or os.environ.get("SF2_ROM") or os.path.join(ROOT, DEFAULT_ROM))
+    if not os.path.exists(rom):
+        raise FileNotFoundError("ROM not found at %s: pass --rom, set SF2_ROM, or copy it to %s" % (rom, DEFAULT_ROM))
     # --timeout is the test runner's total wall-clock limit (default 100 s); past it Mesen exits mid-run. A week.
     # Running unthrottled, Mesen skips rendering frames on a wall-clock timer: screenshots would lag the RAM by
     # 0-3 frames, differently every run. Rendering every frame makes them exact and deterministic.
@@ -49,3 +51,10 @@ def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
     # play both sides of a VS BATTLE.
     return [find_mesen(mesen), "--testrunner", "--timeout=604800", "--snes.disableFrameSkipping=true",
             "--snes.port2.type=SnesController", rom, bridge_for_port(port)]
+
+
+def window_argv(port: int, rom: str = None, mesen: str = None) -> List[str]:
+    """A Mesen window you can watch, at normal speed, running the bridge for ``port`` (same bridge copy as headless:
+    it ends Mesen when Python disconnects)."""
+    argv = launch_argv(port, rom, mesen)
+    return [argv[0]] + [a for a in argv[1:] if not a.startswith(("--testrunner", "--timeout"))]

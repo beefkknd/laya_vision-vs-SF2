@@ -193,9 +193,13 @@ class MesenBridge:
         except OSError:
             pass
         self.sock.close()
-        if self.proc:
-            try:
-                self.proc.wait(5)
-            except subprocess.TimeoutExpired:
-                self.proc.terminate()
+        if self.proc:        # a Mesen we launched: a window ignores EXIT, so terminate, then kill
+            for stop in (None, self.proc.terminate, self.proc.kill):
+                if stop:
+                    stop()
+                try:
+                    self.proc.wait(3)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
         time.sleep(0.1)
