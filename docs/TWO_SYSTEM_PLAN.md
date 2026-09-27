@@ -10,6 +10,14 @@ A Street Fighter II player built like a human player:
 **Hypothesis:** rules in a memory, with no retraining, make r2 play better against an opponent it was not trained
 for. Then: an adviser that writes those rules during play makes it improve match by match.
 
+**End goal (the demo):** start weak, then watch it get better live.
+- **System 1** plays arcade Street Fighter II continuously (the Mesen windows and console from `scripts/arcade.sh`).
+- **System 2** reviews moments and refines the memory *while System 1 keeps playing*.
+- **One screen shows all three:** System 1 playing; System 2's learning (which rules it wrote, why, and whether they
+  fired and helped); and a curve of win rate against each opponent over time.
+
+The live demo *shows* learning. The verdicts (CP2, CP3) still come from frozen runs on eval openings.
+
 **Status:** planning, v3 (v2 plus the two reviews in §6). Branch `two-system`. Nothing runs until you approve.
 
 ## Checkpoints
@@ -202,6 +210,21 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] **Verdict:** the final frozen memory vs A on unseen eval openings, paired; repeat over at least 2 sessions from an empty memory
 - [ ] B with Claude as the adviser first, then Qwen. If the Claude session passes and the Qwen one fails, the loop works and Qwen's advice is the problem.
 - [ ] Write up in PROGRESS.md and the journal
+
+### Phase 6: the live demo (the end goal)
+- [ ] Decide the weak start: r2 with an empty memory against opponents it has never beaten (the default), or an
+  earlier checkpoint (r0)
+- [ ] Live loop: the arcade console plays continuously with the memory on. System 2 runs beside it (Qwen as a
+  worker, or Claude through a headless `claude -p` call per batch of moments) and writes rules that are merged at
+  round boundaries.
+- [ ] A per-round ledger for live play: the time, opponent, win or loss, net damage, and the memory version it
+  played with (appended, like `out/results.jsonl`)
+- [ ] A live view (a local page that refreshes itself, beside the Mesen windows): a win-rate curve per opponent over
+  rounds; a timeline of the memory (each rule added or dropped, its reason, how often it fired and changed a move);
+  and the latest flagged moments
+- [ ] **Verify:** the curve on the live view matches the ledger, and every rule on the timeline appears in a memory
+  snapshot
+- [ ] Record a session (Mesen, console and live view side by side) for the video
 
 ### Later (not in this plan)
 - [ ] A weak-adviser run: the same session protocol with a deliberately weaker System 2 (a thin playbook, or the
