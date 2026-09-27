@@ -17,6 +17,7 @@ from typing import Dict, Iterable, List, Optional
 import numpy as np
 
 from . import actions as A
+from .frames import model_frame
 
 
 def save_png(arr: np.ndarray, path: str) -> None:
@@ -44,6 +45,7 @@ class Writer:
                target: Dict[str, float], meta: Optional[Dict] = None) -> Dict:
         """Save the images and build the record; ``add`` it once its meta is final."""
         rid = "%s-e%05d-s%06d" % (self.source, episode, step)
+        prev, cur = model_frame(prev), model_frame(cur)
         cur_p = "images/%s.png" % rid
         save_png(cur, os.path.join(self.dir, cur_p))
         if np.array_equal(prev, cur):

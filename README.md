@@ -48,7 +48,10 @@ Mesen 2 (your SNES ROM)                                Python (this repo)
 | Text state | `me=ryu opp=ken dist=mid my_hp=80 opp_hp=45 last=hadouken airborne=0 opp_airborne=1` |
 | Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` recognises fireball and dragon-punch motions |
 | Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
-| LoRA | `scripts/train.py` + `sf2/lora.py`. Early stopping uses held-out teacher frames |
+| LoRA | `scripts/train.py` + `sf2/lora.py`. Always starts from base laya-vision 256M; early stopping on `val.jsonl`, or 5% of train |
+| VS BATTLE (both pads) | `sf2/vs.py`: boot to a 2-player fight, place the fighters at a gap, record an exchange. `scripts/vs_moves.py`: every move of both fighters, checked and measured, reach sweeps |
+| Stage-1 data | `sf2/vs_sweep.py` + `scripts/vs_dataset.py`: 20 actions x 3 ranges per character vs a still dummy, labelled hit / whiff / blocked / none from RAM; `scripts/audit_dataset.py`, `scripts/verify_replay.py` check it |
+| What the model sees | `sf2/frames.py`: every frame has its HUD (rows 0-61) blanked, at train and play time |
 | Student plays / relabel / gate | `scripts/play_student.py`, `scripts/relabel.py` (`dagger` or `filter`), `scripts/play_teacher.py`, `scripts/gate.py`. `scripts/dagger_round.sh N` runs one turn of the loop |
 
 Directions are relative: `forward` is toward the opponent, `back` is away, and `block` is down-back. Buttons follow SF2's default SNES layout: **Y X L = jab / strong / fierce, B A R = short / forward / roundhouse**. If your in-game button config differs, change `PAD` in `sf2/config.py`.
@@ -113,6 +116,34 @@ python scripts/relabel.py --rollout rollouts/r0 --name filter_r1 --mode filter
 On day 7, compare `scripts/gate.py rollouts/teacher rollouts/r0 rollouts/r1 rollouts/r2`. If win rate and damage per round have not moved, the labels are too coarse. Fix the teacher or add a macro; don't collect more frames.
 
 **Headless runs.** Mesen 2 can run without a window: `Mesen --testrunner <rom> mesen/sf2_bridge.lua`. Pass that as `--launch "<command>"` (or set `SF2_MESEN_LAUNCH`), and Python starts Mesen itself and ends it when done. I haven't confirmed that screenshots work in test-runner mode. If `check_env.py --launch ...` saves blank images, use the windowed setup above.
+
+## Stage 1: still-opponent data for all 8 characters
+
+Python plays both pads in VS BATTLE (Mesen's saved settings leave port 2 empty; `sf2/headless.py` plugs a pad in for
+the run). Each character stands on the left, facing right, at 10 gaps per range (close < 55 <= mid < 120 <= far px)
+against a dummy that stands, crouches or crouch-blocks, and presses each of its 20 actions. RAM gives the outcome.
+
+```bash
+python scripts/vs_dataset.py run --pairs ryu:chunli,ken:guile,honda:blanka,zangief:dhalsim   # ~5 min, 48 headless Mesens
+python scripts/audit_dataset.py        # ~96k mechanical checks per character; exit 1 on any violation
+python scripts/verify_replay.py        # re-records a random sample from each record's boot; must match byte for byte
+python scripts/train.py --out runs/all8 --data test_data/ryu --data test_data/ken --data test_data/chunli \
+    --data test_data/guile --data test_data/honda --data test_data/blanka --data test_data/zangief --data test_data/dhalsim
+```
+
+`test_data/<char>/` (local only, git-ignored):
+
+| file | rows | what |
+|---|---|---|
+| `train.jsonl` | 2520 | what `train.py` reads: `train_real` + `train_mirrored` |
+| `train_real.jsonl` | 1260 | real, left side: 20 actions x 3 ranges x 7 gaps x 3 postures |
+| `train_mirrored.jsonl` | 1260 | the same, flipped: frame mirrored, left/right buttons swapped, `side`/`dx` flipped |
+| `test_real_left.jsonl`, `test_real_right.jsonl` | 540 each | real frames at the 3 held-out gaps per range, on each side (the mirroring check) |
+
+Each record: two model frames (4 frames apart, HUD blanked), the RAM note, the question
+`sf2.vs_sweep.outcome_question(action)` (choice: hit / whiff / blocked / none) and its `label`, plus the measurements
+(damage, frames until the fighter can act again, travel) and the boot savestate it came from. The special-move timings
+are the ROM-verified ones from the move tests; charge moves charge on down-back so the gap does not change.
 
 ## Check these on day 1 (the likely breakpoints)
 

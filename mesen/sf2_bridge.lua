@@ -11,18 +11,27 @@
 -- Commands (one line each, from Python):
 --   VARS <n>                   + n lines "name addr size signed"  (addr = offset into WRAM, 7E0000 -> 0)
 --   RUN <n> <caps> <b1> .. <bn>   apply n frames of input; bi = "down+right+l" or "-"; caps = "0,8,12" or "-"
+--                              bi = "<p1>/<p2>" (e.g. "right/left+y") also drives controller 2 (VS BATTLE)
 --   WATCH <n> <every>          n frames of player-controlled input; log it; screenshot every <every> frames
 --   LOADSTATE <len>            + len bytes of a savestate made by SAVESTATE
 --   SAVESTATE                  save now; bytes come back in the report
+--   RESET                      reset the cartridge and report its new initial state
+--   CAPTURE png|raw            screenshots as PNG (takeScreenshot) or raw RGB from the screen buffer; use raw when
+--                              PNGs come back blank (headless --testrunner runs)
+--   KEEP                       keep a headless test-runner alive during slow Python inference; no response
 --   DUMP                       whole 128 KiB WRAM
 --   QUIT                       disconnect, keep emulating, wait for the next Python run
 --   EXIT                       end the Mesen process (headless --testrunner runs)
 -- F9 while a WATCH is running saves a savestate; it comes back in that WATCH's report.
 -- Report (to Python), after every command:
 --   OBS <nrams> <ninputs> <nimgs> <statelen>, then nrams csv lines (RAM before frame 0..n), ninputs lines of
---   pressed buttons, nimgs x ("IMG <frame> <len>" + png bytes), then <statelen> savestate bytes.
+--   pressed buttons, nimgs x ("IMG <frame> <len>" + png bytes, or "RAW <frame> <w> <h> <len>" + RGB bytes),
+--   then <statelen> savestate bytes.
 
 local HOST, PORT = "127.0.0.1", 47800
+-- Headless copies (sf2/headless.py) set this: when Python goes away (exits, crashes, is killed) the socket closes and
+-- the test runner ends instead of emulating on for its whole --timeout.
+local EXIT_ON_DISCONNECT = false
 do  -- SF2_BRIDGE_PORT overrides the port (needs "Allow access to I/O and OS functions"; ignored otherwise)
   local ok, v = pcall(function() return os.getenv("SF2_BRIDGE_PORT") end)
   if ok and tonumber(v or "") then PORT = tonumber(v) end
@@ -48,19 +57,24 @@ local function tryConnect()
   return true
 end
 
+local function lost(e)
+  if EXIT_ON_DISCONNECT then emu.stop(1) end
+  error("sf2_bridge: socket " .. tostring(e))
+end
+
 local function send(s)
   local i = 1
   while i <= #s do
     local last, e, partial = conn:send(s, i)
     if last then i = last + 1
     elseif e == "timeout" then i = partial + 1
-    else error("sf2_bridge: socket " .. tostring(e)) end
+    else lost(e) end
   end
 end
 
 local function recvLine()
   local line, e = conn:receive("*l")
-  if not line then error("sf2_bridge: socket " .. tostring(e)) end
+  if not line then lost(e) end
   return line
 end
 
@@ -81,6 +95,24 @@ local mode, n, k = nil, 0, 0          -- mode: nil (waiting) | "run" | "watch" |
 local plan, caps, every = {}, {}, 0
 local rams, inputs, imgs, state = {}, {}, {}, nil
 local cbRef, f9Down = nil, false
+local capture = "png"
+
+-- one screenshot: a PNG string, or {w, h, rgb bytes} from the raw ARGB screen buffer
+local function grab()
+  if capture == "png" then return emu.takeScreenshot() end
+  local size = emu.getScreenSize()
+  local buf = emu.getScreenBuffer()
+  local parts, chunk = {}, {}
+  for i = 1, #buf do
+    local c = buf[i]
+    chunk[#chunk + 1] = (c >> 16) & 0xFF
+    chunk[#chunk + 1] = (c >> 8) & 0xFF
+    chunk[#chunk + 1] = c & 0xFF
+    if #chunk >= 3072 then parts[#parts + 1] = string.char(table.unpack(chunk)); chunk = {} end
+  end
+  if #chunk > 0 then parts[#parts + 1] = string.char(table.unpack(chunk)) end
+  return {size.width, size.height, table.concat(parts)}
+end
 
 local function readVars()
   local t = {}
@@ -106,15 +138,32 @@ local function inputTable(spec)
   return t
 end
 
+-- Mesen 2's setInput reads port and subport from the top of a 4-slot stack (lua_settop 4), so with the documented
+-- setInput(input, port) the port always comes out 0. Passing 4 values puts port in slot 3, subport in slot 4.
+local function setPad(t, port) emu.setInput(t, port, port, 0) end
+
+-- "p1" drives controller 1 only; "p1/p2" drives both (controller 2 is left alone otherwise)
+local function applyFrame(spec)
+  local slash = string.find(spec, "/", 1, true)
+  if not slash then setPad(inputTable(spec), 0); return end
+  setPad(inputTable(string.sub(spec, 1, slash - 1)), 0)
+  setPad(inputTable(string.sub(spec, slash + 1)), 1)
+end
+
 local function report()
   local nimg = 0
   for _ in pairs(imgs) do nimg = nimg + 1 end
   send(string.format("OBS %d %d %d %d\n", #rams, #inputs, nimg, state and #state or 0))
   for _, line in ipairs(rams) do send(line .. "\n") end
   for _, line in ipairs(inputs) do send(line .. "\n") end
-  for idx, png in pairs(imgs) do
-    send(string.format("IMG %d %d\n", idx, #png))
-    send(png)
+  for idx, img in pairs(imgs) do
+    if type(img) == "string" then
+      send(string.format("IMG %d %d\n", idx, #img))
+      send(img)
+    else
+      send(string.format("RAW %d %d %d %d\n", idx, img[1], img[2], #img[3]))
+      send(img[3])
+    end
   end
   if state then send(state) end
   rams, inputs, imgs, state = {}, {}, {}, nil
@@ -154,12 +203,22 @@ local function serve()
       mode = "watch"
       return
     elseif op == "LOADSTATE" then
-      local data = conn:receive(tonumber(cmd[2]))
+      local data, e = conn:receive(tonumber(cmd[2]))
+      if not data then lost(e) end
       armExec(data)
       return
     elseif op == "SAVESTATE" then
       armExec(nil)
       return
+    elseif op == "RESET" then
+      emu.reset()
+      mode, n, k, caps = "run", 0, 0, {[0] = true}
+      return
+    elseif op == "CAPTURE" then
+      capture = cmd[2] == "raw" and "raw" or "png"
+      send("OK\n")
+    elseif op == "KEEP" then
+      -- Deliberately silent: Python will next expect an OBS response, not a heartbeat response.
     elseif op == "DUMP" then
       local size = emu.getMemorySize(WRAM)
       local parts, chunk = {}, {}
@@ -205,7 +264,7 @@ local function onPoll()
     -- index k: state before frame k (k == n: after the last one)
     rams[#rams + 1] = readVars()
     if caps[k] or (mode == "watch" and every > 0 and k % every == 0 and k < n) then
-      imgs[k] = emu.takeScreenshot()
+      imgs[k] = grab()
     end
     if mode == "watch" and k < n then
       inputs[#inputs + 1] = pressed()
@@ -217,7 +276,7 @@ local function onPoll()
       report()
       mode = nil
     else
-      if mode == "run" then emu.setInput(inputTable(plan[k + 1]), 0) end
+      if mode == "run" then applyFrame(plan[k + 1]) end
       k = k + 1
       return
     end

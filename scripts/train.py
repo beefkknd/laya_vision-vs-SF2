@@ -1,12 +1,14 @@
-"""Days 3 and 6: LoRA laya-vision on the teacher's frames; early-stop on held-out frames from the same teacher.
+"""LoRA-train base laya-vision (sf2.config.BASE_MODEL, SmolVLM-256M) on one or more dataset dirs. Always starts from
+the base checkpoint; no other init is supported.
 
-    python scripts/train.py --data data/seed_teacher --out runs/r0
-    python scripts/train.py --data data/seed_teacher --data data/dagger_r1 --data data/dagger_r1_hot \\
-        --init runs/r0/best --out runs/r1
+    python scripts/train.py --out runs/all8 \\
+        --data test_data/ryu --data test_data/ken --data test_data/chunli --data test_data/guile \\
+        --data test_data/honda --data test_data/blanka --data test_data/zangief --data test_data/dhalsim
 
-Each --data dir is sampled as its own group, in equal shares by default (``--mix name=weight`` to change it),
-which is how seed and DAgger rows are merged 50/50 without one swamping the other.
-Early stopping watches val *frame accuracy against the teacher*; the real verdict is scripts/gate.py.
+Each --data dir supplies <dir>/train.jsonl (and <dir>/val.jsonl if it has one) in laya-vision's record layout
+(laya.vlm_train.jsonl_example). Each dir is sampled as its own group, in equal shares, so every character gets the
+same weight. Without any val.jsonl, 5% of the training rows are held out for early stopping. The adapters are merged
+before saving, so <out>/best is an ordinary laya-vision checkpoint.
 """
 import argparse
 import json
@@ -25,26 +27,18 @@ class EarlyStop(Exception):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", action="append", required=True, help="dataset dir (train.jsonl / val.jsonl)")
-    ap.add_argument("--init", default=BASE_MODEL, help="checkpoint to start from (Hub id or runs/<x>/best)")
+    ap.add_argument("--data", action="append", required=True, help="dataset dir (train.jsonl, optional val.jsonl)")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--mode", choices=["lora", "head", "last_n", "full"], default="lora")
     ap.add_argument("--rank", type=int, default=16)
     ap.add_argument("--alpha", type=float, default=32.0)
-    ap.add_argument("--n-last", type=int, default=4, help="layers for --mode last_n")
     ap.add_argument("--epochs", type=float, default=2.0)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr-head", type=float, default=1e-4)
-    ap.add_argument("--lr-backbone", type=float, default=None, help="default 2e-4 for lora, 2e-5 otherwise")
+    ap.add_argument("--lr-backbone", type=float, default=2e-4, help="learning rate of the LoRA adapters")
     ap.add_argument("--eval-every", type=int, default=250)
     ap.add_argument("--patience", type=int, default=3, help="evals without val-accuracy gain before stopping")
     ap.add_argument("--val-limit", type=int, default=1500)
-    ap.add_argument("--mix", action="append", default=[], help="group=weight, e.g. dagger_r1_hot=0.5")
-    ap.add_argument("--temperature", choices=["one", "keep"], default="one",
-                    help="'one' resets the choice temperature to 1.0 (the base checkpoint's photo-fitted value "
-                         "flattens game policies); 'keep' leaves it")
     ap.add_argument("--max-minutes", type=float, default=None)
-    ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
@@ -52,7 +46,7 @@ def main():
     import laya
     import laya.vlm_train as vt
 
-    agent = laya.load_vlm(args.init, device=args.device)
+    agent = laya.load_vlm(BASE_MODEL, device=args.device)
     train, val = [], []
     for d in args.data:
         root, name = os.path.split(os.path.normpath(d))
@@ -65,30 +59,28 @@ def main():
     if not val:
         rng.shuffle(train)
         val, train = train[: len(train) // 20], train[len(train) // 20:]
-    print("train %d frames, val %d frames, init %s, mode %s" % (len(train), len(val), args.init, args.mode))
+    print("base %s | train %d rows from %d dirs, val %d rows" % (BASE_MODEL, len(train), len(args.data), len(val)))
 
-    if args.mode == "lora":
-        n = lora.inject(agent.model.encoder, rank=args.rank, alpha=args.alpha)
-        print("LoRA r=%d on %d projections" % (args.rank, n))
-        orig_set_trainable = vt.set_trainable
+    n = lora.inject(agent.model.encoder, rank=args.rank, alpha=args.alpha)
+    print("LoRA r=%d on %d projections" % (args.rank, n))
+    orig_set_trainable = vt.set_trainable
 
-        def set_trainable(model, mode="head", n_last=4, train_vision=False):
-            orig_set_trainable(model, "head", n_last, train_vision)  # backbone frozen, decision head trains
-            for p in lora.lora_params(model):
-                p.requires_grad = True
-            return sum(p.numel() for p in model.parameters() if p.requires_grad)
+    def set_trainable(model, mode="head", n_last=4, train_vision=False):
+        orig_set_trainable(model, "head", n_last, train_vision)  # backbone frozen, decision head trains
+        for p in lora.lora_params(model):
+            p.requires_grad = True
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-        vt.set_trainable = set_trainable  # vlm_train.train looks it up by name
-    lr_backbone = args.lr_backbone or (2e-4 if args.mode == "lora" else 2e-5)
+    vt.set_trainable = set_trainable  # vlm_train.train looks it up by name
 
     def save(path):
-        model = lora.merge(agent.model) if args.mode == "lora" else agent.model
+        # merged copy (training continues on the adapters); the choice temperature goes back to 1.0, because the
+        # base checkpoint's photo-fitted value flattens game answers
         keep_model, keep_t, keep_tb = agent.model, agent.temperature, agent.temperature_by_options
-        agent.model = model
-        if args.temperature == "one":
-            agent.temperature = [1.0] + list(keep_t)[1:]
-            agent.temperature_by_options = {k: v for k, v in keep_tb.items() if not k.startswith("choice")}
-        agent.save(path, include_backbone=args.mode != "head")
+        agent.model = lora.merge(keep_model)
+        agent.temperature = [1.0] + list(keep_t)[1:]
+        agent.temperature_by_options = {k: v for k, v in keep_tb.items() if not k.startswith("choice")}
+        agent.save(path, include_backbone=True)
         agent.model, agent.temperature, agent.temperature_by_options = keep_model, keep_t, keep_tb
 
     os.makedirs(args.out, exist_ok=True)
@@ -112,18 +104,17 @@ def main():
 
     eval_fn(0)
     steps = max(1, int(args.epochs * len(train) / args.batch_size))
-    mix = {k: float(v) for k, v in (s.split("=") for s in args.mix)} or None
     try:
-        vt.train(agent.model, agent.processor, train, steps=steps, batch_size=args.batch_size, freeze=args.mode,
-                 n_last=args.n_last, lr_head=args.lr_head, lr_backbone=lr_backbone, device=str(agent.device),
-                 seed=args.seed, log_every=25, max_minutes=args.max_minutes, num_workers=args.workers,
-                 warmup=min(100, steps // 10), eval_fn=eval_fn, eval_every=args.eval_every, mix_weights=mix)
+        vt.train(agent.model, agent.processor, train, steps=steps, batch_size=args.batch_size, freeze="lora",
+                 n_last=4, lr_head=args.lr_head, lr_backbone=args.lr_backbone, device=str(agent.device),
+                 seed=args.seed, log_every=25, max_minutes=args.max_minutes, num_workers=0,
+                 warmup=min(100, steps // 10), eval_fn=eval_fn, eval_every=args.eval_every)
         eval_fn(steps)
     except EarlyStop:
         print("early stop: no val gain in %d evals" % args.patience)
     with open(os.path.join(args.out, "train_log.json"), "w") as f:
-        json.dump({"args": vars(args), "best": best, "evals": hist}, f, indent=2)
-    print("best val frame accuracy %.3f at step %s -> %s/best" % (best["acc"], best["step"], args.out))
+        json.dump({"args": vars(args), "base": BASE_MODEL, "best": best, "evals": hist}, f, indent=2)
+    print("best val accuracy %.3f at step %s -> %s/best" % (best["acc"], best["step"], args.out))
 
 
 if __name__ == "__main__":

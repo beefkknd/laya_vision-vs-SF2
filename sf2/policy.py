@@ -9,12 +9,14 @@ from typing import Dict, Tuple
 import numpy as np
 
 from . import actions as A
+from .frames import model_frame
 
 
 def make_state(prev: np.ndarray, cur: np.ndarray, text: str) -> Dict:
     from PIL import Image
 
-    return {"images": [Image.fromarray(prev).convert("RGB"), Image.fromarray(cur).convert("RGB")], "context": text}
+    return {"images": [Image.fromarray(model_frame(prev)).convert("RGB"),
+                       Image.fromarray(model_frame(cur)).convert("RGB")], "context": text}
 
 
 class LayaPolicy:

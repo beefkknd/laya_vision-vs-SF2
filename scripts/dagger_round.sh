@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One turn of the loop: student plays -> DAgger relabel -> LoRA on seed + new rows -> gate.
+# One turn of the loop: student plays -> DAgger relabel -> LoRA on seed + all DAgger rows so far -> gate.
+# Every round trains from base laya-vision on the aggregated data (scripts/train.py has no other init).
 #   scripts/dagger_round.sh <round number>      e.g. scripts/dagger_round.sh 1   (needs runs/r0/best)
 set -euo pipefail
 N=${1:?round number}; P=$((N - 1)); MATCHES=${MATCHES:-10}; SAVESTATE=${SAVESTATE:-states/ryu_vs_ken.state}
@@ -13,6 +14,6 @@ for i in $(seq 1 "$N"); do
   DATA+=(--data data/dagger_r$i)
   [ -d data/dagger_r${i}_hot ] && DATA+=(--data data/dagger_r${i}_hot)
 done
-python scripts/train.py "${DATA[@]}" --init runs/r$P/best --out runs/r$N --epochs 1
+python scripts/train.py "${DATA[@]}" --out runs/r$N
 python scripts/play_student.py --model runs/r$N/best --name r$N --matches "$MATCHES" --savestate "$SAVESTATE"
 python scripts/gate.py rollouts/teacher rollouts/r$P rollouts/r$N

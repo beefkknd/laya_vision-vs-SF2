@@ -1,10 +1,21 @@
+# Generated outputs: logs, per-port bridge copies (sf2/headless.py), move-test takes, audit reports
+out/
+# Training runs / checkpoints (only base laya-vision is used; it lives in the Hugging Face cache)
+runs/
+# Stage-1 dataset (scripts/vs_dataset.py): ~250 MB of frames, local only. Rebuild with
+#   python scripts/vs_dataset.py run --pairs ryu:chunli,ken:guile,honda:blanka,zangief:dhalsim
+# frames/ and the *.jsonl files are derived from _shards/ + images/ by `vs_dataset.py build`
+test_data/
+# Older pipeline outputs (teacher / DAgger / human recordings)
 data/
 rollouts/
-runs/
-out/
-states/*.state
-*.md~
 human/
+# Savestates (made per run; the dataset keeps its own boot states under test_data/_shards/)
+states/*.state
+# Editor / tool caches
+*.md~
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 .venv/
+.DS_Store

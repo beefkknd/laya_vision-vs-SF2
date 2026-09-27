@@ -1,0 +1,47 @@
+# Street Fighter II: The World Warrior (USA), SHA1 7DDCB96E0D9FEA94D9370635262AC7C28DA85214
+# Fighter structs at 0x0D00 (player 1) and 0x0F00 (player 2): y at +0x10, life at +0x12, world x at +0x18.
+# World x exceeds 255, so it is read as 2 bytes. Checked by tests/test_harness_traces.py.
+my_hp      0x0D12   2     0
+opp_hp     0x0F12   2     0
+# True life (same scale): drops by the whole hit on the hit frame, while the bars above drain 1 per frame after it.
+# On a KO blow it stops at a few points (or wraps to 255); the env books the rest from the round result.
+my_life    0x0C35   1     0
+opp_life   0x0E35   1     0
+my_x       0x0D18   2     0
+opp_x      0x0F18   2     0
+my_y       0x0D10   2     0
+opp_y      0x0F10   2     0
+# Round clock, BCD (0x79 = 79 s at the Chun-Li savestate); the env only uses "reached zero".
+timer      0x1AC8   1     0
+# Action state per fighter: 00 stand, 02 crouch, 04 jump, 08 guard, 0A attack, 0E hit / block stun / down, 14 thrown
+# (full table in sf2/ram.py).
+my_state   0x0C03   1     0
+opp_state  0x0E03   1     0
+# Hit reaction, read in state 0E: 06 standing / 08 crouching block (block stun; a blocked Yoga Fire chips 4-8 life),
+# anything else is a hit (00 02 reel, 0A 0E knockdown, 10 into the air, 18 ...). Checked by tests/test_harness_traces.py.
+my_react   0x0C4A   1     0
+opp_react  0x0E4A   1     0
+# Sub-state (the byte after the action state) and the dizzy flag (+0x89, set from the knockdown that dizzies): dizzy =
+# state 0E, sub-state 08 entered with the flag set; the flag can clear before the stars end (sf2/ram.py dizzy()).
+# On the ROM mashing shortens a dizzy (223 -> 30 frames).
+my_sub     0x0C04   1     0
+opp_sub    0x0E04   1     0
+my_dizzy   0x0C89   1     0
+opp_dizzy  0x0E89   1     0
+# Projectile slot (Dhalsim's Yoga Fire; Chun-Li has none in this version): 1 while one is on screen, world x at
+# 0x1057 (0x1056 is the sub-pixel). About 3 px per frame toward her. Checked by tests/test_harness_traces.py.
+fireball   0x1050   1     0
+fireball_x 0x1057   2     0
+# Player 1's own projectile slot (Ryu's Hadoken): the same layout 0x50 lower. 0x1050 is player 2's slot (owner byte at
+# +0x0F: 0 in 0x1000, 1 in 0x1050); both can be on screen together. Checked by tests/test_rom_moves.py.
+my_fireball   0x1000   1  0
+my_fireball_x 0x1007   2  0
+# Player 1's special (state 0C, player input only), set on entering 0C: Ryu and Ken 00 Hadoken, 02 Hurricane Kick,
+# 04 Shoryuken (Ken's Hadoken also uses my_fireball). Chun-Li 02 Lightning Legs, 00 Spinning Bird Kick.
+my_special 0x0D80   1     0
+# The side the ROM has player 1 facing and mirrors the stick for: 40 right, 00 left. It lags the x positions while
+# turning, in the air and in guard / hit stun; a motion resolved from x then comes out mirrored (tests/test_rom_moves.py).
+my_facing  0x0CF4   1     0
+# Round result: 0 while fighting, 1 Chun-Li won, 2 Dhalsim won, FF draw. Set on the KO frame, or 30 frames after the
+# clock shows 00 (hits in those frames count); cleared when the bars refill for the next round.
+result     0x1ACF   1     0
