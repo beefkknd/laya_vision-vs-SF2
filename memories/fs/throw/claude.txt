@@ -1,2 +1,0 @@
-opp_state=stand dist=close me_state=stand -> throw        # walk-in throw (rule 8)
-opp_state=crouch dist=close me_state=stand -> throw       # walk-in throw (rule 8)

@@ -1,3 +1,0 @@
-opp_state=attack dist=close me_state=stand -> block       # he attacks within reach: crouch-guard (rule 1)
-opp_state=attack dist=mid me_state=stand -> block         # he attacks at mid range: crouch-guard (rule 1)
-fireball=close me_state=stand -> block                    # a hadouken is about to hit: crouch-guard (rule 1)

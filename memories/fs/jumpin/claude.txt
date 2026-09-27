@@ -1,2 +1,0 @@
-opp_state=stand dist=mid me_state=stand -> jump_forward   # jump in over his limbs (rule 5)
-opp_state=crouch dist=mid me_state=stand -> jump_forward  # jump in over his limbs (rule 5)

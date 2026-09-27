@@ -1,4 +1,0 @@
-opp_state=jump dist=close me_state=stand -> hp            # anti-air up close: fierce (rule 11)
-opp_state=jumpattack dist=close me_state=stand -> hp      # anti-air up close: fierce (rule 11)
-opp_state=jump dist=mid me_state=stand -> hk              # anti-air at mid range: roundhouse (rule 11)
-opp_state=jumpattack dist=mid me_state=stand -> hk        # anti-air at mid range: roundhouse (rule 11)
