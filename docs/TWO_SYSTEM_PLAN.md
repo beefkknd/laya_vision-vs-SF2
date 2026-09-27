@@ -82,6 +82,12 @@ What is known now:
   rolling attack, headbutt; mashes: hundred hand slap, electricity). Each one is checked on the ROM, as Lightning Legs
   was.
 - [ ] **B2 note:** the RAM note and state words hold for each character (the per-character checks JOURNAL.md lists)
+- [ ] **B3a baseline labels (first, to get the Studio GPU training):** the existing scripted teacher is already
+  character-neutral in code (it ignores the character and never picks Lightning Legs), so for a **baseline
+  checkpoint** every character uses the shared basic moves and this teacher. Gate it per character vs random play on
+  the dev openings first. Collect only for characters where it wins by at least +15 (CPB2), with the same number of
+  decisions per character (`collect_teacher --greedy --eps 0.1`), then train from the base model on the Studio.
+  Specials come in the next round (B2).
 - [ ] **B3 labels (the hard part):** choose the label source per character. Options: a generic teacher built from
   per-character move data (range, speed, which move anti-airs); outcome-filtered exploration (`relabel.py --mode
   filter`); System 2 as the teacher. Prototype the cheapest one on one character first.
