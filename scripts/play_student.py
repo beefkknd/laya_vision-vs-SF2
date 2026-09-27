@@ -12,7 +12,9 @@ import json
 from contextlib import nullcontext
 
 import _path  # noqa: F401
+from sf2 import memory
 from sf2.dataset import Writer
+from sf2.memory import TAU
 from sf2.cli import add_env_args, make_env
 from sf2.loop import play, save_rounds
 from sf2.policy import LayaPolicy
@@ -28,15 +30,26 @@ def main():
     ap.add_argument("--matches", type=int, default=10)
     ap.add_argument("--sample", action="store_true", help="sample from the probabilities instead of the top option")
     ap.add_argument("--device", default=None)
+    ap.add_argument("--memory", default=None, help="a memory folder (owner.txt, claude.txt, qwen.txt): situation rules "
+                                                  "that nudge the move (sf2/memory.py); unset = laya alone")
+    ap.add_argument("--tau", type=float, default=TAU, help="a rule's move is played if laya's probability of it is "
+                                                         "within tau of its top move")
     args = ap.parse_args()
 
     pol = LayaPolicy(args.model, device=args.device, sample=args.sample, seed=args.seed)
+    mem = memory.load(args.memory) if args.memory else None
+    if mem:
+        print("memory %s: %d rules, tau %.2f" % (args.memory, len(mem.rules), args.tau), flush=True)
 
     def choose(env, prev, cur, text, t_dist):
         keep_alive = getattr(env.backend, "keep_alive", None)
         with keep_alive() if keep_alive else nullcontext():
             a, probs = pol.act(prev, cur, text)
-        return a, {"actor": "student", "student_probs": probs}
+        if mem is None:
+            return a, {"actor": "student", "student_probs": probs}
+        move, use = mem.apply(text, probs, a, args.tau)
+        return move, {"actor": "student", "student_probs": probs, "laya_top": a,
+                      **{"memory_" + k: v for k, v in use.items()}}
 
     env = make_env(args)
     w = Writer(args.out, args.name, source=args.name, val_every=0)  # all rows -> train.jsonl
@@ -45,7 +58,7 @@ def main():
     env.close()
     save_rounds("%s/%s/rounds.jsonl" % (args.out, args.name), rounds)
     g = gate(rows, rounds)
-    g.update(model=args.model, savestate=args.savestate)
+    g.update(model=args.model, savestate=args.savestate, memory=args.memory, tau=args.tau if mem else None)
     with open("%s/%s/gate.json" % (args.out, args.name), "w") as f:
         json.dump(g, f, indent=2)
     print(json.dumps(g, indent=2))

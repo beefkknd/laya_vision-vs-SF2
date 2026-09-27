@@ -224,8 +224,9 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [x] **Verify** the Studio's omlx is reachable from the Mac Pro: yes, as `qwen38-27b-oq4e-mtp` (fixed on the Studio side 2026-09-27)
 
 ### Phase 2: the memory, with a frozen playbook (arms C and D)
-- [ ] **Prototype first:** with an empty memory, play must be identical to r2, decision for decision, on 1 dev opening
-- [ ] **Prototype:** one rule that must fire (`opp_state=jump dist=mid -> hp`). The log shows *fired* and *changed*, and the move changes only within τ.
+- [x] **Prototype first:** with an empty memory, play is identical to r2: all 489 decisions on dev opening 16
+- [x] **Prototype:** `opp_state=jump dist=mid -> hp` fired 12 times and changed **0**. laya gives fierce 1–10% when Ryu jumps (it wants jump_forward, 41–54%), so every gap (0.32–0.66) exceeds τ = 0.3. A rule that contradicts the hands never applies at a global τ of 0.3.
+- [ ] **Decide τ:** per rule (the rule's weight is its τ; owner rules may use 1 = override), fixed on dev before any eval run (recommended), or a single global τ
 - [ ] Memory in the play loop: most-specific match, the τ nudge, author from the file, the loop guard, a snapshot per round
 - [ ] Playbook v1 (Claude): TEACHER.md's Stage 3/4 tactics written as rules, each with its source, and adapted to Ryu where the tactic was Dhalsim-specific
 - [ ] You review the playbook: keep, edit or veto

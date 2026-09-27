@@ -38,6 +38,7 @@ def record_result(path, name, script, model, openings, workers, argv, gate):
     opt = lambda flag: argv[argv.index(flag) + 1] if flag in argv else None  # noqa: E731
     row = {"time": time.strftime("%Y-%m-%dT%H:%M:%S"), "name": name, "script": script, "model": model,
            "savestate": opt("--savestate"), "me": opt("--me"), "opp": opt("--opp"), "openings": openings,
+           "memory": opt("--memory"), "tau": opt("--tau"),
            "workers": workers, **{k: gate.get(k) for k in LEDGER_KEYS if k in gate}}
     with open(path, "a") as f:
         f.write(json.dumps(row) + "\n")

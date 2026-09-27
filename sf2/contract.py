@@ -123,6 +123,8 @@ def parse_rule(line: str) -> Rule:
     parts = right.split()
     if not parts or parts[0] not in ACTIONS:
         raise ValueError("unknown move %r (moves: %s)" % (parts[0] if parts else "", ", ".join(ACTIONS)))
+    if ("last", "=", parts[0]) in conds:
+        raise ValueError("a rule on last=%s may not advise %s: it would repeat itself forever" % (parts[0], parts[0]))
     opts = {"weight": DEFAULT_WEIGHT, "author": "you"}
     for p in parts[1:]:
         key, sep, value = p.partition("=")
