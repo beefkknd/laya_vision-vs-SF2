@@ -18,6 +18,7 @@ import numpy as np
 
 import _path  # noqa: F401
 from sf2.config import PAD
+from sf2.config import IMAGE_SIZE
 from sf2.frames import HUD_ROWS
 from sf2.vs import physical
 from sf2.vs_sweep import MOVEMENT, OUTCOMES, POSTURES, RANGES, TEST_INDEX, actions, outcome_question, range_of
@@ -164,8 +165,9 @@ def audit_char(a: Audit, char: str) -> Dict[str, int]:
                     continue
                 a.check("frame_readable", True, full)
                 cache[p] = img
-                a.check("frame_shape", img.shape == (224, 256, 3), full)
+                a.check("frame_shape", img.shape == (IMAGE_SIZE, IMAGE_SIZE, 3), full)
                 a.check("hud_black", not img[:HUD_ROWS].any(), full)
+                a.check("pad_black", not img[224:].any(), full)
                 a.check("frame_not_blank", img[HUD_ROWS:].std() > 5, full)
     for m in recs["train_mirrored"]:
         s = src.get(m["id"][:-2])

@@ -1,5 +1,6 @@
 """LoRA-train base laya-vision (sf2.config.BASE_MODEL, SmolVLM-256M) on one or more dataset dirs. Always starts from
-the base checkpoint; no other init is supported.
+the base checkpoint; no other init is supported. Images go in at 256x256 native pixels (sf2.config.IMAGE_CFG), no
+upscale; the saved checkpoint keeps those settings, so play loads them too.
 
     python scripts/train.py --out runs/all8 \\
         --data test_data/ryu --data test_data/ken --data test_data/chunli --data test_data/guile \\
@@ -18,7 +19,7 @@ import time
 
 import _path  # noqa: F401
 from sf2 import lora
-from sf2.config import BASE_MODEL
+from sf2.config import BASE_MODEL, IMAGE_CFG
 
 
 class EarlyStop(Exception):
@@ -46,7 +47,13 @@ def main():
     import laya
     import laya.vlm_train as vt
 
-    agent = laya.load_vlm(BASE_MODEL, device=args.device)
+    agent = laya.load_vlm(BASE_MODEL, device=args.device, **IMAGE_CFG)
+    prep = agent.model.prep
+    got = (prep.image_size, prep.backend, prep.interpolation,
+           agent.processor.image_processor.max_image_size.get("longest_edge"))
+    want = (IMAGE_CFG["image_size"], IMAGE_CFG["preprocess"], IMAGE_CFG["image_interpolation"], IMAGE_CFG["image_size"])
+    if got != want:
+        raise SystemExit("image prep is %s, expected %s (sf2.config.IMAGE_CFG)" % (got, want))
     train, val = [], []
     for d in args.data:
         root, name = os.path.split(os.path.normpath(d))
@@ -59,7 +66,8 @@ def main():
     if not val:
         rng.shuffle(train)
         val, train = train[: len(train) // 20], train[len(train) // 20:]
-    print("base %s | train %d rows from %d dirs, val %d rows" % (BASE_MODEL, len(train), len(args.data), len(val)))
+    print("base %s | images %s | train %d rows from %d dirs, val %d rows" % (
+        BASE_MODEL, IMAGE_CFG, len(train), len(args.data), len(val)))
 
     n = lora.inject(agent.model.encoder, rank=args.rank, alpha=args.alpha)
     print("LoRA r=%d on %d projections" % (args.rank, n))

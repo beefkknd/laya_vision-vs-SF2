@@ -106,7 +106,8 @@ def test_twenty_actions_per_character():
 def test_model_frame_blanks_the_hud_and_mirror_is_a_whole_flip():
     img = np.arange(224 * 256 * 3, dtype=np.uint32).reshape(224, 256, 3).astype(np.uint8)
     f = model_frame(img)
-    assert not f[:HUD_ROWS].any() and (f[HUD_ROWS:] == img[HUD_ROWS:]).all()
+    assert f.shape == (256, 256, 3) and not f[224:].any()                 # padded, not resized
+    assert not f[:HUD_ROWS].any() and (f[HUD_ROWS:224] == img[HUD_ROWS:]).all()
     assert (mirror_frame(img) == f[:, ::-1]).all()
     assert img[:HUD_ROWS].any()                                          # the input is not changed
 
