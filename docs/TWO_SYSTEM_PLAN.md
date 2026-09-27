@@ -111,6 +111,10 @@ What is known now:
   `runs_local/base_all_v0/best` (Studio worktree `laya_vision_vs_SF2_trackA`; a copy at `runs/base_all_v0` on the Mac
   Pro). It agrees with the teacher on 94.8% of held-out frames, evenly across characters (Chun-Li 92.2%, the
   lowest, to Honda 96.8%). Agreement does not predict play, so CPB3 gates it per character on the eval openings.
+- [x] **No v1 training now (owner, 2026-09-27):** the loop improves play through memory, not retraining. v0 (fought
+  only Ryu, and Ken as Ryu) is System 1: a novice against every other opponent, which fits "start weak". B3b's
+  330,853 balanced rows over 47 pairings stay on the Studio for a later clean-up round (folding learned memory and
+  broader opponents into the weights), not as a prerequisite.
 - [ ] **CPB3 gate for v0:** v0, the teacher and random play for all 8 pairings on the 40 eval openings, plus r2 on the
   same Chun-Li state
 - [ ] **B3b more opponents (running while the baseline trains):** the other 48 player-1 × opponent pairings among the
