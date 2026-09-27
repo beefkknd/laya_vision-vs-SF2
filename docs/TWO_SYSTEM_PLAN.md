@@ -66,6 +66,17 @@ hit, blocked and whiffed from RAM (P2), so P2 comes before P3–P5.
   Each one is found and tested on the ROM before it is used.
 - [ ] **P3 Macros, verified on the ROM.** Each move on the sheet is a macro. A ROM test checks it from both sides:
   it must fail with a wrong input and pass with the right one. The move list shown to laya is per character.
+- [ ] **HARD CHECKPOINT ALL-8 (owner, 2026-09-27): no training data and no fine-tune before it passes.**
+  - **P1:** every one of the 8 characters (Ryu, Ken, E. Honda, Blanka, Guile, Chun-Li, Zangief, Dhalsim) has its
+    move list in code, from `docs/MOVES.md`.
+  - **P2:** each special's state id, and hit, blocked or whiffed, are verified on the ROM for all 8.
+  - **P3:** every move of every character passes its ROM test from both facings, and fails with a wrong input.
+  - **[SCRIPT] enforcement:** the ROM suite writes a record for each (character, move, facing) it verified.
+    `scripts/train.py` and the P5 data collection refuse to start unless every (character, move, facing) on the list
+    has a passing record. The records are tied to the harness stamp, so a stale record does not count.
+  - The gate is admitted only after it has been seen refusing: with a missing move, a missing facing, and a missing
+    character. It is built with the first P3 macro.
+  - Seven characters verified is a fail. Nothing starts early.
 - [ ] **P4 Short memory.**
   - The harness logs each decision's effect as the round plays.
   - The note gains `last_result=` (came out, hit, blocked or whiffed), so System 1 sees the effect of its last move.
