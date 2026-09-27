@@ -249,9 +249,9 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] If C is inconclusive or fails: check the changed rate first (rules that never change a move do nothing), then τ, then whether the note lacks a field the rules need. Add one note field only if the evidence names it.
 
 ### Phase 3: moments
-- [ ] Confidence and flags in the play loop; write `out/moments/*.jsonl` (one flag per episode, as in §2.3)
-- [ ] Tune the `unsure` margin on dev play so about 5% of decisions are flagged
-- [ ] **Verify:** do `unsure` decisions precede damage more often than confident ones (predeclared: at least 1.5×)? If not, System 2 gets only `surprised` and `audit`.
+- [x] Moments from any student rollout: `scripts/moments.py rollouts/<name>` → `out/moments/<name>.jsonl` (one flag per episode, as in §2.3); r2 vs Ryu dev: 341 surprised, 693 unsure, 130 audit
+- [x] Tune the `unsure` margin on dev play so about 5% of decisions are flagged: margin 0.036
+- [x] **Verify:** do `unsure` decisions precede damage more often? **No: 0.65×** (hit within 0.5 s: 10.0% unsure vs 15.5% confident). laya's mistakes are confident ones. Per the predeclared rule, System 2 gets only `surprised` and `audit`.
 - [ ] A terminal listing per moment: the note timeline, the probabilities, the outcome and the frame paths
 - [ ] Claude revises the playbook from dev-opening moments only (v2); pilot it on dev and give a verdict on fresh eval openings
 
