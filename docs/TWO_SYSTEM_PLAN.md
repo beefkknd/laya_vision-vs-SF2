@@ -51,7 +51,10 @@ The game only ever waits for System 1. System 2 never blocks a frame.
 
 ### 2.1 Where things run
 
-Everything runs on the Mac Pro (M4 Max). Qwen on the Mac Studio's omlx is used only from Phase 4.
+Everything runs on the Mac Pro (M4 Max). Qwen on the Mac Studio's omlx is used only from Phase 4: model id
+`qwen38-27b-oq4e-mtp` (the Jundot Qwen3.8-27B oQ4e MTP build) at `http://192.168.1.216:8000/v1`. The API key
+lives in the Studio's `~/.omlx/settings.json`. Verified from the Mac Pro on 2026-09-27: thinking off answered in
+about 20 s (first load); thinking on generated about 36 tokens/s.
 
 ### 2.2 One decision with a memory
 
@@ -157,7 +160,7 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] The teacher vs Ryu on the same openings (no model, so it's cheap): the ceiling for CP2
 - [ ] **CP1:** A and the teacher on the eval openings. Write the gap in PROGRESS.md.
 - [ ] Check: A leaves room to improve (not 40/40). If it doesn't, pick the next weakest opponent from a 3-opponent scan.
-- [ ] **Verify** the Studio's omlx is reachable from the Mac Pro (it failed once), or set up an SSH tunnel. This is 10 minutes of work that decides Phase 4.
+- [x] **Verify** the Studio's omlx is reachable from the Mac Pro: yes, as `qwen38-27b-oq4e-mtp` (fixed on the Studio side 2026-09-27)
 
 ### Phase 2: the memory, with a frozen playbook (arms C and D)
 - [ ] **Prototype first:** with an empty memory, play must be identical to r2, decision for decision, on 1 dev opening
