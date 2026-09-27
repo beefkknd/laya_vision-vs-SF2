@@ -1,0 +1,60 @@
+{
+ "me": "zangief",
+ "source": [
+  "rollouts/games_v1/zangief/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "lp at close range lands (55%)",
+   "kind": "use_more",
+   "action": "lp",
+   "range": "close",
+   "evidence": {
+    "tries": 45,
+    "count": 25,
+    "rate": 0.56,
+    "refs": [
+     "g0f0",
+     "g1f0",
+     "g1f336",
+     "g1f376",
+     "g3f502"
+    ]
+   }
+  },
+  {
+   "text": "avoid c.mk at mid range: lands 20%",
+   "kind": "avoid",
+   "action": "c.mk",
+   "range": "mid",
+   "evidence": {
+    "tries": 15,
+    "count": 3,
+    "rate": 0.2,
+    "refs": [
+     "g5f948",
+     "g6f1026",
+     "g9f182"
+    ]
+   }
+  },
+  {
+   "text": "c.lk at mid range lands (66%)",
+   "kind": "use_more",
+   "action": "c.lk",
+   "range": "mid",
+   "evidence": {
+    "tries": 9,
+    "count": 6,
+    "rate": 0.67,
+    "refs": [
+     "g0f704",
+     "g6f1550",
+     "g9f166",
+     "g9f230",
+     "g9f628"
+    ]
+   }
+  }
+ ]
+}

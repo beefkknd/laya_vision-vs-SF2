@@ -1,0 +1,62 @@
+{
+ "me": "chunli",
+ "source": [
+  "rollouts/games_v1/chunli/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "lp at close range lands (56%)",
+   "kind": "use_more",
+   "action": "lp",
+   "range": "close",
+   "evidence": {
+    "tries": 46,
+    "count": 26,
+    "rate": 0.57,
+    "refs": [
+     "g1f860",
+     "g1f876",
+     "g1f892",
+     "g2f1264",
+     "g2f1524"
+    ]
+   }
+  },
+  {
+   "text": "avoid spinning_bird_kick at mid range: gets punished 70%",
+   "kind": "avoid",
+   "action": "spinning_bird_kick",
+   "range": "mid",
+   "evidence": {
+    "tries": 41,
+    "count": 29,
+    "rate": 0.71,
+    "refs": [
+     "g0f60",
+     "g0f264",
+     "g0f444",
+     "g1f16",
+     "g2f0"
+    ]
+   }
+  },
+  {
+   "text": "avoid spinning_bird_kick at far range: gets punished 57%",
+   "kind": "avoid",
+   "action": "spinning_bird_kick",
+   "range": "far",
+   "evidence": {
+    "tries": 28,
+    "count": 16,
+    "rate": 0.57,
+    "refs": [
+     "g0f640",
+     "g0f756",
+     "g1f1168",
+     "g1f1276",
+     "g3f232"
+    ]
+   }
+  }
+ ]
+}

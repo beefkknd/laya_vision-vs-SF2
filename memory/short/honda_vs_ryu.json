@@ -1,0 +1,99 @@
+{
+ "me": "honda",
+ "opp": "ryu",
+ "source": [
+  "rollouts/games_v1/honda/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "use more lp at close range (lands 62%)",
+   "kind": "use_more",
+   "action": "lp",
+   "range": "close",
+   "evidence": {
+    "tries": 27,
+    "count": 17,
+    "rate": 0.63,
+    "refs": [
+     "g0f0",
+     "g1f0",
+     "g1f28",
+     "g4f0",
+     "g4f28"
+    ]
+   }
+  },
+  {
+   "text": "when ryu attacks, my attacks rarely land (12 of 58)",
+   "kind": "counter",
+   "action": null,
+   "range": null,
+   "evidence": {
+    "tries": 58,
+    "count": 12,
+    "rate": 0.21,
+    "refs": [
+     "g0f536",
+     "g0f1256",
+     "g2f956",
+     "g3f1324",
+     "g4f76"
+    ]
+   }
+  },
+  {
+   "text": "ryu attacks a lot at far range (50% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "far",
+   "evidence": {
+    "tries": 54,
+    "count": 27,
+    "rate": 0.5,
+    "refs": [
+     "g0f536",
+     "g0f824",
+     "g0f1176",
+     "g0f1256",
+     "g1f344"
+    ]
+   }
+  },
+  {
+   "text": "ryu jumps in a lot at close range (36% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "close",
+   "evidence": {
+    "tries": 30,
+    "count": 11,
+    "rate": 0.37,
+    "refs": [
+     "g1f1512",
+     "g1f1548",
+     "g5f512",
+     "g5f532",
+     "g5f552"
+    ]
+   }
+  },
+  {
+   "text": "ryu attacks a lot at mid range (32% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "mid",
+   "evidence": {
+    "tries": 88,
+    "count": 29,
+    "rate": 0.33,
+    "refs": [
+     "g0f80",
+     "g1f1224",
+     "g1f1276",
+     "g3f52",
+     "g3f1044"
+    ]
+   }
+  }
+ ]
+}

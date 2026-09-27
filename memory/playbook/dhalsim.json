@@ -1,0 +1,62 @@
+{
+ "me": "dhalsim",
+ "source": [
+  "rollouts/games_v1/dhalsim/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "yoga_fire at far range lands (56%)",
+   "kind": "use_more",
+   "action": "yoga_fire",
+   "range": "far",
+   "evidence": {
+    "tries": 175,
+    "count": 99,
+    "rate": 0.57,
+    "refs": [
+     "g0f200",
+     "g0f260",
+     "g0f320",
+     "g0f408",
+     "g0f452"
+    ]
+   }
+  },
+  {
+   "text": "yoga_fire at mid range lands (71%)",
+   "kind": "use_more",
+   "action": "yoga_fire",
+   "range": "mid",
+   "evidence": {
+    "tries": 42,
+    "count": 30,
+    "rate": 0.71,
+    "refs": [
+     "g0f80",
+     "g1f172",
+     "g1f240",
+     "g1f248",
+     "g1f436"
+    ]
+   }
+  },
+  {
+   "text": "avoid sweep at mid range: gets punished 42%",
+   "kind": "avoid",
+   "action": "sweep",
+   "range": "mid",
+   "evidence": {
+    "tries": 14,
+    "count": 6,
+    "rate": 0.43,
+    "refs": [
+     "g1f80",
+     "g2f60",
+     "g2f284",
+     "g7f88",
+     "g8f484"
+    ]
+   }
+  }
+ ]
+}

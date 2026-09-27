@@ -1,0 +1,61 @@
+{
+ "me": "guile",
+ "source": [
+  "rollouts/games_v1/guile/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "sonic_boom at mid range lands (60%)",
+   "kind": "use_more",
+   "action": "sonic_boom",
+   "range": "mid",
+   "evidence": {
+    "tries": 46,
+    "count": 28,
+    "rate": 0.61,
+    "refs": [
+     "g0f44",
+     "g0f208",
+     "g0f1236",
+     "g0f1332",
+     "g1f704"
+    ]
+   }
+  },
+  {
+   "text": "mp at close range lands (62%)",
+   "kind": "use_more",
+   "action": "mp",
+   "range": "close",
+   "evidence": {
+    "tries": 24,
+    "count": 15,
+    "rate": 0.62,
+    "refs": [
+     "g1f692",
+     "g1f696",
+     "g1f700",
+     "g3f1380",
+     "g4f28"
+    ]
+   }
+  },
+  {
+   "text": "sweep at mid range lands (66%)",
+   "kind": "use_more",
+   "action": "sweep",
+   "range": "mid",
+   "evidence": {
+    "tries": 6,
+    "count": 4,
+    "rate": 0.67,
+    "refs": [
+     "g4f832",
+     "g6f44",
+     "g9f44",
+     "g9f328"
+    ]
+   }
+  }
+ ]
+}

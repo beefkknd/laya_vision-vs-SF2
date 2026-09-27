@@ -1,0 +1,95 @@
+{
+ "me": "blanka",
+ "opp": "ryu",
+ "source": [
+  "rollouts/games_v1/blanka/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "when ryu attacks, lp hits him",
+   "kind": "counter",
+   "action": "lp",
+   "range": null,
+   "evidence": {
+    "tries": 6,
+    "count": 3,
+    "rate": 0.5,
+    "refs": [
+     "g4f36",
+     "g5f36",
+     "g8f36"
+    ]
+   }
+  },
+  {
+   "text": "when ryu jumps in, my attacks rarely land (3 of 12)",
+   "kind": "counter",
+   "action": null,
+   "range": null,
+   "evidence": {
+    "tries": 12,
+    "count": 3,
+    "rate": 0.25,
+    "refs": [
+     "g2f392",
+     "g2f660",
+     "g6f612"
+    ]
+   }
+  },
+  {
+   "text": "ryu attacks a lot at mid range (41% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "mid",
+   "evidence": {
+    "tries": 68,
+    "count": 28,
+    "rate": 0.41,
+    "refs": [
+     "g0f72",
+     "g0f144",
+     "g1f36",
+     "g1f396",
+     "g1f544"
+    ]
+   }
+  },
+  {
+   "text": "ryu attacks a lot at far range (38% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "far",
+   "evidence": {
+    "tries": 26,
+    "count": 10,
+    "rate": 0.38,
+    "refs": [
+     "g3f448",
+     "g3f768",
+     "g4f464",
+     "g4f964",
+     "g6f1064"
+    ]
+   }
+  },
+  {
+   "text": "ryu jumps in a lot at far range (30% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "far",
+   "evidence": {
+    "tries": 26,
+    "count": 8,
+    "rate": 0.31,
+    "refs": [
+     "g2f392",
+     "g3f1040",
+     "g4f1084",
+     "g4f1320",
+     "g5f500"
+    ]
+   }
+  }
+ ]
+}

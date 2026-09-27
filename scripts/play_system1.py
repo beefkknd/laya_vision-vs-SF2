@@ -20,9 +20,11 @@ import time
 
 import _path  # noqa: F401
 from sf2.headless import launch_argv
+from sf2.memory import load, short_path
 from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
 from sf2.vs import IDS, NAMES, VARS
+from sf2.vs_sweep import actions
 
 CHARS = ["ryu", "ken", "chunli", "guile", "honda", "blanka", "zangief", "dhalsim"]
 
@@ -38,6 +40,10 @@ def play_one(args, me: str, port: int) -> int:
     os.makedirs(img_dir, exist_ok=True)
     state = open("states/p1_%s_vs_%s.state" % (me, opp), "rb").read()
     s1 = System1(None if args.model == "random" else args.model, me, args.threshold, args.device, args.seed)
+    if args.memory != "none":     # the short memory vs THIS opponent: a new opponent has its own (or no) file
+        s1.short = load(short_path(me, opp, args.memory), list(actions(me)))
+    print("%s vs %s: short memory %s" % (me, opp, "%d lessons" % len(s1.short["lessons"]) if s1.short else "empty"),
+          flush=True)
     b = MesenBridge(port, launch=launch_argv(port, args.rom))
     games, t0 = [], time.time()
     try:
@@ -98,6 +104,8 @@ def main() -> int:
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--device", default=None)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--memory", default="memory",
+                    help="memory dir (sf2/memory.py); 'none' plays with an empty short memory")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
     if args.one:
@@ -108,7 +116,7 @@ def main() -> int:
     for i, c in enumerate(chars):
         cmd = [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model", args.model,
                "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
-               "--seed", str(args.seed)] + (["--rom", args.rom] if args.rom else [])
+               "--seed", str(args.seed), "--memory", args.memory] + (["--rom", args.rom] if args.rom else [])
         log = open(os.path.join("logs", "system1", c + ".log"), "w")
         jobs.append((c, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)))
     print("%d characters playing (logs/system1/<char>.log)" % len(jobs), flush=True)

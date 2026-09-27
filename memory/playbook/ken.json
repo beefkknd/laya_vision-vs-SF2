@@ -1,0 +1,24 @@
+{
+ "me": "ken",
+ "source": [
+  "rollouts/games_v1/ken/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "avoid mp at mid range: lands 17%",
+   "kind": "avoid",
+   "action": "mp",
+   "range": "mid",
+   "evidence": {
+    "tries": 17,
+    "count": 3,
+    "rate": 0.18,
+    "refs": [
+     "g0f52",
+     "g7f40",
+     "g7f72"
+    ]
+   }
+  }
+ ]
+}

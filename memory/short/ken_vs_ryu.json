@@ -1,0 +1,80 @@
+{
+ "me": "ken",
+ "opp": "ryu",
+ "source": [
+  "rollouts/games_v1/ken/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "when ryu attacks, lp hits him",
+   "kind": "counter",
+   "action": "lp",
+   "range": null,
+   "evidence": {
+    "tries": 5,
+    "count": 4,
+    "rate": 0.8,
+    "refs": [
+     "g1f1488",
+     "g3f20",
+     "g4f548",
+     "g6f52"
+    ]
+   }
+  },
+  {
+   "text": "when ryu jumps in, my attacks rarely land (8 of 44)",
+   "kind": "counter",
+   "action": null,
+   "range": null,
+   "evidence": {
+    "tries": 44,
+    "count": 8,
+    "rate": 0.18,
+    "refs": [
+     "g1f1200",
+     "g3f456",
+     "g5f404",
+     "g6f256",
+     "g7f40"
+    ]
+   }
+  },
+  {
+   "text": "ryu attacks a lot at mid range (29% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "mid",
+   "evidence": {
+    "tries": 77,
+    "count": 23,
+    "rate": 0.3,
+    "refs": [
+     "g0f52",
+     "g1f68",
+     "g1f928",
+     "g1f1072",
+     "g1f1136"
+    ]
+   }
+  },
+  {
+   "text": "ryu jumps in a lot at close range (25% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "close",
+   "evidence": {
+    "tries": 40,
+    "count": 10,
+    "rate": 0.25,
+    "refs": [
+     "g1f1200",
+     "g3f88",
+     "g3f104",
+     "g3f180",
+     "g4f44"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,26 @@
+{
+ "me": "blanka",
+ "source": [
+  "rollouts/games_v1/blanka/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "avoid rolling_attack at far range: lands 19%",
+   "kind": "avoid",
+   "action": "rolling_attack",
+   "range": "far",
+   "evidence": {
+    "tries": 26,
+    "count": 5,
+    "rate": 0.19,
+    "refs": [
+     "g2f392",
+     "g3f768",
+     "g4f464",
+     "g4f812",
+     "g7f444"
+    ]
+   }
+  }
+ ]
+}

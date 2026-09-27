@@ -1,0 +1,44 @@
+{
+ "me": "honda",
+ "source": [
+  "rollouts/games_v1/honda/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "avoid sumo_headbutt at far range: lands 16%",
+   "kind": "avoid",
+   "action": "sumo_headbutt",
+   "range": "far",
+   "evidence": {
+    "tries": 54,
+    "count": 9,
+    "rate": 0.17,
+    "refs": [
+     "g0f536",
+     "g0f1256",
+     "g2f956",
+     "g2f1220",
+     "g3f1324"
+    ]
+   }
+  },
+  {
+   "text": "lp at close range lands (62%)",
+   "kind": "use_more",
+   "action": "lp",
+   "range": "close",
+   "evidence": {
+    "tries": 27,
+    "count": 17,
+    "rate": 0.63,
+    "refs": [
+     "g0f0",
+     "g1f0",
+     "g1f28",
+     "g4f0",
+     "g4f28"
+    ]
+   }
+  }
+ ]
+}

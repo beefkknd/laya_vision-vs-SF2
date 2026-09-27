@@ -1,0 +1,99 @@
+{
+ "me": "ryu",
+ "opp": "ken",
+ "source": [
+  "rollouts/games_v1/ryu/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "use more hadoken at mid range (lands 56%)",
+   "kind": "use_more",
+   "action": "hadoken",
+   "range": "mid",
+   "evidence": {
+    "tries": 48,
+    "count": 27,
+    "rate": 0.56,
+    "refs": [
+     "g0f644",
+     "g0f976",
+     "g1f544",
+     "g1f948",
+     "g2f52"
+    ]
+   }
+  },
+  {
+   "text": "use more sweep at mid range (lands 63%)",
+   "kind": "use_more",
+   "action": "sweep",
+   "range": "mid",
+   "evidence": {
+    "tries": 11,
+    "count": 7,
+    "rate": 0.64,
+    "refs": [
+     "g0f216",
+     "g0f500",
+     "g2f0",
+     "g3f604",
+     "g6f352"
+    ]
+   }
+  },
+  {
+   "text": "when ken jumps in, my attacks rarely land (11 of 62)",
+   "kind": "counter",
+   "action": null,
+   "range": null,
+   "evidence": {
+    "tries": 62,
+    "count": 11,
+    "rate": 0.18,
+    "refs": [
+     "g0f600",
+     "g1f904",
+     "g2f516",
+     "g3f276",
+     "g3f780"
+    ]
+   }
+  },
+  {
+   "text": "ken attacks a lot at close range (38% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "close",
+   "evidence": {
+    "tries": 135,
+    "count": 52,
+    "rate": 0.39,
+    "refs": [
+     "g0f16",
+     "g0f424",
+     "g1f0",
+     "g1f16",
+     "g1f32"
+    ]
+   }
+  },
+  {
+   "text": "ken attacks a lot at mid range (27% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "mid",
+   "evidence": {
+    "tries": 105,
+    "count": 29,
+    "rate": 0.28,
+    "refs": [
+     "g0f120",
+     "g0f160",
+     "g0f184",
+     "g0f896",
+     "g1f464"
+    ]
+   }
+  }
+ ]
+}

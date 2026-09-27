@@ -1,0 +1,58 @@
+{
+ "me": "ryu",
+ "source": [
+  "rollouts/games_v1/ryu/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "hadoken at mid range lands (56%)",
+   "kind": "use_more",
+   "action": "hadoken",
+   "range": "mid",
+   "evidence": {
+    "tries": 48,
+    "count": 27,
+    "rate": 0.56,
+    "refs": [
+     "g0f644",
+     "g0f976",
+     "g1f544",
+     "g1f948",
+     "g2f52"
+    ]
+   }
+  },
+  {
+   "text": "sweep at mid range lands (63%)",
+   "kind": "use_more",
+   "action": "sweep",
+   "range": "mid",
+   "evidence": {
+    "tries": 11,
+    "count": 7,
+    "rate": 0.64,
+    "refs": [
+     "g0f216",
+     "g0f500",
+     "g2f0",
+     "g3f604",
+     "g6f352"
+    ]
+   }
+  },
+  {
+   "text": "avoid c.mk at mid range: lands 16%",
+   "kind": "avoid",
+   "action": "c.mk",
+   "range": "mid",
+   "evidence": {
+    "tries": 6,
+    "count": 1,
+    "rate": 0.17,
+    "refs": [
+     "g3f336"
+    ]
+   }
+  }
+ ]
+}

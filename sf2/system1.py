@@ -1,7 +1,8 @@
 """System 1: the stage-1 laya-vision checkpoint plays one character (player 1) against the arcade CPU.
 
 Each decision, when the fighter can act (standing or crouching, on the ground): the model gets the two frames
-(4 frames apart) and the RAM note built exactly as in training (sf2.vs_sweep.note), and answers the outcome
+(4 frames apart) and its prompt: the RAM note built exactly as in training (sf2.vs_sweep.note) followed by the short
+memory against this opponent (sf2.memory.prompt_text; nothing when it is empty), and answers the outcome
 question for every attack in one predict call (the images are encoded once). It plays the attack with the highest
 P(hit) if that is at least ``threshold``; otherwise it walks forward. After an attack it waits until the fighter can
 act again and reads what really happened from RAM (hit / whiff / blocked), so every attack is also a check of the
@@ -20,6 +21,7 @@ import numpy as np
 from .config import PAD
 from .dataset import save_png
 from .game_log import action_entry, game_entry
+from .memory import prompt_text
 from .policy import make_state
 from .vs import GROUND_Y, NAMES, physical, view
 from .vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
@@ -51,6 +53,7 @@ class System1:
             if size != 256:
                 raise SystemExit("%s sees %d px images; the stage-1 data is 256x256" % (model, size))
         self.me, self.threshold = me, threshold
+        self.short = None          # the short memory vs the current opponent (sf2.memory), goes into laya's prompt
         self.attacks = [a for a in actions(me) if a not in MOVEMENT]
         self.questions = {a: outcome_question(a) for a in self.attacks}
 
@@ -101,7 +104,7 @@ def play_round(bridge, s1: System1, opp: str, state: bytes, rng: random.Random, 
         if pending:
             rnd.log.append(_close(game, s1.me, opp, pending))
         side = "left" if r["p1_x"] < r["p2_x"] else "right"
-        text = note(s1.me, opp, view(r, 1), side)
+        text = prompt_text(note(s1.me, opp, view(r, 1), side), s1.short)
         d = s1.decide(prev, cur, text)
         images = None
         if img_dir:
@@ -124,7 +127,7 @@ def play_round(bridge, s1: System1, opp: str, state: bytes, rng: random.Random, 
                 live += more[1:]
         actual = outcome([view(x, 1) for x in [r] + live], d["action"])["outcome"] if d["action"] not in MOVEMENT \
             else "none"
-        pending = (r, list(live), d, actual, rnd.frames, images)
+        pending = (r, list(live), dict(d, prompt=text), actual, rnd.frames, images)
         rnd.frames += len(live)
         rows = [r] + live
     if pending:
@@ -136,6 +139,7 @@ def play_round(bridge, s1: System1, opp: str, state: bytes, rng: random.Random, 
 def _close(game: int, me: str, opp: str, pending) -> Dict:
     before, rows, d, actual, frame, images = pending
     entry = action_entry(game, frame, me, opp, before, rows or [before], d, actual)
+    entry["prompt"] = d["prompt"]                 # exactly what laya read: the note and the short memory
     if images:
         entry["images"] = images
     return entry

@@ -1,0 +1,97 @@
+{
+ "me": "zangief",
+ "opp": "ryu",
+ "source": [
+  "rollouts/games_v1/zangief/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "use more lp at close range (lands 55%)",
+   "kind": "use_more",
+   "action": "lp",
+   "range": "close",
+   "evidence": {
+    "tries": 45,
+    "count": 25,
+    "rate": 0.56,
+    "refs": [
+     "g0f0",
+     "g1f0",
+     "g1f336",
+     "g1f376",
+     "g3f502"
+    ]
+   }
+  },
+  {
+   "text": "use more c.lk at mid range (lands 66%)",
+   "kind": "use_more",
+   "action": "c.lk",
+   "range": "mid",
+   "evidence": {
+    "tries": 9,
+    "count": 6,
+    "rate": 0.67,
+    "refs": [
+     "g0f704",
+     "g6f1550",
+     "g9f166",
+     "g9f230",
+     "g9f628"
+    ]
+   }
+  },
+  {
+   "text": "when ryu attacks, lp hits him",
+   "kind": "counter",
+   "action": "lp",
+   "range": null,
+   "evidence": {
+    "tries": 6,
+    "count": 3,
+    "rate": 0.5,
+    "refs": [
+     "g1f336",
+     "g3f218",
+     "g4f538"
+    ]
+   }
+  },
+  {
+   "text": "when ryu jumps in, my attacks rarely land (10 of 71)",
+   "kind": "counter",
+   "action": null,
+   "range": null,
+   "evidence": {
+    "tries": 71,
+    "count": 10,
+    "rate": 0.14,
+    "refs": [
+     "g3f502",
+     "g4f734",
+     "g4f810",
+     "g4f1124",
+     "g5f554"
+    ]
+   }
+  },
+  {
+   "text": "ryu attacks a lot at far range (44% of my turns)",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "far",
+   "evidence": {
+    "tries": 74,
+    "count": 33,
+    "rate": 0.45,
+    "refs": [
+     "g0f304",
+     "g0f308",
+     "g0f312",
+     "g0f316",
+     "g0f320"
+    ]
+   }
+  }
+ ]
+}

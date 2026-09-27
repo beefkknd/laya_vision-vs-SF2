@@ -1,0 +1,95 @@
+{
+ "me": "guile",
+ "opp": "ryu",
+ "source": [
+  "rollouts/games_v1/guile/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "ryu punishes my sonic_boom at mid range (36%)",
+   "kind": "avoid",
+   "action": "sonic_boom",
+   "range": "mid",
+   "evidence": {
+    "tries": 46,
+    "count": 17,
+    "rate": 0.37,
+    "refs": [
+     "g0f1332",
+     "g1f188",
+     "g2f0",
+     "g2f200",
+     "g2f708"
+    ]
+   }
+  },
+  {
+   "text": "use more mp at close range (lands 62%)",
+   "kind": "use_more",
+   "action": "mp",
+   "range": "close",
+   "evidence": {
+    "tries": 24,
+    "count": 15,
+    "rate": 0.62,
+    "refs": [
+     "g1f692",
+     "g1f696",
+     "g1f700",
+     "g3f1380",
+     "g4f28"
+    ]
+   }
+  },
+  {
+   "text": "use more sweep at mid range (lands 66%)",
+   "kind": "use_more",
+   "action": "sweep",
+   "range": "mid",
+   "evidence": {
+    "tries": 6,
+    "count": 4,
+    "rate": 0.67,
+    "refs": [
+     "g4f832",
+     "g6f44",
+     "g9f44",
+     "g9f328"
+    ]
+   }
+  },
+  {
+   "text": "when ryu attacks, mp hits him",
+   "kind": "counter",
+   "action": "mp",
+   "range": null,
+   "evidence": {
+    "tries": 6,
+    "count": 4,
+    "rate": 0.67,
+    "refs": [
+     "g3f16",
+     "g3f1380",
+     "g6f596",
+     "g8f0"
+    ]
+   }
+  },
+  {
+   "text": "when ryu jumps in, my attacks rarely land (3 of 16)",
+   "kind": "counter",
+   "action": null,
+   "range": null,
+   "evidence": {
+    "tries": 16,
+    "count": 3,
+    "rate": 0.19,
+    "refs": [
+     "g4f1168",
+     "g6f936",
+     "g9f1212"
+    ]
+   }
+  }
+ ]
+}

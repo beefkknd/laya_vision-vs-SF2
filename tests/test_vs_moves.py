@@ -152,3 +152,18 @@ def test_game_log_puts_the_opponents_reaction_on_the_action_that_caused_it():
     assert e["i_was_hit"] and e["taken"] == 26 and e["opp_attacked"] and not e["opp_blocked"]
     assert e["opp_reaction"] == ["stand", "attack", "stand"] and e["my_life_after"] == 150
     assert clock(0x99) == 99 and e["top3"][0] == ["hp", 0.9]
+
+
+def test_short_memory_goes_into_the_prompt_and_bad_memory_is_refused():
+    from sf2.memory import check, prompt_text
+    note = "me=ryu opp=ken dist=mid side=left dx=+70"
+    assert prompt_text(note, None) == note and prompt_text(note, {"opp": "ken", "lessons": []}) == note
+    les = [{"text": "use more sweep at mid range", "kind": "use_more", "action": "sweep", "range": "mid",
+            "evidence": {"tries": 11, "count": 7, "rate": 0.64, "refs": ["g1f40"]}}]
+    assert prompt_text(note, {"opp": "ken", "lessons": les * 7}).count("use more sweep") == 5   # at most 5 lessons
+    assert prompt_text(note, {"opp": "ken", "lessons": les}) == note + "\nmemory vs ken: use more sweep at mid range"
+    acts = ["lp", "sweep", "hadoken"]
+    assert check({"lessons": les}, acts) == []
+    bad = [dict(les[0], action="flying_kick"), dict(les[0], kind="vibes"),
+           dict(les[0], evidence={"tries": 3, "count": 5, "refs": ["g1f1"]}), dict(les[0], evidence={})]
+    assert all(check({"lessons": [b]}, acts) for b in bad)

@@ -1,0 +1,98 @@
+{
+ "me": "dhalsim",
+ "opp": "ryu",
+ "source": [
+  "rollouts/games_v1/dhalsim/actions.jsonl"
+ ],
+ "lessons": [
+  {
+   "text": "ryu punishes my sweep at mid range (42%)",
+   "kind": "avoid",
+   "action": "sweep",
+   "range": "mid",
+   "evidence": {
+    "tries": 14,
+    "count": 6,
+    "rate": 0.43,
+    "refs": [
+     "g1f80",
+     "g2f60",
+     "g2f284",
+     "g7f88",
+     "g8f484"
+    ]
+   }
+  },
+  {
+   "text": "use more yoga_fire at far range (lands 56%)",
+   "kind": "use_more",
+   "action": "yoga_fire",
+   "range": "far",
+   "evidence": {
+    "tries": 175,
+    "count": 99,
+    "rate": 0.57,
+    "refs": [
+     "g0f200",
+     "g0f260",
+     "g0f320",
+     "g0f408",
+     "g0f452"
+    ]
+   }
+  },
+  {
+   "text": "use more yoga_fire at mid range (lands 71%)",
+   "kind": "use_more",
+   "action": "yoga_fire",
+   "range": "mid",
+   "evidence": {
+    "tries": 42,
+    "count": 30,
+    "rate": 0.71,
+    "refs": [
+     "g0f80",
+     "g1f172",
+     "g1f240",
+     "g1f248",
+     "g1f436"
+    ]
+   }
+  },
+  {
+   "text": "when ryu attacks, mp hits him",
+   "kind": "counter",
+   "action": "mp",
+   "range": null,
+   "evidence": {
+    "tries": 7,
+    "count": 4,
+    "rate": 0.57,
+    "refs": [
+     "g2f572",
+     "g5f36",
+     "g8f36",
+     "g9f36"
+    ]
+   }
+  },
+  {
+   "text": "when ryu jumps in, my attacks rarely land (5 of 20)",
+   "kind": "counter",
+   "action": null,
+   "range": null,
+   "evidence": {
+    "tries": 20,
+    "count": 5,
+    "rate": 0.25,
+    "refs": [
+     "g3f888",
+     "g4f608",
+     "g5f632",
+     "g6f936",
+     "g7f316"
+    ]
+   }
+  }
+ ]
+}
