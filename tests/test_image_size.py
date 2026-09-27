@@ -23,6 +23,7 @@ def _load_kwargs(monkeypatch, script, argv):
         raise _Loaded()
 
     monkeypatch.setattr(laya, "load_vlm", fake_load_vlm)
+    monkeypatch.setattr(train.verified, "check_moves", lambda *a, **k: None)  # the ALL-8 gate: tests/test_moves_gate.py
     monkeypatch.setattr(sys, "argv", [script.__file__] + argv)
     with pytest.raises(_Loaded):
         script.main()

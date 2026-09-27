@@ -25,8 +25,8 @@ import time
 
 import _path  # noqa: F401
 from sf2 import dataset as D
-from sf2 import lora, metrics, policy, vision_cache
-from sf2.config import BASE_MODEL
+from sf2 import lora, metrics, policy, verified, vision_cache
+from sf2.config import BASE_MODEL, DEFAULT_RAM_MAP
 
 
 class EarlyStop(Exception):
@@ -128,6 +128,7 @@ def main():
                     help="train without this note field (e.g. last); the checkpoint's note.json makes play drop it too")
     ap.add_argument("--no-vision-cache", action="store_true", help="run the frozen vision tower every step")
     args = ap.parse_args()
+    verified.check_moves(os.path.join(verified.ROOT, DEFAULT_RAM_MAP))  # the ALL-8 gate: every move of all 8 characters verified on the ROM
     t_start = time.time()
 
     import laya
