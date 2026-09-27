@@ -23,7 +23,8 @@ from sf2 import ram
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAM_MAP = os.path.join(ROOT, "ram_maps", "sf2_snes.txt")
 # character -> (fight-start savestate, CPU opponent). Add a character here with its specials' checks below.
-FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken"), "ken": ("p1_ken_vs_ryu.state", "ryu")}
+FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken"), "ken": ("p1_ken_vs_ryu.state", "ryu"),
+          "blanka": ("p1_blanka_vs_ryu.state", "ryu")}
 FACINGS = ("right", "left")
 
 pytestmark = pytest.mark.skipif(not os.environ.get("SF2_ROM"), reason="needs $SF2_ROM (and Mesen)")
@@ -53,8 +54,9 @@ def _free_port():
 
 
 # Characters that jump over the CPU instead of walking through it: CPU Ryu backs into the corner, and when Ken walks
-# past him there he throws Ken straight back.
-JUMP_OVER = {"ken"}
+# past him there he throws Ken straight back. Blanka: after walking through, CPU Ryu throws him within ~2 s from any
+# distance (no close throw or block moment in 400 steps); after jumping over, not.
+JUMP_OVER = {"ken", "blanka"}
 
 
 def _to_other_side(env):
@@ -141,9 +143,16 @@ RYU_MOTIONS = {  # docs/MOVES.md, fierce / roundhouse
     "shoryuken": _motion([("F",), ("D",), ("D", "F")], "hp"),
     "tatsumaki": _motion([("D",), ("D", "B"), ("B",)], "hk"),
 }
+BLANKA_INPUTS = {  # docs/MOVES.md; mash: 14 jab taps; charge: back 66 frames (the ROM's minimum is 62), toward + fierce
+    "electricity": [("lp",), ()] * 14,
+    "rolling_attack": [("B",)] * 66 + [("F", "hp")] * 2 + [()] * 2,
+}
+# character -> raw special inputs; the P2 tests run these
+MOTIONS = {"ryu": RYU_MOTIONS, "ken": RYU_MOTIONS, "blanka": BLANKA_INPUTS}
 # character -> {special: my_special id}. Ken has the same inputs, ids and projectile slot as Ryu (checked on the ROM).
 SPECIAL_IDS = {"ryu": {"hadoken": 0x00, "tatsumaki": 0x02, "shoryuken": 0x04},
-               "ken": {"hadoken": 0x00, "tatsumaki": 0x02, "shoryuken": 0x04}}
+               "ken": {"hadoken": 0x00, "tatsumaki": 0x02, "shoryuken": 0x04},
+               "blanka": {"electricity": 0x00, "rolling_attack": 0x02}}
 
 
 @pytest.mark.parametrize("facing", FACINGS)
@@ -151,15 +160,17 @@ def test_each_special_has_its_own_id_and_the_hadoken_uses_player_1s_projectile_s
     """Every Ryu special is state 0C, with 0x0D80 telling which (00 Hadoken, 02 Hurricane Kick, 04 Shoryuken). The
     Hadoken puts a projectile in player 1's slot (0x1000, x at 0x1007) in front of him within 14 frames of the
     press, travelling away from him ~3 px a frame (it stops on the frame it hits). (Player 2's slot 0x1050 holds the
-    CPU's own Hadoken, which can be on screen at the same time: checked by hand, 2026-09-27.) Ken: the same."""
-    if env.me not in SPECIAL_IDS:
-        pytest.skip("Ryu's and Ken's ids")
+    CPU's own Hadoken, which can be on screen at the same time: checked by hand, 2026-09-27.) Ken: the same.
+    Blanka: 00 Electricity, 02 Rolling Attack; neither uses the projectile slot."""
+    if env.me not in MOTIONS:
+        pytest.skip("no raw inputs for %s" % env.me)
+    inputs = MOTIONS[env.me]
 
     def attempt(f0):
-        runs = {m: _run(env, _physical(t, f0.facing_right) + [[]] * 40) for m, t in RYU_MOTIONS.items()}
+        runs = {m: _run(env, _physical(t, f0.facing_right) + [[]] * 40) for m, t in inputs.items()}
         # the CPU can walk into the fireball as it appears (seen: hit on its 2nd frame, no travel): another moment
-        if not all(_clean(f0, fs[:30]) for fs in runs.values()) or any(
-                f.opp_state == ram.HIT_STATE for f in runs["hadoken"][:30]):
+        if not all(_clean(f0, fs[:len(inputs[m]) + 22]) for m, fs in runs.items()) or any(
+                f.opp_state == ram.HIT_STATE for f in runs.get("hadoken", [])[:30]):
             return None
         return f0, runs
 
@@ -167,6 +178,9 @@ def test_each_special_has_its_own_id_and_the_hadoken_uses_player_1s_projectile_s
     for m, fs in runs.items():
         sp = [f.my_special for f in fs if f.my_state == ram.SPECIAL_STATE]
         assert len(sp) > 10 and set(sp) == {SPECIAL_IDS[env.me][m]}, (facing, m, sp)
+    if "hadoken" not in runs:
+        assert not any(f.my_fireball for fs in runs.values() for f in fs), facing
+        return
     fb = [f for f in runs["hadoken"] if f.my_fireball]
     first = runs["hadoken"].index(fb[0])
     toward = 1 if f0.facing_right else -1
@@ -182,9 +196,9 @@ def test_attack_result_reads_hit_blocked_and_whiffed(env, facing):
     """ram.attack_result against what the ROM shows independently: a hit costs him life and he was not guarding
     (08) the frame before; blocked means he was guarding, then block stun, losing at most a special's chip (12); a
     whiff costs him nothing and he never enters 0E. Ryu's (or Ken's) three specials and a fierce, at many moments."""
-    if env.me not in SPECIAL_IDS:
-        pytest.skip("Ryu's and Ken's moves")
-    moves = dict(RYU_MOTIONS, hp=[("hp",)] * 2 + [()] * 2)
+    if env.me not in MOTIONS:
+        pytest.skip("no raw inputs for %s" % env.me)
+    moves = dict(MOTIONS[env.me], hp=[("hp",)] * 2 + [()] * 2)
     seen = {"hit": 0, "blocked": 0, "whiffed": 0}
     k = 0
     _setup(env, facing)
@@ -197,8 +211,11 @@ def test_attack_result_reads_hit_blocked_and_whiffed(env, facing):
         if _free(env, facing):
             for m, tokens in moves.items():
                 fs = _run(env, _physical(tokens, f0.facing_right) + [[]] * 60)
-                end = next((i for i in range(len(tokens), len(fs)) if fs[i].my_state not in (0x0A, 0x0C)
-                            and not fs[i].my_fireball), None)
+                # after the attack began (Blanka's charge is 66 frames of walking back first)
+                start = next((i for i, f in enumerate(fs) if f.my_state in (0x0A, 0x0C)), None)
+                end = None if start is None else next((i for i in range(max(start, len(tokens)), len(fs))
+                                                       if fs[i].my_state not in (0x0A, 0x0C)
+                                                       and not fs[i].my_fireball), None)
                 if end is None or not _clean(f0, fs[:end]):
                     continue
                 window = [f0] + fs[:end]
@@ -244,7 +261,8 @@ def test_the_rom_facing_byte_agrees_with_x_when_standing_apart(env):
 # ------------------------------------------------------------------------------------------------ P3: the move macros
 # Far standing normals: frames in the attack state 0A (measured on the ROM, the opponent 85+ px away). The button
 # mapping shows in them: jab / fierce / short / roundhouse all differ.
-ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}, "ken": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}}
+ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}, "ken": {"lp": 13, "hp": 36, "lk": 21, "hk": 33},
+                 "blanka": {"lp": 19, "hp": 34, "lk": 18, "hk": 39}}
 
 
 def _run_length(fs, state):
@@ -261,6 +279,12 @@ def _rise(f0, fs):
 
 def _special(fs, sid):
     return [f for f in fs if f.my_state == ram.SPECIAL_STATE and f.my_special == sid]
+
+
+def _rolled(fs, sid):
+    """px travelled toward him in the special (0 if it never came out)."""
+    sp = _special(fs, sid)
+    return max((_toward(sp[0], f) for f in sp), default=0)
 
 
 def _attack(button):
@@ -299,7 +323,34 @@ CHECKS = {
     "tatsumaki": (70, 200, 40, lambda c, f0, fs: bool(_special(fs, SPECIAL_IDS[c]["tatsumaki"])) and _rise(f0, fs) >= 10
                   and _toward(f0, fs[30]) > 20,
                   [("D",)] * 2 + [("D", "F")] * 2 + [("F", "hk")] * 2 + [()] * 2),             # motion mirrored
+    # sparks in place (x never moves while in it); 10 jab taps are one too few
+    "electricity": (85, 200, 40, lambda c, f0, fs: bool(_special(fs, SPECIAL_IDS[c]["electricity"])) and all(
+        f.my_x == f0.my_x for f in _special(fs, SPECIAL_IDS[c]["electricity"])), [("lp",), ()] * 10),
+    # rolls toward him 20+ px; back held 56 frames (6 short of the ROM's minimum) gives only a fierce
+    "rolling_attack": (90, 200, 40, lambda c, f0, fs: _rolled(fs, SPECIAL_IDS[c]["rolling_attack"]) > 20,
+                       [("B",)] * 56 + [("F", "hp")] * 2 + [()] * 2),
 }
+
+
+def _bitten(c, f0, fs):
+    """Blanka's throw is the Head Bite, a hold: he loses life while standing (00), not in hit stun (0E) or guard."""
+    i = next((i for i, f in enumerate(fs) if f.opp_life < f0.opp_life), None)
+    return i is not None and fs[i].opp_state not in (ram.HIT_STATE, 0x08)
+
+
+# Where a character's shared basic needs a different check (measured on the ROM).
+CHARACTER_CHECKS = {
+    "blanka": {
+        # toward + fierce up close is the Head Bite (he stays 00 while it drains him); a lone fierce hits (0E) or is
+        # blocked
+        "throw": CHECKS["throw"][:3] + (_bitten,) + CHECKS["throw"][4:],
+        # his standing roundhouse also knocks Ryu down (0E, sub-state 04) at sweep range; crouching short never does
+        "sweep": CHECKS["sweep"][:4] + ([("D", "lk")] * 2 + [("D",)] * 2,),
+    },
+}
+# Opponent distance for the block test: CPU Ryu stands off a crouching Blanka 80+ px away for ~9 s, then jumps over
+# him without attacking; closer in he attacks.
+BLOCK_RANGE = {"blanka": (40, 79)}
 
 
 def _record(env, move, facing, request):
@@ -316,7 +367,7 @@ def test_move_does_what_it_is_defined_to_do(env, move, facing, request):
     gate (sf2.verified)."""
     if move not in A.moves(env.me):
         pytest.skip("not on %s's move list" % env.me)
-    lo, hi, after, effect, wrong = CHECKS[move]
+    lo, hi, after, effect, wrong = CHARACTER_CHECKS.get(env.me, {}).get(move, CHECKS[move])
 
     def attempt(f0):
         right = _run(env, _physical(A.expand(move), f0.facing_right) + [[]] * after)
@@ -362,7 +413,7 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
     def _crossed(rows, f0):
         return next((i for i, r in enumerate(rows) if (r[mx] <= r[ox]) != f0.facing_right), len(rows))
 
-    f0, runs = _find(env, facing, 80, 200, attempt)
+    f0, runs = _find(env, facing, *BLOCK_RANGE.get(env.me, (80, 200)), attempt)
     st, react, guard = env.names.index("my_state"), env.names.index("my_react"), len(env.names)
     for name, rows in runs.items():
         # until the CPU jumps over him: after that the same buttons are down + toward / down + back
