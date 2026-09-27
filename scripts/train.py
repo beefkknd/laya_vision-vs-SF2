@@ -8,7 +8,8 @@ upscale; the saved checkpoint keeps those settings, so play loads them too.
 
 Each --data dir supplies <dir>/train.jsonl (and <dir>/val.jsonl if it has one) in laya-vision's record layout
 (laya.vlm_train.jsonl_example). Each dir is sampled as its own group, in equal shares, so every character gets the
-same weight. Without any val.jsonl, 5% of the training rows are held out for early stopping. The adapters are merged
+same weight. Without any val.jsonl, 5% of the screen positions (every action asked there, and the mirrored twin)
+are held out for early stopping, so validation never shows a frame the model trained on. The adapters are merged
 before saving, so <out>/best is an ordinary laya-vision checkpoint.
 """
 import argparse
@@ -24,6 +25,21 @@ from sf2.config import BASE_MODEL, IMAGE_CFG
 
 class EarlyStop(Exception):
     pass
+
+
+def position(ex) -> tuple:
+    """The screen position a row was asked about: its dataset and current frame, a mirrored frame counted as its
+    source. Every action asked at one position, and its mirrored twin, share this key."""
+    now = os.path.basename(ex["state"]["images"][-1]).replace("mirror_", "")
+    return ex.get("dataset"), now
+
+
+def split_by_position(rows, rng, share: float = 0.05):
+    """Hold out ``share`` of the positions (all their rows) for early stopping, so validation never shows a frame the
+    model trains on. Splitting rows at random would put a position's other actions and its mirror in training."""
+    keys = sorted({position(ex) for ex in rows})
+    held = set(rng.sample(keys, max(1, round(share * len(keys)))))
+    return [ex for ex in rows if position(ex) not in held], [ex for ex in rows if position(ex) in held]
 
 
 def main():
@@ -64,8 +80,7 @@ def main():
     if len(val) > args.val_limit:
         val = rng.sample(val, args.val_limit)
     if not val:
-        rng.shuffle(train)
-        val, train = train[: len(train) // 20], train[len(train) // 20:]
+        train, val = split_by_position(train, rng)
     print("base %s | images %s | train %d rows from %d dirs, val %d rows" % (
         BASE_MODEL, IMAGE_CFG, len(train), len(args.data), len(val)))
 
