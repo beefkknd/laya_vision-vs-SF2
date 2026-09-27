@@ -1,7 +1,8 @@
 """The options laya-vision chooses from, and the frame-by-frame inputs the glue code stuffs for each.
 
-Directions are *relative*: F = toward the opponent, B = away. The glue resolves them to LEFT/RIGHT from the
-fighters' x positions at decision time, so the model never has to know which side it is on. (The plan's
+Directions are *relative*: F = toward the opponent, B = away. The glue resolves them to LEFT/RIGHT at decision
+time, so the model never has to know which side it is on: WALKS from the fighters' x positions, every other move from
+the ROM's own facing byte, which it mirrors the stick by (sf2.env.FightEnv.act). (The plan's
 "left/right" become "forward/back"; "block" is down-back, the crouching guard, so it differs from "back".)
 """
 from typing import Dict, List, Sequence, Tuple
@@ -87,6 +88,9 @@ MACROS: Dict[str, List[Step]] = {
     "shoryuken": [(("F",), 2), (("D",), 2), (("D", "F", "hp"), 2), ((), 2)],
     "tatsumaki": [(("D",), 2), (("D", "B"), 2), (("B", "hk"), 2), ((), 2)],
 }
+# Moves that only travel: resolved from x, so "forward" walks toward him even while the ROM's facing byte lags (the
+# ROM does not turn her round while its own forward is held, so she would walk on away from him: tests/test_rom_*.py).
+WALKS = frozenset({"forward", "back", "jump_forward"})
 assert set(MACROS) == set(CRITERIA) == set(BASICS).union(*SPECIALS.values())
 
 

@@ -133,7 +133,10 @@ class FightEnv:
 
     # ------------------------------------------------------------------ one decision
     def act(self, action: str, on_frame: Optional[Callable[[ram.Fighters], None]] = None) -> ActResult:
-        facing = self.f.facing_right
+        # The ROM mirrors the stick by its own facing byte, which lags x while turning, in the air and in stun: a
+        # special, block or throw resolved from x then comes out mirrored (tests/test_rom_moves.py). Walks go by x.
+        game = self.f.game_facing_right
+        facing = self.f.facing_right if game is None or action in A.WALKS else game
         start = self.f
         frames = [A.to_physical(t, facing) for t in A.expand(action)]
         res = ActResult(len(frames), 0, 0)

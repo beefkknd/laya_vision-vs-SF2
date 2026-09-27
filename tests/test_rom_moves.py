@@ -376,3 +376,34 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
         else:
             assert len(rows) > 300 and not entries and not stun, (facing, len(rows), entries)
     _record(env, "block", facing, request)
+
+
+def test_hadoken_comes_out_while_the_rom_facing_byte_lags_x(env):
+    """Right after the fighters cross, x says he faces one way while the ROM (0x0CF4) still has him facing the
+    other, and the ROM mirrors the stick by its own byte. At such a moment on the ground, where the Hadoken motion
+    resolved from the byte comes out (a control run), sf2.env's ``act("hadoken")`` must come out too (state 0C,
+    special 00). Seeded play reaches such moments on the ROM."""
+    import random
+
+    if env.me != "ryu":
+        pytest.skip("Ryu's Hadoken")
+    rng = random.Random(3)
+    env.reset()
+    for _ in range(3000):
+        f0 = env.f
+        if (env.in_round and env.controllable() and not env.airborne()[0] and f0.my_state in (0, 2)
+                and f0.game_facing_right is not None and f0.game_facing_right != f0.facing_right
+                and not f0.fireball and not f0.my_fireball):
+            control = _run(env, _physical(RYU_MOTIONS["hadoken"], f0.game_facing_right) + [[]] * 20)
+            if _clean(f0, control) and _special(control, 0x00):
+                seen = []
+                env.act("hadoken", on_frame=seen.append)
+                seen += env.run_frames([[]] * 20, capture=False)
+                if _clean(f0, seen):
+                    assert _special(seen, 0x00), (f0.my_x, f0.opp_x, f0.my_facing,
+                                                  [(f.my_state, f.my_special, f.my_x) for f in seen[:16]])
+                    return
+        if env.act(rng.choice(["forward", "forward", "jump_forward", "idle", "back", "crouch"])).round_over:
+            if not env.next_round():
+                env.reset()
+    raise AssertionError("no clean moment where the two facings disagree")
