@@ -62,6 +62,14 @@ What is known now:
   net damage per round. The 95% match bar for CP4 is reachable: the teacher's tactics already clear it.
 - laya r1 has both beaten and lost to Ryu (1 win and 2 losses, far too few to mean anything).
 
+## Scope (owner, 2026-09-27)
+
+**laya's job is mechanics:** play each character correctly, with all the moves and combos assigned to it, the right
+facing, and sensible spacing. How character A does against character B is the wrong scope for laya, so the
+per-matchup gates (CPB2/CPB3 as win rates vs Ryu) and the Chun-Li-vs-Ryu playbook work were stopped. The next tasks
+are to be decided by the owner; checkpoints below that measure matchup outcomes should be rewritten as per-character
+mechanics checks.
+
 ## Two tracks
 
 - **Track A (this plan's phases, Mac Pro):** build and prove the two-system loop with Chun-Li, the character whose
