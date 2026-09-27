@@ -146,6 +146,9 @@ The game only ever waits for System 1. System 2 never blocks a frame.
 
 ### 2.1 Where things run
 
+Qwen fallback when the Studio is busy training: the same model on claw (Mac mini) at `http://192.168.1.199:8800/v1`,
+same id `qwen38-27b-oq4e-mtp` (verified 2026-09-27; only the base URL changes, key in claw's `~/.omlx/settings.json`).
+
 Everything runs on the Mac Pro (M4 Max). Qwen on the Mac Studio's omlx is used only from Phase 4: model id
 `qwen38-27b-oq4e-mtp` (the Jundot Qwen3.8-27B oQ4e MTP build) at `http://192.168.1.216:8000/v1`. The API key
 lives in the Studio's `~/.omlx/settings.json`. Verified from the Mac Pro on 2026-09-27: thinking off answered in
