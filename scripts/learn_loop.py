@@ -2,16 +2,21 @@
 learns from the game log, until Ctrl-C.
 
     python scripts/learn_loop.py                      # Chun-Li, window at normal speed
-    python scripts/learn_loop.py --char ryu --every 10
+    python scripts/learn_loop.py --char ryu
 
-From power-on: GAME START, pick the character, then the arcade ladder as it comes (a win brings the next opponent, a
-loss continues against the same one). One game = one round. Each time a new opponent appears, System 2 writes the short
-memory for him (memory/short/<me>_vs_<opp>.json), which goes into laya's prompt; every --every games it rewrites the
-playbook (memory/playbook/<me>.json) from all games so far and refreshes the current short memory. System 2 learns from
-the earlier logs of this character too (rollouts/games_v*/<me>, rollouts/learn/<me>).
+From power-on: GAME START, pick the character, then the arcade ladder as it comes. A GAME is one opponent until it is
+decided: win the match (best of 3 rounds) and the next opponent comes; lose it and the continue starts a new game
+against the same opponent. System 2 steps in:
+    new opponent  -> the short memory for him (memory/short/<me>_vs_<opp>.json, goes into laya's prompt); one kept
+                     from an earlier session is reused at once if it still meets today's rules (system2.fits_laya)
+    lost round    -> refreshes the short memory, so the next round plays with what just happened
+    end of a game -> rewrites the playbook (memory/playbook/<me>.json) from every round so far, then refreshes the
+                     short memory
+It learns from the earlier logs of this character too (rollouts/games_v*/<me>, rollouts/learn/<me>).
 
-Session log: rollouts/learn/<me>/<session>/{actions.jsonl, games.jsonl, images/}; console copy in logs/learn_<me>.log;
-every Qwen prompt and reply in logs/system2/; every memory version in logs/system2/memory/.
+Session log: rollouts/learn/<me>/<session>/{games.jsonl (one line per game), rounds.jsonl (per round), actions.jsonl
+(per action, with its game and round), images/}; console copy in logs/learn_<me>.log; every Qwen prompt and reply in
+logs/system2/; every memory version in logs/system2/memory/.
 """
 import argparse
 import glob
@@ -29,7 +34,7 @@ from sf2.headless import launch_argv, window_argv
 from sf2.memory import load, playbook_path, short_path
 from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
-from sf2.system2 import populate, review
+from sf2.system2 import fits_laya, populate, review
 from sf2.vs import NAMES, VARS
 from sf2.vs_sweep import actions
 
@@ -44,7 +49,8 @@ def say(msg: str) -> None:
 
 
 def history(me: str) -> Dict[str, Tuple[List[Dict], List[Dict]]]:
-    """Every earlier log of ``me``, by opponent: {opp: (actions, games)}; each action tagged with its log dir."""
+    """Every earlier log of ``me``, by opponent: {opp: (actions, rounds)}; each action tagged with its log dir. Older
+    logs (games_v*) have one line per round in games.jsonl; learning sessions keep rounds in rounds.jsonl."""
     by_opp: Dict[str, Tuple[List[Dict], List[Dict]]] = {}
     dirs = sorted(glob.glob("rollouts/games_v*/%s" % me)) + sorted(glob.glob("rollouts/learn/%s/*" % me))
     for d in dirs:
@@ -52,12 +58,13 @@ def history(me: str) -> Dict[str, Tuple[List[Dict], List[Dict]]]:
             continue
         tag = os.path.relpath(d, "rollouts")
         acts = [dict(json.loads(x), log=tag) for x in open(os.path.join(d, "actions.jsonl"))]
-        games = [json.loads(x) for x in open(os.path.join(d, "games.jsonl"))]
+        rfile = os.path.join(d, "rounds.jsonl")
+        rounds = [json.loads(x) for x in open(rfile if os.path.exists(rfile) else os.path.join(d, "games.jsonl"))]
         opps = {a["opp"] for a in acts}
         for o in opps:
-            a0, g0 = by_opp.setdefault(o, ([], []))
+            a0, r0 = by_opp.setdefault(o, ([], []))
             a0 += [a for a in acts if a["opp"] == o]
-            g0 += [g for g in games if g.get("opp", next(iter(opps))) == o]
+            r0 += [r for r in rounds if r.get("opp", next(iter(opps))) == o]
     return by_opp
 
 
@@ -95,7 +102,7 @@ def run_system2_short(me: str, opp: str, by_opp) -> Dict:
 
 
 def run_system2_review(me: str, by_opp) -> None:
-    say("System 2: reviewing %d games, rewriting the playbook ..." % sum(len(g) for _, g in by_opp.values()))
+    say("System 2: reviewing %d rounds, rewriting the playbook ..." % sum(len(r) for _, r in by_opp.values()))
     t = time.time()
     lessons, rep = review(me, load(playbook_path(me), list(actions(me))), by_opp)
     if lessons is None:
@@ -106,29 +113,40 @@ def run_system2_review(me: str, by_opp) -> None:
     show("System 2 (%.0f s): playbook - %s" % (time.time() - t, rep.get("notes")), lessons)
 
 
+def short_for(me: str, opp: str, by_opp) -> Dict:
+    """The short memory to play ``opp`` with: a kept one if it meets today's rules, else a fresh one from System 2."""
+    kept = load(short_path(me, opp), list(actions(me)))
+    if fits_laya(kept):
+        show("new opponent: %s - short memory kept from before" % opp, kept["lessons"])
+        return kept
+    say("new opponent: %s%s" % (opp, " (the kept short memory breaks today's rules: rewriting it)" if kept else ""))
+    return run_system2_short(me, opp, by_opp)
+
+
 def main() -> int:
     global LOG
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--char", default="chunli")
     ap.add_argument("--model", default="runs/all8/best")
-    ap.add_argument("--every", type=int, default=10, help="games between playbook reviews")
     ap.add_argument("--headless", action="store_true", help="no window, full speed")
     ap.add_argument("--port", type=int, default=47990)
     args = ap.parse_args()
     me = args.char
     session = time.strftime("%Y%m%d-%H%M%S")
     out = os.path.join("rollouts", "learn", me, session)
+    tag = os.path.relpath(out, "rollouts")
     os.makedirs(os.path.join(out, "images"), exist_ok=True)
     os.makedirs("logs", exist_ok=True)
     LOG = open(os.path.join("logs", "learn_%s.log" % me), "a")
     by_opp = history(me)
-    say("session %s: %s, System 1 %s, earlier games: %s" % (session, me, args.model,
-                                                            {o: len(g) for o, (_, g) in by_opp.items()}))
+    say("session %s: %s, System 1 %s, earlier rounds: %s" % (session, me, args.model,
+                                                             {o: len(r) for o, (_, r) in by_opp.items()}))
     s1 = System1(args.model, me)
     argv = launch_argv(args.port, None) if args.headless else window_argv(args.port, None)
     b = MesenBridge(args.port, launch=argv)
-    act_f, game_f = open(os.path.join(out, "actions.jsonl"), "a"), open(os.path.join(out, "games.jsonl"), "a")
-    rng, n, since, opp = random.Random(0), 0, 0, None
+    files = {k: open(os.path.join(out, k + ".jsonl"), "a") for k in ("actions", "rounds", "games")}
+    rng, n, game, opp = random.Random(0), 0, 0, None
+    score, rounds = [0, 0], []           # this game's round wins (me, him) and its round summaries
     try:
         b.set_capture("raw")
         say("power-on: GAME START, picking %s ..." % me)
@@ -139,37 +157,41 @@ def main() -> int:
             now = CHARACTERS.get(row["p2_char"], "id%d" % row["p2_char"])
             if now != opp:
                 opp = now
-                kept = load(short_path(me, opp), list(actions(me)))
-                if kept and kept.get("lessons"):     # learned before: play with it now, System 2 refreshes it at review
-                    s1.short = kept
-                    show("new opponent: %s - short memory kept from before" % opp, kept["lessons"])
-                else:
-                    say("new opponent: %s" % opp)
-                    s1.short = run_system2_short(me, opp, by_opp)
+                s1.short = short_for(me, opp, by_opp)
             rnd = play_round(b, s1, opp, None, rng, os.path.join(out, "images"), n)
-            tag = os.path.relpath(out, "rollouts")
-            for e in rnd.log:
-                act_f.write(json.dumps(dict(e, log=tag)) + "\n")
-            game_f.write(json.dumps(dict(rnd.summary, opp=opp)) + "\n")
-            act_f.flush()
-            game_f.flush()
-            a0, g0 = by_opp.setdefault(opp, ([], []))
-            a0 += [dict(e, log=tag) for e in rnd.log]
-            g0.append(dict(rnd.summary, opp=opp))
-            say("game %d vs %s: %s  dealt %d taken %d  %d actions, attacks %s" % (
-                n, opp, rnd.result, rnd.summary["dealt"], rnd.summary["taken"], len(rnd.log), rnd.summary["outcomes"]))
-            n, since = n + 1, since + 1
-            if since >= args.every:
+            where = {"game": game, "round": len(rounds), "opp": opp, "log": tag}
+            summary = dict(rnd.summary, **where)
+            files["actions"].write("".join(json.dumps(dict(e, **where)) + "\n" for e in rnd.log))
+            files["rounds"].write(json.dumps(summary) + "\n")
+            a0, r0 = by_opp.setdefault(opp, ([], []))
+            a0 += [dict(e, **where) for e in rnd.log]
+            r0.append(summary)
+            rounds.append(summary)
+            score[0] += rnd.result == "win"
+            score[1] += rnd.result == "loss"
+            say("game %d round %d vs %s: %s (%d-%d)  dealt %d taken %d  %d actions, attacks %s" % (
+                game, len(rounds) - 1, opp, rnd.result, score[0], score[1], rnd.summary["dealt"],
+                rnd.summary["taken"], len(rnd.log), rnd.summary["outcomes"]))
+            if max(score) >= 2 or len(rounds) >= 4:        # the match is decided: the game is over
+                result = "win" if score[0] > score[1] else "loss"
+                files["games"].write(json.dumps({"game": game, "opp": opp, "result": result, "score": score,
+                                                 "rounds": [r["result"] for r in rounds], "log": tag}) + "\n")
+                say("GAME %d vs %s: %s %d-%d" % (game, opp, result.upper(), score[0], score[1]))
                 run_system2_review(me, by_opp)
                 s1.short = run_system2_short(me, opp, by_opp)
-                since = 0
+                game, score, rounds = game + 1, [0, 0], []
+            elif rnd.result == "loss":
+                s1.short = run_system2_short(me, opp, by_opp)
+            for f in files.values():
+                f.flush()
+            n += 1
             next_fight(b, me=me)
     except KeyboardInterrupt:
-        say("Ctrl-C: stopping after %d games" % n)
+        say("Ctrl-C: stopping after %d games (%d rounds)" % (game, n))
     finally:
         b.close()
-        act_f.close()
-        game_f.close()
+        for f in files.values():
+            f.close()
         say("session %s saved in %s" % (session, out))
     return 0
 

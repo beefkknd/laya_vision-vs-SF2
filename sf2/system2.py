@@ -62,11 +62,11 @@ def supported(les: Dict, ev: Dict) -> Optional[str]:
 
 # ------------------------------------------------------------------------------------------------ digest (what Qwen reads)
 def digest(acts: List[Dict], games: List[Dict], title: str) -> str:
-    lines = ["## %s: %d games (%s), %d actions" % (
+    lines = ["## %s: %d rounds (%s), %d actions" % (
         title, len(games), ", ".join("%s %d" % kv for kv in collections.Counter(g["result"] for g in games).items()),
         len(acts))]
     if games:
-        lines.append("damage per game: dealt %.0f, taken %.0f" % (sum(g["dealt"] for g in games) / len(games),
+        lines.append("damage per round: dealt %.0f, taken %.0f" % (sum(g["dealt"] for g in games) / len(games),
                                                                   sum(g["taken"] for g in games) / len(games)))
     moves = collections.defaultdict(list)
     for a in acts:
@@ -95,6 +95,19 @@ def digest(acts: List[Dict], games: List[Dict], title: str) -> str:
             lines.append("when he was in %s: %s" % (state, ", ".join("%s lands %d/%d" % (m, sum(v), len(v))
                                                                    for m, v in sorted(c.items(), key=lambda kv: -len(kv[1])))))
     return "\n".join(lines)
+
+
+def fits_laya(mem) -> bool:
+    """A stored memory still meets today's rules (e.g. one kept from an earlier session or written by an older
+    builder): every lesson names a claim, fits laya's prompt (short, no numbers) and no move or claim repeats."""
+    seen = set()
+    for les in (mem or {}).get("lessons", []):
+        text = les.get("text") or ""
+        key = (les.get("action"), les.get("kind")) if les.get("action") else (les.get("claim"), les.get("range"))
+        if les.get("claim") not in CLAIMS or len(text) > MAX_TEXT or re.search(r"\d", text) or key in seen:
+            return False
+        seen.add(key)
+    return bool(mem and mem.get("lessons"))
 
 
 OWN_MIN_TRIES = 6          # own-move claims use this opponent's games from this many tries on, else all games

@@ -2,94 +2,70 @@
  "me": "chunli",
  "opp": "ryu",
  "source": [
-  "rollouts/games_v1/chunli/actions.jsonl"
+  "games_v1/chunli",
+  "games_v2/chunli",
+  "learn/chunli/20260927-193816",
+  "learn/chunli/20260927-194458"
  ],
  "lessons": [
   {
-   "text": "ryu punishes my spinning_bird_kick at mid range (70%)",
+   "text": "avoid spinning_bird_kick at mid: he punishes it",
    "kind": "avoid",
    "action": "spinning_bird_kick",
    "range": "mid",
+   "claim": "punished",
    "evidence": {
-    "tries": 41,
-    "count": 29,
-    "rate": 0.71,
+    "tries": 108,
+    "count": 80,
+    "rate": 0.74,
     "refs": [
-     "g0f60",
-     "g0f264",
-     "g0f444",
-     "g1f16",
-     "g2f0"
-    ]
+     "games_v1/chunli/g0f60",
+     "games_v1/chunli/g0f264",
+     "games_v1/chunli/g0f444",
+     "games_v1/chunli/g1f16",
+     "games_v1/chunli/g2f0"
+    ],
+    "scope": "this opponent"
    }
   },
   {
-   "text": "use more lp at close range (lands 56%)",
+   "text": "when he jumps, use spinning_bird_kick",
+   "kind": "counter",
+   "action": "spinning_bird_kick",
+   "range": null,
+   "claim": "counter:jump",
+   "evidence": {
+    "tries": 32,
+    "count": 17,
+    "rate": 0.53,
+    "refs": [
+     "games_v1/chunli/g2f1280",
+     "games_v1/chunli/g3f644",
+     "games_v1/chunli/g6f44",
+     "games_v1/chunli/g7f1520",
+     "games_v1/chunli/g9f904"
+    ],
+    "scope": "this opponent"
+   }
+  },
+  {
+   "text": "use more lp up close",
    "kind": "use_more",
    "action": "lp",
    "range": "close",
+   "claim": "lands",
    "evidence": {
     "tries": 46,
     "count": 26,
     "rate": 0.57,
     "refs": [
-     "g1f860",
-     "g1f876",
-     "g1f892",
-     "g2f1264",
-     "g2f1524"
-    ]
-   }
-  },
-  {
-   "text": "when ryu attacks, my attacks rarely land (2 of 28)",
-   "kind": "counter",
-   "action": null,
-   "range": null,
-   "evidence": {
-    "tries": 28,
-    "count": 2,
-    "rate": 0.07,
-    "refs": [
-     "g4f1100",
-     "g7f1328"
-    ]
-   }
-  },
-  {
-   "text": "when ryu jumps in, spinning_bird_kick hits him",
-   "kind": "counter",
-   "action": "spinning_bird_kick",
-   "range": null,
-   "evidence": {
-    "tries": 10,
-    "count": 5,
-    "rate": 0.5,
-    "refs": [
-     "g2f1280",
-     "g3f644",
-     "g6f44",
-     "g7f1520",
-     "g9f904"
-    ]
-   }
-  },
-  {
-   "text": "ryu attacks a lot at far range (42% of my turns)",
-   "kind": "opponent_habit",
-   "action": null,
-   "range": "far",
-   "evidence": {
-    "tries": 28,
-    "count": 12,
-    "rate": 0.43,
-    "refs": [
-     "g0f640",
-     "g0f756",
-     "g0f856",
-     "g1f1168",
-     "g1f1276"
-    ]
+     "games_v1/chunli/g1f860",
+     "games_v1/chunli/g1f876",
+     "games_v1/chunli/g1f892",
+     "games_v1/chunli/g2f1264",
+     "games_v1/chunli/g2f1524"
+    ],
+    "scope": "this opponent"
    }
   }
  ]

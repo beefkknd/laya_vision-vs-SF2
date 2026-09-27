@@ -205,3 +205,14 @@ def test_short_memory_evidence_uses_all_games_until_this_opponent_has_enough():
     assert by["use more lp up close"]["scope"] == "all opponents" and by["use more lp up close"]["tries"] == 20
     assert by["when he jumps in, use hp"]["scope"] == "this opponent" and by["when he jumps in, use hp"]["tries"] == 3
     assert by["he jumps in a lot"]["tries"] == 4                          # habits: his games only, never the fallback
+
+
+def test_a_kept_short_memory_must_meet_todays_rules():
+    from sf2.system2 import fits_laya
+    ok = {"text": "use more lp up close", "kind": "use_more", "action": "lp", "range": "close", "claim": "lands"}
+    old_style = {"text": "ryu punishes my spinning_bird_kick at mid range (70%)", "kind": "avoid",
+                 "action": "spinning_bird_kick", "range": "mid"}                    # no claim, numbers: the old builder
+    assert fits_laya({"lessons": [ok]})
+    assert not fits_laya({"lessons": [ok, old_style]})
+    assert not fits_laya({"lessons": [ok, dict(ok, text="use more lp up close, really")]})        # the same move twice
+    assert not fits_laya({"lessons": [dict(ok, text="x" * 61)]}) and not fits_laya({"lessons": []}) and not fits_laya(None)
