@@ -37,6 +37,7 @@ fireball_x 0x1057   2     0
 my_fireball   0x1000   1  0
 my_fireball_x 0x1007   2  0
 # Player 1's special (state 0C, player input only), set on entering 0C: Ryu 00 Hadoken, 02 Hurricane Kick, 04 Shoryuken.
+# Chun-Li 02 Lightning Legs, 00 Spinning Bird Kick (tests/test_rom_moves.py).
 my_special 0x0D80   1     0
 # The side the ROM has player 1 facing and mirrors the stick for: 40 right, 00 left. It lags the x positions while
 # turning, in the air and in guard / hit stun; a motion resolved from x then comes out mirrored (tests/test_rom_moves.py).

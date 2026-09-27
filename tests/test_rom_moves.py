@@ -23,7 +23,7 @@ from sf2 import ram
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAM_MAP = os.path.join(ROOT, "ram_maps", "sf2_snes.txt")
 # character -> (fight-start savestate, CPU opponent). Add a character here with its specials' checks below.
-FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken")}
+FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken"), "chunli": ("p1_chunli_vs_ryu.state", "ryu")}
 FACINGS = ("right", "left")
 
 pytestmark = pytest.mark.skipif(not os.environ.get("SF2_ROM"), reason="needs $SF2_ROM (and Mesen)")
@@ -96,7 +96,7 @@ def _clean(f0, fs):
     return all(f.my_state not in (ram.HIT_STATE, ram.THROWN_STATE) and f.my_life == f0.my_life for f in fs)
 
 
-def _find(env, facing, lo, hi, attempt, limit=400):
+def _find(env, facing, lo, hi, attempt, limit=2000):
     """At each moment the character stands free facing ``facing`` with the opponent ``lo``..``hi`` px away,
     ``attempt(f0)`` runs inputs from there and returns a verdict, or None when the CPU interfered. Returns the first
     verdict."""
@@ -169,6 +169,41 @@ def test_each_special_has_its_own_id_and_the_hadoken_uses_player_1s_projectile_s
 
 
 @pytest.mark.parametrize("facing", FACINGS)
+def _taps(n):
+    """``n`` short taps, 1 frame down and 1 up (the lightning_legs macro is 12)."""
+    return [("lk",), ()] * n
+
+
+def _charge(hold):
+    """Down held ``hold`` frames, then up + roundhouse (the spinning_bird_kick macro holds 64)."""
+    return [("D",)] * hold + [("U", "hk")] * 2 + [()] * 2
+
+
+@pytest.mark.parametrize("facing", FACINGS)
+def test_chunli_specials_have_their_own_id_and_thresholds(env, facing):
+    """Chun-Li's specials are state 0C, 0x0D80 telling which: 02 Lightning Legs, 00 Spinning Bird Kick; neither uses
+    her projectile slot. From one free moment: 10 short taps (1 frame down, 1 up) start the Legs, 9 do not; down
+    held 61 frames, then up + roundhouse, is a Spinning Bird Kick, 60 frames is not (a binary search found 61 at 20
+    of 20 free moments, 10 per facing, 2026-09-27)."""
+    if env.me != "chunli":
+        pytest.skip("Chun-Li's ids")
+    tries = {"legs": _taps(12), "taps10": _taps(10), "taps9": _taps(9),
+             "sbk": _charge(64), "hold61": _charge(61), "hold60": _charge(60)}
+
+    def attempt(f0):
+        runs = {m: _run(env, _physical(t, f0.facing_right) + [[]] * 40) for m, t in tries.items()}
+        if not all(_clean(f0, runs[m][:len(t) + 20]) for m, t in tries.items()):   # until well after the input
+            return None
+        return runs
+
+    runs = _find(env, facing, 90, 200, attempt)
+    ids = {m: {f.my_special for f in fs if f.my_state == ram.SPECIAL_STATE} for m, fs in runs.items()}
+    assert ids == {"legs": {0x02}, "taps10": {0x02}, "taps9": set(), "sbk": {0x00}, "hold61": {0x00},
+                   "hold60": set()}, (facing, ids)
+    assert not any(f.my_fireball for fs in runs.values() for f in fs), facing
+
+
+@pytest.mark.parametrize("facing", FACINGS)
 def test_attack_result_reads_hit_blocked_and_whiffed(env, facing):
     """ram.attack_result against what the ROM shows independently: a hit costs him life and he was not guarding
     (08) the frame before; blocked means he was guarding, then block stun, losing at most a special's chip (12); a
@@ -233,9 +268,10 @@ def test_the_rom_facing_byte_agrees_with_x_when_standing_apart(env):
 
 
 # ------------------------------------------------------------------------------------------------ P3: the move macros
-# Far standing normals: frames in the attack state 0A (measured on the ROM, the opponent 85+ px away). The button
-# mapping shows in them: jab / fierce / short / roundhouse all differ.
-ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}}
+# Far standing normals: frames in the attack state 0A when they whiff (measured on the ROM, the opponent 85+ px away;
+# a run where one connects is retried at a later moment). The button mapping shows in them: jab / fierce / short /
+# roundhouse all differ.
+ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}, "chunli": {"lp": 13, "hp": 30, "lk": 17, "hk": 33}}
 
 
 def _run_length(fs, state):
@@ -288,6 +324,12 @@ CHECKS = {
     "tatsumaki": (70, 200, 40, lambda c, f0, fs: bool(_special(fs, 0x02)) and _rise(f0, fs) >= 10
                   and _toward(f0, fs[30]) > 20,
                   [("D",)] * 2 + [("D", "F")] * 2 + [("F", "hk")] * 2 + [()] * 2),             # motion mirrored
+    # Chun-Li: kicks on the spot (the P2 test above has the ids and thresholds)
+    "lightning_legs": (80, 200, 30, lambda c, f0, fs: bool(_special(fs, 0x02)) and _toward(f0, fs[-1]) == 0,
+                       _taps(8)),                                                               # too few taps
+    # upside down, up off the ground and across toward him
+    "spinning_bird_kick": (90, 200, 75, lambda c, f0, fs: bool(_special(fs, 0x00)) and _rise(f0, fs) >= 10
+                           and max(_toward(f0, f) for f in fs) > 40, _charge(40)),             # charge too short
 }
 
 
@@ -312,8 +354,12 @@ def test_move_does_what_it_is_defined_to_do(env, move, facing, request):
         bad = _run(env, _physical(wrong, f0.facing_right) + [[]] * after)
         if not (_clean(f0, right) and _clean(f0, bad)):
             return None
-        if move == "sweep" and right[-1].opp_life >= f0.opp_life:      # it must connect to show the knockdown
-            return None
+        if move == "sweep" and (right[-1].opp_life >= f0.opp_life     # it must connect to show the knockdown,
+                                or any(f.opp_state == ram.ATTACK_STATE for f in right + bad)):
+            return None       # and not while the CPU attacks: a roundhouse knocks him down out of a Shoryuken too
+        if move in ("lp", "hp", "lk", "hk") and any(f.opp_state == ram.HIT_STATE for f in right + bad):
+            return None                                                 # ATTACK_FRAMES are whiffs
+
         return f0, right, bad
 
     f0, right, bad = _find(env, facing, lo, hi, attempt)
@@ -337,18 +383,19 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
             runs = {}
             for name, tokens in (("block", A.expand("block")), ("wrong", [("D", "F")] * 6)):
                 env.backend.load_state(state)
-                runs[name] = env.backend.run(_physical(tokens, f0.facing_right) * 200).rams[1:]
+                rows = env.backend.run(_physical(tokens, f0.facing_right) * 200).rams[1:]
+                # until the CPU jumps over him: after that the same buttons are down + toward / down + back
+                runs[name] = rows[:next((i for i, r in enumerate(rows) if (r[mx] <= r[ox]) != f0.facing_right),
+                                        len(rows))]
         finally:
             env.backend.set_vars(ram_map)
             env.backend.load_state(state)
-        return f0, runs
+        return (f0, runs) if min(len(r) for r in runs.values()) > 300 else None      # he crossed over too soon
 
+    mx, ox = env.names.index("my_x"), env.names.index("opp_x")
     f0, runs = _find(env, facing, 80, 200, attempt)
     st, react, guard = env.names.index("my_state"), env.names.index("my_react"), len(env.names)
-    mx, ox = env.names.index("my_x"), env.names.index("opp_x")
     for name, rows in runs.items():
-        # until the CPU jumps over him: after that the same buttons are down + toward / down + back
-        rows = rows[:next((i for i, r in enumerate(rows) if (r[mx] <= r[ox]) != f0.facing_right), len(rows))]
         entries = [i for i in range(1, len(rows)) if rows[i][st] == 0x08 and rows[i - 1][st] != 0x08]
         stun = [i for i in range(1, len(rows)) if rows[i][st] == ram.HIT_STATE and rows[i - 1][st] == 0x08
                 and rows[i][react] in ram.BLOCK_REACTS]

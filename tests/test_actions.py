@@ -62,10 +62,10 @@ def test_lightning_legs_is_twelve_quick_short_taps():
 
 def test_every_character_has_the_shared_basics_and_its_own_specials():
     """docs/MOVES.md: the basics are shared by all 8; the specials are per character. Chun-Li's special is the
-    Lightning Legs; a character whose specials are not in the code yet has the basics only."""
+    Lightning Legs and the Spinning Bird Kick; a character whose specials are not in the code yet has the basics only."""
     assert A.CHARACTERS == ["ryu", "ken", "honda", "blanka", "guile", "chunli", "zangief", "dhalsim"]
     assert A.BASICS == A.ACTIONS[:13]
-    assert A.moves("chunli") == A.BASICS + ["lightning_legs"]
+    assert A.moves("chunli") == A.BASICS + ["lightning_legs", "spinning_bird_kick"]
     for c in A.CHARACTERS:
         assert A.moves(c)[:13] == A.BASICS and set(A.moves(c)) <= set(A.MACROS) == set(A.CRITERIA)
 
@@ -94,3 +94,9 @@ def test_ryu_specials_are_the_sheets_motions_with_fierce_and_roundhouse():
     assert A.expand("tatsumaki") == [("D",)] * 2 + [("D", "B")] * 2 + [("B", "hk")] * 2 + [()] * 2
     assert A.to_physical(("D", "F", "hp"), facing_right=False) == ["down", "left", "l"]
     assert A.to_physical(("D", "B"), facing_right=False) == ["down", "right"]
+
+
+def test_spinning_bird_kick_holds_the_whole_down_charge_then_up_and_roundhouse():
+    """docs/MOVES.md: [D]60, U + K. On the ROM the SBK needs down held at least 61 frames from standing (20 of 20
+    free moments, both facings; tests/test_rom_moves.py): one macro holds 64, then up + roundhouse."""
+    assert A.expand("spinning_bird_kick") == [("D",)] * 64 + [("U", "hk")] * 2 + [()] * 2
