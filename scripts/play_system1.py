@@ -2,12 +2,12 @@
 model per character), and records every decision: frames, note, the model's P(hit) for each attack, the choice, and
 what really happened.
 
-    python scripts/play_system1.py --model runs/all8/best                  # all 8 characters, 6 rounds each
-    python scripts/play_system1.py --model runs/all8/best --chars ryu --rounds 2
+    python scripts/play_system1.py --model runs/all8/best                  # all 8 characters, 10 games each
+    python scripts/play_system1.py --model runs/all8/best --chars ryu --games 2
 
 Opponent: states/p1_<char>_vs_ryu.state (Ryu: p1_ryu_vs_ken.state), round 1 against the CPU.
-Writes rollouts/system1/<char>/{decisions.jsonl, rounds.jsonl, images/} and rollouts/system1/summary.json; logs in
-logs/system1/<char>.log.
+Writes the game log for System 2 (sf2/game_log.py): rollouts/<run>/<char>/{actions.jsonl, games.jsonl, images/}
+and rollouts/<run>/summary.json; process logs in logs/system1/<char>.log.
 """
 import argparse
 import collections
@@ -21,7 +21,6 @@ import time
 import _path  # noqa: F401
 from sf2.headless import launch_argv
 from sf2.mesen import MesenBridge
-from sf2.short_memory import ShortMemory
 from sf2.system1 import System1, play_round
 from sf2.vs import IDS, NAMES, VARS
 
@@ -39,10 +38,8 @@ def play_one(args, me: str, port: int) -> int:
     os.makedirs(img_dir, exist_ok=True)
     state = open("states/p1_%s_vs_%s.state" % (me, opp), "rb").read()
     s1 = System1(None if args.model == "random" else args.model, me, args.threshold, args.device, args.seed)
-    if args.memory:
-        s1.memory = ShortMemory()            # blank at the start; kept across this character's rounds
     b = MesenBridge(port, launch=launch_argv(port, args.rom))
-    rounds, t0 = [], time.time()
+    games, t0 = [], time.time()
     try:
         b.set_capture("raw")
         b.set_vars(VARS)
@@ -51,21 +48,18 @@ def play_one(args, me: str, port: int) -> int:
             raise SystemExit("%s: savestate holds characters %s, expected %s" % (
                 me, (r["p1_char"], r["p2_char"]), (IDS[me], IDS[opp])))
         rng = random.Random(args.seed)
-        with open(os.path.join(out, "decisions.jsonl"), "w") as dec:
-            for i in range(args.rounds):
-                rnd = play_round(b, s1, opp, state, rng, img_dir, "r%02d" % i)
-                for e in rnd.log:
-                    dec.write(json.dumps(dict(e, round=i)) + "\n")
-                rounds.append({"round": i, "result": rnd.result, "frames": rnd.frames, "decisions": rnd.decisions,
-                               "dealt": rnd.dealt, "taken": rnd.taken})
-                print("%-8s round %d: %-10s dealt %3d taken %3d  %d decisions" % (
-                    me, i, rnd.result, rnd.dealt, rnd.taken, rnd.decisions), flush=True)
+        with open(os.path.join(out, "actions.jsonl"), "w") as act, open(os.path.join(out, "games.jsonl"), "w") as gm:
+            for i in range(args.games):
+                rnd = play_round(b, s1, opp, state, rng, img_dir, i)
+                act.write("".join(json.dumps(e) + "\n" for e in rnd.log))
+                gm.write(json.dumps(rnd.summary) + "\n")
+                act.flush()
+                gm.flush()
+                games.append(rnd.summary)
+                print("%-8s game %d: %-10s dealt %3d taken %3d  %d actions" % (
+                    me, i, rnd.result, rnd.summary["dealt"], rnd.summary["taken"], len(rnd.log)), flush=True)
     finally:
         b.close()
-    if s1.memory:
-        s1.memory.save(os.path.join(out, "memory.json"))
-    with open(os.path.join(out, "rounds.jsonl"), "w") as f:
-        f.write("".join(json.dumps(x) + "\n" for x in rounds))
     print("%s done in %.0f s" % (me, time.time() - t0))
     return 0
 
@@ -73,22 +67,22 @@ def play_one(args, me: str, port: int) -> int:
 def summarize(out_dir: str, chars) -> dict:
     summary = {}
     for c in chars:
-        rpath, dpath = os.path.join(out_dir, c, "rounds.jsonl"), os.path.join(out_dir, c, "decisions.jsonl")
-        if not os.path.exists(rpath):
+        gpath, apath = os.path.join(out_dir, c, "games.jsonl"), os.path.join(out_dir, c, "actions.jsonl")
+        if not os.path.exists(gpath):
             continue
-        rounds = [json.loads(x) for x in open(rpath)]
-        dec = [json.loads(x) for x in open(dpath)]
-        att = [d for d in dec if d["action"] != "forward"]
-        pred_hit = [d for d in att if d["predicted"] == "hit"]
-        res = collections.Counter(r["result"] for r in rounds)
+        games = [json.loads(x) for x in open(gpath)]
+        acts = [json.loads(x) for x in open(apath)]
+        att = [a for a in acts if a["kind"] == "attack"]
+        pred_hit = [a for a in att if a["predicted"] == "hit"]
+        res = collections.Counter(g["result"] for g in games)
         summary[c] = {
-            "rounds": len(rounds), "win": res["win"], "loss": res["loss"], "draw": res["draw"],
-            "dealt_per_round": sum(r["dealt"] for r in rounds) / max(len(rounds), 1),
-            "taken_per_round": sum(r["taken"] for r in rounds) / max(len(rounds), 1),
-            "decisions": len(dec), "attack_share": len(att) / max(len(dec), 1),
-            "predicted_hit_really_hit": sum(d["actual"] == "hit" for d in pred_hit) / max(len(pred_hit), 1),
-            "attack_outcomes": dict(collections.Counter(d["actual"] for d in att)),
-            "top_actions": collections.Counter(d["action"] for d in dec).most_common(5),
+            "games": len(games), "win": res["win"], "loss": res["loss"], "draw": res["draw"],
+            "dealt_per_game": sum(g["dealt"] for g in games) / max(len(games), 1),
+            "taken_per_game": sum(g["taken"] for g in games) / max(len(games), 1),
+            "actions": len(acts), "attack_share": len(att) / max(len(acts), 1),
+            "predicted_hit_really_hit": sum(a["actual"] == "hit" for a in pred_hit) / max(len(pred_hit), 1),
+            "attack_outcomes": dict(collections.Counter(a["actual"] for a in att)),
+            "times_hit": sum(a["i_was_hit"] for a in acts),
         }
     return summary
 
@@ -97,14 +91,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True, help="checkpoint dir, or 'random' for the random-attack baseline")
     ap.add_argument("--chars", default=",".join(CHARS))
-    ap.add_argument("--rounds", type=int, default=6)
+    ap.add_argument("--games", type=int, default=10, help="games per character (a game = round 1 vs the CPU)")
     ap.add_argument("--threshold", type=float, default=0.5, help="attack only if P(hit) is at least this")
     ap.add_argument("--out", default="rollouts/system1")
     ap.add_argument("--base-port", type=int, default=48901)
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--device", default=None)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--memory", action="store_true", help="play with a short memory of real outcomes (starts blank)")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
     if args.one:
@@ -114,9 +107,8 @@ def main() -> int:
     jobs = []
     for i, c in enumerate(chars):
         cmd = [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model", args.model,
-               "--rounds", str(args.rounds), "--threshold", str(args.threshold), "--out", args.out,
-               "--seed", str(args.seed)] + (["--rom", args.rom] if args.rom else []) + (
-                   ["--memory"] if args.memory else [])
+               "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
+               "--seed", str(args.seed)] + (["--rom", args.rom] if args.rom else [])
         log = open(os.path.join("logs", "system1", c + ".log"), "w")
         jobs.append((c, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)))
     print("%d characters playing (logs/system1/<char>.log)" % len(jobs), flush=True)
@@ -124,12 +116,12 @@ def main() -> int:
     summary = summarize(args.out, chars)
     with open(os.path.join(args.out, "summary.json"), "w") as f:
         json.dump(summary, f, indent=1)
-    print("%-8s %6s %6s %6s %6s %7s %8s  %s" % ("char", "W-L-D", "dealt", "taken", "attack", "P(hit)ok", "decis.",
+    print("%-8s %6s %6s %6s %6s %7s %8s  %s" % ("char", "W-L-D", "dealt", "taken", "attack", "P(hit)ok", "actions",
                                                 "real outcome of attacks"))
     for c, s in summary.items():
         print("%-8s %6s %6.0f %6.0f %6.0f%% %7.0f%% %8d  %s" % (
-            c, "%d-%d-%d" % (s["win"], s["loss"], s["draw"]), s["dealt_per_round"], s["taken_per_round"],
-            100 * s["attack_share"], 100 * s["predicted_hit_really_hit"], s["decisions"], s["attack_outcomes"]))
+            c, "%d-%d-%d" % (s["win"], s["loss"], s["draw"]), s["dealt_per_game"], s["taken_per_game"],
+            100 * s["attack_share"], 100 * s["predicted_hit_really_hit"], s["actions"], s["attack_outcomes"]))
     for c in failed:
         print("FAILED:", c, "see logs/system1/%s.log" % c)
     return 1 if failed else 0
