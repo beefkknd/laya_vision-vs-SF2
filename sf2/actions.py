@@ -22,7 +22,7 @@ SPECIALS: Dict[str, List[str]] = {
     "ryu": ["hadoken", "shoryuken", "tatsumaki"],
     "ken": ["hadoken", "shoryuken", "tatsumaki"],
     "guile": ["sonic_boom", "flash_kick"],
-    "chunli": ["lightning_legs"],
+    "chunli": ["lightning_legs", "spinning_bird_kick"],
 }
 
 
@@ -33,7 +33,8 @@ def moves(character: str) -> List[str]:
     return BASICS + SPECIALS.get(character, [])
 
 
-# The 14-action set of the Chun-Li datasets and checkpoints (datasets, metrics, the playbook contract use it).
+# Chun-Li's move list, the action set of the datasets, metrics and the playbook contract (15 actions since the Spinning
+# Bird Kick; the 14-action datasets and checkpoints of r0-r2 predate it).
 ACTIONS: List[str] = moves("chunli")
 INDEX = {a: i for i, a in enumerate(ACTIONS)}
 
@@ -52,6 +53,7 @@ CRITERIA: Dict[str, str] = {
     "throw": "throw the opponent when right next to him (a fierce punch otherwise)",
     "sweep": "crouching roundhouse, knocks him down",
     "lightning_legs": "Lightning Legs: a flurry of kicks, strong up close",
+    "spinning_bird_kick": "Spinning Bird Kick: crouches to charge, then spins upside down across toward him, legs out",
     "hadoken": "Hadoken: a fireball that travels along the ground toward him",
     "shoryuken": "Shoryuken: a rising uppercut, beats jump-ins",
     "tatsumaki": "Hurricane Kick: spins forward through the air with one leg out",
@@ -84,6 +86,9 @@ MACROS: Dict[str, List[Step]] = {
     "sweep": [(("D", "hk"), _TAP), (("D",), _TAP)],
     # 12 short taps, 1 frame down, 1 up: the Legs (state 0C) start at frame 18 (tests/test_rom_harness.py)
     "lightning_legs": [(("lk",), 1), ((), 1)] * 12,
+    # Chun-Li's charge special, the whole charge in one macro: down held 64 frames (61 is the minimum on the ROM,
+    # tests/test_rom_moves.py), then up + roundhouse. Roundhouse flies furthest; strength only changes the distance.
+    "spinning_bird_kick": [(("D",), 64), (("U", "hk"), 2), ((), 2)],
     # Ryu and Ken, the same inputs (docs/MOVES.md; tests/test_rom_moves.py): 2 frames per direction, the button on
     # the last one, 2 released.
     # Fierce / roundhouse: every strength "works as defined" the same way; the strongest shows it most (fastest
