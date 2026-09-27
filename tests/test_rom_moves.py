@@ -23,7 +23,7 @@ from sf2 import ram
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAM_MAP = os.path.join(ROOT, "ram_maps", "sf2_snes.txt")
 # character -> (fight-start savestate, CPU opponent). Add a character here with its specials' checks below.
-FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken")}
+FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken"), "ken": ("p1_ken_vs_ryu.state", "ryu")}
 FACINGS = ("right", "left")
 
 pytestmark = pytest.mark.skipif(not os.environ.get("SF2_ROM"), reason="needs $SF2_ROM (and Mesen)")
@@ -52,9 +52,14 @@ def _free_port():
         return s.getsockname()[1]
 
 
+# Characters that jump over the CPU instead of walking through it: CPU Ryu backs into the corner, and when Ken walks
+# past him there he throws Ken straight back.
+JUMP_OVER = {"ken"}
+
+
 def _to_other_side(env):
     for _ in range(200):
-        env.act("forward")
+        env.act("jump_forward" if env.me in JUMP_OVER and env.f.dx <= 70 else "forward")
         if not env.f.facing_right:
             return
     raise AssertionError("never got past the opponent")
@@ -136,7 +141,9 @@ RYU_MOTIONS = {  # docs/MOVES.md, fierce / roundhouse
     "shoryuken": _motion([("F",), ("D",), ("D", "F")], "hp"),
     "tatsumaki": _motion([("D",), ("D", "B"), ("B",)], "hk"),
 }
-RYU_SPECIAL_IDS = {"hadoken": 0x00, "tatsumaki": 0x02, "shoryuken": 0x04}
+# character -> {special: my_special id}. Ken has the same inputs, ids and projectile slot as Ryu (checked on the ROM).
+SPECIAL_IDS = {"ryu": {"hadoken": 0x00, "tatsumaki": 0x02, "shoryuken": 0x04},
+               "ken": {"hadoken": 0x00, "tatsumaki": 0x02, "shoryuken": 0x04}}
 
 
 @pytest.mark.parametrize("facing", FACINGS)
@@ -144,20 +151,22 @@ def test_each_special_has_its_own_id_and_the_hadoken_uses_player_1s_projectile_s
     """Every Ryu special is state 0C, with 0x0D80 telling which (00 Hadoken, 02 Hurricane Kick, 04 Shoryuken). The
     Hadoken puts a projectile in player 1's slot (0x1000, x at 0x1007) in front of him within 14 frames of the
     press, travelling away from him ~3 px a frame (it stops on the frame it hits). (Player 2's slot 0x1050 holds the
-    CPU's own Hadoken, which can be on screen at the same time: checked by hand, 2026-09-27.)"""
-    if env.me != "ryu":
-        pytest.skip("Ryu's ids")
+    CPU's own Hadoken, which can be on screen at the same time: checked by hand, 2026-09-27.) Ken: the same."""
+    if env.me not in SPECIAL_IDS:
+        pytest.skip("Ryu's and Ken's ids")
 
     def attempt(f0):
         runs = {m: _run(env, _physical(t, f0.facing_right) + [[]] * 40) for m, t in RYU_MOTIONS.items()}
-        if not all(_clean(f0, fs[:30]) for fs in runs.values()):
+        # the CPU can walk into the fireball as it appears (seen: hit on its 2nd frame, no travel): another moment
+        if not all(_clean(f0, fs[:30]) for fs in runs.values()) or any(
+                f.opp_state == ram.HIT_STATE for f in runs["hadoken"][:30]):
             return None
         return f0, runs
 
     f0, runs = _find(env, facing, 90, 200, attempt)
     for m, fs in runs.items():
         sp = [f.my_special for f in fs if f.my_state == ram.SPECIAL_STATE]
-        assert len(sp) > 10 and set(sp) == {RYU_SPECIAL_IDS[m]}, (facing, m, sp)
+        assert len(sp) > 10 and set(sp) == {SPECIAL_IDS[env.me][m]}, (facing, m, sp)
     fb = [f for f in runs["hadoken"] if f.my_fireball]
     first = runs["hadoken"].index(fb[0])
     toward = 1 if f0.facing_right else -1
@@ -172,9 +181,9 @@ def test_each_special_has_its_own_id_and_the_hadoken_uses_player_1s_projectile_s
 def test_attack_result_reads_hit_blocked_and_whiffed(env, facing):
     """ram.attack_result against what the ROM shows independently: a hit costs him life and he was not guarding
     (08) the frame before; blocked means he was guarding, then block stun, losing at most a special's chip (12); a
-    whiff costs him nothing and he never enters 0E. Ryu's three specials and a fierce, at many moments."""
-    if env.me != "ryu":
-        pytest.skip("Ryu's moves")
+    whiff costs him nothing and he never enters 0E. Ryu's (or Ken's) three specials and a fierce, at many moments."""
+    if env.me not in SPECIAL_IDS:
+        pytest.skip("Ryu's and Ken's moves")
     moves = dict(RYU_MOTIONS, hp=[("hp",)] * 2 + [()] * 2)
     seen = {"hit": 0, "blocked": 0, "whiffed": 0}
     k = 0
@@ -235,7 +244,7 @@ def test_the_rom_facing_byte_agrees_with_x_when_standing_apart(env):
 # ------------------------------------------------------------------------------------------------ P3: the move macros
 # Far standing normals: frames in the attack state 0A (measured on the ROM, the opponent 85+ px away). The button
 # mapping shows in them: jab / fierce / short / roundhouse all differ.
-ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}}
+ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}, "ken": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}}
 
 
 def _run_length(fs, state):
@@ -261,7 +270,9 @@ def _attack(button):
 # move -> (opponent lo..hi px away, frames watched after the macro, effect(character, f0, frames) -> bool, a wrong
 # input). The effect is what docs/MOVES.md defines, read from RAM; the wrong input must not produce it.
 CHECKS = {
-    "idle": (80, 200, 0, lambda c, f0, fs: all(f.my_state == 0 and f.my_x == f0.my_x for f in fs), [("F",)] * 4),
+    # (right after walking back, x still moves 1 px on the first frame: 5 of 51 free moments with Ken; so the
+    # reference is the first frame)
+    "idle": (80, 200, 0, lambda c, f0, fs: all(f.my_state == 0 and f.my_x == fs[0].my_x for f in fs), [("F",)] * 4),
     "forward": (80, 200, 0, lambda c, f0, fs: _toward(f0, fs[-1]) > 0, [("B",)] * 4),
     "back": (80, 200, 0, lambda c, f0, fs: _toward(f0, fs[-1]) < 0, [("F",)] * 4),
     "jump": (80, 200, 40, lambda c, f0, fs: any(f.my_state == ram.JUMP_STATE for f in fs) and _rise(f0, fs) > 60
@@ -278,14 +289,14 @@ CHECKS = {
     "sweep": (50, 68, 60, lambda c, f0, fs: any(f.opp_state == ram.HIT_STATE and f.opp_sub == 0x04 for f in fs),
               [("hk",)] * 2 + [()] * 2),
     # a projectile in his own slot, in front of him (the P2 test above has the details)
-    "hadoken": (90, 200, 40, lambda c, f0, fs: bool(_special(fs, 0x00)) and any(
+    "hadoken": (90, 200, 40, lambda c, f0, fs: bool(_special(fs, SPECIAL_IDS[c]["hadoken"])) and any(
         f.my_fireball and (f.my_fireball_x - f0.my_x) * (1 if f0.facing_right else -1) > 0 for f in fs[:20]),
         [("D",)] * 2 + [("D", "B")] * 2 + [("B", "hp")] * 2 + [()] * 2),                     # motion mirrored
     # rises 60+ px
-    "shoryuken": (60, 200, 40, lambda c, f0, fs: bool(_special(fs, 0x04)) and _rise(f0, fs) > 60,
+    "shoryuken": (60, 200, 40, lambda c, f0, fs: bool(_special(fs, SPECIAL_IDS[c]["shoryuken"])) and _rise(f0, fs) > 60,
                   [("F",)] * 2 + [("D",)] * 2 + [("D", "hp")] * 2 + [()] * 2),                 # without the DF
     # lifts off a little and travels toward him
-    "tatsumaki": (70, 200, 40, lambda c, f0, fs: bool(_special(fs, 0x02)) and _rise(f0, fs) >= 10
+    "tatsumaki": (70, 200, 40, lambda c, f0, fs: bool(_special(fs, SPECIAL_IDS[c]["tatsumaki"])) and _rise(f0, fs) >= 10
                   and _toward(f0, fs[30]) > 20,
                   [("D",)] * 2 + [("D", "F")] * 2 + [("F", "hk")] * 2 + [()] * 2),             # motion mirrored
 }
@@ -341,14 +352,21 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
         finally:
             env.backend.set_vars(ram_map)
             env.backend.load_state(state)
+        # the CPU jumping over him within 5 s leaves too little to judge (seen: CPU Ken at frame 60): another moment
+        if any(_crossed(rows, f0) < 300 for rows in runs.values()):
+            return None
         return f0, runs
+
+    mx, ox = env.names.index("my_x"), env.names.index("opp_x")
+
+    def _crossed(rows, f0):
+        return next((i for i, r in enumerate(rows) if (r[mx] <= r[ox]) != f0.facing_right), len(rows))
 
     f0, runs = _find(env, facing, 80, 200, attempt)
     st, react, guard = env.names.index("my_state"), env.names.index("my_react"), len(env.names)
-    mx, ox = env.names.index("my_x"), env.names.index("opp_x")
     for name, rows in runs.items():
         # until the CPU jumps over him: after that the same buttons are down + toward / down + back
-        rows = rows[:next((i for i, r in enumerate(rows) if (r[mx] <= r[ox]) != f0.facing_right), len(rows))]
+        rows = rows[:_crossed(rows, f0)]
         entries = [i for i in range(1, len(rows)) if rows[i][st] == 0x08 and rows[i - 1][st] != 0x08]
         stun = [i for i in range(1, len(rows)) if rows[i][st] == ram.HIT_STATE and rows[i - 1][st] == 0x08
                 and rows[i][react] in ram.BLOCK_REACTS]

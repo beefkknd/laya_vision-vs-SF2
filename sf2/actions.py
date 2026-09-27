@@ -19,6 +19,7 @@ BASICS: List[str] = [
 # code yet (the ALL-8 gate counts that as missing moves).
 SPECIALS: Dict[str, List[str]] = {
     "ryu": ["hadoken", "shoryuken", "tatsumaki"],
+    "ken": ["hadoken", "shoryuken", "tatsumaki"],
     "chunli": ["lightning_legs"],
 }
 
@@ -78,7 +79,8 @@ MACROS: Dict[str, List[Step]] = {
     "sweep": [(("D", "hk"), _TAP), (("D",), _TAP)],
     # 12 short taps, 1 frame down, 1 up: the Legs (state 0C) start at frame 18 (tests/test_rom_harness.py)
     "lightning_legs": [(("lk",), 1), ((), 1)] * 12,
-    # Ryu (docs/MOVES.md; tests/test_rom_moves.py): 2 frames per direction, the button on the last one, 2 released.
+    # Ryu and Ken, the same inputs (docs/MOVES.md; tests/test_rom_moves.py): 2 frames per direction, the button on
+    # the last one, 2 released.
     # Fierce / roundhouse: every strength "works as defined" the same way; the strongest shows it most (fastest
     # fireball, highest rise, longest spin). Walking forward just before a Hadoken turns it into a Shoryuken on the ROM.
     "hadoken": [(("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2)],
