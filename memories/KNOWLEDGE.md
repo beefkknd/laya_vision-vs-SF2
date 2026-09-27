@@ -35,9 +35,11 @@ Plan: docs/TWO_SYSTEM_PLAN.md. Runs: `out/results.jsonl`.
 
 - **The air kick is part of the harm, not all of it.** v1 without `me_state=jump -> hk` at τ = 0.75: −0.2, which is
   +16.9 over full v1 (−1 to +35, inconclusive) but still −45.7 vs r2 alone (−61 to −31). (`ryu_C1noair_t075_dev`)
-- **Where laya is confident, it is very confident.** In v1's changed decisions the gap between laya's top move and the
-  rule's move was at most 0.45; the other fired decisions had gaps above 0.75. So τ = 0.5 and τ = 0.75 play
-  identically (both −18.3 ± 7.7). (`ryu_C1w05_dev` = `ryu_C1t075_dev`)
+- **For v1, τ above 0.45 changes nothing.** Of 1,245 fired decisions, 793 already had the rule's move as laya's top
+  move (nothing to change); the other 452 all had a gap of at most 0.45 and changed at every τ ≥ 0.5. τ = 0.5, 0.75 and
+  1 (a full override) play identically: −18.3 ± 7.7. The harm comes from *which* moves the rules pick, not from how
+  hard they push. (`ryu_C1w05_dev` = `ryu_C1t075_dev` = `ryu_C1t1_dev`; an earlier note here claiming "gaps above
+  0.75" was wrong and is corrected.)
 
 ## Method that works
 - Change one thing, re-run the 20 dev openings (about 6 min on the Studio, 8 on the Mac Pro), and compare paired
