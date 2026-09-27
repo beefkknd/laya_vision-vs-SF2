@@ -53,8 +53,9 @@ def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
             "--snes.port2.type=SnesController", rom, bridge_for_port(port)]
 
 
-def window_argv(port: int, rom: str = None, mesen: str = None) -> List[str]:
-    """A Mesen window you can watch, at normal speed, running the bridge for ``port`` (same bridge copy as headless:
-    it ends Mesen when Python disconnects)."""
+def window_argv(port: int, rom: str = None, mesen: str = None, speed: int = 100) -> List[str]:
+    """A Mesen window you can watch, running the bridge for ``port`` (same bridge copy as headless). ``speed``: emulation
+    speed in percent for this run only (Mesen's saved settings are not changed; 150 measured at 90 fps)."""
     argv = launch_argv(port, rom, mesen)
-    return [argv[0]] + [a for a in argv[1:] if not a.startswith(("--testrunner", "--timeout"))]
+    return [argv[0], "--emulation.emulationSpeed=%d" % speed] + [
+        a for a in argv[1:] if not a.startswith(("--testrunner", "--timeout"))]

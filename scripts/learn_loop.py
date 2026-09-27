@@ -1,7 +1,8 @@
 """The learning loop: System 1 plays arcade mode from power-on in a Mesen window you can watch, System 2 (Qwen on omlx)
 learns from the game log, until Ctrl-C.
 
-    python scripts/learn_loop.py                      # Chun-Li, window at normal speed
+    python scripts/learn_loop.py                      # Chun-Li, window at 1.5x speed
+    python scripts/learn_loop.py --speed 100          # the real game speed
     python scripts/learn_loop.py --char ryu
 
 From power-on: GAME START, pick the character, then the arcade ladder as it comes. A GAME is one opponent until it is
@@ -129,6 +130,7 @@ def main() -> int:
     ap.add_argument("--char", default="chunli")
     ap.add_argument("--model", default="runs/all8/best")
     ap.add_argument("--headless", action="store_true", help="no window, full speed")
+    ap.add_argument("--speed", type=int, default=150, help="window speed in percent (100 = the real game)")
     ap.add_argument("--port", type=int, default=47990)
     args = ap.parse_args()
     me = args.char
@@ -142,7 +144,7 @@ def main() -> int:
     say("session %s: %s, System 1 %s, earlier rounds: %s" % (session, me, args.model,
                                                              {o: len(r) for o, (_, r) in by_opp.items()}))
     s1 = System1(args.model, me)
-    argv = launch_argv(args.port, None) if args.headless else window_argv(args.port, None)
+    argv = launch_argv(args.port, None) if args.headless else window_argv(args.port, None, speed=args.speed)
     b = MesenBridge(args.port, launch=argv)
     files = {k: open(os.path.join(out, k + ".jsonl"), "a") for k in ("actions", "rounds", "games")}
     rng, n, game, opp = random.Random(0), 0, 0, None
