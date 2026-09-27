@@ -52,7 +52,7 @@ def test_by_move_accuracy_separates_kicks_from_forward():
     assert s["by_move"]["forward"]["acc"] == 1.0
     assert s["by_move"]["hk"]["acc"] == 0.5
     assert s["by_move"]["hk"]["n"] == 2
-    assert s["confusion"]["hk"]["forward"] == 1  # teacher said hk, model said forward
+    assert s["confusion"]["hk"]["forward"] == 1  # label said hk, model said forward
     assert abs(s["all"]["acc"] - 0.75) < 1e-9
 
 
@@ -74,7 +74,7 @@ def test_slices_cover_phase_hp_distance_and_danger():
     kick = "me=chunli stand hp=100 opp=dhalsim jumpattack hp=100 dist=close facing=right corner=none time=early"
     assert M.situation(_rec(0, 0, 0, 0, 0, text=kick))["by_opp_air"] == "air"
     assert s["by_danger"]["hit_next"]["acc"] == 0.0
-    assert 0.0 < s["all"]["p_teacher"] < 1.0
+    assert 0.0 < s["all"]["p_label"] < 1.0
 
 
 def test_summary_line_names_moves_and_phases():
@@ -84,8 +84,8 @@ def test_summary_line_names_moves_and_phases():
     assert "forward" in line and "early" in line
 
 
-def test_teacher_probability_of_the_models_choice_reads_the_soft_target():
-    # the teacher splits 0.6 forward / 0.4 hk; a model that picks hk is 0.4 right, not 0 (accuracy) or 1
+def test_label_probability_of_the_models_choice_reads_the_soft_target():
+    # the label splits 0.6 forward / 0.4 hk; a model that picks hk is 0.4 right, not 0 (accuracy) or 1
     fw, hk = A.ACTIONS.index("forward"), A.ACTIONS.index("hk")
     rec, z, _ = _row(fw, _probs(hk))
     soft = [0.6 if j == fw else 0.4 if j == hk else 0.0 for j in range(len(A.ACTIONS))]

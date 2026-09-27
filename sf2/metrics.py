@@ -1,12 +1,12 @@
-"""Training-progress metrics that say *where* the student agrees with the teacher, not just how often.
+"""Training-progress metrics that say *where* the student agrees with the label, not just how often.
 
 Validation is held out by whole rounds (``holdout_round_ids``): frames a few ticks apart are near-duplicates, so a
 random frame split puts the neighbours of every val frame in the training set and overstates accuracy.
 
-``slice_metrics`` breaks one eval into situations: the teacher's move, time into the round, how much life is left,
-distance, opponent airborne, rounds where a hit is coming, and dataset; each with accuracy against the teacher, the
-probability the model gave the teacher's move, soft cross-entropy, and ``t_of_pred``: the teacher's probability
-of the model's own top move (how acceptable the move it would play is). ``train.py`` appends one entry per eval to
+``slice_metrics`` breaks one eval into situations: the labelled move, time into the round, how much life is left,
+distance, opponent airborne, rounds where a hit is coming, and dataset; each with accuracy against the label, the
+probability the model gave the labelled move, soft cross-entropy, and ``t_of_pred``: the label distribution's
+probability of the model's own top move (how acceptable the move it would play is). ``train.py`` appends one entry per eval to
 ``runs/<x>/eval_slices.jsonl``; ``scripts/report.py`` compares runs and steps.
 """
 import hashlib
@@ -79,7 +79,7 @@ def _softmax(z):
 
 
 def slice_metrics(recs: Sequence[Dict], logits: Sequence[Sequence[float]], targets: Sequence[Sequence[float]]) -> Dict:
-    """Per-situation accuracy / p(teacher move) / soft cross-entropy, a teacher->model confusion, the model's move mix."""
+    """Per-situation accuracy / p(labelled move) / soft cross-entropy, a label->model confusion, the model's move mix."""
     acc: Dict[str, Dict[str, List]] = defaultdict(lambda: defaultdict(lambda: [0, 0.0, 0.0, 0.0, 0.0]))
     confusion: Dict[str, Counter] = defaultdict(Counter)
     pred_mix = Counter()
@@ -100,7 +100,7 @@ def slice_metrics(recs: Sequence[Dict], logits: Sequence[Sequence[float]], targe
 
     def cell(c):
         n = c[0]
-        return {"n": n, "acc": c[1] / n, "p_teacher": c[2] / n, "soft_xent": c[3] / n, "t_of_pred": c[4] / n}
+        return {"n": n, "acc": c[1] / n, "p_label": c[2] / n, "soft_xent": c[3] / n, "t_of_pred": c[4] / n}
 
     out = {dim: {val: cell(c) for val, c in sorted(vals.items())} for dim, vals in acc.items()}
     out["all"] = out["all"]["all"]
@@ -111,7 +111,7 @@ def slice_metrics(recs: Sequence[Dict], logits: Sequence[Sequence[float]], targe
 
 
 def summary(s: Dict) -> str:
-    """One log line: accuracy per teacher move, per time bin and per life bin."""
+    """One log line: accuracy per labelled move, per time bin and per life bin."""
     def part(dim, order=None):
         vals = s.get(dim, {})
         keys = order or sorted(vals, key=lambda k: -vals[k]["n"])

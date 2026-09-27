@@ -1,18 +1,17 @@
-"""Days 3 and 6: LoRA laya-vision on the teacher's frames; early-stop on held-out frames from the same teacher.
+"""LoRA laya-vision on labelled frames; early-stop on held-out labelled frames.
 
-    python scripts/train.py --data data/seed_teacher --out runs/r0
-    python scripts/train.py --data data/seed_teacher --data data/dagger_r1 --data data/dagger_r1_hot \\
-        --init runs/r0/best --out runs/r1
+    python scripts/train.py --data data/<set> --out runs/r0
+    python scripts/train.py --data data/<set_a> --data data/<set_b> --init runs/r0/best --out runs/r1
 
 Each --data dir is sampled as its own group, in equal shares by default (``--mix name=weight`` to change it),
-which is how seed and DAgger rows are merged 50/50 without one swamping the other.
-Checkpoints: ``best`` is the step with the best ``--select`` metric on val (frame accuracy against the teacher,
-soft cross-entropy against its distribution, or ``tpred``, the teacher's probability of the model's top move);
+so one large dataset does not swamp a smaller one.
+Checkpoints: ``best`` is the step with the best ``--select`` metric on val (frame accuracy against the label,
+soft cross-entropy against the label distribution, or ``tpred``, the label's probability of the model's top move);
 the other two metrics' best steps are saved as ``best_<metric>``. Training stops after ``--patience`` evals in which
 none of them improved. The real verdict is scripts/gate.py.
 Val comes from ``--val-data`` dirs (eval only, never trained on), else val.jsonl, else whole held-out rounds of the
 training data (``sf2.metrics``): never single frames, whose neighbours would sit in the training set. Every eval
-appends a per-situation breakdown (teacher move, time into round, life left, distance, ...) to
+appends a per-situation breakdown (labelled move, time into round, life left, distance, ...) to
 ``<out>/eval_slices.jsonl``; compare runs with scripts/report.py.
 The frozen vision tower's features come from ``sf2.vision_cache`` (built on first use per dataset, ~50 ms/image
 on MPS, then reused by every later run with the same vision weights); ``--no-vision-cache`` feeds pixels instead.
