@@ -41,6 +41,21 @@ Each checkpoint is a result you can see. The bars are set before any run.
   40), start a second playable character and train it against Ryu (§7-style tutorial: its own action set, verified
   special-move macros, a base checkpoint, then the same two-system loop).
 
+**Track B checkpoints (the all-character System 1):**
+- [ ] **CPB0: the Studio is a verified machine.** The ROM suite passes 30/30 there, and the Dhalsim replay reproduces
+  +93.1 exactly.
+- [ ] **CPB1: every character is playable.** For each of the 8 characters as player 1:
+  - a fight-start savestate vs Ryu that passes the same 5 checks as Chun-Li's;
+  - every move in its action set, specials included, verified on the ROM.
+- [ ] **CPB2: every character has labels worth copying.** For each character, its label source (a teacher, filtered
+  exploration, or System 2) beats random play vs Ryu by at least +15 net damage per round, paired, on the eval
+  openings. A character without this cannot be trained yet.
+- [ ] **CPB3: one checkpoint plays all 8.** On the eval openings vs Ryu, each character:
+  - beats random play by at least +15, paired;
+  - reaches at least half of its label source's margin over random.
+
+  And Chun-Li is no worse than r2: the paired interval against r2 must reach above −15.
+
 What is known now:
 - The teacher beat Ryu during claw's arcade exploration (9 opponents in a row, mostly 2–0).
 - The scripted teacher vs Ryu (measured 2026-09-27, eval openings): **40 of 40 matches, 87% of rounds, +89.3 ± 5.8**
