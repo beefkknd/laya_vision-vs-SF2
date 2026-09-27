@@ -12,6 +12,28 @@ for. Then: an adviser that writes those rules during play makes it improve match
 
 **Status:** planning, v3 (v2 plus the two reviews in §6). Branch `two-system`. Nothing runs until you approve.
 
+## Checkpoints
+
+Each checkpoint is a result you can see. The bars are set before any run.
+
+- [ ] **CP1: we know the gap (Phase 1).** On the eval openings, measure against Ryu:
+  - r2 alone (arm A), the starting point;
+  - the scripted teacher, the ceiling for a playbook built from its tactics.
+
+  If r2 already wins nearly everything, pick a harder opponent.
+- [ ] **CP2: Chun-Li beats Ryu (Phase 2).** With the frozen playbook (arm C):
+  - she wins most matches;
+  - her net damage per round has a 95% confidence interval above 0;
+  - she beats r2 alone by the +15 effect size, paired;
+  - C beats D, so laya itself still matters.
+- [ ] **CP3: she learns (Phase 5).** A memory written during play, starting empty, beats r2 alone on openings it never
+  saw, in at least 2 separate sessions: first with Claude as the adviser, then with Qwen.
+
+What is known now:
+- The teacher beat Ryu during claw's arcade exploration (9 opponents in a row, mostly 2–0).
+- laya r1 has both beaten and lost to Ryu (1 win and 2 losses, far too few to mean anything).
+- r2 has not been measured against Ryu.
+
 ---
 
 ## 1. The idea
@@ -131,7 +153,9 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] Save the opening schedules: 20 `dev` and at least 40 `eval` start delays, drawn at random
 - [ ] Parallel runner plays a saved opening schedule (openings assigned explicitly, not by worker index) with a frozen memory file
 - [ ] **Measure:** the wall time of a 20-opening headless pilot with 4 workers (estimate about 10 min). Correct §2.5 if it's off.
-- [ ] Control A: r2 vs Ryu on the dev openings, one sequential worker. Record the paired-difference variance.
+- [ ] Control A: r2 vs Ryu on the dev openings. Record the paired-difference variance.
+- [ ] The teacher vs Ryu on the same openings (no model, so it's cheap): the ceiling for CP2
+- [ ] **CP1:** A and the teacher on the eval openings. Write the gap in PROGRESS.md.
 - [ ] Check: A leaves room to improve (not 40/40). If it doesn't, pick the next weakest opponent from a 3-opponent scan.
 - [ ] **Verify** the Studio's omlx is reachable from the Mac Pro (it failed once), or set up an SSH tunnel. This is 10 minutes of work that decides Phase 4.
 
