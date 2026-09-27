@@ -1,0 +1,1 @@
+me_state=jump -> hk                                       # jump-in kick (rule 7, timing not expressible)

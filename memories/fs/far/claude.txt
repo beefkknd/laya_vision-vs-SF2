@@ -1,0 +1,1 @@
+dist=far me_state=stand -> forward                        # walk in from far (teacher default)
