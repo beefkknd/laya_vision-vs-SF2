@@ -134,22 +134,3 @@ def test_outcome_labels():
     assert outcome(rs({}), "hp")["outcome"] == "whiff"
     assert outcome(rs({}, a_state=0), "hp")["executed"] is False
     assert outcome(rs({}, a_state=0), "forward")["outcome"] == "none"
-
-
-def test_train_val_split_never_shares_a_frame():
-    import importlib.util
-    import random
-    import sys
-    sys.path.insert(0, "scripts")                                          # train.py imports _path from there
-    spec = importlib.util.spec_from_file_location("train", "scripts/train.py")
-    train = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(train)
-    rows = [{"dataset": c, "state": {"images": ["frames/%s%s_%d_prev.png" % (m, s, i), "frames/%s%s_%d_now.png" % (m, s, i)]},
-             "id": (c, s, i, a, m)} for c in ("ryu", "ken") for s in ("left_close", "left_far") for i in range(10)
-            for a in range(20) for m in ("", "mirror_")]
-    tr, va = train.split_by_position(rows, random.Random(0))
-    assert va and len(tr) + len(va) == len(rows)
-    assert not {train.position(x) for x in tr} & {train.position(x) for x in va}
-    assert all(len([x for x in va if train.position(x) == k]) == 40 for k in {train.position(x) for x in va})
-    per = {c: len({train.position(x) for x in va if x["dataset"] == c}) for c in ("ryu", "ken")}
-    assert per["ryu"] == per["ken"] >= 1                                    # every character equally

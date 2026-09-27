@@ -15,33 +15,16 @@ before saving, so <out>/best is an ordinary laya-vision checkpoint.
 import argparse
 import json
 import os
-import random
 import time
 
 import _path  # noqa: F401
 from sf2 import lora
 from sf2.config import BASE_MODEL, IMAGE_CFG
+from sf2.train_data import coverage_problems, coverage_table, load_data
 
 
 class EarlyStop(Exception):
     pass
-
-
-def position(ex) -> tuple:
-    """The screen position a row was asked about: its dataset and current frame, a mirrored frame counted as its
-    source. Every action asked at one position, and its mirrored twin, share this key."""
-    now = os.path.basename(ex["state"]["images"][-1]).replace("mirror_", "")
-    return ex.get("dataset"), now
-
-
-def split_by_position(rows, rng, share: float = 0.05):
-    """Hold out ``share`` of each dataset's positions (all their rows) for early stopping, so validation never shows a frame the
-    model trains on. Splitting rows at random would put a position's other actions and its mirror in training."""
-    held = set()
-    for d in sorted({ex.get("dataset") for ex in rows}):   # the same share of every dataset (character)
-        keys = sorted({position(ex) for ex in rows if ex.get("dataset") == d})
-        held |= set(rng.sample(keys, max(1, round(share * len(keys)))))
-    return [ex for ex in rows if position(ex) not in held], [ex for ex in rows if position(ex) in held]
 
 
 def main():
@@ -62,6 +45,16 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
+    # data first: a coverage gap stops the run before a model is loaded
+    train, val = load_data(args.data, args.seed)
+    if len(val) > args.val_limit:
+        raise SystemExit("val has %d rows > --val-limit %d; a random cut would unbalance the characters"
+                         % (len(val), args.val_limit))
+    print("coverage:\n" + coverage_table(train, val, args.data), flush=True)
+    problems = coverage_problems(train, val, args.data)
+    if problems:
+        raise SystemExit("coverage check failed (%d):\n  %s" % (len(problems), "\n  ".join(problems[:40])))
+
     import laya
     import laya.vlm_train as vt
 
@@ -72,17 +65,6 @@ def main():
     want = (IMAGE_CFG["image_size"], IMAGE_CFG["preprocess"], IMAGE_CFG["image_interpolation"], IMAGE_CFG["image_size"])
     if got != want:
         raise SystemExit("image prep is %s, expected %s (sf2.config.IMAGE_CFG)" % (got, want))
-    train, val = [], []
-    for d in args.data:
-        root, name = os.path.split(os.path.normpath(d))
-        train += vt.load_jsonl_examples(root, name, "train")
-        if os.path.exists(os.path.join(d, "val.jsonl")):
-            val += vt.load_jsonl_examples(root, name, "val")
-    rng = random.Random(args.seed)
-    if len(val) > args.val_limit:
-        val = rng.sample(val, args.val_limit)
-    if not val:
-        train, val = split_by_position(train, rng)
     print("base %s | images %s | train %d rows from %d dirs, val %d rows" % (
         BASE_MODEL, IMAGE_CFG, len(train), len(args.data), len(val)))
 
