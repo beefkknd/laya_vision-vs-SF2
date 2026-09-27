@@ -66,8 +66,9 @@ play m  if  p[t] − p[m] ≤ τ,   else play t        (τ = 0.3 by default, pre
 
 - **Openings are split up front.** `dev` openings are for writing and debugging rules; `eval` openings are for
   verdicts only. Each is a saved schedule of start delays, identical across arms.
-- **One sequential worker per memory.** Several arms can run side by side, each on its own worker. The control is
-  re-gated with the same layout.
+- **Pairing comes from the opening schedule, not the worker layout.** Each opening is a saved start delay, played
+  by whichever worker picks it up. A frozen memory never changes during a run, so arms A, C and D can use many
+  workers. A learning session (arm B) needs one worker per memory (§2.5).
 - **The statistic:** the per-opening *paired difference* in net damage per round (arm − control), with its 95%
   confidence interval. It replaces the unpaired `sqrt(se_a² + se_b²)`.
 - **Sample size:** the first gate of each comparison is a 20-opening **pilot**. It estimates the variance of the
@@ -81,6 +82,23 @@ play m  if  p[t] − p[m] ≤ τ,   else play t        (τ = 0.3 by default, pre
 | C | r2 | frozen playbook | Do rules help the hands? |
 | D | random policy | the same frozen playbook | Does laya matter, or do the rules just replace it? C must beat D |
 | B | r2 | grows during the session (adviser) | Does it learn? The final frozen memory vs A on unseen eval openings, repeated over at least 2 sessions |
+
+### 2.5 Execution: headless and parallel
+
+Experiments run headless (no Mesen window), several games at once. Windowed play (`scripts/arcade.sh`) is only
+for watching.
+
+| Run | Workers | Estimate on the Mac Pro |
+|---|---|---|
+| Frozen arm (A, C, D), 20 openings | 4 play workers (the GPU saturates near 27 decisions/s) | about 10 min |
+| Arm D (random policy, no model) | up to 12 | a few minutes |
+| Learning sessions (arm B) | 1 worker per session, 2–4 sessions side by side | each session runs at single-worker speed (about 12 decisions/s) |
+| Qwen (System 2) | on the Mac Studio | does not compete with play for the GPU |
+
+**Why this beats fine-tuning.** One LoRA round took about 100 minutes of training plus 12–15 minutes of gate play on
+claw. One memory iteration (edit rules, then re-run a 20-opening dev pilot) should take about 10 minutes, and it
+needs no data collection and no checkpoint. So we can try roughly ten playbook variants in the time of one training
+round, and keep the checkpoint fixed so every difference comes from the memory.
 
 ---
 
@@ -111,6 +129,8 @@ play m  if  p[t] − p[m] ≤ τ,   else play t        (τ = 0.3 by default, pre
   projectile slot for his fireball, as JOURNAL.md lists per opponent. Fix the harness first if any check fails.
 - [ ] **Verify this machine:** replay the Dhalsim gate with r2 and reproduce about +93 net damage per round
 - [ ] Save the opening schedules: 20 `dev` and at least 40 `eval` start delays, drawn at random
+- [ ] Parallel runner plays a saved opening schedule (openings assigned explicitly, not by worker index) with a frozen memory file
+- [ ] **Measure:** the wall time of a 20-opening headless pilot with 4 workers (estimate about 10 min). Correct §2.5 if it's off.
 - [ ] Control A: r2 vs Ryu on the dev openings, one sequential worker. Record the paired-difference variance.
 - [ ] Check: A leaves room to improve (not 40/40). If it doesn't, pick the next weakest opponent from a 3-opponent scan.
 - [ ] **Verify** the Studio's omlx is reachable from the Mac Pro (it failed once), or set up an SSH tunnel. This is 10 minutes of work that decides Phase 4.
@@ -141,6 +161,7 @@ play m  if  p[t] − p[m] ≤ τ,   else play t        (τ = 0.3 by default, pre
 ### Phase 5: learning during a session (arm B)
 - [ ] Adviser loop: reads moments (surprised first), writes to its rules file, which is merged at round boundaries, with the delay logged
 - [ ] Session: a sequence of dev openings with the memory growing; save the memory snapshot after each round
+- [ ] Run 2–4 sessions side by side (one worker and one memory each): this gives the repeated sessions the verdict needs
 - [ ] **Verdict:** the final frozen memory vs A on unseen eval openings, paired; repeat over at least 2 sessions from an empty memory
 - [ ] B with Claude as the adviser first, then Qwen. If the Claude session passes and the Qwen one fails, the loop works and Qwen's advice is the problem.
 - [ ] Write up in PROGRESS.md and the journal
