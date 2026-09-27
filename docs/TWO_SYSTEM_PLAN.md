@@ -75,8 +75,19 @@ What is known now:
 - [x] **B0 setup:** repo, a venv pinned to the Mac Pro's exact package versions, the same Mesen build and settings,
   the ROM, the savestates, the base model. The ROM suite passes 30/30 and the Dhalsim replay reproduces +93.1.
 - [x] **B0 measure:** training 138 s step 0 to final and 6.2 s per eval (Mac Pro 163 s and 10 s); play 36.2 decisions/s on 4 workers, 11.0 on 1. Measured with omlx loaded but not answering; a run with Qwen answering is still to do.
-- [ ] **B1 pick any character:** boot and select for each of the 8 playable World Warrior characters (Ryu, E. Honda,
+- [x] **B1 pick any character:** boot and select for each of the 8 playable World Warrior characters (Ryu, E. Honda,
   Blanka, Guile, Ken, Chun-Li, Zangief, Dhalsim) as player 1; a fight-start savestate per character vs Ryu, verified
+  (2026-09-27, Studio). `scripts/make_savestate.py --out states/p1_<me>_vs_<opp>.state --me <me> --opp <opp> [--via ken]`.
+  All 8 pass the 5 checks (start at the first controllable frame; note words for both; a match plays to its end;
+  walls; Ryu's (Ken's) fireball in the note's field). Found on the ROM:
+  - Each character has only 3-4 possible first opponents, never itself. Ryu is never the first opponent of Ryu,
+    Honda, Guile or Zangief. **Ryu's state is vs Ken** (Ryu continuing as Ryu against Ryu gets Ken instead).
+  - **Honda, Guile and Zangief meet Ryu after a continue** (`--via ken`: Ken vs Ryu, lose, continue, pick them; the
+    continue keeps the opponent). Their fight shows BATTLE 02 and "1 WIN" instead of BATTLE 01 (owner: acceptable?).
+  - The first-opponent idle count is searched each boot: loading a state shifts which frame an input lands on.
+  - Walls depend on the character (width), not only the stage; left + right is always 512: Chun-Li 53/459,
+    Ryu/Ken/Guile/Dhalsim 55/457, Zangief 59/453, Blanka 63/449, Honda 64/448. `ram.py` LEFT_WALL/RIGHT_WALL and
+    `cornered()` are Chun-Li's.
 - [ ] **B2 moves:** an action set per character: the shared basics plus that character's specials as verified macros
   (motion inputs: fireball, dragon punch, hurricane kick, spinning pile driver; charge inputs: sonic boom, flash kick,
   rolling attack, headbutt; mashes: hundred hand slap, electricity). Each one is checked on the ROM, as Lightning Legs
