@@ -151,3 +151,5 @@ def test_train_val_split_never_shares_a_frame():
     assert va and len(tr) + len(va) == len(rows)
     assert not {train.position(x) for x in tr} & {train.position(x) for x in va}
     assert all(len([x for x in va if train.position(x) == k]) == 40 for k in {train.position(x) for x in va})
+    per = {c: len({train.position(x) for x in va if x["dataset"] == c}) for c in ("ryu", "ken")}
+    assert per["ryu"] == per["ken"] >= 1                                    # every character equally

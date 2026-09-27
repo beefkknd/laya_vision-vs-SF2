@@ -35,10 +35,12 @@ def position(ex) -> tuple:
 
 
 def split_by_position(rows, rng, share: float = 0.05):
-    """Hold out ``share`` of the positions (all their rows) for early stopping, so validation never shows a frame the
+    """Hold out ``share`` of each dataset's positions (all their rows) for early stopping, so validation never shows a frame the
     model trains on. Splitting rows at random would put a position's other actions and its mirror in training."""
-    keys = sorted({position(ex) for ex in rows})
-    held = set(rng.sample(keys, max(1, round(share * len(keys)))))
+    held = set()
+    for d in sorted({ex.get("dataset") for ex in rows}):   # the same share of every dataset (character)
+        keys = sorted({position(ex) for ex in rows if ex.get("dataset") == d})
+        held |= set(rng.sample(keys, max(1, round(share * len(keys)))))
     return [ex for ex in rows if position(ex) not in held], [ex for ex in rows if position(ex) in held]
 
 
