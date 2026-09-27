@@ -93,7 +93,7 @@ What is known now:
   rolling attack, headbutt; mashes: hundred hand slap, electricity). Each one is checked on the ROM, as Lightning Legs
   was.
 - [ ] **B2 note:** the RAM note and state words hold for each character (the per-character checks JOURNAL.md lists)
-- [ ] **B3a baseline labels (first, to get the Studio GPU training):** the existing scripted teacher is already
+- [x] **B3a baseline labels (first, to get the Studio GPU training):** the existing scripted teacher is already
   character-neutral in code (it ignores the character and never picks Lightning Legs), so for a **baseline
   checkpoint** every character uses the shared basic moves and this teacher. Gate it per character vs random play on
   the dev openings first. Collect only for characters where it wins by at least +15 (CPB2), with the same number of
@@ -102,12 +102,31 @@ What is known now:
 - [ ] **B3 labels (the hard part):** choose the label source per character. Options: a generic teacher built from
   per-character move data (range, speed, which move anti-airs); outcome-filtered exploration (`relabel.py --mode
   filter`); System 2 as the teacher. Prototype the cheapest one on one character first.
+- [x] **B3a result (2026-09-27):** the character-neutral teacher beats random play for all 8, paired on dev (Ryu +85.9,
+  Honda +104.5, Blanka +88.9, Guile +44.9, Ken +41.3, Chun-Li +188.8, Zangief +27.7 [CI +11 to +44, the weakest],
+  Dhalsim +94.2). Collected on the training openings (121–600): 30,630 rows, 3,543–4,089 per character. The balance
+  gate refused the first mix twice on real data (Zangief, then Guile, 11% under); both were topped up with new
+  openings and a new seed, then it passed.
+- [x] **B4 baseline v0 trained** on the Studio in 54 min (from the base model, 256 px, 2 epochs, 7,657 steps):
+  `runs_local/base_all_v0/best` (Studio worktree `laya_vision_vs_SF2_trackA`; a copy at `runs/base_all_v0` on the Mac
+  Pro). It agrees with the teacher on 94.8% of held-out frames, evenly across characters (Chun-Li 92.2%, the
+  lowest, to Honda 96.8%). Agreement does not predict play, so CPB3 gates it per character on the eval openings.
+- [x] **No v1 training now (owner, 2026-09-27):** the loop improves play through memory, not retraining. v0 (fought
+  only Ryu, and Ken as Ryu) is System 1: a novice against every other opponent, which fits "start weak". B3b's
+  330,853 balanced rows over 47 pairings stay on the Studio for a later clean-up round (folding learned memory and
+  broader opponents into the weights), not as a prerequisite.
+- [ ] **CPB3 gate for v0:** v0, the teacher and random play for all 8 pairings on the 40 eval openings, plus r2 on the
+  same Chun-Li state
+- [ ] **B3b more opponents (running while the baseline trains):** the other 48 player-1 × opponent pairings among the
+  8 playable characters (no mirror matches): a savestate each with automated start checks, Guile's sonic boom
+  checked in the note, the teacher-vs-random check per pairing (kept at +15 or more), 5,000 decisions each on the
+  training openings, and a balance gate over characters **and opponents** before the next training run
 - [ ] **B4 train:** one multi-character checkpoint trained **from the base model** (`thaitea/laya-vision-smolvlm-256m`,
   not r2, so no character or opponent is built in), with a per-character move list in the question.
 - [ ] **No Chun-Li focus (owner rule).** Chun-Li is treated like every other character: her labels are collected
   fresh, from the same label source, against the same opponents, and in the same amount. claw's old Chun-Li data
   (about 62k decisions, all vs Dhalsim) is **not** imported. It may be used only in a separate, labelled experiment.
-- [ ] **Balance gate [SCRIPT]:** before any training run, a script counts the training rows per character and per
+- [x] **Balance gate [SCRIPT]:** before any training run, a script counts the training rows per character and per
   opponent, and refuses to train if any is more than ±10% off an equal share. It must be seen failing on a skewed
   set first.
 - [ ] **Gates per character** vs Ryu on the saved openings; the verdict needs all 8 (CPB3), and Chun-Li no worse than
@@ -130,6 +149,9 @@ The game only ever waits for System 1. System 2 never blocks a frame.
 ## 2. Design
 
 ### 2.1 Where things run
+
+Qwen fallback when the Studio is busy training: the same model on claw (Mac mini) at `http://192.168.1.199:8800/v1`,
+same id `qwen38-27b-oq4e-mtp` (verified 2026-09-27; only the base URL changes, key in claw's `~/.omlx/settings.json`).
 
 Everything runs on the Mac Pro (M4 Max). Qwen on the Mac Studio's omlx is used only from Phase 4: model id
 `qwen38-27b-oq4e-mtp` (the Jundot Qwen3.8-27B oQ4e MTP build) at `http://192.168.1.216:8000/v1`. The API key
@@ -219,6 +241,11 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [x] Stay lockstep for every test; real-time play is out of scope.
 - [x] Nudge, not override: τ = 0.3 unless you choose otherwise.
 - [x] No automatic rule dropping in v1: the grading ledger is diagnostics only.
+- [x] **System 2 learns in batches (owner, 2026-09-27):** play a batch of openings, Qwen reviews the moments, the
+  memory updates, and the next batch plays. Live comes later, only if batches show Qwen helps.
+- [x] **The playbook starts empty:** Qwen gets the game's description (the note's fields and values, the moves, the
+  rule format) and the moments, and no tactics. System 1 should be a novice that knows how to play; if laya is
+  very strong, something is wrong.
 - [ ] First opponent: Ryu (scan other opponents only if Ryu leaves no room to improve).
 - [ ] The first playbook's source: TEACHER.md's proven tactics, written as rules (default), or Claude's reading of moments alone.
 
@@ -259,10 +286,12 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] **Verdict C vs D:** the same playbook on a random policy. C must beat D, or laya adds nothing.
 - [ ] If C is inconclusive or fails: check the changed rate first (rules that never change a move do nothing), then τ, then whether the note lacks a field the rules need. Add one note field only if the evidence names it.
 
-- [ ] **Stop rule for the Chun-Li study (owner, 2026-09-27):** stop Track A once the harness is verified (done) and
-  Chun-Li with memory wins **at least 80% of rounds** vs Ryu (r2 alone 69%, the teacher 87%): first on dev, then
-  confirmed on eval. If forward selection finds no rule group that helps, stop and report instead of grinding. Then
-  wait for Track B's baseline all-character checkpoint, and wire it into the loop for a new round.
+- [x] **Forward selection:** none of v1's six groups helps r2 (three are worse, three change nothing). See PROGRESS.md.
+- [x] **Stop rule for the Chun-Li study (owner, 2026-09-27):** triggered by "no rule group helps" (not 80%).
+  Track A stopped; waiting for Track B's baseline.
+  The rule as set: stop Track A once the harness is verified and Chun-Li with memory wins at least 80% of rounds vs
+  Ryu (r2 alone 69%, the teacher 87%), or stop and report if forward selection finds no rule group that helps; then
+  wait for Track B's baseline all-character checkpoint and wire it into the loop for a new round.
 
 ### Phase 3: moments
 - [x] Moments from any student rollout: `scripts/moments.py rollouts/<name>` → `out/moments/<name>.jsonl` (one flag per episode, as in §2.3); r2 vs Ryu dev: 341 surprised, 693 unsure, 130 audit

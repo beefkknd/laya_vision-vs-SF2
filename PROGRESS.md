@@ -78,3 +78,22 @@ replayed here exactly (+93.1 ± 8.3, 40/41).
 Paired (r2 − teacher), eval: **−50.0**, 95% CI (−68.4, −31.5), sd of the per-opening difference 57.3.
 r2 beats Ryu but narrowly: it loses about a third of rounds, and it deals less and takes more than the teacher. So
 CP2 has room: the frozen playbook (teacher tactics as rules) should close part of a 50-point gap.
+
+## Two-system phase: Track A stopped (2026-09-27)
+
+The memory mechanism works as built (an empty memory plays all 489 decisions identically to r2; rules fire, change moves,
+and are logged). But no rule taken from the scripted teacher helps r2 against Ryu. Paired vs r2 alone, dev openings:
+
+| Playbook on r2 | Paired net damage / round vs r2 alone |
+| --- | ---: |
+| v1, all 13 rules (τ 0.5, 0.75 or 1: identical) | −62.6 (−84, −42) |
+| v1 without the air kick | −45.7 (−61, −31) |
+| anti-air only | −54.0 (−74, −34) |
+| air kick only | −25.2 (−46, −4) |
+| throw only | −22.5 (−34, −12) |
+| guard / jump-in / walk-in only | 0.0 (never changed a move) |
+
+The same rules on a random player help (+35.2, CI +16.5 to +53.9), so they are real knowledge, just knowledge r2
+already has. "Unsure" decisions are hit less often than confident ones (0.65×), so System 2 reviews surprised moments
+and audits only. Stopped under the owner's rule: no group helps, so no route to 80% of rounds from this teacher. Next:
+Track B's baseline all-character checkpoint, then System 2 (Qwen) working from moments.

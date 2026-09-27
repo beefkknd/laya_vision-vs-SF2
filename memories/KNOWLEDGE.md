@@ -41,8 +41,22 @@ Plan: docs/TWO_SYSTEM_PLAN.md. Runs: `out/results.jsonl`.
   hard they push. (`ryu_C1w05_dev` = `ryu_C1t075_dev` = `ryu_C1t1_dev`; an earlier note here claiming "gaps above
   0.75" was wrong and is corrected.)
 
+- **Forward selection: no group of the teacher's rules helps r2.** Each of v1's six groups alone on r2, paired vs r2
+  alone on dev: anti-air −54.0, air kick −25.2, throw −22.5 (all worse); guard, jump-in and walk-in-from-far 0.0
+  (laya already does them, so they never change a move). r2 learned this teacher's tactics plus two DAgger rounds of
+  corrections, so the teacher's own rules can only repeat laya or override its better choices. **A System 2 that
+  helps must bring knowledge laya does not already have**: look at the surprised moments, where laya gets hit, not at
+  the teacher. (`ryu_fs_*_dev`, 2026-09-27)
+
 ## Method that works
 - Change one thing, re-run the 20 dev openings (about 6 min on the Studio, 8 on the Mac Pro), and compare paired
   with `scripts/paired.py`. Verdicts only on the eval openings.
 - Build a playbook the way the teacher was built: add one rule group at a time to an empty memory, and keep a group
   only if the paired dev gain is positive. Don't start from a full playbook and cut: v1 as a whole was −62.6.
+
+## Qwen as System 2 (qwen38-27b-oq4e-mtp)
+- **Thinking off works.** From 30 real moments (r2 vs Ryu) and only the game's description, it wrote 5 valid rules
+  and 0 rejected, in 58 s on claw. (live test, 2026-09-27)
+- **Thinking on did not finish** within 8,000 tokens (651 s on claw, about 12 tokens/s), and its reasoning arrives
+  without an opening `<think>` tag. Only text after `</think>` is an answer; an unfinished reply yields no rules.
+  Use thinking only on the Studio (about 3× faster) and with a larger budget.
