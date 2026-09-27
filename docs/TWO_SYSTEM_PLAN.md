@@ -87,9 +87,15 @@ What is known now:
   per-character move data (range, speed, which move anti-airs); outcome-filtered exploration (`relabel.py --mode
   filter`); System 2 as the teacher. Prototype the cheapest one on one character first.
 - [ ] **B4 train:** one multi-character checkpoint trained **from the base model** (`thaitea/laya-vision-smolvlm-256m`,
-  not r2, so no character or opponent is built in), with a per-character move list in the question. Chun-Li is
-  relearned from her existing data (claw's seed and DAgger sets, about 62k decisions, copied to the Studio). The gate
-  is per character vs Ryu on the saved openings, and Chun-Li must not get worse than r2 (CPB3).
+  not r2, so no character or opponent is built in), with a per-character move list in the question.
+- [ ] **No Chun-Li focus (owner rule).** Chun-Li is treated like every other character: her labels are collected
+  fresh, from the same label source, against the same opponents, and in the same amount. claw's old Chun-Li data
+  (about 62k decisions, all vs Dhalsim) is **not** imported. It may be used only in a separate, labelled experiment.
+- [ ] **Balance gate [SCRIPT]:** before any training run, a script counts the training rows per character and per
+  opponent, and refuses to train if any is more than ±10% off an equal share. It must be seen failing on a skewed
+  set first.
+- [ ] **Gates per character** vs Ryu on the saved openings; the verdict needs all 8 (CPB3), and Chun-Li no worse than
+  r2 is one of the 8 bars, not the headline.
 - [ ] **B5:** the two-system loop from Track A on top of the all-character checkpoint
 
 ---
