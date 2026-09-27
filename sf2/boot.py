@@ -93,7 +93,8 @@ PICKED = 600          # after the jab the select screen stays up (and 0x0D is re
 
 IDS = {name: i for i, name in CHARACTERS.items() if i < 8}
 MAX_IDLE = 120  # idle counts tried before the jab; each possible first opponent comes up about every 4
-DECIDED = 230   # frames after the jab by which P2_CHAR holds the first opponent (set ~208 frames after it)
+DECIDED = 300   # frames after the jab by which P2_CHAR holds the first opponent (set 208-231 frames after it;
+                # it starts at 4 = Ken, so reading it at 230 took a Blanka set on frame 231 for Ken: B3b, 2026-09-27)
 
 
 def cursor_steps(me: str) -> List[Tuple[Tuple[str, ...], int]]:
