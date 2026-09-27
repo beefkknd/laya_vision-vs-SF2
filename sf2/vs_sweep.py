@@ -82,6 +82,10 @@ def actions(char: str) -> Dict[str, Tuple[Step, ...]]:
 
 
 POSTURES: Dict[str, Tuple[str, ...]] = {"stand": (), "crouch": ("D",), "crouch_block": ("D", "B")}
+# Stage 1 trains on what is visible: a crouch-blocking dummy looks exactly like a crouching one until an attack
+# comes, so its "blocked" rows share inputs with "hit" rows (650 conflicting pairs, 79% of the failing combinations
+# in the first eval). They stay collected (shards) for the moving-opponent stage, where the guard pose shows.
+STAGE1_POSTURES = ("stand", "crouch")
 RANGES = ("close", "mid", "far")
 # Target gaps (world px) per range, 10 each; index 2, 5, 8 are held out for test. The narrowest the fighters get
 # is ~20 px (they push each other), the widest ~206 (the camera).

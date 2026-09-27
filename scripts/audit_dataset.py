@@ -21,7 +21,7 @@ from sf2.config import PAD
 from sf2.config import IMAGE_SIZE
 from sf2.frames import HUD_ROWS
 from sf2.vs import physical
-from sf2.vs_sweep import MOVEMENT, OUTCOMES, POSTURES, RANGES, TEST_INDEX, actions, outcome_question, range_of
+from sf2.vs_sweep import MOVEMENT, OUTCOMES, RANGES, STAGE1_POSTURES, TEST_INDEX, actions, outcome_question, range_of
 from laya.vlm_train import jsonl_example
 
 ROOT = "test_data"
@@ -30,7 +30,7 @@ FIELDS = {"id": str, "char": str, "opp": str, "side": str, "facing": str, "range
           "dx": int, "posture": str, "action": str, "kind": str, "buttons": list, "images": list, "state_text": str,
           "question": dict, "label": int, "split": str, "mirrored": bool, "source": str, "outcome": str, "thrown": bool,
           "executed": bool, "damage": int, "busy_frames": int, "travel": int}
-PER_COMBO = {"train_real": 18, "test_real_left": 6, "test_real_right": 6}
+PER_COMBO = {"train_real": 14, "test_real_left": 6, "test_real_right": 6}
 _SWAP = {"left": "right", "right": "left"}
 
 
@@ -78,7 +78,7 @@ def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
     a.check("mirrored_flag", r["mirrored"] == (f == "train_mirrored"), rid)
     a.check("char", r["char"] == char and r["opp"] != char, rid)
     a.check("action_known", r["action"] in actions(char), rid)
-    a.check("posture_known", r["posture"] in POSTURES, rid)
+    a.check("posture_known", r["posture"] in STAGE1_POSTURES, rid)
     a.check("gap_index_split", (r["gap_index"] in TEST_INDEX) == (r["split"] == "test"), rid)
     a.check("range_of_gap", r["range"] in RANGES and range_of(r["gap"]) == r["range"], rid)
     a.check("dx_is_gap_and_side", abs(r["dx"]) == r["gap"] and (r["dx"] > 0) == (r["side"] == "left"), rid)
@@ -122,7 +122,7 @@ def audit_char(a: Audit, char: str) -> Dict[str, int]:
         for act in actions(char):
             for rng in RANGES:
                 a.check("combo_count", c[(act, rng)] >= need, "%s/%s %s@%s: %d" % (char, f, act, rng, c[(act, rng)]))
-                for p in POSTURES:
+                for p in STAGE1_POSTURES:
                     a.check("posture_coverage", cp[(act, rng, p)] > 0, "%s/%s %s@%s/%s" % (char, f, act, rng, p))
     # no leakage: test frames never appear in train, test gaps never in train
     train_imgs = {p for f in ("train_real", "train_mirrored") for r in recs[f] for p in r["images"]}

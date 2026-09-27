@@ -31,11 +31,11 @@ from sf2.mesen import MesenBridge
 from sf2.vs import boot_vs, gap_state, record, view
 from sf2.vs_moves import CONDS
 from sf2.frames import HUD_ROWS, mirror_frame, model_frame
-from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, RANGES, actions, mirror_record, note,
+from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, RANGES, STAGE1_POSTURES, actions, mirror_record, note,
                           outcome, outcome_question, range_of, split_of)
 
 ROOT = "test_data"
-MIN_TRAIN, MIN_TEST = 18, 6   # per (action, range): the plan asks ~20 train; ~500 real test frames per side
+MIN_TRAIN, MIN_TEST = 14, 6   # per (action, range): 7 gaps x 2 postures train, 3 x 2 test
 
 
 def collect(args) -> int:
@@ -146,7 +146,8 @@ def build(args) -> int:
     by_char: Dict[str, List[Dict]] = collections.defaultdict(list)
     for s in shards:
         for r in read(s):
-            by_char[r["char"]].append(r)
+            if r["posture"] in STAGE1_POSTURES:
+                by_char[r["char"]].append(r)
     problems = []
     for char, recs in sorted(by_char.items()):
         base = os.path.join(ROOT, char)
