@@ -34,3 +34,9 @@ def test_every_finished_run_appends_one_row_to_the_results_ledger(tmp_path):
     r = rows[0]
     assert r["opp"] == "ryu" and r["savestate"].endswith("ryu.state") and r["openings"] == "openings/dev.txt"
     assert r["net_damage_per_round"] == 93.8 and r["rounds"] == 43 and "time" in r and "action_mix" not in r
+
+
+def test_collection_gets_its_own_match_limit_flag():
+    # collect_teacher.py limits matches with --max-matches; the play scripts use --matches
+    assert parallel.match_flag("collect_teacher") == "--max-matches"
+    assert parallel.match_flag("play_student") == parallel.match_flag("play_teacher") == "--matches"

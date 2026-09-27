@@ -58,6 +58,11 @@ def split(total: int, n: int):
     return [total // n + (1 if i < total % n else 0) for i in range(n)]
 
 
+def match_flag(script):
+    """collect_teacher.py limits matches with --max-matches; the play scripts use --matches."""
+    return "--max-matches" if script == "collect_teacher" else "--matches"
+
+
 def worker_seed_args(seed, i):
     """What makes worker i's matches differ from every other worker's."""
     return ["--seed", str(seed * 1000 + i), "--jitter-base", str(i * 30)]
@@ -161,7 +166,7 @@ def main():
         if dec[i] is not None:
             argv += ["--decisions", str(dec[i])]
         if mat[i] is not None:
-            argv += ["--matches", str(mat[i])]
+            argv += [match_flag(args.script), str(mat[i])]
         if chunks:
             argv += ["--openings", ",".join(map(str, chunks[i]))]
         log = open("out/parallel/%s.log" % name, "w")
