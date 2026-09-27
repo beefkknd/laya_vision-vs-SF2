@@ -26,36 +26,29 @@ switch to the raw screen buffer automatically if PNGs come back blank:
 
     python scripts/check_env.py --headless --savestate states/<fight>.state --me chunli --opp <opp>
 
-## Headless, N workers (faster collection / evaluation)
+## Headless, N workers (faster evaluation)
 `scripts/parallel.py` runs N copies on ports 47810.. with different seeds and start jitter, splits
---decisions / --matches between them, and merges into the usual `data/<name>` or `rollouts/<name>`:
+--matches between them, and merges into the usual `rollouts/<name>`:
 
-    python scripts/parallel.py --workers 4 collect_teacher --name seed_teacher --decisions 40000 --eps 0.25 \
-        --savestate states/<fight>.state --me chunli --opp <opp>
-    python scripts/parallel.py --workers 4 play_teacher --name teacher --matches 12 --savestate states/<fight>.state --me chunli
-    python scripts/train.py --data data/seed_teacher --out runs/r0
+    python scripts/train.py --data data/<labelled set> --out runs/r0
     python scripts/parallel.py --workers 4 play_student --model runs/r0/best --name r0 --matches 12 \
         --savestate states/<fight>.state --me chunli
-    WORKERS=4 SAVESTATE=states/<fight>.state EXTRA="--me chunli --opp <opp>" scripts/dagger_round.sh 1
 
 Worker logs: `out/parallel/<name>_w<i>.log`. On failure, read the log first. A worker that cannot connect usually
 means network access is not ticked in Mesen's script settings, or SF2_ROM is wrong.
 
 ## Sizing on a Mac mini M4
-- Collection (`collect_teacher`, `play_teacher`) is CPU-bound: start with **workers = performance cores**
-  (4 on the base M4), then check `top` and scale up while throughput still grows.
 - `play_student` loads the model once per worker (~1-2 GB each, sharing the one GPU): 2-3 workers on 16 GB,
   4 on 24-32 GB. More workers than that just queue on the GPU. Measured on the M4 Pro (2026-09-26), a checkpoint
   trained with `--image-size 256`: 1/2/3/4 workers = 9.8/14.7/17.8/19.7 decisions/s (512 px: 5.2 at 1, 7.2 at 3).
   The GPU is compute-bound (batching 8 states in one forward only reaches ~26/s), so 4 workers is near the ceiling.
 - bf16 autocast on MPS does not pay: training no faster, play 10% faster but only 69% top-action agreement with fp32.
-- Training (`train.py`) is one process on the GPU. It is not parallelised; don't run two at once. Collection for
-  the next round can run beside it.
+- Training (`train.py`) is one process on the GPU. It is not parallelised; don't run two at once.
 
 ## Rules
-- The harness must pass against the real ROM before any collection or training:
+- The harness must pass against the real ROM before any play or training:
   `SF2_ROM=... pytest -q tests/test_rom_harness.py` (headless Mesen on port 47960, under a minute). A full
-  passing run writes `out/harness_ok.json`; collect_teacher / play_teacher / play_student refuse to start without
+  passing run writes `out/harness_ok.json`; play_student refuses to start without
   a stamp matching the ROM, the RAM map and the harness code (`SF2_UNVERIFIED=1` overrides, loudly).
 - Judge a round by `scripts/gate.py` (round win rate, damage per round), never by val loss or frame accuracy alone.
 - Don't reuse a `--name`: writers refuse to overwrite an existing dataset or rollout. Pick a new name or delete the old one.

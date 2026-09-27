@@ -1,4 +1,4 @@
-"""Human pad log -> one of the action options per decision frame (rung 1 of the teacher ladder).
+"""Human pad log -> one of the action options per decision frame.
 
 The recorder logs every frame's held buttons. Here they become relative tokens (F/B from which side you were on),
 and each decision point (every ``HOLD`` frames) gets the option whose input *started* in its window, else the stick

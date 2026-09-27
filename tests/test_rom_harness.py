@@ -3,7 +3,7 @@
     SF2_ROM=... pytest -q tests/test_rom_harness.py
 
 Collection and training are only meaningful once this passes. A full passing run writes out/harness_ok.json,
-which collect_teacher / play_teacher / play_student require (sf2.cli.check_harness).
+which play_student requires (sf2.cli.check_harness).
 """
 import argparse
 import os

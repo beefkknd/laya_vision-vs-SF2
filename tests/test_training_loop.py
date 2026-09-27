@@ -1,4 +1,4 @@
-"""Training loop plumbing: val sizing, time budgets, queue scheduling, collection failures. No model or ROM needed."""
+"""Training loop plumbing: val sizing, time budgets, queue scheduling, parallel failures. No model or ROM needed."""
 import argparse
 import json
 import os
@@ -52,45 +52,17 @@ def test_training_budget_never_goes_to_zero():
     assert train.training_minutes(5.0, spent_s=600, eval_s=90) >= 1.0
 
 
-def _create(tmp_path, collect_name, train_data, rom="ROM"):
-    rom_path = tmp_path / "sf2.sfc"
-    rom_path.write_bytes(b"")
-    mesen = tmp_path / "Mesen"
-    mesen.write_bytes(b"")
-    args = argparse.Namespace(queue=str(tmp_path / "q.json"), minutes=30, collect_name=collect_name,
-                              collect_decisions=100, base_port=47940, eps=0.2, savestate="states/x.state",
-                              me="chunli", opp="dhalsim", train_out="runs/zz_test", train_init="runs/init",
-                              train_data=train_data, rom=str(rom_path) if rom else None, mesen=str(mesen))
+def _create(tmp_path, train_data, minutes=30):
+    args = argparse.Namespace(queue=str(tmp_path / "q.json"), minutes=minutes, train_out="runs/zz_test",
+                              train_init="runs/init", train_data=train_data)
     tq.create(args)
     return {t["id"]: t for t in tq.load(tmp_path / "q.json")["tasks"]}
 
 
-def test_train_runs_alongside_a_collection_it_does_not_use(tmp_path):
-    tasks = _create(tmp_path, "seed_r5", ["data/seed_r4", "data/dagger_r2"])
-    assert tasks["train"]["depends"] == []
-
-
-def test_train_waits_for_a_collection_it_trains_on(tmp_path):
-    tasks = _create(tmp_path, "seed_r5", ["data/seed_r4", "data/seed_r5/"])
-    assert tasks["train"]["depends"] == ["collect"]
-
-
 def test_train_finishes_before_the_queue_deadline_kills_it(tmp_path):
-    tasks = _create(tmp_path, "seed_r5", ["data/seed_r4"])
+    tasks = _create(tmp_path, ["data/seed_r4"])
     argv = tq.command(tasks["train"], remaining=1800)
     assert float(argv[argv.index("--max-minutes") + 1]) < 30.0
-
-
-def test_collection_is_told_where_the_rom_is(tmp_path):
-    tasks = _create(tmp_path, "seed_r5", ["data/seed_r4"])
-    argv = tq.command(tasks["collect"], remaining=1800)
-    assert argv[argv.index("--rom") + 1] == str(tmp_path / "sf2.sfc")
-
-
-def test_collection_is_told_where_mesen_is(tmp_path):
-    tasks = _create(tmp_path, "seed_r5", ["data/seed_r4"])
-    argv = tq.command(tasks["collect"], remaining=1800)
-    assert argv[argv.index("--mesen") + 1] == str(tmp_path / "Mesen")
 
 
 def test_find_mesen_checks_the_per_user_applications_folder(tmp_path, monkeypatch):
@@ -102,13 +74,6 @@ def test_find_mesen_checks_the_per_user_applications_folder(tmp_path, monkeypatc
     monkeypatch.delenv("SF2_MESEN", raising=False)
     monkeypatch.setattr(headless, "MAC_MESEN", str(tmp_path / "nowhere" / "Mesen"))
     assert headless.find_mesen() == str(exe)
-
-
-def test_queue_refuses_a_collection_without_a_rom(tmp_path, monkeypatch):
-    monkeypatch.delenv("SF2_ROM", raising=False)
-    with pytest.raises(SystemExit):
-        _create(tmp_path, "seed_r5", ["data/seed_r4"], rom=None)
-    assert not (tmp_path / "q.json").exists()
 
 
 class _FailedWorker:
@@ -125,12 +90,12 @@ def test_all_workers_failing_leaves_no_ready_dataset(tmp_path, monkeypatch):
     # a merged-but-empty dataset marked _READY looks trainable and blocks re-running the name
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(parallel.subprocess, "Popen", _FailedWorker)
-    monkeypatch.setattr(sys, "argv", ["parallel.py", "--workers", "2", "collect_teacher", "--name", "seed_x",
-                                      "--decisions", "10"])
+    monkeypatch.setattr(sys, "argv", ["parallel.py", "--workers", "2", "play_student", "--name", "r_x",
+                                      "--model", "runs/r0/best", "--matches", "2"])
     with pytest.raises(SystemExit) as e:
         parallel.main()
     assert e.value.code
-    assert not (tmp_path / "data" / "seed_x" / "_READY").exists()
+    assert not (tmp_path / "rollouts" / "r_x" / "_READY").exists()
 
 
 def test_runner_status_lines_land_in_the_training_log(tmp_path, monkeypatch):
@@ -138,36 +103,29 @@ def test_runner_status_lines_land_in_the_training_log(tmp_path, monkeypatch):
     log = tmp_path / "training.log"
     monkeypatch.setattr(tq, "LOG", log)
     monkeypatch.setattr(tq, "command", lambda task, remaining: [sys.executable, "-c", "print('task output')"])
+    monkeypatch.setattr(tq, "live_external_gpu", lambda: False)
     q = tmp_path / "q.json"
     tq.save(q, {"version": 1, "state": "running", "created_at": 0, "deadline": 4e9, "history": [],
-                "tasks": [{"id": "collect", "kind": "collect", "resource": "cpu", "slots": 6, "state": "pending"}]})
+                "tasks": [{"id": "train", "kind": "train", "resource": "gpu", "slots": 1, "state": "pending"}]})
     tq.run(q, poll_seconds=0.05)
     text = log.read_text()
-    for line in ("task output", "started collect", "collect done", "queue complete"):
+    for line in ("task output", "started train", "train done", "queue complete"):
         assert line in text
 
 
 def test_queue_without_minutes_has_no_deadline_and_train_runs_to_the_end(tmp_path):
-    rom, mesen = tmp_path / "sf2.sfc", tmp_path / "Mesen"
-    rom.write_bytes(b"")
-    mesen.write_bytes(b"")
-    args = argparse.Namespace(queue=str(tmp_path / "q.json"), minutes=None, collect_name="seed_r5",
-                              collect_decisions=100, base_port=47940, eps=0.2, savestate="states/x.state",
-                              me="chunli", opp="dhalsim", train_out="runs/zz_test", train_init="runs/init",
-                              train_data=["data/seed_r4"], rom=str(rom), mesen=str(mesen))
-    tq.create(args)
-    queue = tq.load(tmp_path / "q.json")
-    assert queue["deadline"] is None
-    train_task = next(t for t in queue["tasks"] if t["id"] == "train")
+    train_task = _create(tmp_path, ["data/seed_r4"], minutes=None)["train"]
+    assert tq.load(tmp_path / "q.json")["deadline"] is None
     assert "--max-minutes" not in tq.command(train_task, remaining=None)
 
 
 def test_runner_finishes_a_queue_with_no_deadline(tmp_path, monkeypatch):
     monkeypatch.setattr(tq, "LOG", tmp_path / "training.log")
     monkeypatch.setattr(tq, "command", lambda task, remaining: [sys.executable, "-c", "pass"])
+    monkeypatch.setattr(tq, "live_external_gpu", lambda: False)
     q = tmp_path / "q.json"
     tq.save(q, {"version": 1, "state": "running", "created_at": 0, "deadline": None, "history": [],
-                "tasks": [{"id": "collect", "kind": "collect", "resource": "cpu", "slots": 6, "state": "pending"}]})
+                "tasks": [{"id": "train", "kind": "train", "resource": "gpu", "slots": 1, "state": "pending"}]})
     tq.run(q, poll_seconds=0.05)
     assert tq.load(q)["state"] == "done"
 

@@ -92,15 +92,14 @@ def run(env, pol, ram_map, args, say):
 
     env.act = act_and_report
 
-    def choose(env, prev, cur, text, t_dist):
+    def choose(env, prev, cur, text):
         keep_alive = getattr(env.backend, "keep_alive", None)
         with keep_alive() if keep_alive else nullcontext():
             a, probs = pol.act(prev, cur, text)
-        teacher = max(t_dist, key=t_dist.get)
         f = env.f
-        say("f%d r%d %ss  hp %3d:%-3d  %-8s %3.0f%%  teacher %-8s %s"
+        say("f%d r%d %ss  hp %3d:%-3d  %-8s %3.0f%%"
             % (fights["n"], env.round + 1, clock(f.timer), max(0, f.my_hp), max(0, f.opp_hp), SHORT[a],
-               100 * probs[a], SHORT[teacher], "=" if a == teacher else "x"))
+               100 * probs[a]))
         return a, {}
 
     while not args.matches or fights["n"] < args.matches:

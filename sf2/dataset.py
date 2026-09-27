@@ -6,9 +6,9 @@ One record = one decision frame:
     {"id", "images": [prev.png, cur.png], "state_text", "question", "label", "target",
      "episode", "step", "source", "meta": {...}}
 
-``label`` / ``target`` are the gold (teacher). ``meta`` holds everything the relabel and gate steps need (who
-acted, what the student chose, life totals, frame counter, round); laya ignores it.
-Rollouts use the same layout, so a rollout directory is already a dataset whose gold is the teacher's.
+``label`` / ``target`` are the gold. ``meta`` holds everything the gate step needs (who acted, what the student
+chose, life totals, frame counter, round); laya ignores it.
+Rollouts use the same layout; their gold is the move that was played.
 """
 import json
 import os

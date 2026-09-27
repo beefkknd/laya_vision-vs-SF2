@@ -1,17 +1,14 @@
-"""Run a collection / play script on N headless Mesen workers at once, then merge their output.
+"""Run a play script on N headless Mesen workers at once, then merge their output.
 
-    python scripts/parallel.py --workers 4 collect_teacher --name seed_teacher --decisions 40000 --eps 0.25
     python scripts/parallel.py --workers 4 play_student --model runs/r0/best --name r0 --matches 12
-    python scripts/parallel.py --workers 4 play_teacher --name teacher --matches 12
 
 Each worker is `scripts/<script>.py ... --headless --port <base+i> --seed <i> --name <name>_w<i>`, with
 --decisions / --matches split between workers. Every worker starts its own windowless Mesen (`--testrunner`),
 so set SF2_ROM (and SF2_MESEN if Mesen is not in /Applications) or pass --rom / --mesen after the script name.
 Logs: out/parallel/<name>_w<i>.log. The merged result lands where a single run would have put it
-(data/<name> or rollouts/<name>), so train.py / relabel.py / gate.py use it unchanged.
+(rollouts/<name>), so gate.py uses it unchanged.
 
-This speeds up *collection and evaluation* (the emulator, PNG writing and the rollouts). Training itself is one
-process on the GPU; run the next round's collection while it trains if you want both busy.
+This speeds up *evaluation* (the emulator, PNG writing and the rollouts). Training itself is one process on the GPU.
 """
 import argparse
 import json
@@ -26,11 +23,11 @@ from sf2 import dataset as D
 from sf2.rollout import gate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = {"collect_teacher": "data", "play_student": "rollouts", "play_teacher": "rollouts"}
+DEFAULT_OUT = {"play_student": "rollouts"}
 LIVE_LOG = "out/live.log"  # every run's workers, interleaved and timestamped: tail -F out/live.log
 RESULTS = "out/results.jsonl"  # one row per finished run, appended forever: the data for learning curves
 LEDGER_KEYS = ["matches", "distinct_matches", "rounds", "round_win_rate", "net_damage_per_round", "net_damage_se",
-               "dmg_dealt_per_round", "dmg_taken_per_round", "decisions", "teacher_agreement"]
+               "dmg_dealt_per_round", "dmg_taken_per_round", "decisions"]
 
 
 def record_result(path, name, script, model, openings, workers, argv, gate):
@@ -56,11 +53,6 @@ def pump(proc, own_log, name, live, lock):
 
 def split(total: int, n: int):
     return [total // n + (1 if i < total % n else 0) for i in range(n)]
-
-
-def match_flag(script):
-    """collect_teacher.py limits matches with --max-matches; the play scripts use --matches."""
-    return "--max-matches" if script == "collect_teacher" else "--matches"
 
 
 def worker_seed_args(seed, i):
@@ -106,16 +98,14 @@ def merge(src_dirs, dst, script, model=None):
     D.write_jsonl(os.path.join(dst, "rounds.jsonl"), rounds)
     with open(os.path.join(dst, "_READY"), "w") as f:
         json.dump(counts, f)
-    if script != "collect_teacher" or rounds:
-        g = gate(rows, rounds)
-        g.update(model=model or script, workers=len(src_dirs))
-        if g["distinct_matches"] < g["matches"]:
-            print("WARNING: only %d of %d matches differ; the others replayed an identical fight"
-                  % (g["distinct_matches"], g["matches"]), flush=True)
-        with open(os.path.join(dst, "gate.json"), "w") as f:
-            json.dump(g, f, indent=2)
-        return counts, g
-    return counts, None
+    g = gate(rows, rounds)
+    g.update(model=model or script, workers=len(src_dirs))
+    if g["distinct_matches"] < g["matches"]:
+        print("WARNING: only %d of %d matches differ; the others replayed an identical fight"
+              % (g["distinct_matches"], g["matches"]), flush=True)
+    with open(os.path.join(dst, "gate.json"), "w") as f:
+        json.dump(g, f, indent=2)
+    return counts, g
 
 
 def main():
@@ -166,7 +156,7 @@ def main():
         if dec[i] is not None:
             argv += ["--decisions", str(dec[i])]
         if mat[i] is not None:
-            argv += [match_flag(args.script), str(mat[i])]
+            argv += ["--matches", str(mat[i])]
         if chunks:
             argv += ["--openings", ",".join(map(str, chunks[i]))]
         log = open("out/parallel/%s.log" % name, "w")

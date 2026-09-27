@@ -567,7 +567,5 @@ def test_a_hits_damage_lands_on_the_decision_it_hit_in():
             continue
         assert (res.dmg_against, res.dmg_for) == (drops(0, f0, env.backend.t), drops(1, f0, env.backend.t))
         if res.dmg_against:
-            hit = next(i for i in range(f0 + 1, env.backend.t + 1) if true[i][0] < true[i - 1][0])
-            assert env.context().frames_since_hit == env.backend.t - hit < 4
             hits.append(res.dmg_against)
     assert len(hits) >= 8 and min(hits) >= 10          # whole hits, not 1-3 life points of a draining bar

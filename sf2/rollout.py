@@ -70,7 +70,4 @@ def gate(rows: List[Dict], rounds: List[Dict]) -> Dict:
         "decisions": len(rows),
         "action_mix": {a: round(c / max(1, len(rows)), 3) for a, c in acts.most_common()},
     }
-    agree = [r for r in rows if r["meta"].get("teacher_action")]
-    if agree:
-        out["teacher_agreement"] = sum(r["meta"]["action"] == r["meta"]["teacher_action"] for r in agree) / len(agree)
     return out

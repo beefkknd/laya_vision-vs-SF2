@@ -1,7 +1,7 @@
 """Step 0 of the two-system plan (docs/TWO_SYSTEM_PLAN.md): the formats System 1 and any System 2 share.
 
-System 1 (laya, the hands) writes a *moment record* for decisions worth a second look. A System 2 (you, the
-scripted teacher, Qwen) answers with *situation rules* over the RAM note's fields, or *moment advice* for one
+System 1 (laya, the hands) writes a *moment record* for decisions worth a second look. A System 2 (you, an LLM
+coach such as Qwen) answers with *situation rules* over the RAM note's fields, or *moment advice* for one
 recorded moment. Everything is validated on the way in: an unknown field, value or move is an error naming what is
 wrong, so a bad instruction never reaches the hands.
 

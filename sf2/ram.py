@@ -40,7 +40,7 @@ DIZZY_SUB = 0x08
 THROWN_STATE = 0x14
 POSE_STATES = (0x10, 0x12)
 
-# |world x difference| in pixels. Measured from random play (TEACHER.md, 2026-09-25): Chun-Li's normals land below
+# |world x difference| in pixels. Measured from random play (2026-09-25): Chun-Li's normals land below
 # CLOSE, Dhalsim's attacks reach up to MID.
 CLOSE, MID = 80, 120
 # Stage walls in world x, measured on the ROM (tests/fixtures/walls, 2026-09-26): walking back, Chun-Li stops at 53

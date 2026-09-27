@@ -7,7 +7,7 @@ when either side has two round wins, and ``reset()`` reloads the savestate, so t
 the gate.
 """
 from collections import deque
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Callable, Deque, List, Optional
 
 import numpy as np
@@ -30,16 +30,6 @@ class ActResult:
     dmg_against: int
     round_over: bool = False
     winner: Optional[str] = None      # "me" | "opp" | "draw"
-
-
-@dataclass
-class Context:
-    """What the scripted teacher is allowed to know besides the RAM snapshot."""
-    my_air: bool
-    opp_air: bool
-    dx_trend: int                      # dx now minus dx 8 frames ago (negative = closing in)
-    frames_since_hit: int              # since my (true) life last dropped
-    history: List[ram.Fighters] = field(default_factory=list)
 
 
 class FightEnv:
@@ -66,14 +56,11 @@ class FightEnv:
         return tuple(x - 256 if x > self.full_hp else x for x in f.life)
 
     def _ingest(self, rows: List[List[int]]) -> List[ram.Fighters]:
-        """RAM rows *after* each executed frame -> Fighters, updating history / hit timer."""
+        """RAM rows *after* each executed frame -> Fighters, updating the dizzy flags."""
         out = []
         for values in rows:
-            prev, self.f = self.f, self._f(values)
+            self.f = self._f(values)
             self.frame_no += 1
-            self.hist.append(self.f)
-            if self.life(self.f)[0] < self.life(prev)[0]:
-                self.last_hit = self.frame_no
             f = self.f
             self.dizzy = (ram.dizzy(self.dizzy[0], f.my_state, f.my_sub, f.my_dizzy),
                           ram.dizzy(self.dizzy[1], f.opp_state, f.opp_sub, f.opp_dizzy))
@@ -101,13 +88,10 @@ class FightEnv:
         self.last = "idle"
         img = obs.images[0]
         self.frames: Deque[np.ndarray] = deque([img, img], maxlen=2)
-        self.hist: Deque[ram.Fighters] = deque(maxlen=120)
         self.f = self._f(obs.rams[0])
-        self.hist.append(self.f)
         self.dizzy = (False, False)                     # (me, opp): see ram.dizzy
         self.full_hp = max(self.f.my_hp, self.f.opp_hp)  # the savestate starts with full bars
         self.ground = (self.f.my_y, self.f.opp_y)
-        self.last_hit = -10_000
         self.in_round = True
         if self.jitter:  # a different idle count per worker (jitter_base) and match: a different CPU fight
             self.run_frames([[]] * (self.jitter_base + self.episode % self.jitter + 1))
@@ -122,7 +106,7 @@ class FightEnv:
     def prev_frame(self) -> np.ndarray:
         return self.frames[0]
 
-    # ------------------------------------------------------------------ state for model / teacher
+    # ------------------------------------------------------------------ state for the model
     def airborne(self):
         """Off the ground by choice (a jump or jump attack): being knocked into the air (0E), lifted and thrown
         (00 at y 136, then 14) or falling after a KO (00) does not count."""
@@ -146,11 +130,6 @@ class FightEnv:
     def text(self) -> str:
         my_air, opp_air = self.airborne()
         return ram.text_state(self.f, self.me, self.opp, self.last, my_air, opp_air, self.full_hp, self.dizzy)
-
-    def context(self) -> Context:
-        my_air, opp_air = self.airborne()
-        old = self.hist[-9] if len(self.hist) >= 9 else self.hist[0]
-        return Context(my_air, opp_air, self.f.dx - old.dx, self.frame_no - self.last_hit, list(self.hist))
 
     # ------------------------------------------------------------------ one decision
     def act(self, action: str, on_frame: Optional[Callable[[ram.Fighters], None]] = None) -> ActResult:

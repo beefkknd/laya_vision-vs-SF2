@@ -1,8 +1,8 @@
 """Day 3/6/7: compare runs on the same savestate. Round wins and damage decide, not val loss.
 
-    python scripts/gate.py rollouts/teacher rollouts/r0 rollouts/r1
+    python scripts/gate.py rollouts/r0 rollouts/r1
 
-Reads each rollout's gate.json (written by play_student.py / play_teacher.py).
+Reads each rollout's gate.json (written by play_student.py).
 """
 import json
 import os
@@ -14,7 +14,7 @@ def main():
         print(__doc__)
         return
     cols = ["rounds", "distinct_matches", "damage_score", "damage_score_se", "net_damage_per_round", "net_damage_se", "round_win_rate", "dmg_dealt_per_round",
-            "dmg_taken_per_round", "teacher_agreement"]
+            "dmg_taken_per_round"]
     print("%-22s" % "run" + "".join("%22s" % c for c in cols))
     for d in sys.argv[1:]:
         with open(os.path.join(d, "gate.json")) as f:

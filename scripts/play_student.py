@@ -1,10 +1,10 @@
-"""Days 3-6: the student plays; every decision is recorded with the teacher's gold beside it.
+"""The student plays; every decision is recorded.
 
     python scripts/play_student.py --model runs/r0/best --name r0 --matches 10
 
-Writes rollouts/<name>/{train,val}.jsonl + images (same layout as a dataset: label/target = teacher),
+Writes rollouts/<name>/{train,val}.jsonl + images (same layout as a dataset: label/target = the move played),
 rollouts/<name>/rounds.jsonl, and prints the gate. Each row's meta has: action (student), student_probs,
-teacher_action, dmg_for / dmg_against (during the action), dmg_for_next / dmg_against_next (next 0.5 s),
+dmg_for / dmg_against (during the action), dmg_for_next / dmg_against_next (next 0.5 s),
 whiff, hot, round_result, dx.
 """
 import argparse
@@ -42,7 +42,7 @@ def main():
         print("memory %s: %d rules, tau %s" % (args.memory, len(mem.rules),
                                                 "per rule" if args.tau is None else args.tau), flush=True)
 
-    def choose(env, prev, cur, text, t_dist):
+    def choose(env, prev, cur, text):
         keep_alive = getattr(env.backend, "keep_alive", None)
         with keep_alive() if keep_alive else nullcontext():
             a, probs = pol.act(prev, cur, text)

@@ -1,4 +1,4 @@
-"""Play SF2 yourself in Mesen while Python logs every frame (rung 1 of the teacher ladder). Also where
+"""Play SF2 yourself in Mesen while Python logs every frame. Also where
 savestates come from: press F9 in Mesen at the start of a fight.
 
     python scripts/record_human.py --session s1                       # play; Ctrl-C here to stop

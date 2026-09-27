@@ -1,22 +1,12 @@
-"""Resource-aware queue for headless collection and one-GPU training.
+"""Resource-aware queue for one-GPU training.
 
-Pipelined rounds: train round N on data already on disk while the CPU pool
-collects round N+1's data, then run the pool:
-
-    python scripts/training_queue.py create --collect-name seed_chunli_r5 \\
-      --savestate states/<fight>.state --rom "$SF2_ROM" \\
-      --train-out runs/chunli_r5 --train-init runs/chunli_r4/best \\
-      --train-data data/seed_chunli_r4 --train-data data/dagger_chunli_r2
+    python scripts/training_queue.py create --train-out runs/chunli_r5 --train-init runs/chunli_r4/best \\
+      --train-data data/<set_a> --train-data data/<set_b>
     python scripts/training_queue.py run
 
-Training waits for collection only when ``--train-data`` names the collection's
-own ``data/<collect-name>``; otherwise both start at once.
-
-The pool has one GPU slot and six CPU slots. Collection occupies all six CPU
-slots through ``parallel.py``; training occupies the single GPU slot (plus its
-data-loader processes on the remaining cores). At the deadline it stops running
-queue jobs and moves pending work to history; without ``--minutes`` there is no
-deadline and training runs its full epoch (or early-stops).
+The pool has one GPU slot (a hand-started train.py holds it too) and six CPU slots. At the deadline it stops
+running queue jobs and moves pending work to history; without ``--minutes`` there is no deadline and training runs
+its full epoch (or early-stops).
 """
 import argparse
 import json
@@ -26,9 +16,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-
-import _path  # noqa: F401
-from sf2.headless import find_mesen
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_QUEUE = ROOT / "out" / "training_queue.json"
@@ -60,11 +47,6 @@ def live_external_gpu():
 
 def command(task, remaining):
     kind, spec = task["kind"], task["spec"]
-    if kind == "collect":
-        return [sys.executable, "scripts/parallel.py", "--workers", str(spec["workers"]), "--base-port",
-                str(spec["base_port"]), "collect_teacher", "--name", spec["name"], "--decisions",
-                str(spec["decisions"]), "--eps", str(spec["eps"]), "--savestate", spec["savestate"],
-                "--me", spec["me"], "--opp", spec["opp"], "--rom", spec["rom"], "--mesen", spec["mesen"]]
     if kind == "train":
         out = ROOT / spec["out"]
         if out.exists():
@@ -172,16 +154,6 @@ def create(args):
     path = Path(args.queue)
     if path.exists():
         raise SystemExit("queue exists: %s" % path)
-    rom = args.rom or os.environ.get("SF2_ROM")
-    if not rom or not os.path.isfile(rom):
-        # checked here, not 6 workers into the run
-        raise SystemExit("ROM not found: pass --rom or set SF2_ROM (got %r)" % rom)
-    try:
-        mesen = find_mesen(args.mesen)
-    except FileNotFoundError as e:
-        raise SystemExit(str(e))
-    collected = os.path.normpath(os.path.join("data", args.collect_name))
-    waits = collected in {os.path.normpath(d) for d in args.train_data}
     queue = {
         "version": 1,
         "state": "running",
@@ -190,19 +162,13 @@ def create(args):
         "pool": {"gpu": GPU_SLOTS, "cpu": CPU_SLOTS},
         "history": [],
         "tasks": [
-            {"id": "collect", "kind": "collect", "resource": "cpu", "slots": CPU_SLOTS, "state": "pending",
-             "spec": {"name": args.collect_name, "decisions": args.collect_decisions, "workers": CPU_SLOTS,
-                      "base_port": args.base_port, "eps": args.eps, "savestate": args.savestate,
-                      "me": args.me, "opp": args.opp, "rom": os.path.abspath(rom), "mesen": mesen}},
             {"id": "train", "kind": "train", "resource": "gpu", "slots": 1, "state": "pending",
-             "depends": ["collect"] if waits else [], "spec": {"out": args.train_out, "init": args.train_init,
-                                                    "data": args.train_data}},
+             "spec": {"out": args.train_out, "init": args.train_init, "data": args.train_data}},
         ],
     }
     save(path, queue)
-    print("created %s: 6 CPU collection slots + 1 GPU training slot, %s, train %s"
-          % (path, "no deadline" if args.minutes is None else "%.0f-minute deadline" % args.minutes,
-             "after collect" if waits else "alongside collect"))
+    print("created %s: 1 GPU training slot, %s"
+          % (path, "no deadline" if args.minutes is None else "%.0f-minute deadline" % args.minutes))
 
 
 def main():
@@ -211,15 +177,6 @@ def main():
     c = sub.add_parser("create")
     c.add_argument("--queue", default=str(DEFAULT_QUEUE))
     c.add_argument("--minutes", type=float, default=None, help="queue deadline; default none (train runs its epoch)")
-    c.add_argument("--collect-name", required=True)
-    c.add_argument("--collect-decisions", type=int, default=18000)
-    c.add_argument("--base-port", type=int, default=47940)
-    c.add_argument("--eps", type=float, default=0.20)
-    c.add_argument("--savestate", required=True)
-    c.add_argument("--me", default="chunli")
-    c.add_argument("--opp", default="dhalsim")
-    c.add_argument("--rom", default=None, help="default $SF2_ROM; stored in the queue so workers need no env")
-    c.add_argument("--mesen", default=None, help="default $SF2_MESEN, then the usual app locations")
     c.add_argument("--train-out", required=True)
     c.add_argument("--train-init", required=True)
     c.add_argument("--train-data", action="append", required=True)

@@ -1,8 +1,7 @@
 """The one play loop every script uses: decide -> act -> record -> round/match bookkeeping.
 
-``choose(env, prev, cur, text, teacher_dist)`` returns (action to execute, extra meta). The teacher's distribution
-is computed on every frame whoever is playing, so every recorded row already carries the teacher's gold: the
-teacher's own rollouts are the seed set, and the student's rollouts are DAgger data before any relabelling.
+``choose(env, prev, cur, text)`` returns (action to execute, extra meta). A recorded row's label is the action
+that was played (one-hot).
 """
 import json
 import os
@@ -14,9 +13,8 @@ import numpy as np
 from .dataset import Writer
 from .env import FightEnv
 from .rollout import annotate
-from .teacher import argmax, teacher_policy
 
-Choose = Callable[[FightEnv, np.ndarray, np.ndarray, str, Dict[str, float]], Tuple[str, Dict]]
+Choose = Callable[[FightEnv, np.ndarray, np.ndarray, str], Tuple[str, Dict]]
 
 
 def play(env: FightEnv, choose: Choose, matches: int, writer: Optional[Writer] = None,
@@ -31,15 +29,14 @@ def play(env: FightEnv, choose: Choose, matches: int, writer: Optional[Writer] =
                "opening": getattr(env, "opening", None)}
         while True:
             prev, cur = env.prev_frame.copy(), env.frame.copy()
-            text, f, ctx = env.text(), env.f, env.context()
-            t_dist = teacher_policy(f, ctx, env.me)
-            action, extra = choose(env, prev, cur, text, t_dist)
+            text, f = env.text(), env.f
+            action, extra = choose(env, prev, cur, text)
             frame0, round0, controllable = env.frame_no, env.round, env.controllable()
             res = env.act(action)
             meta = dict(episode=env.episode, round=round0, frame=frame0, frames=res.frames, action=action,
-                        teacher_action=argmax(t_dist), my_state=f.my_state, my_hp=f.my_hp, opp_hp=f.opp_hp, dx=f.dx,
+                        my_state=f.my_state, my_hp=f.my_hp, opp_hp=f.opp_hp, dx=f.dx,
                         dmg_for=res.dmg_for, dmg_against=res.dmg_against, controllable=controllable, **extra)
-            rec = writer.record(env.episode, step, prev, cur, text, t_dist, meta) if writer else {
+            rec = writer.record(env.episode, step, prev, cur, text, {action: 1.0}, meta) if writer else {
                 "episode": env.episode, "meta": meta}
             match_rows.append(rec)
             step += 1
