@@ -10,6 +10,7 @@ reason logged. If Qwen's reply is unusable twice, the previous memory is kept.
 """
 import collections
 import json
+import re
 from typing import Dict, List, Optional, Tuple
 
 from .memory import KINDS, MAX_PROMPT_LESSONS, check
@@ -18,6 +19,7 @@ from .vs_sweep import actions
 
 MAX_PLAYBOOK = 8
 MIN_TRIES = 3
+MAX_TEXT = 60              # characters per lesson: it goes into laya's prompt
 RANGES = ("close", "mid", "far")
 CLAIMS = ("lands", "whiffs", "blocked", "punished", "habit:attack", "habit:jump", "habit:guard", "counter:attack",
           "counter:jump")
@@ -95,21 +97,55 @@ def digest(acts: List[Dict], games: List[Dict], title: str) -> str:
     return "\n".join(lines)
 
 
+def vet(lessons: List[Dict], acts: List[Dict], limit: int) -> Tuple[List[Dict], List[Dict]]:
+    """Qwen's lessons, in its order, that fit laya's prompt and the log: (kept with evidence, rejected with why).
+    Rejected: unknown kind / claim / range, too long, numbers in the text, not backed by the log, or a second
+    lesson on a move already covered (one lesson per move and kind; laya gets no repeats)."""
+    kept, rejected, seen = [], [], set()
+    for les in lessons:
+        les = {k: les.get(k) for k in ("text", "kind", "action", "range", "claim")}
+        text = les["text"] if isinstance(les["text"], str) else ""
+        key = (les["action"], les["kind"]) if les["action"] else (les["claim"], les["range"])
+        if les["claim"] not in CLAIMS or les["kind"] not in KINDS or les["range"] not in RANGES + (None,):
+            why = "unknown kind / claim / range"
+        elif not text or len(text) > MAX_TEXT:
+            why = "text must be 1-%d characters for laya's prompt (is %d)" % (MAX_TEXT, len(text))
+        elif re.search(r"\d", text):
+            why = "no numbers in the text: laya cannot use them (the evidence carries them)"
+        elif key in seen:
+            why = "repeats a lesson already given for %s" % (les["action"] or les["claim"])
+        else:
+            ev = evidence(acts, les["claim"], les["action"], les["range"])
+            why = supported(les, ev)
+            if not why:
+                kept.append(dict(les, evidence=ev))
+                seen.add(key)
+                continue
+            rejected.append({"lesson": les, "why": why, "evidence": ev})
+            continue
+        rejected.append({"lesson": les, "why": why})
+    return kept[:limit], rejected
+
+
 # ------------------------------------------------------------------------------------------------ Qwen
 def _rules(me: str) -> str:
     return (
         "You are System 2, the coach of an AI playing %s in Street Fighter II (SNES, World Warrior) against the CPU. "
         "System 1 is a vision model that picks one move every turn; your lessons steer it.\n"
         "Moves %s can do: %s.\nRanges (gap between the fighters): close < 55 px <= mid < 120 px <= far.\n"
-        "Write each lesson as one short instruction (<= 90 characters), e.g. \"use more c.mk at mid range\", "
-        "\"avoid spinning_bird_kick at far: he punishes it\", \"when he jumps in, lightning_legs hits him\".\n"
+        "System 1 is laya, a small vision model: it reads your lessons as plain text in its prompt, next to a RAM "
+        "note, and knows the moves only by the exact names above. So write FOR IT: one short plain instruction per "
+        "lesson (<= %d characters), the move name exactly as listed, no numbers or percentages (the evidence "
+        "carries those), and never two lessons about the same move: when a lesson holds at every range, give range "
+        "null and say so once, e.g. \"avoid spinning_bird_kick: he punishes it at every range\", "
+        "\"use more lp up close\", \"when he jumps in, answer with spinning_bird_kick\".\n"
         "Every lesson must rest on numbers in the digest and name them:\n"
         "  kind: one of %s\n  action: one of the moves above, or null (habits)\n  range: close, mid, far, or null\n"
         "  claim: one of %s (lands/whiffs/blocked/punished: what my move did; habit:X: the opponent was in X at my "
         "turn; counter:X: my move landed while he was in X)\n"
         "Lessons the numbers do not support are thrown away, so do not guess. Reply with JSON only: "
         "{\"lessons\": [{\"text\", \"kind\", \"action\", \"range\", \"claim\"}], \"notes\": \"one line: what changed and why\"}"
-        % (me, me, ", ".join(actions(me)), ", ".join(KINDS), ", ".join(CLAIMS)))
+        % (me, me, ", ".join(actions(me)), MAX_TEXT, ", ".join(KINDS), ", ".join(CLAIMS)))
 
 
 def _ask(me: str, task: str, prompt: str, acts: List[Dict], limit: int) -> Tuple[Optional[List[Dict]], Dict]:
@@ -123,19 +159,7 @@ def _ask(me: str, task: str, prompt: str, acts: List[Dict], limit: int) -> Tuple
             report["attempts"].append({"error": "%s: %s" % (type(e).__name__, e)})
             msgs.append({"role": "user", "content": "Your reply was not usable (%s). Reply with the JSON only." % e})
             continue
-        kept, rejected = [], []
-        for les in reply.get("lessons", []):
-            les = {k: les.get(k) for k in ("text", "kind", "action", "range", "claim")}
-            if les["claim"] not in CLAIMS or les["kind"] not in KINDS or les["range"] not in RANGES + (None,):
-                rejected.append({"lesson": les, "why": "unknown kind / claim / range"})
-                continue
-            ev = evidence(acts, les["claim"], les["action"], les["range"])
-            why = supported(les, ev)
-            if why:
-                rejected.append({"lesson": les, "why": why, "evidence": ev})
-            else:
-                kept.append(dict(les, evidence=ev))
-        kept = kept[:limit]
+        kept, rejected = vet(reply.get("lessons", []), acts, limit)
         report["attempts"].append({"notes": reply.get("notes"), "kept": len(kept), "rejected": rejected})
         if kept and not check({"lessons": kept}, list(actions(me))):
             report["notes"] = reply.get("notes")
@@ -164,8 +188,9 @@ def populate(me: str, opp: str, playbook: Optional[Dict], vs_opp: Tuple[List[Dic
     past = digest(acts, games, "past games vs " + opp) if acts else "No games against %s yet: use the playbook and " \
         "the all-opponent digest for my own moves (habit and counter claims need games against him)." % opp
     prompt = ("Write the SHORT MEMORY for %s's next games against %s: up to %d lessons, the most useful first; they go "
-              "straight into System 1's prompt.\n\nPlaybook:\n%s\n\n%s\n\n%s" % (
-                  me, opp, MAX_PROMPT_LESSONS, _show(playbook), past,
+              "straight into laya's prompt and are the only memory it sees. Prefer what is specific to %s; one lesson "
+              "per move; merge a move's ranges into one lesson when it holds at every range.\n\nPlaybook:\n%s\n\n%s\n\n%s" % (
+                  me, opp, MAX_PROMPT_LESSONS, opp, _show(playbook), past,
                   digest(everything, [], "my moves against all opponents")))
     return _ask(me, "populate_%s_vs_%s" % (me, opp), prompt, acts or everything, MAX_PROMPT_LESSONS)
 

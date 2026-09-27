@@ -73,7 +73,8 @@ def save_memory(path: str, mem: Dict) -> None:
 def show(title: str, lessons: List[Dict]) -> None:
     say(title)
     for x in lessons:
-        say("    %-15s %s  [%s %d/%d]" % (x["kind"], x["text"], x["claim"], x["evidence"]["count"], x["evidence"]["tries"]))
+        say("    %-15s %s  [%s %d/%d]" % (x["kind"], x["text"], x.get("claim", "-"), x["evidence"]["count"],
+                                          x["evidence"]["tries"]))
 
 
 def run_system2_short(me: str, opp: str, by_opp) -> Dict:
@@ -138,8 +139,13 @@ def main() -> int:
             now = CHARACTERS.get(row["p2_char"], "id%d" % row["p2_char"])
             if now != opp:
                 opp = now
-                say("new opponent: %s" % opp)
-                s1.short = run_system2_short(me, opp, by_opp)
+                kept = load(short_path(me, opp), list(actions(me)))
+                if kept and kept.get("lessons"):     # learned before: play with it now, System 2 refreshes it at review
+                    s1.short = kept
+                    show("new opponent: %s - short memory kept from before" % opp, kept["lessons"])
+                else:
+                    say("new opponent: %s" % opp)
+                    s1.short = run_system2_short(me, opp, by_opp)
             rnd = play_round(b, s1, opp, None, rng, os.path.join(out, "images"), n)
             tag = os.path.relpath(out, "rollouts")
             for e in rnd.log:

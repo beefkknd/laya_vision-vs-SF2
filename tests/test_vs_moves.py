@@ -167,3 +167,25 @@ def test_short_memory_goes_into_the_prompt_and_bad_memory_is_refused():
     bad = [dict(les[0], action="flying_kick"), dict(les[0], kind="vibes"),
            dict(les[0], evidence={"tries": 3, "count": 5, "refs": ["g1f1"]}), dict(les[0], evidence={})]
     assert all(check({"lessons": [b]}, acts) for b in bad)
+
+
+def test_system2_vet_keeps_laya_lessons_short_unique_and_backed():
+    from sf2.system2 import vet
+    def act(action, rng, actual, hit_me=False, opp_state="stand"):
+        return {"kind": "attack", "action": action, "range": rng, "actual": actual, "i_was_hit": hit_me,
+                "opp_state": opp_state, "game": 0, "frame": 0}
+    acts = [act("spinning_bird_kick", r, "whiff", True) for r in ("close", "mid", "far") for _ in range(4)]
+    acts += [act("lp", "close", "hit") for _ in range(5)]
+    L = lambda text, kind, action, rng, claim: dict(text=text, kind=kind, action=action, range=rng, claim=claim)  # noqa
+    kept, rej = vet([L("avoid spinning_bird_kick: he punishes it", "avoid", "spinning_bird_kick", None, "punished"),
+                     L("avoid spinning_bird_kick at mid", "avoid", "spinning_bird_kick", "mid", "punished"),   # repeat
+                     L("use more lp up close: lands 57%", "use_more", "lp", "close", "lands"),                 # number
+                     L("use more lp up close, it is by far your most dependable poke there", "use_more", "lp",
+                       "close", "lands"),                                                                    # too long
+                     L("use more lp up close", "use_more", "lp", "close", "lands"),
+                     L("use more mp at mid", "use_more", "mp", "mid", "lands")], acts, 5)                     # no tries
+    assert [k["text"] for k in kept] == ["avoid spinning_bird_kick: he punishes it", "use more lp up close"]
+    assert kept[0]["evidence"]["tries"] == 12 and kept[0]["evidence"]["count"] == 12
+    whys = [r["why"] for r in rej]
+    assert any("repeats" in w for w in whys) and any("numbers" in w for w in whys)
+    assert any("characters" in w for w in whys) and any("tries" in w for w in whys)
