@@ -25,6 +25,7 @@ SPECIALS: Dict[str, List[str]] = {
     "guile": ["sonic_boom", "flash_kick"],
     "chunli": ["lightning_legs", "spinning_bird_kick"],
     "zangief": ["spinning_piledriver", "clothesline"],
+    "dhalsim": ["yoga_fire", "yoga_flame"],
 }
 
 
@@ -65,6 +66,8 @@ CRITERIA: Dict[str, str] = {
     "clothesline": "Spinning Clothesline: spins in place with both arms out, hits on both sides",
     "electricity": "Electricity: his body sparks in place, shocks him if he touches you",
     "rolling_attack": "Rolling Attack: curls into a ball and rolls across the screen at him",
+    "yoga_fire": "Yoga Fire: breathes a fireball that travels toward him",
+    "yoga_flame": "Yoga Flame: a short burst of flame in front of his face that stays in place",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -118,6 +121,11 @@ MACROS: Dict[str, List[Step]] = {
     # decision: back held 66 frames (the ROM's minimum is 62, both facings), then toward + fierce.
     "electricity": [(("lp",), 1), ((), 1)] * 14,
     "rolling_attack": [(("B",), 66), (("F", "hp"), 2), ((), 2)],
+    # Dhalsim (docs/MOVES.md; tests/test_rom_moves.py), fierce, 2 frames per direction. The Flame needs the whole half
+    # circle from back: without the first B the ROM gives a Yoga Fire. Walking back just before the Flame (or crouching
+    # just before the Fire) makes it fail often (docs/MOVES.md, Dhalsim); no timing variant fixed that.
+    "yoga_fire": [(("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2)],
+    "yoga_flame": [(("B",), 2), (("D", "B"), 2), (("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2)],
 }
 # Moves that only travel: resolved from x, so "forward" walks toward him even while the ROM's facing byte lags (the
 # ROM does not turn her round while its own forward is held, so she would walk on away from him: tests/test_rom_*.py).

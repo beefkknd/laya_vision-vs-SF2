@@ -433,6 +433,24 @@ Source: GameFAQs SNES FAQ; Shoryuken wiki WW/Dhalsim.
 
 Not in WW: Yoga Teleport (Champion Edition) and Yoga Blast.
 
+**Verified on ROM (2026-09-27, probes against the CPU Ryu, both facings):** both inputs work as written with 2 frames
+per direction and the button on the last one (macros in `sf2/actions.py`, fierce). From the ROM:
+
+- Both are action state `0C`; `0x0D80` says which: `00` Yoga Fire, `02` Yoga Flame, the same from both facings.
+  **Both use player 1's projectile slot** `0x1000` (x at `0x1007`).
+- Yoga Fire: the projectile appears ~48 px in front of him 12 frames after the press and travels ~3 px a frame
+  (fierce; jab ~2).
+- Yoga Flame: the projectile appears ~37 px in front 15 frames after the press and stays there (it moves 4 px at
+  most) for 40-70 frames. It needs the whole half circle: `DB, D, DF, F + P` without the first `B` is a Yoga Fire.
+- The input just before matters. From a free standing moment the Flame came out 193-194 times in 195 (the misses were
+  Yoga Fires); after 16 frames of walking back, 26-33 in 50 (with `B` held 4 frames), and 50 in 50 only with 8+
+  neutral frames in between.
+  After 16 frames of crouching the Fire came out 31-49 in 50 depending on the gap. Holding `B` for 1-8 frames or
+  1-3 frames per direction did not remove the misses.
+- A special started 8-9 frames after he gets up from a knockdown does not come out; one frame later it does.
+- The drill (Uncertain 7) was not resolved: neither `D + hp/hk` nor `F, F + hp/hk` during a forward jump changed his
+  landing in a short probe. It is not on the move list.
+
 Other: in the air, `D + hp` is the Yoga Mummy / drill headbutt, and `D + hk` is the Yoga Spear /
 drill kick. Both change his jump into a diagonal dive. The GameFAQs FAQ lists these as
 `F, F` + hp / hk in the air, which disagrees; see Uncertain. `D + K` is a slide kick that passes
