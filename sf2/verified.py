@@ -1,10 +1,10 @@
 """The ALL-8 gate (docs/TWO_SYSTEM_PLAN.md, "HARD CHECKPOINT ALL-8"): no training until every move of every character
 is verified on the ROM from both facings.
 
-The ROM move tests (tests/test_rom_moves.py) write one record per (character, move, facing) they verified into
-out/verified_moves.json:
+The ROM move tests (tests/test_rom_moves.py) write one record file per (character, move, facing) they verified, so
+any number of test processes can write at once:
 
-    {"records": {"ryu/hadoken/right": {"stamp": "<sha256 of the harness stamp>", "test": "<pytest node id>"}, ...}}
+    out/verified_moves/ryu.hadoken.right.json = {"stamp": "<sha256 of the harness stamp>", "test": "<pytest node id>"}
 
 The stamp is sf2.cli's harness stamp (ROM sha1 + the harness code + the RAM map), so a record made before the harness
 changed does not count. ``check_moves`` refuses unless every character has its specials in the code and every move on
@@ -20,7 +20,7 @@ from . import actions as A
 from .cli import ROOT, _harness
 
 FACINGS = ("right", "left")        # fighter's x-facing when the move was verified (ram.Fighters.facing_right)
-RECORDS = os.path.join(ROOT, "out", "verified_moves.json")
+RECORDS = os.path.join(ROOT, "out", "verified_moves")
 
 
 def stamp_key(rom_sha1: str, ram_map: str) -> str:
@@ -37,10 +37,14 @@ def map_rom_sha1(ram_map: str) -> str:
 
 
 def _load(path: str) -> dict:
-    if not os.path.exists(path) or os.path.getsize(path) == 0:
-        return {"records": {}}
-    with open(path) as f:
-        return json.load(f)
+    """{"ryu/hadoken/right": record, ...} from a records directory (none if it does not exist)."""
+    out = {}
+    if os.path.isdir(path):
+        for name in os.listdir(path):
+            if name.endswith(".json") and name.count(".") == 3:
+                with open(os.path.join(path, name)) as f:
+                    out["/".join(name.split(".")[:3])] = json.load(f)
+    return out
 
 
 def record(character: str, move: str, facing: str, key: str, test: str, path: str = None) -> None:
@@ -48,19 +52,18 @@ def record(character: str, move: str, facing: str, key: str, test: str, path: st
     path = path or RECORDS
     if facing not in FACINGS or move not in A.moves(character):
         raise ValueError("not on the move list: %s/%s/%s" % (character, move, facing))
-    data = _load(path)
-    data["records"]["%s/%s/%s" % (character, move, facing)] = {"stamp": key, "test": test}
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    tmp = path + ".tmp"
+    os.makedirs(path, exist_ok=True)
+    out = os.path.join(path, "%s.%s.%s.json" % (character, move, facing))
+    tmp = "%s.%d.tmp" % (out, os.getpid())
     with open(tmp, "w") as f:
-        json.dump(data, f, indent=1, sort_keys=True)
-    os.replace(tmp, path)
+        json.dump({"stamp": key, "test": test}, f, sort_keys=True)
+    os.replace(tmp, out)
 
 
 def missing(key: str, path: str = None) -> List[str]:
     """Everything that keeps the gate shut: characters without specials in the code, then each
     character/move/facing without a record under ``key``."""
-    recs = _load(path or RECORDS)["records"]
+    recs = _load(path or RECORDS)
     out = ["%s: specials not in the code" % c for c in A.CHARACTERS if not A.SPECIALS.get(c)]
     for c in A.CHARACTERS:
         for m in A.moves(c):

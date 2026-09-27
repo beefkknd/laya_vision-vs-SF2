@@ -33,50 +33,50 @@ def _complete(path, key, skip=()):
 
 def test_a_complete_record_under_the_current_stamp_passes(tmp_path, all_coded):
     key = V.stamp_key(ROM, MAP)
-    _complete(tmp_path / "v.json", key)
-    V.check_moves(MAP, path=str(tmp_path / "v.json"))
+    _complete(tmp_path / "v", key)
+    V.check_moves(MAP, path=str(tmp_path / "v"))
 
 
 def test_no_records_refuses(tmp_path, all_coded):
     with pytest.raises(RuntimeError, match="not verified"):
-        V.check_moves(MAP, path=str(tmp_path / "missing.json"))
+        V.check_moves(MAP, path=str(tmp_path / "missing"))
 
 
 def test_a_missing_move_refuses(tmp_path, all_coded):
-    _complete(tmp_path / "v.json", V.stamp_key(ROM, MAP), skip={("guile", "sweep", "right"), ("guile", "sweep", "left")})
+    _complete(tmp_path / "v", V.stamp_key(ROM, MAP), skip={("guile", "sweep", "right"), ("guile", "sweep", "left")})
     with pytest.raises(RuntimeError, match="guile/sweep/right"):
-        V.check_moves(MAP, path=str(tmp_path / "v.json"))
+        V.check_moves(MAP, path=str(tmp_path / "v"))
 
 
 def test_a_missing_facing_refuses(tmp_path, all_coded):
-    _complete(tmp_path / "v.json", V.stamp_key(ROM, MAP), skip={("chunli", "lightning_legs", "left")})
+    _complete(tmp_path / "v", V.stamp_key(ROM, MAP), skip={("chunli", "lightning_legs", "left")})
     with pytest.raises(RuntimeError, match="chunli/lightning_legs/left"):
-        V.check_moves(MAP, path=str(tmp_path / "v.json"))
+        V.check_moves(MAP, path=str(tmp_path / "v"))
 
 
 def test_a_missing_character_refuses(tmp_path, all_coded):
-    _complete(tmp_path / "v.json", V.stamp_key(ROM, MAP), skip={"dhalsim"})
+    _complete(tmp_path / "v", V.stamp_key(ROM, MAP), skip={"dhalsim"})
     with pytest.raises(RuntimeError, match="dhalsim/idle/right"):
-        V.check_moves(MAP, path=str(tmp_path / "v.json"))
+        V.check_moves(MAP, path=str(tmp_path / "v"))
 
 
 def test_a_character_whose_specials_are_not_in_the_code_refuses(tmp_path, all_coded, monkeypatch):
     """Records for the basics alone do not make a character complete: every WW character has specials."""
-    _complete(tmp_path / "v.json", V.stamp_key(ROM, MAP))
+    _complete(tmp_path / "v", V.stamp_key(ROM, MAP))
     monkeypatch.setattr(A, "SPECIALS", {c: s for c, s in ALL_SPECIALS.items() if c != "zangief"})
     with pytest.raises(RuntimeError, match="zangief: specials not in the code"):
-        V.check_moves(MAP, path=str(tmp_path / "v.json"))
+        V.check_moves(MAP, path=str(tmp_path / "v"))
 
 
 def test_a_stale_stamp_refuses(tmp_path, all_coded):
     """A record from before a harness change (another stamp) does not count, even for one move."""
-    _complete(tmp_path / "v.json", V.stamp_key(ROM, MAP))
-    V.record("ken", "sweep", "left", "0" * 64, "fake", path=str(tmp_path / "v.json"))
+    _complete(tmp_path / "v", V.stamp_key(ROM, MAP))
+    V.record("ken", "sweep", "left", "0" * 64, "fake", path=str(tmp_path / "v"))
     with pytest.raises(RuntimeError, match="ken/sweep/left"):
-        V.check_moves(MAP, path=str(tmp_path / "v.json"))
-    _complete(tmp_path / "old.json", "1" * 64)
+        V.check_moves(MAP, path=str(tmp_path / "v"))
+    _complete(tmp_path / "old", "1" * 64)
     with pytest.raises(RuntimeError, match="not verified"):
-        V.check_moves(MAP, path=str(tmp_path / "old.json"))
+        V.check_moves(MAP, path=str(tmp_path / "old"))
 
 
 def test_the_stamp_follows_the_harness_code_and_the_rom(tmp_path):
@@ -94,20 +94,22 @@ def test_the_rom_is_the_one_the_ram_map_names():
 def test_the_gate_refuses_today():
     """Only Chun-Li has specials in the code now, so the real move lists cannot be complete."""
     with pytest.raises(RuntimeError, match="specials not in the code"):
-        V.check_moves(MAP, path=os.devnull)
+        V.check_moves(MAP, path=V.RECORDS)
 
 
-def test_records_file_format(tmp_path):
-    p = tmp_path / "v.json"
-    V.record("chunli", "lightning_legs", "right", "k" * 64, "tests/x.py::t", path=str(p))
-    assert json.loads(p.read_text()) == {"records": {"chunli/lightning_legs/right": {"stamp": "k" * 64, "test": "tests/x.py::t"}}}
+def test_records_are_one_file_per_move_so_parallel_runs_do_not_collide(tmp_path):
+    V.record("chunli", "lightning_legs", "right", "k" * 64, "tests/x.py::t", path=str(tmp_path))
+    V.record("chunli", "sweep", "left", "k" * 64, "tests/y.py::t", path=str(tmp_path))
+    assert sorted(os.listdir(tmp_path)) == ["chunli.lightning_legs.right.json", "chunli.sweep.left.json"]
+    assert json.loads((tmp_path / "chunli.lightning_legs.right.json").read_text()) == {"stamp": "k" * 64,
+                                                                                      "test": "tests/x.py::t"}
 
 
 def test_train_refuses_before_loading_the_model(tmp_path, monkeypatch):
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
     import train
 
-    monkeypatch.setattr(V, "RECORDS", str(tmp_path / "missing.json"))
+    monkeypatch.setattr(V, "RECORDS", str(tmp_path / "missing"))
     monkeypatch.setattr(sys, "argv", ["train.py", "--data", "d", "--out", "o"])
     with pytest.raises(RuntimeError, match="not verified"):
         train.main()
