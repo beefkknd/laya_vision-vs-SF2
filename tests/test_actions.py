@@ -58,3 +58,28 @@ def test_lightning_legs_is_twelve_quick_short_taps():
     starts; 8 never do, 10 miss up close; roundhouse taps never do within one macro."""
     assert "lightning_legs" in A.ACTIONS
     assert A.expand("lightning_legs") == [("lk",), ()] * 12
+
+
+def test_every_character_has_the_shared_basics_and_its_own_specials():
+    """docs/MOVES.md: the basics are shared by all 8; the specials are per character. Chun-Li's special is the
+    Lightning Legs; a character whose specials are not in the code yet has the basics only."""
+    assert A.CHARACTERS == ["ryu", "ken", "honda", "blanka", "guile", "chunli", "zangief", "dhalsim"]
+    assert A.BASICS == A.ACTIONS[:13]
+    assert A.moves("chunli") == A.BASICS + ["lightning_legs"]
+    for c in A.CHARACTERS:
+        assert A.moves(c)[:13] == A.BASICS and set(A.moves(c)) <= set(A.MACROS) == set(A.CRITERIA)
+
+
+def test_an_unknown_character_has_no_move_list():
+    import pytest
+
+    with pytest.raises(KeyError):
+        A.moves("balrog")
+
+
+def test_the_question_lists_the_characters_own_moves():
+    """The model is shown its own character's move list; the default stays Chun-Li's (the existing datasets)."""
+    assert A.question() == A.question("chunli")
+    assert list(A.question("chunli")["criteria"]) == A.ACTIONS
+    for c in A.CHARACTERS:
+        assert list(A.question(c)["criteria"]) == A.moves(c)

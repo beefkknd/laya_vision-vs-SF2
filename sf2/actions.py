@@ -8,11 +8,29 @@ from typing import Dict, List, Sequence, Tuple
 
 from .config import PAD
 
-ACTIONS: List[str] = [
+CHARACTERS: List[str] = ["ryu", "ken", "honda", "blanka", "guile", "chunli", "zangief", "dhalsim"]
+# Shared by all 8 characters (docs/MOVES.md), verified on the ROM with Chun-Li (tests/test_rom_harness.py).
+BASICS: List[str] = [
     "idle", "forward", "back", "jump", "jump_forward", "crouch",
     "lp", "hp", "lk", "hk",
-    "block", "throw", "sweep", "lightning_legs",
+    "block", "throw", "sweep",
 ]
+# Each character's specials, in the order the model is shown them. A character missing here has no specials in the
+# code yet (the ALL-8 gate counts that as missing moves).
+SPECIALS: Dict[str, List[str]] = {
+    "chunli": ["lightning_legs"],
+}
+
+
+def moves(character: str) -> List[str]:
+    """The move list of one character: the shared basics, then its specials."""
+    if character not in CHARACTERS:
+        raise KeyError("unknown character %r (one of %s)" % (character, ", ".join(CHARACTERS)))
+    return BASICS + SPECIALS.get(character, [])
+
+
+# The 14-action set of the Chun-Li datasets and checkpoints (datasets, metrics, the playbook contract use it).
+ACTIONS: List[str] = moves("chunli")
 INDEX = {a: i for i, a in enumerate(ACTIONS)}
 
 CRITERIA: Dict[str, str] = {
@@ -57,12 +75,13 @@ MACROS: Dict[str, List[Step]] = {
     # 12 short taps, 1 frame down, 1 up: the Legs (state 0C) start at frame 18 (tests/test_rom_harness.py)
     "lightning_legs": [(("lk",), 1), ((), 1)] * 12,
 }
-assert set(MACROS) == set(ACTIONS)
+assert set(MACROS) == set(CRITERIA) == set(BASICS).union(*SPECIALS.values())
 
 
-def question() -> Dict:
-    """The one question asked at train and play time. Keep it byte-identical across both."""
-    return {"type": "choice", "instructions": INSTRUCTIONS, "criteria": dict(CRITERIA)}
+def question(character: str = "chunli") -> Dict:
+    """The one question asked at train and play time: the character's own moves. Keep it byte-identical across
+    both."""
+    return {"type": "choice", "instructions": INSTRUCTIONS, "criteria": {a: CRITERIA[a] for a in moves(character)}}
 
 
 def expand(action: str) -> List[Tuple[str, ...]]:
