@@ -203,19 +203,19 @@ def run(args) -> int:
         chars = args.chars.split(",")
         who_vs = [(me, args.dummy or chars[(i + 1) % len(chars)]) for i, me in enumerate(chars)]
     jobs, port = [], args.base_port
-    os.makedirs(os.path.join("out", "ds_logs"), exist_ok=True)
+    os.makedirs(os.path.join("logs", "dataset"), exist_ok=True)
     for me, dummy in who_vs:
         if dummy == me:
             raise SystemExit("%s needs a different dummy (--dummy, or two or more --chars)" % me)
         for who in (1, 2) if args.right_test else (1,):
             p1, p2 = (me, dummy) if who == 1 else (dummy, me)
             for rng in RANGES:
-                log = os.path.join("out", "ds_logs", "%s_%s_%s.log" % (me, "left" if who == 1 else "right", rng))
+                log = os.path.join("logs", "dataset", "%s_%s_%s.log" % (me, "left" if who == 1 else "right", rng))
                 cmd = [sys.executable, os.path.abspath(__file__), "collect", "--p1", p1, "--p2", p2, "--who",
                        str(who), "--range", rng, "--port", str(port)] + (["--rom", args.rom] if args.rom else [])
                 jobs.append((log, subprocess.Popen(cmd, stdout=open(log, "w"), stderr=subprocess.STDOUT)))
                 port += 1
-    print("%d collect jobs running (logs in out/ds_logs/)" % len(jobs), flush=True)
+    print("%d collect jobs running (logs in logs/dataset/)" % len(jobs), flush=True)
     failed = [log for log, proc in jobs if proc.wait() != 0]
     for log in failed:
         print("FAILED collect, see", log)

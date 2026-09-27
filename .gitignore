@@ -1,3 +1,5 @@
+# All logs (training, collection): tail -f logs/<name>.log
+logs/
 # Generated outputs: logs, per-port bridge copies (sf2/headless.py), move-test takes, audit reports
 out/
 # Training runs / checkpoints (only base laya-vision is used; it lives in the Hugging Face cache)
