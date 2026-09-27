@@ -671,3 +671,40 @@ def test_next_fight_continues_after_a_lost_match_to_the_rematch(env):
     state = next_fight(env.backend, on_frames=frames.append, ram_map=load_map(RAM_MAP))
     assert all(len(c) <= 60 for c in frames)
     assert _start_of(env, state) == _start_of(env, env.savestate)
+
+
+def test_boot_picks_another_character_with_ryu_as_the_first_opponent(env):
+    """sf2/boot.py with me/opp: Ken on the select grid (down, jab), the idle count before the jab searched until the
+    CPU's first opponent is Ryu, round 1 at its first controllable frame: clock 99, full bars, x 208 vs 304, and
+    holding right moves him where idling does not."""
+    from sf2.boot import P2_CHAR, boot
+    from sf2.ram import load_map
+
+    state = boot(env.backend, me="ken", opp="ryu", ram_map=load_map(RAM_MAP))
+    env.backend.load_state(state)
+    wram = env.backend.dump_wram()
+    assert (wram[0x0CD1], wram[P2_CHAR]) == (4, 0)
+    row, _, xs = _start_of(env, state)
+    assert row == {"timer": 0x99, "my_hp": FULL, "opp_hp": FULL, "my_x": 208, "opp_x": 304, "my_y": GROUND_Y,
+                   "opp_y": GROUND_Y, "my_state": 0, "opp_state": 0, "result": 0}
+    env.backend.load_state(state)
+    idle = dict(zip(env.names, env.backend.run([[]] * 3).rams[-1]))
+    assert xs[3] != idle["my_x"]  # rams[0] is the frame before the first input
+
+
+def test_boot_via_a_continue_gives_ryu_to_a_character_that_never_meets_him_first(env):
+    """Honda's first opponent is never Ryu. boot(via="ken"): Ken vs Ryu, lose standing still, continue, pick Honda:
+    the continue keeps Ryu, and round 1 starts laid out and controllable as from a first fight."""
+    from sf2.boot import P2_CHAR, boot
+    from sf2.ram import load_map
+
+    state = boot(env.backend, me="honda", opp="ryu", via="ken", ram_map=load_map(RAM_MAP))
+    env.backend.load_state(state)
+    wram = env.backend.dump_wram()
+    assert (wram[0x0CD1], wram[P2_CHAR]) == (1, 0)
+    row, _, xs = _start_of(env, state)
+    assert row == {"timer": 0x99, "my_hp": FULL, "opp_hp": FULL, "my_x": 208, "opp_x": 304, "my_y": GROUND_Y,
+                   "opp_y": GROUND_Y, "my_state": 0, "opp_state": 0, "result": 0}
+    env.backend.load_state(state)
+    idle = dict(zip(env.names, env.backend.run([[]] * 3).rams[-1]))
+    assert xs[3] != idle["my_x"]
