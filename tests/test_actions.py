@@ -108,3 +108,14 @@ def test_spinning_bird_kick_holds_the_whole_down_charge_then_up_and_roundhouse()
     """docs/MOVES.md: [D]60, U + K. On the ROM the SBK needs down held at least 61 frames from standing (20 of 20
     free moments, both facings; tests/test_rom_moves.py): one macro holds 64, then up + roundhouse."""
     assert A.expand("spinning_bird_kick") == [("D",)] * 64 + [("U", "hk")] * 2 + [()] * 2
+
+
+def test_zangief_specials_are_a_four_way_circle_without_up_back_and_all_three_punches():
+    """On the ROM the Spinning Pile Driver needs F, D, B and U; the sheet's F..UB + P is a throw or a jab, and a UB
+    step starts a jump that comes out when he is out of range. The jab goes on the first U frame. Any two punches
+    give the Clothesline; all three as on the sheet (tests/test_rom_moves.py)."""
+    assert A.moves("zangief") == A.BASICS + ["spinning_piledriver", "clothesline"]
+    assert A.expand("spinning_piledriver") == ([("F",)] * 2 + [("D", "F")] * 2 + [("D",)] * 2 + [("D", "B")] * 2
+                                               + [("B",)] * 2 + [("U", "lp")] * 2 + [()] * 2)
+    assert not any(t == ("U", "B") for t in A.expand("spinning_piledriver"))
+    assert A.expand("clothesline") == [("lp", "mp", "hp")] * 2 + [()] * 2

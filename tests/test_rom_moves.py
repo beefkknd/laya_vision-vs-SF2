@@ -24,7 +24,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAM_MAP = os.path.join(ROOT, "ram_maps", "sf2_snes.txt")
 # character -> (fight-start savestate, CPU opponent). Add a character here with its specials' checks below.
 FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken"), "ken": ("p1_ken_vs_ryu.state", "ryu"),
-          "guile": ("p1_guile_vs_ryu.state", "ryu"), "chunli": ("p1_chunli_vs_ryu.state", "ryu")}
+          "guile": ("p1_guile_vs_ryu.state", "ryu"), "chunli": ("p1_chunli_vs_ryu.state", "ryu"),
+          "zangief": ("p1_zangief_vs_ryu.state", "ryu")}
 FACINGS = ("right", "left")
 
 pytestmark = pytest.mark.skipif(not os.environ.get("SF2_ROM"), reason="needs $SF2_ROM (and Mesen)")
@@ -111,6 +112,7 @@ def _until_recovered(fs, n):
     return fs[:end + 1]
 
 
+# Zangief facing left up close: the first clean moment came after ~500 steps (CPU Ryu keeps attacking him there).
 def _find(env, facing, lo, hi, attempt, limit=5000):
     """At each moment the character stands free facing ``facing`` with the opponent ``lo``..``hi`` px away,
     ``attempt(f0)`` runs inputs from there and returns a verdict, or None when the CPU interfered. Returns the first
@@ -236,8 +238,41 @@ def test_guiles_specials_have_their_own_ids_and_the_sonic_boom_uses_player_1s_pr
     assert _rise(f0, runs["flash_kick"]) > 60 and not any(f.my_fireball for f in runs["flash_kick"]), facing
 
 
-# The specials each character's attack_result check runs (raw inputs, independent of sf2.actions).
-RESULT_MOVES = {"ryu": RYU_MOTIONS, "ken": RYU_MOTIONS, "guile": GUILE_CHARGES}
+ZANGIEF_MOTIONS = {  # docs/MOVES.md, as the ROM takes them (sf2/actions.py has why)
+    "spinning_piledriver": _motion([("F",), ("D", "F"), ("D",), ("D", "B"), ("B",), ("U",)], "lp"),
+    "clothesline": [("lp", "mp", "hp")] * 2 + [()] * 2,
+}
+
+
+@pytest.mark.parametrize("facing", FACINGS)
+def test_the_pile_driver_is_special_00_and_the_clothesline_is_an_attack(env, facing):
+    """Zangief. The Spinning Pile Driver is state 0C with 0x0D80 = 00 (his only 0C move): the grab pulls Ryu in, Ryu
+    keeps his own state (never hit stun 0E) until the slam throws him (14) and costs him life. The Clothesline is
+    not a special on the ROM: action state 0A like a normal, 61+ frames, and it never enters 0C. The Pile Driver up
+    close, so it can grab; the Clothesline far, so the CPU's attacks do not cut it short."""
+    if env.me != "zangief":
+        pytest.skip("Zangief's ids")
+
+    def attempt(move):
+        def run(f0):
+            fs = _run(env, _physical(ZANGIEF_MOTIONS[move], f0.facing_right) + [[]] * 130)
+            return (f0, fs) if _clean(f0, _until_recovered(fs, len(ZANGIEF_MOTIONS[move]))) else None
+        return run
+
+    f0, spd = _find(env, facing, 0, 50, attempt("spinning_piledriver"))
+    sp = [f.my_special for f in spd if f.my_state == ram.SPECIAL_STATE]
+    start = next(i for i, f in enumerate(spd) if f.my_state == ram.SPECIAL_STATE)
+    thrown = next(i for i, f in enumerate(spd) if f.opp_state == ram.THROWN_STATE)
+    assert len(sp) > 60 and set(sp) == {0x00}, (facing, sp)
+    assert all(f.opp_state != ram.HIT_STATE for f in spd[start:thrown]) and spd[-1].opp_life < f0.opp_life, facing
+    _, lar = _find(env, facing, 85, 200, attempt("clothesline"))
+    assert not any(f.my_state == ram.SPECIAL_STATE for f in lar) and _run_length(lar, 0x0A) >= 60, facing
+
+
+# The specials each character's attack_result check runs (raw inputs, independent of sf2.actions). Zangief's Pile
+# Driver is a throw: neither hit nor block.
+RESULT_MOVES = {"ryu": RYU_MOTIONS, "ken": RYU_MOTIONS, "guile": GUILE_CHARGES,
+                "zangief": {"clothesline": ZANGIEF_MOTIONS["clothesline"]}}
 
 
 @pytest.mark.parametrize("facing", FACINGS)
@@ -344,7 +379,8 @@ def test_the_rom_facing_byte_agrees_with_x_when_standing_apart(env):
 # a run where one connects is retried at a later moment). The button mapping shows in them: jab / fierce / short /
 # roundhouse all differ.
 ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}, "ken": {"lp": 13, "hp": 36, "lk": 21, "hk": 33},
-                 "guile": {"lp": 13, "hp": 33, "lk": 15, "hk": 35}, "chunli": {"lp": 13, "hp": 30, "lk": 17, "hk": 33}}
+                 "guile": {"lp": 13, "hp": 33, "lk": 15, "hk": 35}, "chunli": {"lp": 13, "hp": 30, "lk": 17, "hk": 33},
+                 "zangief": {"lp": 12, "hp": 42, "lk": 10, "hk": 24}}
 
 
 def _run_length(fs, state):
@@ -357,6 +393,14 @@ def _run_length(fs, state):
 
 def _rise(f0, fs):
     return f0.my_y - min(f.my_y for f in fs)
+
+
+def _hit_on_ground(f0, fs):
+    """When he is first hit he is on the ground and was not starting a jump the frame before (a hit in the jump's
+    first frames, still at ground height, knocks down too)."""
+    i = next((i for i, f in enumerate(fs) if f.opp_state == ram.HIT_STATE), None)
+    before = f0 if not i else fs[i - 1]
+    return i is not None and fs[i].opp_y == f0.opp_y and before.opp_state != ram.JUMP_STATE
 
 
 def _special(fs, sid):
@@ -377,7 +421,9 @@ CHECKS = {
     "back": (80, 200, 0, lambda c, f0, fs: _toward(f0, fs[-1]) < 0, [("F",)] * 4),
     "jump": (80, 200, 40, lambda c, f0, fs: any(f.my_state == ram.JUMP_STATE for f in fs) and _rise(f0, fs) > 60
              and _toward(f0, fs[30]) == 0, [("U", "F")] * 4),
-    "jump_forward": (80, 200, 40, lambda c, f0, fs: _rise(f0, fs) > 60 and _toward(f0, fs[20]) > 8, [("U",)] * 4),
+    # (Zangief's short forward jump rises exactly 60 px, and right after walking through the CPU it leaves the ground
+    # only ~15 frames after the press)
+    "jump_forward": (80, 200, 40, lambda c, f0, fs: _rise(f0, fs) > 50 and _toward(f0, fs[30]) > 8, [("U",)] * 4),
     "crouch": (80, 200, 0, lambda c, f0, fs: all(f.my_state == 0x02 for f in fs), [()] * 4),
     "lp": (85, 200, 40, _attack("lp"), [("hp",)] * 2 + [()] * 2),
     "hp": (85, 200, 40, _attack("hp"), [("lp",)] * 2 + [()] * 2),
@@ -413,6 +459,15 @@ CHECKS = {
     # upside down, up off the ground and across toward him
     "spinning_bird_kick": (90, 200, 75, lambda c, f0, fs: bool(_special(fs, 0x00)) and _rise(f0, fs) >= 10
                            and max(_toward(f0, f) for f in fs) > 40, _down_charge(40)),             # charge too short
+    # Zangief. The Pile Driver is state 0C, 0x0D80 = 00; the grab reaches ~75 px (it pulls him in), he stays in his
+    # own state until the slam throws him (14) and it costs him life. The wrong input is the circle without the U.
+    "spinning_piledriver": (0, 50, 130, lambda c, f0, fs: bool(_special(fs, 0x00)) and any(
+        f.opp_state == ram.THROWN_STATE for f in fs) and fs[-1].opp_life < f0.opp_life,
+        [("F",)] * 2 + [("D", "F")] * 2 + [("D",)] * 2 + [("D", "B")] * 2 + [("B", "lp")] * 2 + [()] * 2),
+    # not a special on the ROM: an attack (0A) of 60+ frames (his longest far normal is 42 whiffing, 56 hitting), in
+    # place; a jab is the wrong input
+    "clothesline": (85, 200, 80, lambda c, f0, fs: _run_length(fs, 0x0A) >= 60
+                    and all(abs(f.my_x - f0.my_x) <= 2 for f in fs[:60]), [("lp",)] * 2 + [()] * 2),
 }
 
 
@@ -450,7 +505,12 @@ def test_move_does_what_it_is_defined_to_do(env, move, facing, request):
         if move == "sweep" and (right[-1].opp_life >= f0.opp_life     # it must connect to show the knockdown,
                                 or not (_grounded(right) and _grounded(bad))):
             return None       # on him standing: any hit knocks him down out of a jump or a Shoryuken
-        if move in ("lp", "hp", "lk", "hk") and any(f.opp_state == ram.HIT_STATE for f in right + bad):
+        # any hit on a CPU starting a jump knocks down (Zangief's standing roundhouse catches Ryu's): only ground hits
+        if move == "sweep" and not all(_hit_on_ground(f0, fs) for fs in (right, bad)
+                                       if any(f.opp_state == ram.HIT_STATE for f in fs)):
+            return None
+        if move in ("lp", "hp", "lk", "hk") and (right[-1].opp_life < f0.opp_life
+                                                 or any(f.opp_state == ram.HIT_STATE for f in right + bad)):
             return None                                                 # ATTACK_FRAMES are whiffs
 
         return f0, right, bad
@@ -492,6 +552,10 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
         finally:
             env.backend.set_vars(ram_map)
             env.backend.load_state(state)
+        # the CPU never reached him (hit or block stun) while he held block: nothing to judge (seen: CPU Ryu's
+        # attacks all falling short of a crouching Zangief for 20 s): another moment
+        if not any(r[st] == ram.HIT_STATE for r in runs["block"]):
+            return None
         return f0, runs
 
     st, react, guard = env.names.index("my_state"), env.names.index("my_react"), len(env.names)

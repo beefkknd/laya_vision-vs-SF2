@@ -23,6 +23,7 @@ SPECIALS: Dict[str, List[str]] = {
     "ken": ["hadoken", "shoryuken", "tatsumaki"],
     "guile": ["sonic_boom", "flash_kick"],
     "chunli": ["lightning_legs", "spinning_bird_kick"],
+    "zangief": ["spinning_piledriver", "clothesline"],
 }
 
 
@@ -59,6 +60,8 @@ CRITERIA: Dict[str, str] = {
     "tatsumaki": "Hurricane Kick: spins forward through the air with one leg out",
     "sonic_boom": "Sonic Boom: charges back, then throws a spinning wave that travels toward him",
     "flash_kick": "Flash Kick: charges down, then a rising backflip kick, beats jump-ins",
+    "spinning_piledriver": "Spinning Pile Driver: grabs him when close and slams him head first, big damage",
+    "clothesline": "Spinning Clothesline: spins in place with both arms out, hits on both sides",
 }
 
 INSTRUCTIONS = ("You are the fighter on the left health bar in Street Fighter II. The images are the screen a "
@@ -100,6 +103,13 @@ MACROS: Dict[str, List[Step]] = {
     # On the ROM the charge must be held 61 frames before the release frame (60 never works); 64 leaves a margin.
     "sonic_boom": [(("B",), _CHARGE), (("F", "hp"), 2), ((), 2)],
     "flash_kick": [(("D",), _CHARGE), (("U", "hk"), 2), ((), 2)],
+    # Zangief (docs/MOVES.md; tests/test_rom_moves.py). The ROM wants all four of F, D, B, U: the sheet's
+    # F, DF, D, DB, B, UB + P is only a throw or a jab. UB is left out and the jab goes on the first U frame, so the
+    # jump never starts: out of grab range a jab comes out, not a jump (UB, U + P jumps on a miss).
+    "spinning_piledriver": [(("F",), 2), (("D", "F"), 2), (("D",), 2), (("D", "B"), 2), (("B",), 2),
+                            (("U", "lp"), 2), ((), 2)],
+    # any two punches together are the same move on the ROM; all three as on the sheet
+    "clothesline": [(("lp", "mp", "hp"), 2), ((), 2)],
 }
 # Moves that only travel: resolved from x, so "forward" walks toward him even while the ROM's facing byte lags (the
 # ROM does not turn her round while its own forward is held, so she would walk on away from him: tests/test_rom_*.py).

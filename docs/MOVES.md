@@ -357,6 +357,24 @@ the macro will jump. The UB step is in the Shoryuken wiki's input, so the macro 
 it, with the punch on the frame right after UB. Not in WW: moving the lariat, the kick-button
 lariat (Quick Double Lariat), and Banishing Flat.
 
+**Verified on ROM (2026-09-27, tests/test_rom_moves.py, both facings, vs CPU Ryu).** The sheet's SPD input is
+wrong for the SNES ROM, and so is the UB advice above:
+
+- The ROM wants all four of `F`, `D`, `B` and `U`. `F, DF, D, DB, B, UB + P` never gives the SPD: with `hp` it is a
+  fierce throw (the `B + hp` throw), with `lp` a jab. `F, D, B, UB + P` and `D, B, U + P` never work either;
+  `F, D, B, U + P`, `F, DF, D, DB, B, U + P` and the reverse circle all do. The macro is `F, DF, D, DB, B, U + lp`,
+  2 frames each, the jab on the first `U` frame. A `UB` step starts the jump: with `UB, U + P` the SPD still comes out
+  in range, but out of range he jumps. Without `UB`, out of range a jab comes out and he never leaves the ground.
+- The SPD is state `0C`, `0x0D80` = `00`. Its grab reaches far: it grabbed at 74-79 px (x distance on the press
+  frame) and pulls the opponent in; at ~91 px it missed. The opponent keeps his own state (not hit stun) until the
+  slam, where he is thrown (`14`) and loses ~61 life.
+- The Clothesline is **not** a special on the ROM: it is action state `0A` like a normal, 61-75 frames (his longest
+  far normal, the fierce, is 42 whiffing, 56 hitting), in place, and `0x0D80` is not set. **Any two punches** give
+  the same move (`lp+mp`, `mp+hp`, `lp+hp` and all three are identical in RAM), so the "2 or 3" in Uncertain #5 are
+  both right. `0x0CBA` reads `0A` during it (0 or 2 for his normals, 0 for all of Ryu's moves), but it keeps its
+  value after the move ends, so the tests use the 0A length.
+- His forward jump rises only 60 px (the neutral jump 64); a far fierce reaches a CPU walking in at ~92 px.
+
 ### Throws (many; all need close range)
 
 | Throw | Input | Look |
