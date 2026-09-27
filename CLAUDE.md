@@ -6,7 +6,7 @@ This is a hobby project. See AGENTS.md for how to run things and README.md for t
    show it passing. Run `pytest -q` before each commit.
 2. **Don't over-engineer; keep commits small.** Do the simplest thing that fixes the problem or answers the question.
    One concern per commit. Don't add scripts, options or abstractions nobody asked for.
-3. **Async and parallel by default.** Every task runs in the background and in parallel across the machines below, unless the steps depend on each other.
+3. **Async and parallel by default, if possible.** Every task runs in the background and in parallel across the machines below, unless the steps depend on each other.
 
 ## Machines (checked 2026-09-27, macOS 27.0)
 
