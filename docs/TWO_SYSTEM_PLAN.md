@@ -73,6 +73,8 @@ hit, blocked and whiffed from RAM (P2), so P2 comes before P3–P5.
   - Tests: a known macro against a known state gives the expected effect.
 - [ ] **P5 Train System 1 from the base model** (`thaitea/laya-vision-smolvlm-256m`), so that each character's moves
   work as defined:
+  - **One fine-tune for all 8 characters at once**, with every move of every character, from both sides. Never one
+    character at a time.
   - **Data:** each character plays every move on its sheet, at mixed distances and from both sides. A decision is
     kept as a label only when its effect matched the definition from P1 and P2.
   - **Balance:** the same number of rows per character.
@@ -96,5 +98,6 @@ hit, blocked and whiffed from RAM (P2), so P2 comes before P3–P5.
 - [x] The teacher is gone. System 2 is the only coach, and the playbook starts empty.
 - [x] System 2 reviews every round (it used to review a batch).
 - [x] System 1 is trained only to make each move work as defined. Effectiveness is not its job.
-- [x] System 1 is trained from the base model only, with no character favoured.
+- [x] System 1 is trained from the base model only, in **one fine-tune covering all characters' moves and both
+  facings** (owner, 2026-09-27). It is never fine-tuned one character at a time, and no character is favoured.
 - [ ] Whether the next round waits for Qwen's review: yes by default (in lockstep, the game waits).
