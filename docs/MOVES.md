@@ -285,6 +285,17 @@ Source: GameFAQs SNES FAQ; Shoryuken wiki WW/Chun-Li.
 Not in WW: Kikoken fireball (Champion Edition / Hyper Fighting era), and the air Spinning Bird
 Kick.
 
+**Verified on ROM (2026-09-27, tests/test_rom_moves.py, both facings, against the CPU Ryu):** both are action state
+`0C`; `0x0D80` says which: `02` Lightning Legs, `00` Spinning Bird Kick. Neither uses her projectile slot. What the
+sheet did not say, from the SNES ROM:
+
+- **Spinning Bird Kick charge: down held at least 61 frames** from standing, then `U + hk` (binary search, 61 at 20 of
+  20 free moments, 10 per facing; 60 never works). The macro holds 64. The SBK sits on the ground in `0C` for ~40
+  frames after the press before it lifts off (~17 px) and travels (~60+ px toward him, further if it whiffs).
+- **Lightning Legs: 10 short taps** (1 frame down, 1 up) start them, 9 never do (from a free standing moment); the macro
+  taps 12. Wider gaps need more taps (2 down / 2 up: 11). The Legs stay in place.
+- Chun-Li's far standing normals whiff in 13 / 30 / 17 / 33 frames of `0A` (jab / fierce / short / roundhouse).
+
 Other: `j.D + mk` is the head stomp (she bounces off the opponent's head). **Wall jump**: jump
 into the screen edge, then press the opposite diagonal up.
 
