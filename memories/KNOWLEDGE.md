@@ -41,6 +41,13 @@ Plan: docs/TWO_SYSTEM_PLAN.md. Runs: `out/results.jsonl`.
   hard they push. (`ryu_C1w05_dev` = `ryu_C1t075_dev` = `ryu_C1t1_dev`; an earlier note here claiming "gaps above
   0.75" was wrong and is corrected.)
 
+- **Forward selection: no group of the teacher's rules helps r2.** Each of v1's six groups alone on r2, paired vs r2
+  alone on dev: anti-air −54.0, air kick −25.2, throw −22.5 (all worse); guard, jump-in and walk-in-from-far 0.0
+  (laya already does them, so they never change a move). r2 learned this teacher's tactics plus two DAgger rounds of
+  corrections, so the teacher's own rules can only repeat laya or override its better choices. **A System 2 that
+  helps must bring knowledge laya does not already have**: look at the surprised moments, where laya gets hit, not at
+  the teacher. (`ryu_fs_*_dev`, 2026-09-27)
+
 ## Method that works
 - Change one thing, re-run the 20 dev openings (about 6 min on the Studio, 8 on the Mac Pro), and compare paired
   with `scripts/paired.py`. Verdicts only on the eval openings.

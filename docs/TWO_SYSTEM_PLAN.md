@@ -259,7 +259,10 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] **Verdict C vs D:** the same playbook on a random policy. C must beat D, or laya adds nothing.
 - [ ] If C is inconclusive or fails: check the changed rate first (rules that never change a move do nothing), then τ, then whether the note lacks a field the rules need. Add one note field only if the evidence names it.
 
-- [ ] **Stop rule for the Chun-Li study (owner, 2026-09-27):** stop Track A once the harness is verified (done) and
+- [x] **Forward selection:** none of v1's six groups helps r2 (three are worse, three change nothing). See PROGRESS.md.
+- [x] **Stop rule for the Chun-Li study (owner, 2026-09-27):** triggered by "no rule group helps" (not 80%).
+  Track A stopped; waiting for Track B's baseline.
+- [ ] ~~(original wording)~~ stop Track A once the harness is verified (done) and
   Chun-Li with memory wins **at least 80% of rounds** vs Ryu (r2 alone 69%, the teacher 87%): first on dev, then
   confirmed on eval. If forward selection finds no rule group that helps, stop and report instead of grinding. Then
   wait for Track B's baseline all-character checkpoint, and wire it into the loop for a new round.
