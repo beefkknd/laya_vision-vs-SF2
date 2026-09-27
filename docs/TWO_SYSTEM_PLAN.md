@@ -283,6 +283,10 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
   snapshot
 - [ ] Record a session (Mesen, console and live view side by side) for the video
 
+- [ ] **Qwen leads laya across characters:** once Track B's all-character checkpoint exists, Qwen is System 2 for
+  every character, not only Chun-Li. It starts from `memories/KNOWLEDGE.md` (what System 2 has learned, with
+  measured sources) and keeps adding to it.
+
 ### Later (not in this plan)
 - [ ] A weak-adviser run: the same session protocol with a deliberately weaker System 2 (a thin playbook, or the
   smaller `qwen38-flashnext-oq4e-mtp`), to see a slow early start in the learning curve from `out/results.jsonl`
