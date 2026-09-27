@@ -237,6 +237,11 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [x] Stay lockstep for every test; real-time play is out of scope.
 - [x] Nudge, not override: τ = 0.3 unless you choose otherwise.
 - [x] No automatic rule dropping in v1: the grading ledger is diagnostics only.
+- [x] **System 2 learns in batches (owner, 2026-09-27):** play a batch of openings, Qwen reviews the moments, the
+  memory updates, and the next batch plays. Live comes later, only if batches show Qwen helps.
+- [x] **The playbook starts empty:** Qwen gets the game's description (the note's fields and values, the moves, the
+  rule format) and the moments, and no tactics. System 1 should be a novice that knows how to play; if laya is
+  very strong, something is wrong.
 - [ ] First opponent: Ryu (scan other opponents only if Ryu leaves no room to improve).
 - [ ] The first playbook's source: TEACHER.md's proven tactics, written as rules (default), or Claude's reading of moments alone.
 
