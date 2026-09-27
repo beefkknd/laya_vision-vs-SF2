@@ -94,3 +94,11 @@ def test_ryu_specials_are_the_sheets_motions_with_fierce_and_roundhouse():
     assert A.expand("tatsumaki") == [("D",)] * 2 + [("D", "B")] * 2 + [("B", "hk")] * 2 + [()] * 2
     assert A.to_physical(("D", "F", "hp"), facing_right=False) == ["down", "left", "l"]
     assert A.to_physical(("D", "B"), facing_right=False) == ["down", "right"]
+
+
+def test_guiles_charge_specials_hold_the_whole_charge_in_one_macro():
+    """docs/MOVES.md: Sonic Boom [B], F + P; Flash Kick [D], U + K. On the ROM the charge needs 61 frames before the
+    release (60 never works, tests/test_rom_moves.py); the macro holds 64, then the release + fierce / roundhouse."""
+    assert A.moves("guile") == A.BASICS + ["sonic_boom", "flash_kick"]
+    assert A.expand("sonic_boom") == [("B",)] * 64 + [("F", "hp")] * 2 + [()] * 2
+    assert A.expand("flash_kick") == [("D",)] * 64 + [("U", "hk")] * 2 + [()] * 2
