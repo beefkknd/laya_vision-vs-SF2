@@ -29,10 +29,15 @@ Each checkpoint is a result you can see. The bars are set before any run.
 - [ ] **CP3: she learns (Phase 5).** A memory written during play, starting empty, beats r2 alone on openings it never
   saw, in at least 2 separate sessions: first with Claude as the adviser, then with Qwen.
 
+- [ ] **CP4: a second character.** When Chun-Li (r2 plus memory) wins at least 95% of eval matches against Ryu (38 of
+  40), start a second playable character and train it against Ryu (§7-style tutorial: its own action set, verified
+  special-move macros, a base checkpoint, then the same two-system loop).
+
 What is known now:
 - The teacher beat Ryu during claw's arcade exploration (9 opponents in a row, mostly 2–0).
+- The scripted teacher vs Ryu (measured 2026-09-27, eval openings): **40 of 40 matches, 87% of rounds, +89.3 ± 5.8**
+  net damage per round. The 95% match bar for CP4 is reachable: the teacher's tactics already clear it.
 - laya r1 has both beaten and lost to Ryu (1 win and 2 losses, far too few to mean anything).
-- r2 has not been measured against Ryu.
 
 ---
 
@@ -120,6 +125,10 @@ for watching.
 | Learning sessions (arm B) | 1 worker per session, 2–4 sessions side by side | each session runs at single-worker speed (about 12 decisions/s) |
 | Qwen (System 2) | on the Mac Studio | does not compete with play for the GPU |
 
+**Logs, kept for learning curves.** Every run's workers write, timestamped and named, into one file you can follow
+with `tail -F out/live.log`. Every finished run appends a row (the run, model, opponent, openings and gate numbers)
+to `out/results.jsonl`. Nothing is overwritten, so a curve can be plotted from the ledger at any time.
+
 **Why this beats fine-tuning.** One LoRA round took about 100 minutes of training plus 12–15 minutes of gate play on
 claw. One memory iteration (edit rules, then re-run a 20-opening dev pilot) should take about 10 minutes, and it
 needs no data collection and no checkpoint. So we can try roughly ten playbook variants in the time of one training
@@ -149,15 +158,16 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [x] 34 test cases; two seeded faults caught
 
 ### Phase 1: a verified baseline against Ryu
-- [ ] Copy `states/arcade_chunli_vs_ryu.state` (and the Dhalsim state) from claw
-- [ ] **Verify Ryu's RAM:** round start, controllability, round transitions, damage accounting, the walls, and the
+- [x] Copy `states/arcade_chunli_vs_ryu.state` (and the Dhalsim state) from claw
+- [x] **Verify Ryu's RAM:** round start, controllability, round transitions, damage accounting, the walls, and the
   projectile slot for his fireball, as JOURNAL.md lists per opponent. Fix the harness first if any check fails.
-- [ ] **Verify this machine:** replay the Dhalsim gate with r2 and reproduce about +93 net damage per round
-- [ ] Save the opening schedules: 20 `dev` and at least 40 `eval` start delays, drawn at random
-- [ ] Parallel runner plays a saved opening schedule (openings assigned explicitly, not by worker index) with a frozen memory file
-- [ ] **Measure:** the wall time of a 20-opening headless pilot with 4 workers (estimate about 10 min). Correct §2.5 if it's off.
+- [x] **Verify this machine:** replay the Dhalsim gate with r2 and reproduce about +93 net damage per round
+- [x] Save the opening schedules: 20 `dev` and at least 40 `eval` start delays, drawn at random
+- [x] Parallel runner plays a saved opening schedule (openings assigned explicitly, not by worker index) with a frozen memory file
+- [x] **Measure:** the wall time of a 20-opening headless pilot with 4 workers: 7.6 min (the Dhalsim replay)
 - [ ] Control A: r2 vs Ryu on the dev openings. Record the paired-difference variance.
-- [ ] The teacher vs Ryu on the same openings (no model, so it's cheap): the ceiling for CP2
+- [x] The teacher vs Ryu on the same openings: dev 20/20 matches, +93.8; eval 40/40 matches, 87% of rounds, +89.3
+- [x] Every run is logged: `out/live.log` (tail) and `out/results.jsonl` (append-only)
 - [ ] **CP1:** A and the teacher on the eval openings. Write the gap in PROGRESS.md.
 - [ ] Check: A leaves room to improve (not 40/40). If it doesn't, pick the next weakest opponent from a 3-opponent scan.
 - [x] **Verify** the Studio's omlx is reachable from the Mac Pro: yes, as `qwen38-27b-oq4e-mtp` (fixed on the Studio side 2026-09-27)
@@ -194,6 +204,8 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] Write up in PROGRESS.md and the journal
 
 ### Later (not in this plan)
+- [ ] A weak-adviser run: the same session protocol with a deliberately weaker System 2 (a thin playbook, or the
+  smaller `qwen38-flashnext-oq4e-mtp`), to see a slow early start in the learning curve from `out/results.jsonl`
 - [ ] Automatic grading and rule dropping (needs changed-decision counts, a window of at least 1 s, distinct episodes, and a 2-SE bar)
 - [ ] A situation-vector lookup from laya's hidden state (only if a note field cannot express what the rules need)
 - [ ] Other characters, folding memory into the weights, real-time play
