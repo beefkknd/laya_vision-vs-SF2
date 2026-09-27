@@ -44,14 +44,14 @@ blocked, or whiffed.
 **Can we test it?** Partly. The ROM tests already prove that a macro produces a move. The short memory also needs
 hit, blocked and whiffed from RAM (P2), so P2 comes before P3–P5.
 
-- [ ] **P0 Strip the teacher from the code.** Remove:
+- [x] **P0 Strip the teacher from the code.** Remove:
   - `sf2/teacher.py`, `collect_teacher`, `play_teacher`, `relabel` and `dagger_round.sh`;
   - the DAgger path in `loop.py`;
   - their tests, and `TEACHER.md`.
 
   The label field becomes neutral (`label_probs`). `pytest -q` is green. README, JOURNAL and PROGRESS stay as the
   history of r0 to r2.
-- [ ] **P1 Move sheet:** `docs/MOVES.md`, compiled from sources and cited. For each of the 8 characters it lists:
+- [x] **P1 Move sheet:** `docs/MOVES.md`, compiled from sources and cited. For each of the 8 characters it lists:
   - the shared basics;
   - its specials, with their exact input (motion, charge with its time, or mash);
   - a few standard combos.
