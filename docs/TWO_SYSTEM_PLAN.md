@@ -109,6 +109,10 @@ What is known now:
   openings and a new seed, then it passed.
 - [ ] **B4 baseline training started** on the Studio (from the base model, 256 px, 2 epochs): `runs_local/base_all_v0`
   in the Studio's `laya_vision_vs_SF2_trackA` worktree, log `out/train_base_all_v0.log`
+- [ ] **B3b more opponents (running while the baseline trains):** the other 48 player-1 × opponent pairings among the
+  8 playable characters (no mirror matches): a savestate each with automated start checks, Guile's sonic boom
+  checked in the note, the teacher-vs-random check per pairing (kept at +15 or more), 5,000 decisions each on the
+  training openings, and a balance gate over characters **and opponents** before the next training run
 - [ ] **B4 train:** one multi-character checkpoint trained **from the base model** (`thaitea/laya-vision-smolvlm-256m`,
   not r2, so no character or opponent is built in), with a per-character move list in the question.
 - [ ] **No Chun-Li focus (owner rule).** Chun-Li is treated like every other character: her labels are collected
