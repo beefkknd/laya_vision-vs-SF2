@@ -86,8 +86,10 @@ What is known now:
 - [ ] **B3 labels (the hard part):** choose the label source per character. Options: a generic teacher built from
   per-character move data (range, speed, which move anti-airs); outcome-filtered exploration (`relabel.py --mode
   filter`); System 2 as the teacher. Prototype the cheapest one on one character first.
-- [ ] **B4 train:** one multi-character checkpoint from r2 (so Chun-Li is kept), with a per-character move list in
-  the question; the gate is per character vs Ryu on the saved openings, and Chun-Li must not get worse
+- [ ] **B4 train:** one multi-character checkpoint trained **from the base model** (`thaitea/laya-vision-smolvlm-256m`,
+  not r2, so no character or opponent is built in), with a per-character move list in the question. Chun-Li is
+  relearned from her existing data (claw's seed and DAgger sets, about 62k decisions, copied to the Studio). The gate
+  is per character vs Ryu on the saved openings, and Chun-Li must not get worse than r2 (CPB3).
 - [ ] **B5:** the two-system loop from Track A on top of the all-character checkpoint
 
 ---
