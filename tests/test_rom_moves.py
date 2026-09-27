@@ -23,7 +23,7 @@ from sf2 import ram
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAM_MAP = os.path.join(ROOT, "ram_maps", "sf2_snes.txt")
 # character -> (fight-start savestate, CPU opponent). Add a character here with its specials' checks below.
-FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken")}
+FIGHTS = {"ryu": ("p1_ryu_vs_ken.state", "ken"), "guile": ("p1_guile_vs_ryu.state", "ryu")}
 FACINGS = ("right", "left")
 
 pytestmark = pytest.mark.skipif(not os.environ.get("SF2_ROM"), reason="needs $SF2_ROM (and Mesen)")
@@ -53,11 +53,12 @@ def _free_port():
 
 
 def _to_other_side(env):
+    """Walk forward until past the CPU. Some openings never get past it (it keeps blocking or throwing): _find then
+    sees the wrong facing and tries the next opening."""
     for _ in range(200):
         env.act("forward")
         if not env.f.facing_right:
             return
-    raise AssertionError("never got past the opponent")
 
 
 def _setup(env, facing, k=0):
@@ -94,6 +95,14 @@ def _physical(tokens, facing_right):
 def _clean(f0, fs):
     """The CPU did not hit, throw or hold the character during the run."""
     return all(f.my_state not in (ram.HIT_STATE, ram.THROWN_STATE) and f.my_life == f0.my_life for f in fs)
+
+
+def _until_recovered(fs, n):
+    """The frames of a macro ``n`` frames long up to the first one after it where the character stands or crouches
+    again: what the CPU does to him after that does not change what the move did (Guile vs Ryu: Ryu walks in and
+    throws him right after a far kick)."""
+    end = next((i for i in range(n, len(fs)) if fs[i].my_state in (0, 2)), len(fs) - 1)
+    return fs[:end + 1]
 
 
 def _find(env, facing, lo, hi, attempt, limit=400):
@@ -168,14 +177,67 @@ def test_each_special_has_its_own_id_and_the_hadoken_uses_player_1s_projectile_s
     assert not any(f.my_fireball for m in ("shoryuken", "tatsumaki") for f in runs[m]), facing
 
 
+# Guile's charges (docs/MOVES.md, fierce / roundhouse): hold the charge direction ``n`` frames, then the release
+# direction + the button 2 frames. On the ROM 61 frames of charge works and 60 never does (both facings, both moves).
+def _charge(hold, n, release, button):
+    return [hold] * n + [release + (button,)] * 2 + [()] * 2
+
+
+GUILE_CHARGES = {"sonic_boom": _charge(("B",), 64, ("F",), "hp"), "flash_kick": _charge(("D",), 64, ("U",), "hk")}
+GUILE_SPECIAL_IDS = {"sonic_boom": 0x00, "flash_kick": 0x02}
+
+
+def _same_sides(f0, fs):
+    """The fighters did not swap sides, by x or by the ROM's facing byte (a CPU jump or Hurricane Kick over him): the
+    held direction kept its meaning."""
+    return all(f.facing_right == f.game_facing_right == f0.facing_right for f in fs)
+
+
+@pytest.mark.parametrize("facing", FACINGS)
+def test_guiles_specials_have_their_own_ids_and_the_sonic_boom_uses_player_1s_projectile_slot(env, facing):
+    """Both Guile specials are state 0C, with 0x0D80 telling which (00 Sonic Boom, 02 Flash Kick). The Sonic Boom puts
+    a projectile in player 1's slot (0x1000, x at 0x1007) in front of him ~13 frames after the press, moving away
+    from him until it hits; the Flash Kick rises 60+ px and throws nothing. 60 frames of charge give neither."""
+    if env.me != "guile":
+        pytest.skip("Guile's ids")
+    runs_of = dict(GUILE_CHARGES, short_boom=_charge(("B",), 60, ("F",), "hp"),
+                   short_flash=_charge(("D",), 60, ("U",), "hk"))
+
+    def attempt(f0):
+        runs = {m: _run(env, _physical(t, f0.facing_right) + [[]] * 40) for m, t in runs_of.items()}
+        if not all(_clean(f0, runs[m]) and _same_sides(f0, runs[m][:len(runs_of[m])]) for m in runs):
+            return None
+        return f0, runs
+
+    f0, runs = _find(env, facing, 120, 220, attempt)
+    press = len(GUILE_CHARGES["sonic_boom"]) - 4
+    for m in GUILE_CHARGES:
+        sp = [f.my_special for f in runs[m] if f.my_state == ram.SPECIAL_STATE]
+        assert len(sp) > 10 and set(sp) == {GUILE_SPECIAL_IDS[m]}, (facing, m, sp)
+    for m in ("short_boom", "short_flash"):
+        assert not any(f.my_state == ram.SPECIAL_STATE for f in runs[m]), (facing, m)
+    fb = [f for f in runs["sonic_boom"] if f.my_fireball]
+    first = runs["sonic_boom"].index(fb[0]) - press
+    toward = 1 if f0.facing_right else -1
+    xs = [(f.my_fireball_x - f.my_x) * toward for f in fb]
+    assert 0 <= first <= 16 and all(x > 0 for x in xs), (facing, first, xs)
+    steps = [b - a for a, b in zip(xs, xs[1:])]
+    assert all(d >= 0 for d in steps), (facing, xs)
+    assert _rise(f0, runs["flash_kick"]) > 60 and not any(f.my_fireball for f in runs["flash_kick"]), facing
+
+
+# The specials each character's attack_result check runs (raw inputs, independent of sf2.actions).
+RESULT_MOVES = {"ryu": RYU_MOTIONS, "guile": GUILE_CHARGES}
+
+
 @pytest.mark.parametrize("facing", FACINGS)
 def test_attack_result_reads_hit_blocked_and_whiffed(env, facing):
     """ram.attack_result against what the ROM shows independently: a hit costs him life and he was not guarding
     (08) the frame before; blocked means he was guarding, then block stun, losing at most a special's chip (12); a
-    whiff costs him nothing and he never enters 0E. Ryu's three specials and a fierce, at many moments."""
-    if env.me != "ryu":
-        pytest.skip("Ryu's moves")
-    moves = dict(RYU_MOTIONS, hp=[("hp",)] * 2 + [()] * 2)
+    whiff costs him nothing and he never enters 0E. The character's specials and a fierce, at many moments."""
+    if env.me not in RESULT_MOVES:
+        pytest.skip("no specials to check for %s" % env.me)
+    moves = dict(RESULT_MOVES[env.me], hp=[("hp",)] * 2 + [()] * 2)
     seen = {"hit": 0, "blocked": 0, "whiffed": 0}
     k = 0
     _setup(env, facing)
@@ -190,7 +252,7 @@ def test_attack_result_reads_hit_blocked_and_whiffed(env, facing):
                 fs = _run(env, _physical(tokens, f0.facing_right) + [[]] * 60)
                 end = next((i for i in range(len(tokens), len(fs)) if fs[i].my_state not in (0x0A, 0x0C)
                             and not fs[i].my_fireball), None)
-                if end is None or not _clean(f0, fs[:end]):
+                if end is None or not _clean(f0, fs[:end]) or not _same_sides(f0, fs[:len(tokens) - 4]):
                     continue
                 window = [f0] + fs[:end]
                 result = ram.attack_result(window)
@@ -235,7 +297,7 @@ def test_the_rom_facing_byte_agrees_with_x_when_standing_apart(env):
 # ------------------------------------------------------------------------------------------------ P3: the move macros
 # Far standing normals: frames in the attack state 0A (measured on the ROM, the opponent 85+ px away). The button
 # mapping shows in them: jab / fierce / short / roundhouse all differ.
-ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}}
+ATTACK_FRAMES = {"ryu": {"lp": 13, "hp": 36, "lk": 21, "hk": 33}, "guile": {"lp": 13, "hp": 33, "lk": 15, "hk": 35}}
 
 
 def _run_length(fs, state):
@@ -288,6 +350,14 @@ CHECKS = {
     "tatsumaki": (70, 200, 40, lambda c, f0, fs: bool(_special(fs, 0x02)) and _rise(f0, fs) >= 10
                   and _toward(f0, fs[30]) > 20,
                   [("D",)] * 2 + [("D", "F")] * 2 + [("F", "hk")] * 2 + [()] * 2),             # motion mirrored
+    # Guile. The CPU walks in during the 64-frame charge, so the boom can hit him at once: it is enough that it
+    # appears in his own slot, in front of him. The wrong input is the same release after 60 frames of charge.
+    "sonic_boom": (90, 220, 40, lambda c, f0, fs: bool(_special(fs, 0x00)) and any(
+        f.my_fireball and (f.my_fireball_x - f.my_x) * (1 if f0.facing_right else -1) > 0 for f in fs),
+        _charge(("B",), 60, ("F",), "hp")),
+    # rises 60+ px
+    "flash_kick": (60, 220, 40, lambda c, f0, fs: bool(_special(fs, 0x02)) and _rise(f0, fs) > 60,
+                   _charge(("D",), 60, ("U",), "hk")),
 }
 
 
@@ -310,8 +380,12 @@ def test_move_does_what_it_is_defined_to_do(env, move, facing, request):
     def attempt(f0):
         right = _run(env, _physical(A.expand(move), f0.facing_right) + [[]] * after)
         bad = _run(env, _physical(wrong, f0.facing_right) + [[]] * after)
-        if not (_clean(f0, right) and _clean(f0, bad)):
+        n = len(A.expand(move))
+        if not (_clean(f0, _until_recovered(right, n)) and _clean(f0, _until_recovered(bad, len(wrong)))):
             return None
+        if not (_same_sides(f0, right[:n - 4]) and _same_sides(f0, bad[:len(wrong) - 4])):
+            return None                                                     # a charge held the wrong way
+
         if move == "sweep" and right[-1].opp_life >= f0.opp_life:      # it must connect to show the knockdown
             return None
         return f0, right, bad
@@ -324,10 +398,19 @@ def test_move_does_what_it_is_defined_to_do(env, move, facing, request):
 
 @pytest.mark.parametrize("facing", FACINGS)
 def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
-    """block (down + back) held 20 s from a free moment: each time the CPU attacks he guards (08) crouching
-    (+0x43 = 2), and a guard leads to block stun (0E, reaction 06 / 08). Down + toward never guards. (Jump-ins and
-    throws still get through a crouching guard: SF2 rules, docs/MOVES.md.)"""
+    """block (down + back) for 200 decisions (20 s) from a free moment, each resolved from the x positions at that
+    decision as sf2.env does: each time the CPU attacks he guards (08) crouching (+0x43 = 2), and a guard leads to
+    block stun (0E, reaction 06 / 08). Down + toward never guards while the ROM's facing byte agrees with x (while it
+    lags a crossover, the same buttons are down + back to the ROM). (Jump-ins and throws still get through a
+    crouching guard: SF2 rules, docs/MOVES.md.)"""
     from sf2.ram import Var, load_map
+
+    def play(tokens, facing_right):
+        rows = []
+        for _ in range(200):
+            rows += env.backend.run(_physical(tokens, facing_right)).rams[1:]
+            facing_right = rows[-1][mx] <= rows[-1][ox]
+        return rows
 
     def attempt(f0):
         ram_map = load_map(RAM_MAP)
@@ -337,18 +420,16 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
             runs = {}
             for name, tokens in (("block", A.expand("block")), ("wrong", [("D", "F")] * 6)):
                 env.backend.load_state(state)
-                runs[name] = env.backend.run(_physical(tokens, f0.facing_right) * 200).rams[1:]
+                runs[name] = play(tokens, f0.facing_right)
         finally:
             env.backend.set_vars(ram_map)
             env.backend.load_state(state)
         return f0, runs
 
-    f0, runs = _find(env, facing, 80, 200, attempt)
     st, react, guard = env.names.index("my_state"), env.names.index("my_react"), len(env.names)
-    mx, ox = env.names.index("my_x"), env.names.index("opp_x")
+    mx, ox, mf = env.names.index("my_x"), env.names.index("opp_x"), env.names.index("my_facing")
+    f0, runs = _find(env, facing, 80, 200, attempt)
     for name, rows in runs.items():
-        # until the CPU jumps over him: after that the same buttons are down + toward / down + back
-        rows = rows[:next((i for i, r in enumerate(rows) if (r[mx] <= r[ox]) != f0.facing_right), len(rows))]
         entries = [i for i in range(1, len(rows)) if rows[i][st] == 0x08 and rows[i - 1][st] != 0x08]
         stun = [i for i in range(1, len(rows)) if rows[i][st] == ram.HIT_STATE and rows[i - 1][st] == 0x08
                 and rows[i][react] in ram.BLOCK_REACTS]
@@ -356,5 +437,6 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
             assert len(entries) >= 2 and all(rows[i][guard] == 2 for i in entries), (facing, entries)
             assert stun, (facing, entries, stun)
         else:
-            assert len(rows) > 300 and not entries and not stun, (facing, len(rows), entries)
+            agree = [i for i in entries + stun if (rows[i][mf] == ram.FACING_RIGHT) == (rows[i][mx] <= rows[i][ox])]
+            assert len(rows) == 1200 and not agree, (facing, entries, stun)
     _record(env, "block", facing, request)
