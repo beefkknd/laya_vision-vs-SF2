@@ -248,6 +248,11 @@ round, and keep the checkpoint fixed so every difference comes from the memory.
 - [ ] **Verdict C vs D:** the same playbook on a random policy. C must beat D, or laya adds nothing.
 - [ ] If C is inconclusive or fails: check the changed rate first (rules that never change a move do nothing), then τ, then whether the note lacks a field the rules need. Add one note field only if the evidence names it.
 
+- [ ] **Stop rule for the Chun-Li study (owner, 2026-09-27):** stop Track A once the harness is verified (done) and
+  Chun-Li with memory wins **at least 80% of rounds** vs Ryu (r2 alone 69%, the teacher 87%): first on dev, then
+  confirmed on eval. If forward selection finds no rule group that helps, stop and report instead of grinding. Then
+  wait for Track B's baseline all-character checkpoint, and wire it into the loop for a new round.
+
 ### Phase 3: moments
 - [x] Moments from any student rollout: `scripts/moments.py rollouts/<name>` → `out/moments/<name>.jsonl` (one flag per episode, as in §2.3); r2 vs Ryu dev: 341 surprised, 693 unsure, 130 audit
 - [x] Tune the `unsure` margin on dev play so about 5% of decisions are flagged: margin 0.036
