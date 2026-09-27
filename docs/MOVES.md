@@ -87,6 +87,22 @@ WW quirks (Shoryuken wiki): the Shoryuken does not knock down an opponent who is
 ground, and the Hurricane Kick does not knock down and its hits do not combo, so the opponent can
 block after the first kick or duck under the rest. There is no air Hurricane Kick in WW.
 
+**Verified on ROM (2026-09-27, tests/test_rom_moves.py, both facings):** the three inputs above work as written with
+2 frames per direction and the button on the last direction (macros in `sf2/actions.py`, fierce / roundhouse). What
+the sheet did not say, from the SNES ROM:
+
+- All three are action state `0C`; `0x0D80` says which: `00` Hadoken, `02` Hurricane Kick, `04` Shoryuken. The
+  Hadoken's projectile is in player 1's slot `0x1000` (x at `0x1007`), ~3 px per frame, and appears ~13 frames after
+  the press. The CPU's own specials show as state `0A` (Ken's Hadoken is `0A`, sub-state `04`, in slot `0x1050`).
+- A Hadoken entered within ~8 frames of walking forward comes out as a **Shoryuken** (`F` is still in the input
+  buffer, and the Shoryuken wins).
+- The roundhouse Hurricane Kick lifts Ryu ~17 px and carries him ~160 px: it passes over a crouching opponent and
+  lands on the other side (the sides swap).
+- The ROM mirrors the stick by its own facing byte (`0x0CF4`), which lags the x positions while turning, in the air
+  and in guard / hit stun; a motion resolved from x in that window comes out mirrored.
+- Blocked specials cost chip damage (6-12 life); a blocked attack is block stun `0E` with reaction `06` / `08`, a hit
+  any other reaction (`14` for the Hadoken and the Shoryuken, `20` for the Hurricane Kick).
+
 ### Throws
 
 | Throw | Input | Look |
