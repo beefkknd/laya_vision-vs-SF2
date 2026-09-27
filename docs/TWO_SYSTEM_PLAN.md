@@ -42,7 +42,7 @@ Each checkpoint is a result you can see. The bars are set before any run.
   special-move macros, a base checkpoint, then the same two-system loop).
 
 **Track B checkpoints (the all-character System 1):**
-- [ ] **CPB0: the Studio is a verified machine.** The ROM suite passes 30/30 there, and the Dhalsim replay reproduces
+- [x] **CPB0: the Studio is a verified machine** (2026-09-27: 30/30, and the replay identical in every field and all 41 rounds). The ROM suite passes 30/30 there, and the Dhalsim replay reproduces
   +93.1 exactly.
 - [ ] **CPB1: every character is playable.** For each of the 8 characters as player 1:
   - a fight-start savestate vs Ryu that passes the same 5 checks as Chun-Li's;
@@ -72,10 +72,9 @@ What is known now:
   character.
 
 ### Track B tasks (Mac Studio, `~/work/hobby/laya_vision_vs_SF2`)
-- [ ] **B0 setup:** repo, a venv pinned to the Mac Pro's exact package versions, the same Mesen build and settings,
+- [x] **B0 setup:** repo, a venv pinned to the Mac Pro's exact package versions, the same Mesen build and settings,
   the ROM, the savestates, the base model. The ROM suite passes 30/30 and the Dhalsim replay reproduces +93.1.
-- [ ] **B0 measure:** training examples per second and play decisions per second on the M3 Ultra, with Qwen idle and
-  with Qwen answering (they share the Studio's GPU)
+- [x] **B0 measure:** training 138 s step 0 to final and 6.2 s per eval (Mac Pro 163 s and 10 s); play 36.2 decisions/s on 4 workers, 11.0 on 1. Measured with omlx loaded but not answering; a run with Qwen answering is still to do.
 - [ ] **B1 pick any character:** boot and select for each of the 8 playable World Warrior characters (Ryu, E. Honda,
   Blanka, Guile, Ken, Chun-Li, Zangief, Dhalsim) as player 1; a fight-start savestate per character vs Ryu, verified
 - [ ] **B2 moves:** an action set per character: the shared basics plus that character's specials as verified macros
