@@ -398,18 +398,21 @@ def test_move_does_what_it_is_defined_to_do(env, move, facing, request):
 
 @pytest.mark.parametrize("facing", FACINGS)
 def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
-    """block (down + back) for 200 decisions (20 s) from a free moment, each resolved from the x positions at that
-    decision as sf2.env does: each time the CPU attacks he guards (08) crouching (+0x43 = 2), and a guard leads to
-    block stun (0E, reaction 06 / 08). Down + toward never guards while the ROM's facing byte agrees with x (while it
-    lags a crossover, the same buttons are down + back to the ROM). (Jump-ins and throws still get through a
-    crouching guard: SF2 rules, docs/MOVES.md.)"""
+    """block (down + back) for 200 decisions (20 s) from a free moment, each resolved from the ROM's facing byte at
+    that decision as sf2.env does, so the CPU crossing over (Ryu vs Guile, often within a second) does not end the
+    check: each time the CPU attacks he guards (08) crouching (+0x43 = 2), and a guard leads to block stun (0E,
+    reaction 06 / 08); he never guards standing (+0x43 = 1; it read 0 on one guard against Ryu). Down + toward never
+    guards while the ROM still has him facing the way the decision was resolved for (the CPU crossing over in the
+    middle of a 6-frame decision turns the held toward into back). (Jump-ins and throws still get through a crouching
+    guard: SF2 rules, docs/MOVES.md.)"""
     from sf2.ram import Var, load_map
 
     def play(tokens, facing_right):
+        """RAM rows, each with the facing its decision was resolved for appended."""
         rows = []
         for _ in range(200):
-            rows += env.backend.run(_physical(tokens, facing_right)).rams[1:]
-            facing_right = rows[-1][mx] <= rows[-1][ox]
+            rows += [r + [facing_right] for r in env.backend.run(_physical(tokens, facing_right)).rams[1:]]
+            facing_right = rows[-1][mf] == ram.FACING_RIGHT
         return rows
 
     def attempt(f0):
@@ -427,18 +430,19 @@ def test_block_is_the_crouching_guard_facing_either_way(env, facing, request):
         return f0, runs
 
     st, react, guard = env.names.index("my_state"), env.names.index("my_react"), len(env.names)
-    mx, ox, mf = env.names.index("my_x"), env.names.index("opp_x"), env.names.index("my_facing")
+    mf = env.names.index("my_facing")
     f0, runs = _find(env, facing, 80, 200, attempt)
     for name, rows in runs.items():
         entries = [i for i in range(1, len(rows)) if rows[i][st] == 0x08 and rows[i - 1][st] != 0x08]
         stun = [i for i in range(1, len(rows)) if rows[i][st] == ram.HIT_STATE and rows[i - 1][st] == 0x08
                 and rows[i][react] in ram.BLOCK_REACTS]
         if name == "block":
-            assert len(entries) >= 2 and all(rows[i][guard] == 2 for i in entries), (facing, entries)
+            crouching = [i for i in entries if rows[i][guard] == 2]
+            assert len(crouching) >= 2 and not any(rows[i][guard] == 1 for i in entries), (facing, entries)
             assert stun, (facing, entries, stun)
         else:
-            agree = [i for i in entries + stun if (rows[i][mf] == ram.FACING_RIGHT) == (rows[i][mx] <= rows[i][ox])]
-            assert len(rows) == 1200 and not agree, (facing, entries, stun)
+            meant = [i for i in entries + stun if (rows[i][mf] == ram.FACING_RIGHT) == rows[i][-1]]
+            assert len(rows) == 1200 and not meant, (facing, entries, stun)
     _record(env, "block", facing, request)
 
 
