@@ -107,8 +107,12 @@ What is known now:
   Dhalsim +94.2). Collected on the training openings (121–600): 30,630 rows, 3,543–4,089 per character. The balance
   gate refused the first mix twice on real data (Zangief, then Guile, 11% under); both were topped up with new
   openings and a new seed, then it passed.
-- [ ] **B4 baseline training started** on the Studio (from the base model, 256 px, 2 epochs): `runs_local/base_all_v0`
-  in the Studio's `laya_vision_vs_SF2_trackA` worktree, log `out/train_base_all_v0.log`
+- [x] **B4 baseline v0 trained** on the Studio in 54 min (from the base model, 256 px, 2 epochs, 7,657 steps):
+  `runs_local/base_all_v0/best` (Studio worktree `laya_vision_vs_SF2_trackA`; a copy at `runs/base_all_v0` on the Mac
+  Pro). It agrees with the teacher on 94.8% of held-out frames, evenly across characters (Chun-Li 92.2%, the
+  lowest, to Honda 96.8%). Agreement does not predict play, so CPB3 gates it per character on the eval openings.
+- [ ] **CPB3 gate for v0:** v0, the teacher and random play for all 8 pairings on the 40 eval openings, plus r2 on the
+  same Chun-Li state
 - [ ] **B3b more opponents (running while the baseline trains):** the other 48 player-1 × opponent pairings among the
   8 playable characters (no mirror matches): a savestate each with automated start checks, Guile's sonic boom
   checked in the note, the teacher-vs-random check per pairing (kept at +15 or more), 5,000 decisions each on the
