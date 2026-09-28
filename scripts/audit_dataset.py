@@ -87,20 +87,25 @@ def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
     if a.bad["schema"] and a.bad["schema"][-1] == rid:
         return
     want_side = "right" if f in ("train_mirrored", "test_real_right") else "left"
+    if r["kind"] == "live" and f in ("train_real", "train_mirrored"):
+        want_side = r.get("collected_side", r["side"])      # live play trains on both sides
     file_side = r.get("collected_side", r["side"])      # block rows: the side collected on (they may cross over)
     a.check("side_matches_file", file_side == want_side and r["facing"] == _SWAP[r["side"]], rid)
     a.check("split_matches_file", r["split"] == ("train" if f.startswith("train") else "test"), rid)
     a.check("mirrored_flag", r["mirrored"] == (f == "train_mirrored"), rid)
     a.check("char", r["char"] == char and r["opp"] != char, rid)
     a.check("action_known", r["action"] in actions(char), rid)
-    a.check("posture_known", r["posture"] in STAGE1_POSTURES, rid)
+    a.check("posture_known", r["posture"] in STAGE1_POSTURES or r["kind"] == "live", rid)
     a.check("gap_index_split", (r["gap_index"] in TEST_INDEX) == (r["split"] == "test"), rid)
     a.check("range_of_gap", r["range"] in RANGES and range_of(r["gap"]) == r["range"], rid)
     a.check("dx_is_gap_and_side", abs(r["dx"]) == r["gap"] and (r["dx"] > 0) == (r["side"] == "left"), rid)
     n = note_fields(r["state_text"])
-    a.check("note_matches_fields", n.get("me") == char and n.get("opp") == r["opp"] and n.get("dist") == r["range"]
+    a.check("note_has_no_opponent", "opp" not in n and r["opp"] not in r["state_text"], rid)
+    a.check("note_bars_are_words", n.get("my_bar") in ("full", "high", "half", "low")
+            and n.get("opp_bar") in ("full", "high", "half", "low") and "hp" not in n, rid)
+    a.check("note_matches_fields", n.get("me") == char and n.get("dist") == r["range"]
             and n.get("side") == r["side"] and n.get("dx") == "%+d" % r["dx"]
-            and n.get("opp_crouch") == str(int(r["posture"] != "stand")), rid)
+            and (r["kind"] == "live" or n.get("opp_crouch") == str(int(r["posture"] != "stand"))), rid)
     a.check("question_is_the_play_question", r["question"] == outcome_question(r["action"]), rid)
     a.check("label_is_outcome", r["label"] == OUTCOMES.index(r["outcome"]), rid)
     ex = jsonl_example(r, os.path.join(ROOT, char), char)     # laya-vision's own loader
@@ -108,14 +113,20 @@ def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
             and ex["state"]["context"] == r["state_text"] and len(ex["state"]["images"]) == 2, rid)
     if r["kind"] == "defense":
         audit_defense(a, char, f, r, rid)
+    elif r["kind"] == "live":
+        a.check("live_outcome", r["outcome"] in OUTCOMES, rid)
+        a.check("live_move", r["action"] in actions(char), rid)
+        a.check("live_attack_outcome", r["move_kind"] != "attack" or r["outcome"] in ("hit", "whiff", "blocked"), rid)
+        a.check("live_other_outcome", r["move_kind"] == "attack" or r["outcome"] in ("blocked", "got_hit", "none"), rid)
     else:
         a.check("buttons_match_action", r["buttons"] == expected_buttons(char, r["action"], r["side"]), rid)
         a.check("kind", r["kind"] == ("movement" if r["action"] in MOVEMENT else "attack"), rid)
         a.check("movement_iff_none", (r["outcome"] == "none") == (r["action"] in MOVEMENT), rid)
         a.check("outcome_known", r["outcome"] in ("hit", "whiff", "blocked", "none"), rid)
     a.check("executed", r["executed"], rid)
-    a.check("hit_has_damage", r["outcome"] != "hit" or r["damage"] > 0 or r["thrown"], rid)
-    a.check("whiff_no_damage", r["outcome"] not in ("whiff", "none") or r["damage"] == 0, rid)
+    if r["kind"] != "live":     # live exchanges run to the next decision: other hits can land in them
+        a.check("hit_has_damage", r["outcome"] != "hit" or r["damage"] > 0 or r["thrown"], rid)
+        a.check("whiff_no_damage", r["outcome"] not in ("whiff", "none") or r["damage"] == 0, rid)
     a.check("thrown_is_hit", not r["thrown"] or r["outcome"] == "hit", rid)
     a.check("boot_state_exists", os.path.exists(os.path.join(ROOT, r.get("boot") or "-")), rid)
     a.check("images_are_frames", len(r["images"]) == 2 and all(p.startswith("frames/") for p in r["images"]), rid)

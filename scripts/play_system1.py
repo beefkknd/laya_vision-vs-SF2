@@ -29,12 +29,14 @@ from sf2.vs_sweep import actions
 CHARS = ["ryu", "ken", "chunli", "guile", "honda", "blanka", "zangief", "dhalsim"]
 
 
-def opponent(me: str) -> str:
-    return "ken" if me == "ryu" else "ryu"
+def opponent(me: str, choice: str = "ryu") -> str:
+    """The CPU opponent: ``choice`` (a savestate states/p1_<me>_vs_<choice>.state); arcade mode has no mirror match,
+    so a character never meets itself: Ryu meets Ken instead of Ryu, Dhalsim Ken instead of Dhalsim."""
+    return choice if choice != me else "ken"
 
 
 def play_one(args, me: str, port: int) -> int:
-    opp = opponent(me)
+    opp = opponent(me, args.opp)
     out = os.path.join(args.out, me)
     img_dir = os.path.join(out, "images")
     os.makedirs(img_dir, exist_ok=True)
@@ -104,6 +106,7 @@ def main() -> int:
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--device", default=None)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--opp", default="ryu", help="the CPU opponent (dhalsim: the novice training opponent)")
     ap.add_argument("--memory", default="memory",
                     help="memory dir (sf2/memory.py); 'none' plays with an empty short memory")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
@@ -116,7 +119,7 @@ def main() -> int:
     for i, c in enumerate(chars):
         cmd = [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model", args.model,
                "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
-               "--seed", str(args.seed), "--memory", args.memory] + (["--rom", args.rom] if args.rom else [])
+               "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp] + (["--rom", args.rom] if args.rom else [])
         log = open(os.path.join("logs", "system1", c + ".log"), "w")
         jobs.append((c, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)))
     print("%d characters playing (logs/system1/<char>.log)" % len(jobs), flush=True)

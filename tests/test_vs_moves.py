@@ -269,3 +269,16 @@ def test_block_outcome_needs_real_block_stun():
     assert D.outcome([r(), r(0x0E, 0x08, 172)])["damage_taken"] == 4                                  # chip still blocked
     assert D.decision_frame([r(a_y=192)] * 9 + [r(a_y=140)] * 5 + [r(a_y=155)], "jump_in") == 14   # coming down
     assert D.decision_frame([], "sweep") == D.LEAD + D.REACT
+
+
+def test_layas_note_is_general_and_opponent_agnostic():
+    from sf2.vs_sweep import bar, current_note, note
+    r = {"a_x": 200, "d_x": 260, "d_state": 0, "a_life": 176, "d_life": 60, "d_y": 150}
+    text = note("chunli", "dhalsim", r, "left")
+    assert text == "me=chunli dist=mid side=left dx=+60 my_bar=full opp_bar=half opp_airborne=1 opp_crouch=0"
+    assert "dhalsim" not in text and "hp=" not in text and "last=" not in text    # no name, no amounts, no constants
+    assert [bar(v) for v in (176, 120, 60, 20, 255)] == ["full", "high", "half", "low", "low"]      # KO wraps
+    old = {"state_text": "me=chunli opp=dhalsim dist=mid side=left dx=+60 my_hp=100 opp_hp=100 last=idle "
+                         "airborne=0 opp_airborne=0 opp_crouch=1", "kind": "defense", "probe": "jump_in"}
+    assert current_note(old) == "me=chunli dist=mid side=left dx=+60 my_bar=full opp_bar=full opp_airborne=1 " \
+                                "opp_crouch=1"

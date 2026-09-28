@@ -24,7 +24,7 @@ def position(ex: Dict) -> Tuple:
 
 
 def _kind(key: Tuple) -> str:
-    return "defense" if "_def_" in key[1] else "static"
+    return "defense" if "_def_" in key[1] else "live" if key[1].startswith("live_") else "static"
 
 
 def split_by_position(rows: List[Dict], rng: random.Random, share: float = 0.05) -> Tuple[List[Dict], List[Dict]]:
@@ -34,8 +34,8 @@ def split_by_position(rows: List[Dict], rng: random.Random, share: float = 0.05)
     held = set()
     for d in sorted({ex.get("dataset") for ex in rows}):
         keys = sorted({position(ex) for ex in rows if ex.get("dataset") == d})
-        # the same share of each KIND of position (a still-opponent position holds 20 rows, a block position 3), so
-        # every character's validation has the same number of rows
+        # the same share of each KIND of position (a still-opponent position holds 20 rows, a block position 3, a
+        # live-play position 1), so every character's validation has the same number of rows
         for kind in sorted({_kind(k) for k in keys}):
             ks = [k for k in keys if _kind(k) == kind]
             held |= set(rng.sample(ks, max(1, round(share * len(ks)))))

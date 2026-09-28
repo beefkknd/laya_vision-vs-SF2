@@ -12,6 +12,7 @@ so the mirror is a plain left-right flip of the whole frame; physical left/right
 side-dependent note fields (side, signed dx) flip. Action names are relative (forward = toward the opponent), so
 they stay as they are.
 """
+import re
 from typing import Dict, List, Sequence, Tuple
 
 from .ram import CLOSE, MID
@@ -137,12 +138,12 @@ def outcome(rows: Sequence[Dict[str, int]], action: str) -> Dict[str, object]:
 
 
 OUTCOMES = ["hit", "whiff", "blocked", "none", "got_hit"]      # new classes go at the end: labels keep their numbers
-OUTCOME_CRITERIA = {
-    "hit": "it connects: the opponent is hit or thrown",
-    "whiff": "it comes out but touches nothing (falls short or goes over)",
-    "blocked": "a guard stops the attack (block stun, at most chip damage)",
-    "none": "nothing is hit either way",
-    "got_hit": "the opponent's attack hits me (I lose health)",
+OUTCOME_CRITERIA = {        # in general words about the health bars, the same for every opponent
+    "hit": "it connects: the opponent's bar drops",
+    "whiff": "it misses: no bar changes",
+    "blocked": "a guard stops the attack: the bars hold",
+    "none": "nothing touches either fighter",
+    "got_hit": "the opponent's attack connects: my bar drops",
 }
 
 
@@ -153,11 +154,43 @@ def outcome_question(action: str) -> Dict:
             "criteria": dict(OUTCOME_CRITERIA)}
 
 
+FULL_LIFE = 176
+
+
+def bar(life: int) -> str:
+    """A health bar in general words (laya gets no numbers: an exact value per row would be misleading)."""
+    share = max(0, life if life < 200 else 0) / FULL_LIFE
+    return "full" if share >= 0.9 else "high" if share >= 0.6 else "half" if share >= 0.3 else "low"
+
+
 def note(me: str, opp: str, r: Dict[str, int], side: str) -> str:
-    """The RAM note, as sf2.ram.text_state plus the side fields mirroring must swap (side, signed dx)."""
+    """The RAM note laya reads (``r``: a_ = me, d_ = the opponent). General and opponent-agnostic: no opponent name
+    (knowledge of an opponent is System 2's short memory), the health bars as general levels, no constant fields.
+    ``opp`` is accepted for the callers' sake and deliberately not written."""
     dx = r["d_x"] - r["a_x"]
-    return ("me=%s opp=%s dist=%s side=%s dx=%+d my_hp=100 opp_hp=100 last=idle airborne=0 opp_airborne=0 "
-            "opp_crouch=%d" % (me, opp, range_of(abs(dx)), side, dx, int(r["d_state"] == 0x02)))
+    return ("me=%s dist=%s side=%s dx=%+d my_bar=%s opp_bar=%s opp_airborne=%d opp_crouch=%d" % (
+        me, range_of(abs(dx)), side, dx, bar(r.get("a_life", FULL_LIFE)), bar(r.get("d_life", FULL_LIFE)),
+        int(r.get("d_y", GROUND_Y) != GROUND_Y), int(r["d_state"] == 0x02)))
+
+
+def current_note(rec: Dict) -> str:
+    """A stored row's note in today's format (rows written before a format change keep their raw text in the shards):
+    no opponent name, bars as general levels, no constant fields; opp_airborne from what the row records."""
+    old = rec["state_text"]
+    fields = dict(re.findall(r"(\w+)=(\S+)", old))
+    air = rec.get("opp_air")
+    if air is None:
+        air = rec.get("probe") == "jump_in" and rec.get("kind") == "defense"
+    my = rec.get("my_life", FULL_LIFE)
+    his = rec.get("opp_life", FULL_LIFE)
+    return ("me=%s dist=%s side=%s dx=%s my_bar=%s opp_bar=%s opp_airborne=%d opp_crouch=%s" % (
+        fields["me"], fields["dist"], fields["side"], fields["dx"], bar(my), bar(his), int(bool(air)),
+        fields.get("opp_crouch", "0")))
+
+
+def without_opp(text: str) -> str:
+    """A note written before the opponent's name was dropped, as laya reads it now."""
+    return re.sub(r" opp=[a-z]+(?= dist=)", "", text)
 
 
 _SWAP = {"left": "right", "right": "left"}

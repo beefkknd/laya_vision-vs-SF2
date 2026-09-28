@@ -32,12 +32,14 @@ from sf2.vs import boot_vs, gap_state, record, view
 from sf2.vs_moves import CONDS
 from sf2.frames import HUD_ROWS, mirror_frame, model_frame
 from sf2 import vs_defense as D
-from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, RANGES, STAGE1_POSTURES, mirror_record, note,
-                          outcome, outcome_question, range_of, split_of, static_actions)
+from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, RANGES, STAGE1_POSTURES, actions,
+                          mirror_record, note, outcome, outcome_question, range_of, split_of, static_actions,
+                          current_note)
 
 ROOT = "test_data"
 MIN_TRAIN, MIN_TEST = 14, 6   # per (action, range): 7 gaps x 2 postures train, 3 x 2 test
 MIN_DEF_TRAIN, MIN_DEF_TEST = 18, 8   # blocks, per (answer, probe): 7 gaps x 3 ranges train, 3 x 3 test
+MIN_LIVE = 20                  # live play: training rows per move
 
 
 def collect(args) -> int:
@@ -186,6 +188,43 @@ def _defense_rows(b, state, who, attacker, me, opp, side, rng, gi, split, name, 
     return out
 
 
+def import_live(args) -> int:
+    """Live play (scripts/play_system1.py game logs, e.g. the explorer vs the CPU Dhalsim) -> shards of laya rows: the
+    decision's two frames and note, the move, and what really happened (RAM). Held out by game: games whose number ends
+    in TEST_INDEX go to test."""
+    import shutil
+    total = 0
+    for char in sorted(os.listdir(args.log)):
+        path = os.path.join(args.log, char, "actions.jsonl")
+        if not os.path.exists(path):
+            continue
+        os.makedirs(os.path.join(ROOT, char, "images"), exist_ok=True)
+        recs = []
+        for line in open(path):
+            a = json.loads(line)
+            key = "live_%s_g%02d_f%05d" % (os.path.basename(os.path.normpath(args.log)), a["game"], a["frame"])
+            paths = ["images/%s_prev.png" % key, "images/%s_now.png" % key]
+            for src, dst in zip(a["images"], paths):
+                shutil.copy(os.path.join(args.log, char, "images", src), os.path.join(ROOT, char, dst))
+            dx = a["gap"] if a["side"] == "left" else -a["gap"]
+            recs.append({
+                "id": "%s-%s-%s" % (char, key, a["action"]), "char": char, "opp": a["opp"], "side": a["side"],
+                "facing": "right" if a["side"] == "left" else "left", "range": a["range"], "gap": a["gap"],
+                "gap_index": a["game"] % 10, "game": a["game"], "dx": dx, "posture": "live", "action": a["action"],
+                "kind": "live", "move_kind": a["kind"], "buttons": [], "images": paths,
+                "state_text": a["prompt"].split("\nmemory")[0], "split": split_of(a["game"] % 10), "mirrored": False,
+                "source": "live:" + args.log, "boot": None, "outcome": a["actual"], "damage": a["dealt"],
+                "damage_taken": a["taken"], "thrown": False, "executed": True, "attacked": a["kind"] == "attack",
+                "busy_frames": a["frames"], "travel": 0, "my_life": a["my_life"], "opp_life": a["opp_life"],
+                "opp_air": a["opp_air"]})
+        write_jsonl(os.path.join(ROOT, "_shards", "%s_live.jsonl" % char), recs)
+        total += len(recs)
+        print("%-8s %d live rows (%d train, %d test)" % (char, len(recs), sum(r["split"] == "train" for r in recs),
+                                                         sum(r["split"] == "test" for r in recs)))
+    print("imported %d live rows from %s" % (total, args.log))
+    return 0
+
+
 def _load(path: str) -> np.ndarray:
     from PIL import Image
 
@@ -236,7 +275,8 @@ def build(args) -> int:
     by_char: Dict[str, List[Dict]] = collections.defaultdict(list)
     for s in shards:
         for r in read(s):
-            if r["posture"] in STAGE1_POSTURES:
+            if r["posture"] in STAGE1_POSTURES or r["kind"] == "live":
+                r["state_text"] = current_note(r)    # today's note: no opponent name, general bars, no constants
                 if r["kind"] == "defense":     # what laya SEES at the decision frame (a jump-in has flown in, and
                     r["range"] = range_of(r["gap"])    # may have crossed over: then the character is on the other side)
                     r["collected_side"] = r.get("collected_side", r["side"])
@@ -250,7 +290,8 @@ def build(args) -> int:
         base = os.path.join(ROOT, char)
         # model frames: raw captures (images/) with the HUD blanked, in frames/; mirrored ones flipped whole
         recs = [dict(r, images=[p.replace("images/", "frames/") for p in r["images"]]) for r in recs]
-        train = [r for r in recs if r["split"] == "train" and _file_side(r) == "left"]
+        # training: the left-side rows (their mirror is the right side) and every live row (live play has both sides)
+        train = [r for r in recs if r["split"] == "train" and (_file_side(r) == "left" or r["kind"] == "live")]
         mirrored = [dict(m, images=[p.replace("frames/", "frames/mirror_") for p in m["images"]])
                     for m in map(mirror_record, train)]
         problems += _write_frames(base, recs, mirrored)
@@ -275,6 +316,13 @@ def build(args) -> int:
                         problems.append("%s %s %s %s/%s: %d < %d" % (char, action, rng, split, side,
                                                                        count[(action, rng, split, side)], need))
         problems += ["%s %s never came out (%s)" % (char, r["action"], r["id"]) for r in recs if not r["executed"]]
+        live = [r for r in recs if r["kind"] == "live"]
+        if live:     # live play: every move tried in training, and a held-out share
+            lc = collections.Counter(r["action"] for r in live if r["split"] == "train")
+            problems += ["%s live: %s has %d training rows < %d" % (char, a, lc[a], MIN_LIVE) for a in actions(char)
+                         if lc[a] < MIN_LIVE]
+            if not [r for r in live if r["split"] == "test"]:
+                problems.append("%s live: no held-out games" % char)
         # blocks: every answer to every probe, on the training side and on both test sides
         dcount = collections.Counter((r["action"], r["probe"], r["split"], _file_side(r)) for r in recs
                                      if r["kind"] == "defense")
@@ -348,6 +396,8 @@ def main() -> int:
         c.add_argument("--port", type=int, required=True)
         c.add_argument("--rom", default=os.environ.get("SF2_ROM"))
         c.add_argument("--mesen", default=os.environ.get("SF2_MESEN"))
+    il = sub.add_parser("import-live", help="game logs of live play -> shards (scripts/play_system1.py output)")
+    il.add_argument("--log", required=True, help="e.g. rollouts/live_dhalsim")
     bd = sub.add_parser("build")
     r = sub.add_parser("run", help="collect every shard in parallel, then build")
     r.add_argument("--kinds", default="static,defense", help="static (still opponent), defense (blocks), or both")
@@ -360,7 +410,8 @@ def main() -> int:
         p.add_argument("--no-right-test", dest="right_test", action="store_false",
                        help="skip the real right-side test set (the one-time mirroring check)")
     args = ap.parse_args()
-    return {"collect": collect, "collect-defense": collect_defense, "build": build, "run": run}[args.cmd](args)
+    return {"collect": collect, "collect-defense": collect_defense, "import-live": import_live, "build": build,
+            "run": run}[args.cmd](args)
 
 
 if __name__ == "__main__":

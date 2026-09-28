@@ -45,7 +45,8 @@ class Round:
 class System1:
     def __init__(self, model: Optional[str], me: str, threshold: float = 0.5, device: Optional[str] = None,
                  seed: int = 0):
-        """``model`` None: the baseline, a random attack every decision (same loop, no model)."""
+        """``model`` None: the explorer, a uniformly random move of all the character's actions every decision (for
+        live data: every move gets real tries, labelled from RAM)."""
         self.agent, self.rng = None, random.Random(seed)
         if model:
             import laya
@@ -61,9 +62,9 @@ class System1:
         self.questions = {a: outcome_question(a) for a in self.attacks + self.blocks}
 
     def decide(self, prev: np.ndarray, cur: np.ndarray, text: str) -> Dict:
-        if self.agent is None:
-            a = self.rng.choice(self.attacks)
-            return {"action": a, "best": a, "p_hit": None, "predicted": "hit", "probs": {}}
+        if self.agent is None:        # the explorer: any of the character's moves, uniformly (data, not play)
+            a = self.rng.choice(list(actions(self.me)))
+            return {"action": a, "best": a, "p_hit": None, "predicted": "none", "probs": {}}
         ans = self.agent.predict(make_state(prev, cur, text), self.questions)["answers"]
         probs = {a: ans[a]["probabilities"] for a in self.attacks + self.blocks}
         # every action is scored by the outcome that makes it worth doing: an attack by P(hit), a block by P(blocked)
@@ -134,10 +135,8 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
                     break
                 more, prev, cur = _run(bridge, [[]] * WAIT)
                 live += more[1:]
-        if d["action"] in BLOCKS:         # what the block did for my own health (vs_defense: d_ = me)
+        if d["action"] in BLOCKS or d["action"] in MOVEMENT:   # blocks and moves: what happened to MY health
             actual = block_outcome([view(x, 2) for x in [r] + live])["outcome"]
-        elif d["action"] in MOVEMENT:
-            actual = "none"
         else:
             actual = outcome([view(x, 1) for x in [r] + live], d["action"])["outcome"]
         pending = (r, list(live), dict(d, prompt=text), actual, rnd.frames, images)
