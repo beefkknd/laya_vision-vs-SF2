@@ -8,25 +8,33 @@ P(hit) if that is at least ``threshold``; otherwise it walks forward. After an a
 act again and reads what really happened from RAM (hit / whiff / blocked), so every attack is also a check of the
 model's prediction against the live game.
 
+With an advisor (sf2.advisor) the pick is text laya's instead: laya-vision reads the note only (as it was trained),
+rates every move, and text laya chooses from the best-rated ones and the moves the short memory names, following
+the memory. The threshold rule above is then unused.
+
 The stage-1 model only knows what its own moves do to a still opponent: it has no notion of the CPU's attacks,
 blocking or anti-air. This is the real-play test of that skill, not a finished player.
 """
 import os
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
 from .config import PAD
 from .dataset import save_png
 from .game_log import action_entry, game_entry
-from .memory import prompt_text
+from .advice import opp_doing
+from .advisor import choose
+from .game_log import _range as range_name
+from .game_log import name as state_name
+from .memory import MAX_PROMPT_LESSONS, prompt_text
 from .vs_defense import BLOCKS
 from .vs_defense import outcome as block_outcome
 from .policy import make_state
 from .vs import GROUND_Y, NAMES, physical, view
-from .vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
+from .vs_sweep import MOVEMENT, actions, bar, note, outcome, outcome_question
 
 WAIT = 4              # idle frames per step while the fighter cannot act (the 4-frame prev/now gap)
 MAX_RECOVER = 90      # frames to wait after an attack for the fighter to be able to act again
@@ -44,7 +52,7 @@ class Round:
 
 class System1:
     def __init__(self, model: Optional[str], me: str, threshold: float = 0.5, device: Optional[str] = None,
-                 seed: int = 0):
+                 seed: int = 0, advisor=None):
         """``model`` None: the explorer, a uniformly random move of all the character's actions every decision (for
         live data: every move gets real tries, labelled from RAM)."""
         self.agent, self.rng = None, random.Random(seed)
@@ -56,12 +64,20 @@ class System1:
             if size != 256:
                 raise SystemExit("%s sees %d px images; the stage-1 data is 256x256" % (model, size))
         self.me, self.threshold = me, threshold
+        self.advisor = advisor     # sf2.advisor.Advisor: text laya picks from laya-vision's ratings + the short memory
+        self.advice_on = True      # False: text laya still picks, told "Advice: none" (the A/B control)
         self.short = None          # the short memory vs the current opponent (sf2.memory), goes into laya's prompt
         self.attacks = [a for a in actions(me) if a not in MOVEMENT and a not in BLOCKS]
         self.blocks = list(BLOCKS)
         self.questions = {a: outcome_question(a) for a in self.attacks + self.blocks}
 
-    def decide(self, prev: np.ndarray, cur: np.ndarray, text: str) -> Dict:
+    def lessons(self) -> List[str]:
+        if not self.advice_on:
+            return []
+        return [les["text"] for les in (self.short or {}).get("lessons", [])[:MAX_PROMPT_LESSONS]]
+
+    def decide(self, prev: np.ndarray, cur: np.ndarray, text: str, situation: Optional[Tuple] = None) -> Dict:
+        """``situation`` (range, what he is doing, my bar, his bar) is needed with an advisor."""
         if self.agent is None:        # the explorer: any of the character's moves, uniformly (data, not play)
             a = self.rng.choice(list(actions(self.me)))
             return {"action": a, "best": a, "p_hit": None, "predicted": "none", "probs": {}}
@@ -71,6 +87,12 @@ class System1:
         score = {a: probs[a]["hit"] for a in self.attacks}
         score.update({b: probs[b].get("blocked", 0.0) for b in self.blocks})
         best = max(score, key=score.get)
+        if self.advisor is not None:
+            c = choose(self.advisor, situation, score, self.lessons(), self.attacks + self.blocks)
+            action = c["action"]
+            return dict(c, best=best, p_hit=score.get(action),
+                        predicted=max(probs[action], key=probs[action].get) if action in probs else "none",
+                        probs=score)
         action = best if score[best] >= self.threshold else "forward"
         return {"action": action, "best": best, "p_hit": score[best],
                 "predicted": max(probs[best], key=probs[best].get) if action != "forward" else "none",
@@ -114,8 +136,12 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
         if pending:
             rnd.log.append(_close(game, s1.me, opp, pending))
         side = "left" if r["p1_x"] < r["p2_x"] else "right"
-        text = prompt_text(note(s1.me, opp, view(r, 1), side), s1.short)
-        d = s1.decide(prev, cur, text)
+        if s1.advisor is None:
+            text = prompt_text(note(s1.me, opp, view(r, 1), side), s1.short)
+            d = s1.decide(prev, cur, text)
+        else:           # laya-vision reads the note only (as trained); the memory goes to text laya
+            text = note(s1.me, opp, view(r, 1), side)
+            d = s1.decide(prev, cur, text, situation(r))
         images = None
         if img_dir:
             base = "g%02d_%05d" % (game, rnd.frames)
@@ -148,10 +174,23 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
     return rnd
 
 
+ADVICE_KEYS = ("advice_text", "shortlist", "advice_probs", "rule_answers", "rule", "follows_rule")
+
+
+def situation(r: Dict[str, int]) -> Tuple[str, str, str, str]:
+    """The moment in text laya's words (sf2.advice.situation_text), from the RAM row at the decision."""
+    gap = abs(r["p2_x"] - r["p1_x"])
+    doing = opp_doing({"opp_air": r["p2_y"] != GROUND_Y, "opp_state": state_name(r["p2_state"])})
+    return range_name(gap), doing, bar(r["p1_life"]), bar(r["p2_life"])
+
+
 def _close(game: int, me: str, opp: str, pending) -> Dict:
     before, rows, d, actual, frame, images = pending
     entry = action_entry(game, frame, me, opp, before, rows or [before], d, actual)
-    entry["prompt"] = d["prompt"]                 # exactly what laya read: the note and the short memory
+    entry["prompt"] = d["prompt"]                 # exactly what laya-vision read
+    for k in ADVICE_KEYS:                         # with an advisor: what text laya read, and what it picked
+        if k in d:
+            entry[k] = d[k]
     if images:
         entry["images"] = images
     return entry

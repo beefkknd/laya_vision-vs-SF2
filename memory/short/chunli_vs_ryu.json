@@ -7,18 +7,22 @@
   "learn/chunli/20260927-193816",
   "learn/chunli/20260927-194458",
   "learn/chunli/20260927-195522",
-  "learn/chunli/20260927-203134"
+  "learn/chunli/20260927-203134",
+  "learn/chunli/20260928-023610",
+  "learn/chunli/20260928-060236",
+  "learn/chunli/20260928-062237",
+  "learn/chunli/20260928-074358"
  ],
  "lessons": [
   {
-   "text": "never use spinning_bird_kick: he punishes it everywhere",
+   "text": "stop spinning_bird_kick: he hits you back",
    "kind": "avoid",
    "action": "spinning_bird_kick",
    "range": null,
    "claim": "punished",
    "evidence": {
-    "tries": 346,
-    "count": 235,
+    "tries": 367,
+    "count": 250,
     "rate": 0.68,
     "refs": [
      "games_v1/chunli/g0f60",
@@ -31,41 +35,81 @@
    }
   },
   {
-   "text": "use lp up close: it hits him",
-   "kind": "use_more",
+   "text": "use lp when he jumps",
+   "kind": "counter",
    "action": "lp",
-   "range": "close",
-   "claim": "lands",
+   "range": null,
+   "claim": "counter:jump",
    "evidence": {
-    "tries": 48,
-    "count": 27,
-    "rate": 0.56,
+    "tries": 124,
+    "count": 16,
+    "rate": 0.13,
     "refs": [
-     "games_v1/chunli/g1f860",
-     "games_v1/chunli/g1f876",
-     "games_v1/chunli/g1f892",
-     "games_v1/chunli/g2f1264",
-     "games_v1/chunli/g2f1524"
+     "games_v1/chunli/g5f848",
+     "learn/chunli/20260928-060236/g5f888",
+     "learn/chunli/20260928-060236/g5f1408",
+     "learn/chunli/20260928-060236/g5f676",
+     "learn/chunli/20260928-060236/g5f1060"
     ],
     "scope": "this opponent"
    }
   },
   {
-   "text": "avoid sweep up close: it misses",
+   "text": "avoid c.mk at mid: it misses",
    "kind": "avoid",
-   "action": "sweep",
-   "range": "close",
+   "action": "c.mk",
+   "range": "mid",
    "claim": "whiffs",
    "evidence": {
-    "tries": 14,
-    "count": 7,
-    "rate": 0.5,
+    "tries": 228,
+    "count": 136,
+    "rate": 0.6,
     "refs": [
-     "games_v1/chunli/g3f484",
-     "games_v2/chunli/g0f404",
-     "games_v2/chunli/g8f428",
-     "learn/chunli/20260927-194458/g8f1272",
-     "learn/chunli/20260927-194458/g9f1224"
+     "learn/chunli/20260928-060236/g5f256",
+     "learn/chunli/20260928-060236/g5f1640",
+     "learn/chunli/20260928-060236/g5f312",
+     "learn/chunli/20260928-060236/g5f1028",
+     "learn/chunli/20260928-060236/g5f1356"
+    ],
+    "scope": "this opponent"
+   }
+  },
+  {
+   "text": "avoid c.hp at mid: it misses",
+   "kind": "avoid",
+   "action": "c.hp",
+   "range": "mid",
+   "claim": "whiffs",
+   "evidence": {
+    "tries": 34,
+    "count": 24,
+    "rate": 0.71,
+    "refs": [
+     "learn/chunli/20260928-060236/g5f1604",
+     "learn/chunli/20260928-060236/g5f1800",
+     "learn/chunli/20260928-060236/g5f756",
+     "learn/chunli/20260928-060236/g5f984",
+     "learn/chunli/20260928-060236/g5f1232"
+    ],
+    "scope": "this opponent"
+   }
+  },
+  {
+   "text": "he jumps at far: be ready",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "far",
+   "claim": "habit:jump",
+   "evidence": {
+    "tries": 426,
+    "count": 76,
+    "rate": 0.18,
+    "refs": [
+     "games_v1/chunli/g4f1260",
+     "games_v1/chunli/g7f1520",
+     "games_v2/chunli/g2f1476",
+     "games_v2/chunli/g3f1284",
+     "games_v2/chunli/g4f1204"
     ],
     "scope": "this opponent"
    }

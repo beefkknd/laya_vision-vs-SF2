@@ -75,7 +75,7 @@ def prompt(situation: str, lessons: Sequence[str]) -> str:
 
 # ---- reading a lesson's text (the label must follow what the TEXT says, since that is all text laya reads) ----
 
-NEG = re.compile(r"\b(avoid|never|stop|don't|do not|less|fewer|no|quit|punish(es|ed)?)\b", re.I)
+NEG = re.compile(r"\b(avoid|never|stop|drop|skip|don't|do not|less|fewer|no|quit|punish(es|ed)?)\b", re.I)
 HARD = re.compile(r"\b(always|only)\b", re.I)
 HE = r"(he|ryu|ken|blanka|guile|chun-?li|honda|e\.? honda|zangief|dhalsim)"      # the opponent, by pronoun or name
 WHEN = {"jumping": re.compile(r"\bwhen %s (jumps|is jumping|is in the air)\b|\bjumping\b" % HE, re.I),

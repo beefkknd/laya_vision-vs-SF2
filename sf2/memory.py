@@ -1,4 +1,4 @@
-"""Two memories for System 1, both written from game logs (by scripts/build_memory.py now; by System 2 later).
+"""Two memories for System 1, both written by System 2 (Qwen, sf2/system2.py) from the game logs.
 
     memory/playbook/<me>.json          long term: what this character's own moves do, by range (kept across sessions)
     memory/short/<me>_vs_<opp>.json    short term: lessons against this opponent (starts empty; a new opponent gets
@@ -8,8 +8,9 @@ Each file: {"me", "opp" (short only), "source" (the logs it was built from), "le
 {"text", "kind", "action", "range", "evidence": {"tries", "count", "rate", "refs": ["g<game>f<frame>", ...]}}:
 ``count`` of the ``tries`` are what the lesson claims (landed, got punished, the habit), ``refs`` point at them.
 
-The short memory goes into laya's prompt: ``prompt_text`` appends its lesson texts to the RAM note. Every prompt is
-built by that one function, so play (and any later training on memory) sees the same text.
+The short memory reaches System 1 through text laya (sf2/advisor.py, sf2/advice.py), which picks the move following
+its lessons. Without an advisor, ``prompt_text`` appends the lesson texts to laya-vision's RAM note instead (the old
+path: laya-vision was never trained to read them).
 """
 import json
 import os

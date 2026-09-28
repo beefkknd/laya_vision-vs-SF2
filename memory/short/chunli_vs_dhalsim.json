@@ -7,19 +7,23 @@
   "learn/chunli/20260927-193816",
   "learn/chunli/20260927-194458",
   "learn/chunli/20260927-195522",
-  "learn/chunli/20260927-203134"
+  "learn/chunli/20260927-203134",
+  "learn/chunli/20260928-023610",
+  "learn/chunli/20260928-060236",
+  "learn/chunli/20260928-062237",
+  "learn/chunli/20260928-074358"
  ],
  "lessons": [
   {
-   "text": "never use spinning_bird_kick: he punishes it everywhere",
+   "text": "stop spinning_bird_kick: he hits you back",
    "kind": "avoid",
    "action": "spinning_bird_kick",
    "range": null,
    "claim": "punished",
    "evidence": {
-    "tries": 54,
-    "count": 24,
-    "rate": 0.44,
+    "tries": 179,
+    "count": 81,
+    "rate": 0.45,
     "refs": [
      "learn/chunli/20260927-193816/g0f656",
      "learn/chunli/20260927-193816/g0f948",
@@ -31,63 +35,43 @@
    }
   },
   {
-   "text": "use mp up close: it lands and he does not punish it",
-   "kind": "use_more",
-   "action": "mp",
-   "range": "close",
-   "claim": "lands",
+   "text": "he jumps a lot at far, be ready",
+   "kind": "opponent_habit",
+   "action": null,
+   "range": "far",
+   "claim": "habit:jump",
    "evidence": {
-    "tries": 17,
-    "count": 9,
-    "rate": 0.53,
+    "tries": 807,
+    "count": 413,
+    "rate": 0.51,
     "refs": [
-     "games_v1/chunli/g2f1236",
-     "games_v1/chunli/g9f1188",
-     "games_v2/chunli/g6f0",
-     "games_v2/chunli/g8f0",
-     "games_v2/chunli/g8f36"
-    ],
-    "scope": "all opponents"
-   }
-  },
-  {
-   "text": "avoid sweep up close: it whiffs",
-   "kind": "avoid",
-   "action": "sweep",
-   "range": "close",
-   "claim": "whiffs",
-   "evidence": {
-    "tries": 12,
-    "count": 6,
-    "rate": 0.5,
-    "refs": [
-     "learn/chunli/20260927-193816/g0f428",
-     "learn/chunli/20260927-193816/g0f464",
-     "learn/chunli/20260927-193816/g0f1396",
-     "learn/chunli/20260927-193816/g0f1744",
-     "learn/chunli/20260927-194458/g1f1164"
+     "learn/chunli/20260927-193816/g0f1104",
+     "learn/chunli/20260927-193816/g0f1108",
+     "learn/chunli/20260927-193816/g0f1112",
+     "learn/chunli/20260927-193816/g0f1116",
+     "learn/chunli/20260927-193816/g0f1120"
     ],
     "scope": "this opponent"
    }
   },
   {
-   "text": "use lp up close: it lands",
+   "text": "use c.mk at mid: it lands",
    "kind": "use_more",
-   "action": "lp",
-   "range": "close",
+   "action": "c.mk",
+   "range": "mid",
    "claim": "lands",
    "evidence": {
-    "tries": 46,
-    "count": 26,
-    "rate": 0.57,
+    "tries": 264,
+    "count": 113,
+    "rate": 0.43,
     "refs": [
-     "games_v1/chunli/g1f860",
-     "games_v1/chunli/g1f876",
-     "games_v1/chunli/g1f892",
-     "games_v1/chunli/g2f1264",
-     "games_v1/chunli/g2f1524"
+     "learn/chunli/20260928-023610/g3f960",
+     "learn/chunli/20260928-023610/g8f1416",
+     "learn/chunli/20260928-023610/g8f1436",
+     "learn/chunli/20260928-023610/g12f860",
+     "learn/chunli/20260928-023610/g12f880"
     ],
-    "scope": "all opponents"
+    "scope": "this opponent"
    }
   }
  ]

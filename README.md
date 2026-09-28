@@ -24,6 +24,48 @@ Mesen 2 (your SNES ROM)                                Python (this repo)
 - **Python writes every file** (savestates, screenshots, logs). The Lua script only needs network access.
 - **The script can stay loaded all day.** When a Python script ends, it disconnects. The Lua script reconnects to the next one within a second.
 
+## The learning loop (System 1 + System 2), as it runs now
+
+```
+screen ─▶ laya-vision (runs/all8/best)      rates every move: "likely works / may work / likely fails"
+            │  top 3 + moves the memory names + forward
+            ▼
+          text laya (runs/text_laya/advice_v1, MLX)   reads the moment + Qwen's short memory, picks one move
+            │
+          game log (rollouts/learn/<me>/<session>/)
+            ▼
+          System 2: Qwen on omlx, in a background thread   revises the short memory after a lost round,
+                                                           the playbook after a game (memory/)
+```
+
+- **laya-vision** stays general: what a move does now, from the picture and a note (no opponent, no advice).
+- **Text laya** (ModernBERT-large via `laya-mlx`, runs in `~/work/laya_mlx/.venv`) is fine-tuned only to FOLLOW
+  advice: polarity words (use more / avoid / never / always / drop …) and conditions (up close, when he jumps …).
+  The label rule is `sf2/advice.py`; data `scripts/build_advice_data.py`; training `scripts/train_text_laya.py`.
+  System 1 talks to it through a helper process (`sf2/advisor.py`, `scripts/text_laya_server.py`).
+- **Qwen** judges which advice is good; only Qwen writes `memory/`.
+
+| Run / measure | Command |
+|---|---|
+| Play arcade mode in a window, learn until stopped | `python scripts/learn_loop.py` (`--minutes 10`, `--headless`, `--advisor off`, `--ab-advice`) |
+| Does the short memory help? (headless, opponent locked, paired) | `python scripts/ab_memory.py --rounds 30` |
+| Where the loop loses (see / choose / advice / walk / defend / lessons) | `python scripts/learning_gaps.py` |
+| How much each memory rewrite changed (churn, flips) | `python scripts/memory_churn.py` |
+| Does a model read advice words at all? | `scripts/probe_memory_words.py` (laya-vision), `scripts/probe_text_laya.py` (text laya) |
+
+Start omlx first (`~/work/omlx/start`). Findings so far and the next plan: `~/work/me/journals/laya_vision-vs-SF2/`.
+
+## Setup details (what this exact setup used)
+
+Everything below ran on one Mac Studio (M3 Ultra, 32 cores, 256 GB). Three separate Python environments / servers:
+
+| Piece | What | Where it runs | Settings that matter |
+|---|---|---|---|
+| Game | *Street Fighter II (USA)* SNES ROM, sha1 `7ddcb96e0d9fea94d9370635262ac7c28da85214`, in `roms/` (never committed) | Mesen 2 (MesenCE app 1.0, `/Applications/Mesen.app`), headless `--testrunner` or a window | controller 2 plugged in with `--snes.port2.type=SnesController`; window at 150% speed (`--speed`); the loop restores Mesen's `settings.json` afterwards (a window writes its overrides back) |
+| laya-vision (System 1: sees) | base [`thaitea/laya-vision-smolvlm-256m`](https://huggingface.co/thaitea/laya-vision-smolvlm-256m) (SmolVLM-256M backbone) + our LoRA `runs/all8/best` | this repo's `.venv`: Python 3.12, PyTorch 2.14 on Apple MPS, transformers 5.17 | **256x256 native pixels, no upscale**: the 256x224 SNES frame is padded to 256x256, HUD rows 0-61 blanked, `image_interpolation: nearest`, GPU preprocess, no image splitting; two frames 4 apart + a one-line note (bars as words, no opponent name). LoRA r=16, alpha=32, 2 epochs, batch 8, lr 2e-4 (adapters) / 1e-4 (head), always from the base checkpoint; 22 actions per character, answer = hit / whiff / blocked / none / got_hit |
+| Text laya (System 1: decides) | [`aac6fef/laya-mlx`](https://huggingface.co/aac6fef/laya-mlx): the MLX conversion of [`convaiinnovations/laya`](https://huggingface.co/convaiinnovations/laya), ModernBERT-large, 421M + our LoRA `runs/text_laya/advice_v1` | **laya-mlx** (Apple MLX runtime, not omlx): its own venv `~/work/laya_mlx/.venv` (uv, Python 3.12, mlx 0.32.2, laya-mlx 0.1.0); started as a helper process by `sf2/advisor.py` | fp32; LoRA r=16, alpha=32 on every layer's `Wqkv`/`Wo`/`Wi` plus the decision head; AdamW lr 1e-4 cosine, batch 32, early stop (600 steps, ~6 min); max 512 tokens in; ~12 ms per decision. `HF_HOME=/Volumes/ExtremeSSD/huggingface`, `HF_HUB_OFFLINE=1` |
+| Qwen (System 2: learns) | `Jundot--Qwen3.8-27B-oQ4e-mtp` (Qwen3.8 27B, 4-bit oQ4e quant with MTP) | the **omlx** server, OpenAI-compatible at `http://127.0.0.1:8000/v1`; start with `~/work/omlx/start` | thinking **off** (with thinking a review took ~5 min; without ~9-11 s), max 8192 tokens, temperature 0 (`sf2/config.py`); runs in a background thread so the game never waits |
+
 ## What laya-vision actually is
 
 - **It is not `laya-mlx`.** [`laya-mlx`](https://github.com/mizorewww/laya-mlx) (the Apple MLX runtime) is text-only. laya-vision is a separate research fork, [r33drichards/laya-vision](https://github.com/r33drichards/laya-vision). It uses a **SmolVLM-256M** image backbone with Laya's typed-decision head and the same `predict(state, questions)` API. It is **PyTorch** and runs on Apple **MPS**.
@@ -155,4 +197,8 @@ are the ROM-verified ones from the move tests; charge moves charge on down-back 
 
 ## Status
 
-The unit tests cover the actions, the labeler, LoRA merging and the dataset → laya-vision loader. They also run the **real `sf2_bridge.lua`** in stock Lua 5.4 + LuaSocket against a mock of Mesen's `emu` API: RUN/WATCH/DUMP/savestates, the full environment, the scripted RAM finder, and reconnecting. None of it has run inside Mesen itself, or with your ROM or the real checkpoint yet. Day 1 is the first real test.
+Working end to end in Mesen: stage-1 data for all 8 characters, laya-vision LoRA `runs/all8/best`, text laya
+`runs/text_laya/advice_v1`, the arcade learning loop with async System 2, and the measurement scripts above.
+Known gaps (2026-09-28): laya-vision's live move ratings do not rank well against a moving CPU, she almost never
+blocks, and the short memory changes a lot between rounds. The headless A/B shows the memory makes her attacks
+safer but has no net effect overall (helps vs Honda/Ken/Dhalsim, hurts vs Ryu). Next: a distilled playbook.

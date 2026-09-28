@@ -112,3 +112,32 @@ def test_conditions_named_opponent_or_after_the_colon(text, when, where):
     les = parse(text, MOVES)
     assert (les.when, les.where) == (when, where)
     assert pick(text, "close", "crouching")[1] != "soft"      # the condition does not hold: lesson ignored
+
+
+def _mem(*texts):
+    return {"lessons": [{"text": t, "kind": "avoid" if t.startswith(("avoid", "never", "no ")) else "use_more"}
+                        for t in texts]}
+
+
+def test_churn_same_meaning_is_kept():
+    from sf2.memory_churn import diff
+    c = diff(_mem("avoid sweep up close: it whiffs"), _mem("no sweep up close"), MOVES)
+    assert (c.kept, c.added, c.dropped, c.flipped) == (1, [], [], [])
+    assert not c.radical
+
+
+def test_churn_flip_is_radical():
+    from sf2.memory_churn import diff
+    c = diff(_mem("avoid sweep up close", "use more lp"), _mem("use sweep up close", "use more lp"), MOVES)
+    assert c.flipped == [("avoid sweep up close", "use sweep up close")] and c.radical
+
+
+def test_churn_replacing_most_is_radical():
+    from sf2.memory_churn import diff
+    c = diff(_mem("use more lp", "avoid sweep", "use more mp"), _mem("use more c.mk", "avoid mk", "use more lp"), MOVES)
+    assert c.kept == 1 and c.radical and not c.flipped
+
+
+@pytest.mark.parametrize("text", ["drop spinning_bird_kick: ryu hits you back", "skip sweep up close"])
+def test_drop_and_skip_are_negative(text):          # Qwen wrote "drop X" (live loop, 2026-09-28)
+    assert parse(text, MOVES).polarity == "neg"
