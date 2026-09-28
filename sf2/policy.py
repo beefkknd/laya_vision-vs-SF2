@@ -3,12 +3,24 @@
 The state built here must match what ``laya.vlm_train.jsonl_example`` builds from a dataset record:
 ``{"images": [prev, cur], "context": state_text}``. Both sides load images as RGB PIL images (PNG is lossless),
 so train and play see the same pixels.
+A checkpoint trained without some note fields (``train.py --drop-note-field``) lists them in ``note.json``; they
+are dropped from the note at play time too.
 """
-from typing import Dict, Tuple
+import json
+import os
+from typing import Dict, List, Tuple
 
 import numpy as np
 
 from . import actions as A
+
+
+NOTE_FILE = "note.json"
+
+
+def drop_fields(text: str, fields: List[str]) -> str:
+    """The note without the ``key=value`` words whose key is in ``fields``."""
+    return " ".join(w for w in text.split(" ") if w.split("=", 1)[0] not in fields) if fields else text
 
 
 def make_state(prev: np.ndarray, cur: np.ndarray, text: str) -> Dict:
@@ -25,9 +37,11 @@ class LayaPolicy:
         self.sample = sample
         self.rng = np.random.default_rng(seed)
         self.q = {"action": A.question()}
+        note = os.path.join(model, NOTE_FILE)
+        self.drop = json.load(open(note))["drop"] if os.path.exists(note) else []
 
     def act(self, prev: np.ndarray, cur: np.ndarray, text: str) -> Tuple[str, Dict[str, float]]:
-        ans = self.agent.predict(make_state(prev, cur, text), self.q)["answers"]["action"]
+        ans = self.agent.predict(make_state(prev, cur, drop_fields(text, self.drop)), self.q)["answers"]["action"]
         probs = ans["probabilities"]
         if self.sample:
             p = np.array([probs[a] for a in A.ACTIONS], dtype=np.float64)

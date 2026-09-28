@@ -621,3 +621,53 @@ def test_headless_mesen_exits_when_its_python_dies():
         else:
             subprocess.run(["kill", str(pid)])
             raise AssertionError("Mesen %d outlived its Python (%s)" % (pid, how))
+
+
+KEY = ("timer", "my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y", "my_state", "opp_state", "result")
+
+
+def _start_of(env, state, hold=20):
+    """(key RAM values, player 2's character, her x while holding right ``hold`` frames) from a savestate."""
+    from sf2.boot import P2_CHAR
+
+    b = env.backend
+    row = dict(zip(env.names, b.load_state(state).rams[0]))
+    p2 = b.dump_wram()[P2_CHAR]
+    xs = [dict(zip(env.names, r))["my_x"] for r in b.run([["right"]] * hold).rams]
+    return {k: row[k] for k in KEY}, p2, xs
+
+
+def test_boot_from_power_on_reaches_the_reference_fight_start(env):
+    """sf2/boot.py: reset, Capcom logo, intro, title, GAME START, Chun-Li, first opponent Dhalsim, round 1. The
+    reset's sub-frame timing depends on the emulator's state before it, which can move her first step one frame;
+    from the reference savestate + 300 frames it lands exactly (checked on the ROM, 2026-09-26)."""
+    from sf2.boot import boot
+
+    with open(SAVESTATE, "rb") as f:
+        ref = f.read()
+    env.backend.load_state(ref)
+    env.backend.run([[]] * 300)
+    booted = boot(env.backend)
+    want = _start_of(env, ref)
+    assert want[0]["timer"] == 0x99 and (want[0]["my_x"], want[0]["opp_x"]) == (208, 304) and want[1] == 7
+    assert _start_of(env, booted) == want
+
+
+def test_next_fight_continues_after_a_lost_match_to_the_rematch(env):
+    """Idle through a lost match; next_fight presses START on the continue countdown and jab on the select screen
+    and stops on the rematch's first controllable frame, where holding right moves her as from the savestate."""
+    from sf2.boot import next_fight
+    from sf2.ram import load_map
+
+    env.reset()
+    while True:
+        res = env.act("idle")
+        while not res.round_over:
+            res = env.act("idle")
+        if not env.next_round():
+            break
+    assert env.wins["opp"] == 2
+    frames = []
+    state = next_fight(env.backend, on_frames=frames.append, ram_map=load_map(RAM_MAP))
+    assert all(len(c) <= 60 for c in frames)
+    assert _start_of(env, state) == _start_of(env, env.savestate)

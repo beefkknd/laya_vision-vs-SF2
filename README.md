@@ -1,140 +1,220 @@
-# laya_vision-vs-SF2
+# laya-vision vs Street Fighter II: lessons learned
 
-This project teaches **laya-vision** to play **SNES Street Fighter II**, running in **Mesen 2** on a Mac Studio. It follows the plan in [PLAN.md](PLAN.md):
+[![laya-vision plays Chun-Li in Street Fighter II](https://img.youtube.com/vi/8VLMJVLKQAY/maxresdefault.jpg)](https://youtu.be/8VLMJVLKQAY)
 
-1. A frame-level teacher labels frames.
-2. laya-vision learns to copy it.
-3. The student plays, and the teacher labels the student's own frames (DAgger).
-4. The model trains again.
+*A 256M-parameter vision model looks at two screenshots and picks Chun-Li's next move, once every 4 frames. It wins
+40 of 41 rounds against Dhalsim. Code: [github.com/beefkknd/laya_vision-vs-SF2](https://github.com/beefkknd/laya_vision-vs-SF2).*
 
-Round wins and damage decide whether a round of training worked; validation loss does not.
+I don't expect anyone to run this: you need the ROM, Mesen and an Apple-silicon Mac. This page is the part worth
+reading: what went wrong, and how each problem was found and fixed. Setup is in [docs/SETUP.md](docs/SETUP.md) and
+the agent runbook in [AGENTS.md](AGENTS.md).
 
-## How the pieces connect
+## Why
+
+I wanted to learn two things by doing them:
+
+1. **Fine-tune a small model to solve a visual problem.** A "System 1" decision: one look at the screen, one
+   choice, no reasoning chain. A fighting game is a good test, because the answer changes every quarter second and
+   you can't fake it.
+2. **Build the harness that makes tuning possible.** Understand the problem domain well enough to measure it, then
+   gate every change on real play, like a regression test.
+
+The second turned out to be most of the work, and all of the value.
+
+## What laya-vision is
+
+[laya-vision](https://github.com/r33drichards/laya-vision) is a research fork of Laya's typed-decision model. It
+puts a **SmolVLM-256M** image backbone in front of a decision head that answers `predict(state, questions)` with a
+probability for each option. It's PyTorch and runs on Apple MPS. The [base checkpoint](https://huggingface.co/thaitea/laya-vision-smolvlm-256m)
+was trained on photo questions and knows nothing about games.
+
+Here the question is "which of these 14 moves now?" The state is two frames (4 frames ago and now) plus a
+one-line note read from RAM:
 
 ```
-Mesen 2 (your SNES ROM)                                Python (this repo)
-  mesen/sf2_bridge.lua  ── TCP 127.0.0.1:47800 ──▶  sf2/mesen.py  →  sf2/env.py  →  teacher / student / recorder
-  every input poll:                                   RUN n frames of input
-    apply the next planned input, or                  ◀── RAM values for every frame
-    report and wait for Python                        ◀── screenshots (4 frames before the end, and the end)
+me=chunli stand hp=100 opp=dhalsim attack hp=100 dist=mid facing=right corner=none time=early last=forward fireball=none
 ```
 
-- **The emulator never runs ahead of Python.** At each input poll, the Lua script applies the next planned input. When the plan runs out, it blocks until Python sends the next command. How long the model takes to decide never changes the fight.
-- **Each option is a short input.** The model picks `hk`, and the glue taps roundhouse (2 frames down, 2 up) as one run. World Warrior Chun-Li has no fireball or dragon punch, so the set has no special-move macros; her Lightning Legs come later.
-- **Python writes every file** (savestates, screenshots, logs). The Lua script only needs network access.
-- **The script can stay loaded all day.** When a Python script ends, it disconnects. The Lua script reconnects to the next one within a second.
+Upstream has no LoRA, so `sf2/lora.py` adds rank-16 adapters to the text layers and merges them back after training.
+A trained run is an ordinary laya-vision checkpoint.
 
-## What laya-vision actually is
+## How it's wired
 
-- **It is not `laya-mlx`.** [`laya-mlx`](https://github.com/mizorewww/laya-mlx) (the Apple MLX runtime) is text-only. laya-vision is a separate research fork, [r33drichards/laya-vision](https://github.com/r33drichards/laya-vision). It uses a **SmolVLM-256M** image backbone with Laya's typed-decision head and the same `predict(state, questions)` API. It is **PyTorch** and runs on Apple **MPS**.
-- **Checkpoint:** [`thaitea/laya-vision-smolvlm-256m`](https://huggingface.co/thaitea/laya-vision-smolvlm-256m). It was trained on photo questions and knows no games.
-- **No LoRA upstream.** Its trainer only freezes whole layers. `sf2/lora.py` adds rank-r adapters to the text layers and merges them back before saving, so a trained run is an ordinary laya-vision checkpoint.
-- **Upstream already tried this loop on Atari** ([game-training.md](https://github.com/r33drichards/laya-vision/blob/main/docs/game-training.md)):
-  - two frames beat one (median score 0.201 vs 0.131)
-  - one DAgger round lifted the median from 0.201 to 0.310
-  - taking the top action beat sampling
-  - frame accuracy did not predict play strength
+### One decision: from the screen to the buttons
 
-  So this project uses **two frames** (4 frames ago and now) plus a text note, and the gate is real play.
+Every 4 frames the emulator stops and waits. laya looks, picks a move, and the move becomes exact per-frame
+button presses.
 
-## Layout
+```mermaid
+flowchart LR
+    subgraph EMU["Mesen 2 running the SF2 ROM"]
+        SCR["Screen<br/>frame t-4 and frame t"]
+        RAM["Work RAM<br/>life, x / y, states, clock"]
+    end
+    subgraph LAYA["laya-vision: SmolVLM-256M + decision head"]
+        VT["Vision tower + connector<br/>frozen, features cached"]
+        TXT["Text layers<br/>+ LoRA rank 16, the only trained part"]
+        HEAD["Typed-decision head<br/>a probability for each of 14 moves"]
+        VT --> TXT --> HEAD
+    end
+    SCR -->|"2 images, 256 px"| VT
+    RAM -->|"note: me=chunli stand hp=100<br/>opp=dhalsim attack dist=mid ..."| TXT
+    Q["Question: which move now?<br/>14 options with descriptions"] --> TXT
+    HEAD -->|"top move, e.g. hk 62%"| MAC["Action macro<br/>hk = R held 2 frames, released 2<br/>forward / back resolved by facing"]
+    MAC -->|"per-frame SNES buttons"| BR["sf2_bridge.lua<br/>lockstep: the game waits for Python"]
+    BR --> EMU
+```
 
-| Plan piece | Here |
+### The training loop
+
+A scripted teacher reads RAM and labels every frame with a soft distribution over moves, whoever is playing.
+laya first copies the teacher's own play (imitation). Then it plays, and the teacher labels **laya's own** frames
+(DAgger). Every round is judged by the gate, never by training loss.
+
+```mermaid
+flowchart TB
+    H["ROM acceptance suite, 30 checks<br/>writes the harness stamp"] -.->|"no stamp, no run"| C
+    C["Teacher plays, collecting data<br/>top choice + 10% random<br/>37,879 decisions"] --> D[("Dataset<br/>2 frames + note + teacher's soft label")]
+    D --> T["Train LoRA on laya<br/>256 px, 2 epochs, cached vision features"]
+    T --> P["laya plays the gate<br/>20 paired matches vs Dhalsim"]
+    P --> G{"Net damage per round<br/>better by 2 SE?"}
+    G -->|"better, or the first miss"| R["DAgger: the teacher's labels<br/>on laya's own frames join the data"]
+    R --> D
+    G -->|"two misses in a row"| S["Stop: keep the best round"]
+```
+
+Each round moved laya closer to its teacher:
+
+```mermaid
+xychart-beta
+    title "Net damage per round vs Dhalsim (20 paired matches)"
+    x-axis ["random", "r0 imitation", "r1 DAgger", "r2 DAgger", "teacher"]
+    y-axis "net damage per round" -60 --> 120
+    bar [-56.0, 67.7, 80.6, 93.1, 105.5]
+```
+
+| Policy | Net damage / round (± SE) | Rounds won |
+|---|---:|---:|
+| random | −56.0 ± 7.4 | 3 / 42 |
+| scripted teacher | +105.5 ± 6.8 | 40 / 40 |
+| laya r0: imitation only | +67.7 ± 12.1 | 39 / 49 |
+| laya r1: DAgger round 1 | +80.6 ± 9.6 | 39 / 46 |
+| **laya r2: DAgger round 2** | **+93.1 ± 8.3** | **40 / 41** |
+
+## Problems I hit, and what solved them
+
+### 1. The harness lied, and every early result was an artefact
+My first training loop produced a model with 82% frame accuracy that played badly, and a teacher that was worse
+than random. An audit by three separate agents (emulator, data, code) found four bugs:
+- x was read from the camera scroll, so distance was meaningless;
+- facing flipped mid-round, so "forward" walked away;
+- time-overs were scored as draws with made-up damage;
+- parallel workers replayed identical matches.
+
+**Fix:**
+- Delete the data.
+- Record real ROM traces and replay them in tests.
+- Add a ROM acceptance suite (30 checks) that writes a stamp. Collection and play **refuse to start** without a
+  stamp matching the ROM, the RAM map and the harness code.
+- Every later fix got a test that failed first.
+
+### 2. The emulator and the model disagreed about time
+- **Screenshots were stale.** Headless Mesen skips rendering frames, so a screenshot could lag the RAM by 0–3
+  frames, differently every run. *Fix:* `--snes.disableFrameSkipping=true`.
+- **Model latency changed the fight.** *Fix:* lockstep. The Lua bridge blocks at every input poll until Python
+  sends the next command, so slow inference never changes what happens.
+
+### 3. "Who won" is harder than it looks
+Life bars drain for several frames after a hit, a KO blow wraps the life byte below zero, and a time-over zeroes
+both bars about 480 frames later. *Fix:* stop inferring and read the ROM's own round-result byte. Damage is booked
+from the true-life byte on the frame the hit lands.
+
+### 4. Not every frame is a decision
+While she is being hit, thrown or knocked down, the stick does nothing, so labels on those frames are noise.
+*Fix:* a `controllable` flag keeps those frames in the score but out of training. Block stun had to be told apart
+from hit stun (holding down still works in block stun) with a separate reaction byte.
+
+### 5. Measurement noise hides real progress
+Per-round damage varies by about 30 points (standard deviation). *Fix:* one gate for everything:
+- 20 **paired** matches (the same 20 openings for every arm);
+- net damage per round as the primary number;
+- "better" only if the gain exceeds 2 combined standard errors.
+
+Frame accuracy and validation loss **did not** predict play strength, which upstream had also found on Atari.
+
+### 6. The teacher was the bottleneck
+Rules went in one at a time, and almost every one had to pass the gate to stay:
+
+| Rule | Effect |
 |---|---|
-| Emulator | `mesen/sf2_bridge.lua` (inside Mesen) + `sf2/mesen.py` (Python end) |
-| Fight env | `sf2/env.py`. One call = one decision. It tracks rounds and matches from the life values; an episode is one match from your savestate |
-| RAM map (per cartridge) | `ram_maps/sf2_snes.txt`, found by `scripts/find_ram.py` (`sf2/ramsearch.py`) |
-| Action set (14) | `sf2/actions.py`: `idle forward back jump jump_forward crouch lp hp lk hk block` + `throw sweep lightning_legs` (Stage 4, checked on the ROM) |
-| Text state | `me=chunli stand hp=80 opp=dhalsim jump hp=45 dist=mid facing=right corner=opp time=late last=hk fireball=close` (`sf2/ram.py`: each fighter's state word stand/crouch/jump/jumpattack/block/attack/hit/dizzy/other, whose back is to a wall, round clock early/mid/late, how far a Yoga Fire is from her or none) |
-| Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` turns toward/back + fierce into `throw` and down + roundhouse into `sweep` |
-| Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
-| LoRA | `scripts/train.py` + `sf2/lora.py`. Early stopping uses held-out teacher frames |
-| Student plays / relabel / gate | `scripts/play_student.py`, `scripts/relabel.py` (`dagger` or `filter`), `scripts/play_teacher.py`, `scripts/gate.py`. `scripts/dagger_round.sh N` runs one turn of the loop |
+| Jump in from mid range | better than random |
+| Kick **near the top** of the jump | hits 69% of the time just before the apex, vs 11% kicking on the way up |
+| Crouch-guard his attacks | teacher reached +62.0 |
+| Walk in and **throw** | teacher reached +104.5, 40/40 rounds |
+| Fierce punch for close anti-airs | +105.5; kept even though the gain was below the bar |
 
-Directions are relative: `forward` is toward the opponent, `back` is away, and `block` is down-back. `throw` is toward + fierce (a throw within 42 px, a fierce further out), `sweep` down + roundhouse, `lightning_legs` 12 short-kick taps in 24 frames. Buttons follow SF2's default SNES layout: **Y X L = jab / strong / fierce, B A R = short / forward / roundhouse**. If your in-game button config differs, change `PAD` in `sf2/config.py`.
+Rules for fancier moves (sweep, Lightning Legs) failed the gate and were left out.
 
-## Setup (Mac Studio)
+One surprise: **how the teacher plays while collecting matters as much as its rules.** Sampling its soft
+distribution played at about +12. Its top choice plus 10% random played at +91 (+102 with 5% random)
+and made far better data.
 
-1. **Mesen 2.** Install it from [mesen.ca](https://www.mesen.ca/) or [GitHub releases](https://github.com/SourMesen/Mesen2/releases), and open your SF2 ROM.
-2. **Allow the script to use the network.** Open Debug → Script Window → Settings → Restrictions, and tick **"Allow network access"**. To override the port with `SF2_BRIDGE_PORT`, also tick "Allow access to I/O and OS functions".
-3. **Python.** In this repo:
-   ```bash
-   uv venv -p 3.12 && source .venv/bin/activate
-   uv pip install -e '.[model,dev]'
-   uv pip install "laya @ git+https://github.com/r33drichards/laya-vision@568feeeada793f70f736756b0f3a7643d1e75910"
-   pytest -q      # 22 tests. Needs no ROM or model; the Lua-bridge tests run only if lua5.4 + LuaSocket are installed
-   ```
-4. **Load the bridge.** In Mesen's Script Window: Open → `mesen/sf2_bridge.lua` → Run. It shows "waiting for a Python script". Leave it loaded.
-5. **Speed.** For recording yourself, play at normal speed. For teacher collection and student play, set Mesen's emulation speed to maximum; the bridge still waits for Python on every decision.
+### 7. Imitation copies the wrong thing
+r0 learned "repeat my last move": 94% of its mistakes repeated the previous action, and 17% of all its decisions
+were such mistakes. One **DAgger** round cut that to 5%, because the teacher labelled the situations laya itself
+got into.
 
-Every emulator script starts with *"waiting for Mesen on 127.0.0.1:47800"* and continues once the bridge connects.
+### 8. Speed, measured and not assumed
 
-## Day 1: savestate, RAM map, check
+| Change | Result |
+|---|---|
+| Cache the frozen vision tower's features per image | 2.4× faster training steps; LoRA only trains the text layers, so the features never change |
+| 256 px instead of 512 | 1.34× faster training, 1.9× faster play |
+| bf16 on MPS | rejected: 10% faster play, but only 69% agreement with fp32 |
+| N headless Mesens in parallel | 4 play workers ≈ 20 decisions/s on an M4 Pro, 27 on an M4 Max |
 
-```bash
-# 1. Pick Ryu vs Ken (vs mode, or wherever you like). At "FIGHT!" press F9 in Mesen (or Enter here), then Ctrl-C.
-python scripts/record_human.py --no-log --save-state-to states/ryu_vs_ken.state
+### 9. Moving machines exposed hidden assumptions
+When I moved from the Mac mini to a Mac Pro:
+- **The feature cache broke on copied data.** It indexed images by absolute path. *Fix:* key them relative to the
+  data dir, with a test that moves a data dir first.
+- **Mesen died silently from a background shell.** A locked screen reports zero displays, and the GUI crashes.
+- **The same benchmarks, re-run, changed the worker counts:**
 
-# 2. Find where your cartridge keeps life and positions. Writes ram_maps/sf2_snes.txt
-python scripts/find_ram.py                     # scripted: Python walks, jumps, waits to get hit, punches
-python scripts/find_ram.py --manual --force    # if that fails: you play each phase in Mesen when prompted
+  | Workers | Mac mini (M4 Pro) | Mac Pro (M4 Max) |
+  |---|---|---|
+  | Teacher-data collection | not re-measured | 12, about 390 decisions/s |
+  | Student play | 4 | 4 |
 
-# 3. Send each action. x must move on forward/back, y on jump. Screenshots in out/check/
-python scripts/check_env.py
-```
+### 10. Playing the real game, not a savestate
+For the video, laya plays arcade mode from power-on: boot, menus, next opponent, bonus stages, continues.
+- **The menus.** A fixed input script from reset reaches the same fight every time, because the ROM is
+  deterministic.
+- **Where you are in the game.** Screen and mode bytes in RAM say whether a fight is ready.
+- **Three windows playing the same fight.** A model that always takes its top move plays identical fights. *Fix:*
+  a different start delay per game.
 
-**Why the RAM finder exists.** World Warrior, Turbo and Super SF2 (and each region) keep life and positions at different addresses, and I couldn't verify any of them without your ROM. `find_ram.py` dumps the full 128 KiB of work RAM during known phases: walk right, walk left, jump, get hit, land hits. It keeps the addresses that behave like life, x and y. You can also read them off Mesen's memory viewer (Debug → Memory Tools) and write `ram_maps/sf2_snes.txt` by hand; the format is in `sf2/ram.py`. Commit the map once `check_env.py` looks right.
+## What I'd tell someone trying something similar
+- **Build the measuring instrument before the model.** Test the harness against the real system, and make the
+  pipeline refuse to run on an unverified one.
+- **Pick one gate that measures the real goal,** size it to its noise, and never read progress off training loss.
+- **Improve the teacher before scaling data.** When the gate stalls, the labels are usually too coarse.
+- **Use DAgger once imitation plateaus.** It fixes exactly the states the student reaches that the teacher never did.
+- **Measure speed on your own hardware.** Two Macs gave different answers.
 
-## The rest of the week
+## Still open
+- **It only knows Dhalsim.** Every gate is against Dhalsim. In short arcade runs it has both beaten and lost to
+  Ryu. Next is gating it against each opponent, then training across all of them.
+- **Not quite real time:** about 72 ms per decision against a 67 ms budget on the M4 Pro.
 
-```bash
-# Optional: your own play as teacher (rung 1). Play clean fireballs, anti-airs and blocks for 10–20 minutes
-python scripts/record_human.py --session s1          # Ctrl-C to stop
-python scripts/label_human.py --session human/s1 --name human_s1
+## Repo map
 
-# Day 2: seed set from the scripted teacher (epsilon-expert, soft targets) + reference lines for the gate
-python scripts/collect_teacher.py --name seed_teacher --decisions 30000 --eps 0.25
-python scripts/play_teacher.py --name teacher --matches 10
-python scripts/play_teacher.py --name random --policy random --matches 10
-
-# Day 3: first LoRA; the student plays the CPU; compare
-python scripts/train.py --data data/seed_teacher --out runs/r0          # + --data data/human_s1 if recorded
-python scripts/play_student.py --model runs/r0/best --name r0 --matches 10
-python scripts/gate.py rollouts/random rollouts/teacher rollouts/r0
-
-# Days 4–6: DAgger rounds. The student plays, the teacher labels its frames, retrain, gate
-scripts/dagger_round.sh 1
-scripts/dagger_round.sh 2
-
-# Cheap alternative to DAgger: keep only student actions that won the next 0.5 s
-python scripts/relabel.py --rollout rollouts/r0 --name filter_r1 --mode filter
-```
-
-On day 7, compare `scripts/gate.py rollouts/teacher rollouts/r0 rollouts/r1 rollouts/r2`. If win rate and damage per round have not moved, the labels are too coarse. Fix the teacher or add a macro; don't collect more frames.
-
-## Headless and parallel runs
-
-Every emulator script takes `--headless`. It then starts its own windowless Mesen (`Mesen --testrunner <rom> <bridge>`) on its own port, so no window or script loading is needed. Set `SF2_ROM` (and `SF2_MESEN` if Mesen isn't in `/Applications`). Screenshots switch to Mesen's raw screen buffer automatically if the headless PNGs come back blank.
-
-`scripts/parallel.py` runs N of those at once, each with a different seed and a random idle start, so the workers don't replay the same fight. It splits `--decisions` / `--matches` between them and merges the results into the usual `data/<name>` / `rollouts/<name>`:
-
-```bash
-export SF2_ROM=~/roms/sf2.sfc
-python scripts/parallel.py --workers 4 collect_teacher --name seed_teacher --decisions 40000 --eps 0.25
-python scripts/parallel.py --workers 4 play_student --model runs/r0/best --name r0 --matches 12
-WORKERS=4 scripts/dagger_round.sh 1
-```
-
-Parallel workers make **collection and evaluation** faster. Training stays one process on the GPU. [AGENTS.md](AGENTS.md) is the runbook for coding agents, including worker counts for a Mac mini M4.
-
-## Check these on day 1 (the likely breakpoints)
-
-1. **RAM map.** `check_env.py` must show x moving on `forward`/`back` and y on `jump`. The teacher, the text note and facing all depend on them.
-2. **Buttons (`PAD`).** The `lp`/`hk` screenshots should show a jab and a roundhouse.
-3. **Macro timing (`sf2/actions.py`).** `tests/test_rom_harness.py` checks every action's state and attack length on the ROM.
-4. **Estimates to tune:** `INTRO_SKIP` (`sf2/env.py`), and `CLOSE`/`MID` (`sf2/ram.py`, SNES pixels).
-5. **KO detection.** A round ends when a life value goes negative, or when both bars refill (time over, or a cart that stops at 0). If rounds never end in the logs, look at the life values around a KO in `check_env.py`.
-
-## Status
-
-The unit tests cover the actions, the labeler, LoRA merging and the dataset → laya-vision loader. They also run the **real `sf2_bridge.lua`** in stock Lua 5.4 + LuaSocket against a mock of Mesen's `emu` API: RUN/WATCH/DUMP/savestates, the full environment, the scripted RAM finder, and reconnecting. None of it has run inside Mesen itself, or with your ROM or the real checkpoint yet. Day 1 is the first real test.
+| What | Where |
+|---|---|
+| Emulator bridge | `mesen/sf2_bridge.lua`, `sf2/mesen.py` |
+| Environment, RAM map, actions | `sf2/env.py`, `ram_maps/sf2_snes.txt`, `sf2/actions.py` |
+| Teacher | `sf2/teacher.py`, [TEACHER.md](TEACHER.md) |
+| Training (LoRA, feature cache) | `scripts/train.py`, `sf2/lora.py`, `sf2/vision_cache.py` |
+| Gate protocol and every number | [PROGRESS.md](PROGRESS.md) |
+| The two-day story | [JOURNAL.md](JOURNAL.md) |
+| Arcade console (the video) | `scripts/arcade.sh`, `scripts/show.py`, `sf2/boot.py` |
+| Harness tests | `tests/test_rom_harness.py` |

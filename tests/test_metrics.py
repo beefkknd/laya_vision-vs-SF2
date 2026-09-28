@@ -82,3 +82,13 @@ def test_summary_line_names_moves_and_phases():
     rows = [_row(fw, _probs(fw), t=3.0)]
     line = M.summary(M.slice_metrics([r for r, _, _ in rows], [z for _, z, _ in rows], [t for _, _, t in rows]))
     assert "forward" in line and "early" in line
+
+
+def test_teacher_probability_of_the_models_choice_reads_the_soft_target():
+    # the teacher splits 0.6 forward / 0.4 hk; a model that picks hk is 0.4 right, not 0 (accuracy) or 1
+    fw, hk = A.ACTIONS.index("forward"), A.ACTIONS.index("hk")
+    rec, z, _ = _row(fw, _probs(hk))
+    soft = [0.6 if j == fw else 0.4 if j == hk else 0.0 for j in range(len(A.ACTIONS))]
+    s = M.slice_metrics([rec], [z], [soft])
+    assert abs(s["all"]["t_of_pred"] - 0.4) < 1e-9
+    assert s["all"]["acc"] == 0.0

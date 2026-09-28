@@ -16,7 +16,8 @@ in parallel** without a person at the Mesen window.
 ## The fight-start savestate
 `states/chunli_vs_dhalsim.state` (not in git) is arcade mode from power-on: title, GAME START, Chun-Li (down,
 right, jab), first opponent Dhalsim, saved on the first frame of round 1 where holding right moves her further
-than idling (clock 99, x 208 vs 304). The harness fixtures in `tests/fixtures` were recorded from it; re-record
+than idling (clock 99, x 208 vs 304). `scripts/make_savestate.py --out states/chunli_vs_dhalsim.state` remakes it (a remade
+state plays identically to the original). The harness fixtures in `tests/fixtures` were recorded from it; re-record
 them with `scripts/record_trace.py` if it changes.
 
 ## Headless, one worker
