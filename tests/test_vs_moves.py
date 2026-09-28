@@ -219,7 +219,7 @@ def test_a_kept_short_memory_must_meet_todays_rules():
 
 
 def test_revise_prompt_shows_which_lessons_system1_followed():
-    from sf2.system2 import followed
+    from sf2.system2_prompts import followed
     a = lambda act, rng, res, punished=False: {"action": act, "range": rng, "actual": res, "i_was_hit": punished}  # noqa
     recent = [a("sweep", "close", "whiff", True), a("sweep", "close", "whiff"), a("hp", "mid", "hit")]
     mem = {"lessons": [{"text": "use more lp up close", "kind": "use_more", "action": "lp", "range": "close"},
@@ -229,3 +229,26 @@ def test_revise_prompt_shows_which_lessons_system1_followed():
     assert lines[0] == '- "use more lp up close": lp at close used 0 times'
     assert lines[1] == '- "avoid sweep up close": sweep at close used 2 times anyway (whiff 2; punished 1)'
     assert len(lines) == 2                                          # habits have no move to follow
+
+
+def test_system2_reply_checks_flag_each_broken_rule():
+    """The checks the live Qwen prompt tests gate on, seen red on canned bad replies."""
+    import json
+    from sf2.system2_checks import reply_problems
+    logs = json.load(open("tests/fixtures/system2/chunli_logs.json"))
+    ryu = logs["ryu"]["actions"]
+    every = [a for v in logs.values() for a in v["actions"]]
+    good = {"text": "use more lp up close", "kind": "use_more", "action": "lp", "range": "close", "claim": "lands"}
+    assert reply_problems("chunli", {"lessons": [good]}, 5, ryu, every) == []
+    bad = {
+        "no lessons key": {"notes": "x"},
+        "over the limit": {"lessons": [good, dict(good, action="c.lk", text="use more c.lk up close")] * 3},
+        "not her move": {"lessons": [dict(good, action="hadoken", text="use more hadoken")]},
+        "numbers": {"lessons": [dict(good, text="use more lp up close: 57%")]},
+        "too long": {"lessons": [dict(good, text="use more lp up close because it is by far the best poke you have")]},
+        "repeat": {"lessons": [good, dict(good, text="lp up close again")]},
+        "use and avoid": {"lessons": [good, dict(good, kind="avoid", claim="whiffs", text="avoid lp up close")]},
+        "not backed": {"lessons": [dict(good, action="hp", text="use more hp up close")]},
+    }
+    for name, reply in bad.items():
+        assert reply_problems("chunli", reply, 5, ryu, every), name

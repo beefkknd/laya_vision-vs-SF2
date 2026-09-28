@@ -8,22 +8,15 @@ game results), never the raw thousands of lines. Each lesson it writes names the
 evidence is computed HERE from the log, never taken from Qwen: a lesson the numbers do not support is rejected, with the
 reason logged. If Qwen's reply is unusable twice, the previous memory is kept.
 """
-import collections
 import json
 import re
 from typing import Dict, List, Optional, Tuple
 
-from .memory import KINDS, MAX_PROMPT_LESSONS, check
+from .memory import KINDS, check
 from .qwen import chat, json_reply
+from .system2_prompts import (CLAIMS, MAX_PLAYBOOK, MAX_PROMPT_LESSONS, MAX_TEXT, MIN_TRIES, RANGES, messages,
+                              populate_prompt, review_prompt)
 from .vs_sweep import actions
-
-MAX_PLAYBOOK = 8
-MIN_TRIES = 3
-MAX_TEXT = 60              # characters per lesson: it goes into laya's prompt
-RANGES = ("close", "mid", "far")
-CLAIMS = ("lands", "whiffs", "blocked", "punished", "habit:attack", "habit:jump", "habit:guard", "counter:attack",
-          "counter:jump")
-
 
 # ------------------------------------------------------------------------------------------------ evidence (the truth)
 def evidence(acts: List[Dict], claim: str, action: Optional[str], rng: Optional[str]) -> Dict:
@@ -61,42 +54,6 @@ def supported(les: Dict, ev: Dict) -> Optional[str]:
 
 
 # ------------------------------------------------------------------------------------------------ digest (what Qwen reads)
-def digest(acts: List[Dict], games: List[Dict], title: str) -> str:
-    lines = ["## %s: %d rounds (%s), %d actions" % (
-        title, len(games), ", ".join("%s %d" % kv for kv in collections.Counter(g["result"] for g in games).items()),
-        len(acts))]
-    if games:
-        lines.append("damage per round: dealt %.0f, taken %.0f" % (sum(g["dealt"] for g in games) / len(games),
-                                                                  sum(g["taken"] for g in games) / len(games)))
-    moves = collections.defaultdict(list)
-    for a in acts:
-        if a["kind"] == "attack":
-            moves[(a["action"], a["range"])].append(a)
-    lines.append("move @ range: tries, lands%, whiffs%, blocked%, punished% (I was hit before my next turn)")
-    for (m, r), g in sorted(moves.items(), key=lambda kv: -len(kv[1])):
-        if len(g) >= MIN_TRIES:
-            pct = lambda f: 100 * sum(1 for a in g if f(a)) / len(g)  # noqa: E731
-            lines.append("  %s @ %s: %d, %.0f%%, %.0f%%, %.0f%%, %.0f%%" % (
-                m, r, len(g), pct(lambda a: a["actual"] == "hit"), pct(lambda a: a["actual"] == "whiff"),
-                pct(lambda a: a["actual"] == "blocked"), pct(lambda a: a["i_was_hit"])))
-    lines.append("opponent at my turns, by range (share of turns):")
-    for r in RANGES:
-        g = [a for a in acts if a["range"] == r]
-        if g:
-            c = collections.Counter(a["opp_state"] for a in g)
-            lines.append("  %s (%d turns): %s" % (r, len(g), ", ".join("%s %.0f%%" % (s, 100 * n / len(g))
-                                                                       for s, n in c.most_common(4))))
-    for state in ("attack", "jump"):
-        g = [a for a in acts if a["kind"] == "attack" and a["opp_state"] == state]
-        if g:
-            c = collections.defaultdict(list)
-            for a in g:
-                c[a["action"]].append(a["actual"] == "hit")
-            lines.append("when he was in %s: %s" % (state, ", ".join("%s lands %d/%d" % (m, sum(v), len(v))
-                                                                   for m, v in sorted(c.items(), key=lambda kv: -len(kv[1])))))
-    return "\n".join(lines)
-
-
 def fits_laya(mem) -> bool:
     """A stored memory still meets today's rules (e.g. one kept from an earlier session or written by an older
     builder): every lesson names a claim, fits laya's prompt (short, no numbers) and no move or claim repeats."""
@@ -154,30 +111,10 @@ def vet(lessons: List[Dict], acts: List[Dict], limit: int,
 
 
 # ------------------------------------------------------------------------------------------------ Qwen
-def _rules(me: str) -> str:
-    return (
-        "You are System 2, the coach of an AI playing %s in Street Fighter II (SNES, World Warrior) against the CPU. "
-        "System 1 is a vision model that picks one move every turn; your lessons steer it.\n"
-        "Moves %s can do: %s.\nRanges (gap between the fighters): close < 55 px <= mid < 120 px <= far.\n"
-        "System 1 is laya, a small vision model: it reads your lessons as plain text in its prompt, next to a RAM "
-        "note, and knows the moves only by the exact names above. So write FOR IT: one short plain instruction per "
-        "lesson (<= %d characters), the move name exactly as listed, no numbers or percentages (the evidence "
-        "carries those), and never two lessons about the same move: when a lesson holds at every range, give range "
-        "null and say so once, e.g. \"avoid spinning_bird_kick: he punishes it at every range\", "
-        "\"use more lp up close\", \"when he jumps in, answer with spinning_bird_kick\".\n"
-        "Every lesson must rest on numbers in the digest and name them:\n"
-        "  kind: one of %s\n  action: one of the moves above, or null (habits)\n  range: close, mid, far, or null\n"
-        "  claim: one of %s (lands/whiffs/blocked/punished: what my move did; habit:X: the opponent was in X at my "
-        "turn; counter:X: my move landed while he was in X)\n"
-        "Lessons the numbers do not support are thrown away, so do not guess. Reply with JSON only: "
-        "{\"lessons\": [{\"text\", \"kind\", \"action\", \"range\", \"claim\"}], \"notes\": \"one line: what changed and why\"}"
-        % (me, me, ", ".join(actions(me)), MAX_TEXT, ", ".join(KINDS), ", ".join(CLAIMS)))
-
-
 def _ask(me: str, task: str, prompt: str, acts: List[Dict], limit: int,
          fallback: Optional[List[Dict]] = None) -> Tuple[Optional[List[Dict]], Dict]:
     """Qwen's lessons with verified evidence (None if unusable twice), plus a report of what was kept / rejected."""
-    msgs = [{"role": "system", "content": _rules(me)}, {"role": "user", "content": prompt}]
+    msgs = messages(me, prompt)
     report: Dict = {"task": task, "attempts": []}
     for _ in range(2):
         try:
@@ -200,35 +137,7 @@ def _ask(me: str, task: str, prompt: str, acts: List[Dict], limit: int,
 def review(me: str, playbook: Optional[Dict], by_opp: Dict[str, Tuple[List[Dict], List[Dict]]]):
     """New playbook lessons from every opponent's log so far: (lessons or None, report)."""
     everything = [a for acts, _ in by_opp.values() for a in acts]
-    prompt = ("Rewrite %s's long-term PLAYBOOK: up to %d lessons about %s's own moves and approach that hold across "
-              "opponents (keep the good ones, fix or drop what the new games contradict).\n\nCurrent playbook:\n%s\n\n"
-              "%s\n\n%s" % (me, MAX_PLAYBOOK, me, _show(playbook),
-                            digest(everything, [g for _, gs in by_opp.values() for g in gs], "all opponents"),
-                            "\n\n".join(digest(a, g, "vs " + o) for o, (a, g) in sorted(by_opp.items()))))
-    return _ask(me, "review_%s" % me, prompt, everything, MAX_PLAYBOOK)
-
-
-def followed(recent: List[Dict], current: Optional[Dict]) -> List[str]:
-    """For each lesson in the current short memory: did System 1 act on it in the recent actions, and how did it go."""
-    out = []
-    for les in (current or {}).get("lessons", []):
-        act, rng = les.get("action"), les.get("range")
-        if not act:
-            continue
-        used = [a for a in recent if a["action"] == act and rng in (None, a["range"])]
-        where = "%s%s" % (act, " at " + rng if rng else "")
-        if les["kind"] == "avoid":
-            out.append("- \"%s\": %s used %d times anyway%s" % (les["text"], where, len(used), _how(used)))
-        else:
-            out.append("- \"%s\": %s used %d times%s" % (les["text"], where, len(used), _how(used)))
-    return out
-
-
-def _how(used: List[Dict]) -> str:
-    if not used:
-        return ""
-    c = collections.Counter(a["actual"] for a in used)
-    return " (%s; punished %d)" % (", ".join("%s %d" % kv for kv in c.most_common()), sum(a["i_was_hit"] for a in used))
+    return _ask(me, "review_%s" % me, review_prompt(me, playbook, by_opp), everything, MAX_PLAYBOOK)
 
 
 def populate(me: str, opp: str, playbook: Optional[Dict], vs_opp: Tuple[List[Dict], List[Dict]],
@@ -237,29 +146,5 @@ def populate(me: str, opp: str, playbook: Optional[Dict], vs_opp: Tuple[List[Dic
     """The short memory for the next games against ``opp``: (lessons or None, report). With ``recent`` (the actions of
     the round or game just played) and ``current`` (the short memory it was played with), Qwen REVISES the memory from
     what just happened instead of rewriting it from the lifetime totals alone."""
-    acts, games = vs_opp
-    past = digest(acts, games, "all games vs " + opp) if acts else "No games against %s yet: use the playbook and " \
-        "the all-opponent digest for my own moves (habit and counter claims need games against him)." % opp
-    task = ("Write the SHORT MEMORY for %s's next games against %s" % (me, opp)) if not current else (
-        "REVISE the SHORT MEMORY %s played %s with against %s. %s just ended; see below what %s actually did with "
-        "each lesson. Keep a lesson that still holds; rewrite or replace one the recent play contradicts or that "
-        "System 1 ignored (say it more directly, or pick a move it will use); add what the recent play shows is new"
-        % (me, what, opp, what[0].upper() + what[1:], me))
-    now = ""
-    if recent:
-        rep = followed(recent, current)
-        now = "\n\n%s\n%s" % (digest(recent, [], what + " vs " + opp),
-                                ("What System 1 did with the current short memory:\n" + "\n".join(rep)) if rep else "")
-    prompt = ("%s: up to %d lessons, the most useful first; they go straight into laya's prompt and are the only memory "
-              "it sees. Prefer what is specific to %s; one lesson per move; merge a move's ranges into one lesson when "
-              "it holds at every range.\n\nCurrent short memory:\n%s\n\nPlaybook:\n%s%s\n\n%s\n\n%s" % (
-                  task, MAX_PROMPT_LESSONS, opp, _show(current), _show(playbook), now, past,
-                  digest(everything, [], "my moves against all opponents")))
-    return _ask(me, "populate_%s_vs_%s" % (me, opp), prompt, acts, MAX_PROMPT_LESSONS, fallback=everything)
-
-
-def _show(mem: Optional[Dict]) -> str:
-    if not mem or not mem.get("lessons"):
-        return "(empty)"
-    return "\n".join("- %s  [%s %s: %d/%d]" % (x["text"], x["kind"], x.get("claim", ""), x["evidence"]["count"],
-                                                x["evidence"]["tries"]) for x in mem["lessons"])
+    prompt = populate_prompt(me, opp, playbook, vs_opp, everything, recent, current, what)
+    return _ask(me, "populate_%s_vs_%s" % (me, opp), prompt, vs_opp[0], MAX_PROMPT_LESSONS, fallback=everything)
