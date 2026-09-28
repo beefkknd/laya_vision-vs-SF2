@@ -39,7 +39,7 @@ def main():
     ap.add_argument("--lr-backbone", type=float, default=2e-4, help="learning rate of the LoRA adapters")
     ap.add_argument("--eval-every", type=int, default=250)
     ap.add_argument("--patience", type=int, default=3, help="evals without val-accuracy gain before stopping")
-    ap.add_argument("--val-limit", type=int, default=1500)
+    ap.add_argument("--val-limit", type=int, default=4000, help="stop if validation is larger (it is not cut at random)")
     ap.add_argument("--max-minutes", type=float, default=None)
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
