@@ -4,9 +4,30 @@
  "source": [
   "games_v1/chunli",
   "games_v2/chunli",
-  "learn/chunli/20260927-193816"
+  "learn/chunli/20260927-193816",
+  "learn/chunli/20260927-194458",
+  "learn/chunli/20260927-195522"
  ],
  "lessons": [
+  {
+   "text": "when he jumps, use spinning_bird_kick",
+   "kind": "counter",
+   "action": "spinning_bird_kick",
+   "range": null,
+   "claim": "counter:jump",
+   "evidence": {
+    "tries": 8,
+    "count": 4,
+    "rate": 0.5,
+    "refs": [
+     "learn/chunli/20260927-194458/g1f1200",
+     "learn/chunli/20260927-194458/g1f1596",
+     "learn/chunli/20260927-195522/g0f1200",
+     "learn/chunli/20260927-195522/g0f1596"
+    ],
+    "scope": "this opponent"
+   }
+  },
   {
    "text": "use more lp up close",
    "kind": "use_more",
@@ -28,41 +49,41 @@
    }
   },
   {
-   "text": "avoid spinning_bird_kick: he punishes it at every range",
+   "text": "avoid spinning_bird_kick at mid",
    "kind": "avoid",
    "action": "spinning_bird_kick",
-   "range": null,
+   "range": "mid",
    "claim": "punished",
    "evidence": {
-    "tries": 151,
-    "count": 95,
-    "rate": 0.63,
+    "tries": 16,
+    "count": 6,
+    "rate": 0.38,
     "refs": [
-     "games_v1/chunli/g0f60",
-     "games_v1/chunli/g0f264",
-     "games_v1/chunli/g0f444",
-     "games_v1/chunli/g0f640",
-     "games_v1/chunli/g0f756"
+     "learn/chunli/20260927-193816/g0f656",
+     "learn/chunli/20260927-193816/g0f948",
+     "learn/chunli/20260927-194458/g0f516",
+     "learn/chunli/20260927-194458/g1f668",
+     "learn/chunli/20260927-195522/g0f516"
     ],
-    "scope": "all opponents"
+    "scope": "this opponent"
    }
   },
   {
-   "text": "he jumps in at far range",
-   "kind": "opponent_habit",
-   "action": null,
-   "range": "far",
-   "claim": "habit:jump",
+   "text": "avoid sweep up close",
+   "kind": "avoid",
+   "action": "sweep",
+   "range": "close",
+   "claim": "whiffs",
    "evidence": {
-    "tries": 17,
-    "count": 11,
-    "rate": 0.65,
+    "tries": 12,
+    "count": 6,
+    "rate": 0.5,
     "refs": [
-     "learn/chunli/20260927-193816/g0f1104",
-     "learn/chunli/20260927-193816/g0f1108",
-     "learn/chunli/20260927-193816/g0f1112",
-     "learn/chunli/20260927-193816/g0f1116",
-     "learn/chunli/20260927-193816/g0f1120"
+     "learn/chunli/20260927-193816/g0f428",
+     "learn/chunli/20260927-193816/g0f464",
+     "learn/chunli/20260927-193816/g0f1396",
+     "learn/chunli/20260927-193816/g0f1744",
+     "learn/chunli/20260927-194458/g1f1164"
     ],
     "scope": "this opponent"
    }

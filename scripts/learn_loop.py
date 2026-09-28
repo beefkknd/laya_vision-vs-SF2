@@ -10,9 +10,10 @@ decided: win the match (best of 3 rounds) and the next opponent comes; lose it a
 against the same opponent. System 2 steps in:
     new opponent  -> the short memory for him (memory/short/<me>_vs_<opp>.json, goes into laya's prompt); one kept
                      from an earlier session is reused at once if it still meets today's rules (system2.fits_laya)
-    lost round    -> refreshes the short memory, so the next round plays with what just happened
-    end of a game -> rewrites the playbook (memory/playbook/<me>.json) from every round so far, then refreshes the
-                     short memory
+    lost round    -> REVISES the short memory from that round: Qwen sees the memory it was played with, what System 1
+                     did with each lesson (used / ignored, how it went) and the round's digest
+    end of a game -> rewrites the playbook (memory/playbook/<me>.json) from every round so far, then revises the short
+                     memory from the whole game the same way
 It learns from the earlier logs of this character too (rollouts/games_v*/<me>, rollouts/learn/<me>).
 
 Session log: rollouts/learn/<me>/<session>/{games.jsonl (one line per game), rounds.jsonl (per round), actions.jsonl
@@ -27,7 +28,7 @@ import random
 import shutil
 import sys
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import _path  # noqa: F401
 from sf2.boot import CHARACTERS, next_fight, start_arcade
@@ -85,11 +86,14 @@ def show(title: str, lessons: List[Dict]) -> None:
                                           x["evidence"]["tries"]))
 
 
-def run_system2_short(me: str, opp: str, by_opp) -> Dict:
-    say("System 2: writing the short memory vs %s ..." % opp)
+def run_system2_short(me: str, opp: str, by_opp, recent: Optional[List[Dict]] = None, what: str = "the last round",
+                      current: Optional[Dict] = None) -> Dict:
+    """Write (or, with ``recent`` and ``current``, revise from what just happened) the short memory vs ``opp``."""
+    say("System 2: %s the short memory vs %s ..." % ("revising" if recent else "writing", opp))
     t = time.time()
     everything = [a for acts, _ in by_opp.values() for a in acts]
-    lessons, rep = populate(me, opp, load(playbook_path(me), list(actions(me))), by_opp.get(opp, ([], [])), everything)
+    lessons, rep = populate(me, opp, load(playbook_path(me), list(actions(me))), by_opp.get(opp, ([], [])), everything,
+                            recent=recent, current=current, what=what)
     if lessons is None:
         say("System 2: no usable short memory (%s); keeping the previous one" % rep["attempts"])
     else:
@@ -149,7 +153,7 @@ def main() -> int:
     b = MesenBridge(args.port, launch=argv)
     files = {k: open(os.path.join(out, k + ".jsonl"), "a") for k in ("actions", "rounds", "games")}
     rng, n, game, opp = random.Random(0), 0, 0, None
-    score, rounds = [0, 0], []           # this game's round wins (me, him) and its round summaries
+    score, rounds, game_acts = [0, 0], [], []    # this game's round wins (me, him), round summaries, actions
     try:
         b.set_capture("raw")
         say("power-on: GAME START, picking %s ..." % me)
@@ -170,6 +174,7 @@ def main() -> int:
             a0 += [dict(e, **where) for e in rnd.log]
             r0.append(summary)
             rounds.append(summary)
+            game_acts += rnd.log
             score[0] += rnd.result == "win"
             score[1] += rnd.result == "loss"
             say("game %d round %d vs %s: %s (%d-%d)  dealt %d taken %d  %d actions, attacks %s" % (
@@ -181,10 +186,11 @@ def main() -> int:
                                                  "rounds": [r["result"] for r in rounds], "log": tag}) + "\n")
                 say("GAME %d vs %s: %s %d-%d" % (game, opp, result.upper(), score[0], score[1]))
                 run_system2_review(me, by_opp)
-                s1.short = run_system2_short(me, opp, by_opp)
-                game, score, rounds = game + 1, [0, 0], []
+                s1.short = run_system2_short(me, opp, by_opp, recent=game_acts, what="the last game",
+                                             current=s1.short)
+                game, score, rounds, game_acts = game + 1, [0, 0], [], []
             elif rnd.result == "loss":
-                s1.short = run_system2_short(me, opp, by_opp)
+                s1.short = run_system2_short(me, opp, by_opp, recent=rnd.log, what="the last round", current=s1.short)
             for f in files.values():
                 f.flush()
             n += 1

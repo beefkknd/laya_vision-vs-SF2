@@ -216,3 +216,16 @@ def test_a_kept_short_memory_must_meet_todays_rules():
     assert not fits_laya({"lessons": [ok, old_style]})
     assert not fits_laya({"lessons": [ok, dict(ok, text="use more lp up close, really")]})        # the same move twice
     assert not fits_laya({"lessons": [dict(ok, text="x" * 61)]}) and not fits_laya({"lessons": []}) and not fits_laya(None)
+
+
+def test_revise_prompt_shows_which_lessons_system1_followed():
+    from sf2.system2 import followed
+    a = lambda act, rng, res, punished=False: {"action": act, "range": rng, "actual": res, "i_was_hit": punished}  # noqa
+    recent = [a("sweep", "close", "whiff", True), a("sweep", "close", "whiff"), a("hp", "mid", "hit")]
+    mem = {"lessons": [{"text": "use more lp up close", "kind": "use_more", "action": "lp", "range": "close"},
+                       {"text": "avoid sweep up close", "kind": "avoid", "action": "sweep", "range": "close"},
+                       {"text": "he jumps in at far", "kind": "opponent_habit", "action": None, "range": "far"}]}
+    lines = followed(recent, mem)
+    assert lines[0] == '- "use more lp up close": lp at close used 0 times'
+    assert lines[1] == '- "avoid sweep up close": sweep at close used 2 times anyway (whiff 2; punished 1)'
+    assert len(lines) == 2                                          # habits have no move to follow
