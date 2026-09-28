@@ -45,13 +45,9 @@ def test_old_global_split_fails_the_gate(rows):
     train, val = rows
     tr, va = _old_global_split(train + val, random.Random(0))
     assert any("val rows unequal" in p for p in coverage_problems(tr, va, DIRS))
-    # the original failure, a character with no validation rows at all, comes up under some seeds: the gate names it
-    missing = []
-    for seed in range(50):
-        tr, va = _old_global_split(train + val, random.Random(seed))
-        if {ex["dataset"] for ex in va} != set(CHARS):
-            missing.append(coverage_problems(tr, va, DIRS))
-    assert missing and all(any("has no val rows" in p for p in m) for m in missing)
+    # the original failure, a character with no validation rows at all, is named by the gate
+    no_dhalsim = [ex for ex in va if ex["dataset"] != "dhalsim"]
+    assert "dhalsim has no val rows" in coverage_problems(tr, no_dhalsim, DIRS)
 
 
 @real

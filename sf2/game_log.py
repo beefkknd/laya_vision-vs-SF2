@@ -15,6 +15,7 @@ import collections
 from typing import Dict, List
 
 from .ram import CLOSE, MID
+from .vs_defense import BLOCKS
 from .vs_sweep import MOVEMENT
 
 STATE = {0x00: "stand", 0x02: "crouch", 0x04: "jump", 0x06: "turn", 0x08: "guard", 0x0A: "attack",
@@ -62,7 +63,8 @@ def action_entry(game: int, frame: int, me: str, opp: str, before: Dict, rows: L
         "side": "left" if before["p1_x"] < before["p2_x"] else "right", "gap": gap, "range": _range(gap),
         "my_life": _life(before["p1_life"]), "opp_life": _life(before["p2_life"]),
         "my_state": name(before["p1_state"]), "opp_state": name(before["p2_state"]), "opp_air": before["p2_y"] != 192,
-        "action": decision["action"], "kind": "movement" if decision["action"] in MOVEMENT else "attack",
+        "action": decision["action"], "kind": "movement" if decision["action"] in MOVEMENT else
+        "defense" if decision["action"] in BLOCKS else "attack",
         "p_hit": decision["p_hit"], "predicted": decision["predicted"], "top3": [[a, p] for a, p in top3],
         "actual": actual, "dealt": _drops([before] + rows, "p2_life"),
         "opp_reaction": _sequence([r["p2_state"] for r in rows]),

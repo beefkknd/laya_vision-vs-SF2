@@ -21,7 +21,9 @@ from sf2.config import PAD
 from sf2.config import IMAGE_SIZE
 from sf2.frames import HUD_ROWS
 from sf2.vs import physical
-from sf2.vs_sweep import MOVEMENT, OUTCOMES, RANGES, STAGE1_POSTURES, TEST_INDEX, actions, outcome_question, range_of
+from sf2 import vs_defense as D
+from sf2.vs_sweep import (MOVEMENT, OUTCOMES, RANGES, STAGE1_POSTURES, TEST_INDEX, actions, outcome_question, range_of,
+                          static_actions)
 from laya.vlm_train import jsonl_example
 
 ROOT = "test_data"
@@ -58,12 +60,24 @@ def load_img(path: str) -> np.ndarray:
 
 
 def expected_buttons(char: str, action: str, side: str) -> List[List[str]]:
-    frames = [tok for tok, n in actions(char)[action] for _ in range(n)]
+    frames = [tok for tok, n in static_actions(char)[action] for _ in range(n)]
     return [physical(t, side == "left", PAD) for t in frames]
 
 
 def note_fields(text: str) -> Dict[str, str]:
     return dict(re.findall(r"(\w+)=(\S+)", text))
+
+
+def audit_defense(a: Audit, char: str, f: str, r: Dict, rid: str) -> None:
+    """Block rows (sf2/vs_defense.py): a real answer to a real probe, an outcome of the defender's own health."""
+    a.check("def_answer", r["action"] in D.ANSWERS, rid)
+    a.check("def_probe", r.get("probe") in ("s.hk", "c.mk", "sweep", "jump_in"), rid)
+    a.check("def_outcome", r["outcome"] in ("blocked", "got_hit", "none"), rid)
+    a.check("def_got_hit_costs_health", r["outcome"] != "got_hit" or r["damage_taken"] > 0, rid)
+    a.check("def_blocked_at_most_chip", r["outcome"] != "blocked" or r["damage_taken"] <= 12, rid)
+    a.check("def_idle_saves_nothing", r["action"] != "idle" or r["damage_saved"] == 0, rid)
+    held = [physical(D.ANSWERS[r["action"]], r["side"] == "left", PAD)] * (D.HOLD if r["action"] != "idle" else 0)
+    a.check("def_buttons", r["buttons"] == held or r["probe"] == "jump_in", rid)   # a jump-in may cross over
 
 
 def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
@@ -73,7 +87,8 @@ def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
     if a.bad["schema"] and a.bad["schema"][-1] == rid:
         return
     want_side = "right" if f in ("train_mirrored", "test_real_right") else "left"
-    a.check("side_matches_file", r["side"] == want_side and r["facing"] == _SWAP[want_side], rid)
+    file_side = r.get("collected_side", r["side"])      # block rows: the side collected on (they may cross over)
+    a.check("side_matches_file", file_side == want_side and r["facing"] == _SWAP[r["side"]], rid)
     a.check("split_matches_file", r["split"] == ("train" if f.startswith("train") else "test"), rid)
     a.check("mirrored_flag", r["mirrored"] == (f == "train_mirrored"), rid)
     a.check("char", r["char"] == char and r["opp"] != char, rid)
@@ -91,10 +106,13 @@ def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
     ex = jsonl_example(r, os.path.join(ROOT, char), char)     # laya-vision's own loader
     a.check("laya_loads", ex is not None and ex["label"] == r["label"] and len(ex["target"]) == len(OUTCOMES)
             and ex["state"]["context"] == r["state_text"] and len(ex["state"]["images"]) == 2, rid)
-    a.check("buttons_match_action", r["buttons"] == expected_buttons(char, r["action"], r["side"]), rid)
-    a.check("kind", r["kind"] == ("movement" if r["action"] in MOVEMENT else "attack"), rid)
-    a.check("movement_iff_none", (r["outcome"] == "none") == (r["action"] in MOVEMENT), rid)
-    a.check("outcome_known", r["outcome"] in ("hit", "whiff", "blocked", "none"), rid)
+    if r["kind"] == "defense":
+        audit_defense(a, char, f, r, rid)
+    else:
+        a.check("buttons_match_action", r["buttons"] == expected_buttons(char, r["action"], r["side"]), rid)
+        a.check("kind", r["kind"] == ("movement" if r["action"] in MOVEMENT else "attack"), rid)
+        a.check("movement_iff_none", (r["outcome"] == "none") == (r["action"] in MOVEMENT), rid)
+        a.check("outcome_known", r["outcome"] in ("hit", "whiff", "blocked", "none"), rid)
     a.check("executed", r["executed"], rid)
     a.check("hit_has_damage", r["outcome"] != "hit" or r["damage"] > 0 or r["thrown"], rid)
     a.check("whiff_no_damage", r["outcome"] not in ("whiff", "none") or r["damage"] == 0, rid)
@@ -117,9 +135,9 @@ def audit_char(a: Audit, char: str) -> Dict[str, int]:
             audit_record(a, char, f, r)
     # coverage: every (action, range, posture) in each file; counts per (action, range)
     for f, need in PER_COMBO.items():
-        c = collections.Counter((r["action"], r["range"]) for r in recs[f])
-        cp = collections.Counter((r["action"], r["range"], r["posture"]) for r in recs[f])
-        for act in actions(char):
+        c = collections.Counter((r["action"], r["range"]) for r in recs[f] if r["kind"] != "defense")
+        cp = collections.Counter((r["action"], r["range"], r["posture"]) for r in recs[f] if r["kind"] != "defense")
+        for act in static_actions(char):
             for rng in RANGES:
                 a.check("combo_count", c[(act, rng)] >= need, "%s/%s %s@%s: %d" % (char, f, act, rng, c[(act, rng)]))
                 for p in STAGE1_POSTURES:

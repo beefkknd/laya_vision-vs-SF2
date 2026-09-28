@@ -5,7 +5,8 @@
   "games_v2/chunli",
   "learn/chunli/20260927-193816",
   "learn/chunli/20260927-194458",
-  "learn/chunli/20260927-195522"
+  "learn/chunli/20260927-195522",
+  "learn/chunli/20260927-203134"
  ],
  "lessons": [
   {
@@ -15,9 +16,9 @@
    "range": "close",
    "claim": "lands",
    "evidence": {
-    "tries": 46,
-    "count": 26,
-    "rate": 0.57,
+    "tries": 48,
+    "count": 27,
+    "rate": 0.56,
     "refs": [
      "games_v1/chunli/g1f860",
      "games_v1/chunli/g1f876",
@@ -35,8 +36,8 @@
    "range": "mid",
    "claim": "punished",
    "evidence": {
-    "tries": 151,
-    "count": 103,
+    "tries": 207,
+    "count": 141,
     "rate": 0.68,
     "refs": [
      "games_v1/chunli/g0f60",
@@ -55,9 +56,9 @@
    "range": null,
    "claim": "counter:jump",
    "evidence": {
-    "tries": 45,
-    "count": 23,
-    "rate": 0.51,
+    "tries": 53,
+    "count": 26,
+    "rate": 0.49,
     "refs": [
      "games_v1/chunli/g2f1280",
      "games_v1/chunli/g3f644",
@@ -75,9 +76,9 @@
    "range": "close",
    "claim": "whiffs",
    "evidence": {
-    "tries": 25,
+    "tries": 26,
     "count": 13,
-    "rate": 0.52,
+    "rate": 0.5,
     "refs": [
      "games_v1/chunli/g3f484",
      "games_v2/chunli/g0f404",

@@ -99,8 +99,11 @@ from sf2.frames import HUD_ROWS, mirror_frame, model_frame  # noqa: E402
 from sf2.vs_sweep import actions, mirror_record, outcome  # noqa: E402
 
 
-def test_twenty_actions_per_character():
-    assert len(actions("ryu")) == len(actions("chunli")) == 20
+def test_twenty_static_actions_plus_two_blocks_per_character():
+    from sf2.vs_sweep import static_actions
+    assert len(static_actions("ryu")) == len(static_actions("chunli")) == 20
+    assert len(actions("ryu")) == len(actions("chunli")) == 22
+    assert {"block_high", "block_low"} <= set(actions("dhalsim")) and "block_high" not in static_actions("dhalsim")
 
 
 def test_model_frame_blanks_the_hud_and_mirror_is_a_whole_flip():
@@ -252,3 +255,17 @@ def test_system2_reply_checks_flag_each_broken_rule():
     }
     for name, reply in bad.items():
         assert reply_problems("chunli", reply, 5, ryu, every), name
+
+
+def test_block_outcome_needs_real_block_stun():
+    from sf2 import vs_defense as D
+    def r(d_state=0, react=0, life=176, a_y=192):
+        return {"d_state": d_state, "d_react": react, "d_life": life, "a_y": a_y}
+    assert D.outcome([r(), r(0x08), r(0x0E, 0x06), r()])["outcome"] == "blocked"                       # block stun
+    assert D.outcome([r(), r(0x08), r(0x08), r()])["outcome"] == "none"          # guard pose alone: not a block
+    hit = D.outcome([r(), r(0x0E, 0x00, 150), r(0x0E, 0x00, 150)])
+    assert hit["outcome"] == "got_hit" and hit["damage_taken"] == 26
+    assert D.outcome([r(), r(0x14, 0, 140)])["outcome"] == "got_hit"                                  # thrown
+    assert D.outcome([r(), r(0x0E, 0x08, 172)])["damage_taken"] == 4                                  # chip still blocked
+    assert D.decision_frame([r(a_y=192)] * 9 + [r(a_y=140)] * 5 + [r(a_y=155)], "jump_in") == 14   # coming down
+    assert D.decision_frame([], "sweep") == D.LEAD + D.REACT

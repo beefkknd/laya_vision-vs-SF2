@@ -177,12 +177,14 @@ def settled(r: Dict[str, int]) -> bool:
 
 def record(bridge, attacker: int, a_steps: Sequence[Step], d_steps: Sequence[Step], tail: int,
            conds: Dict[str, Cond], pad: Dict[str, str], every: int = 2, shots: Optional[Set[int]] = None,
-           d_hold: Tuple[str, ...] = ()) -> Take:
+           d_hold: Tuple[str, ...] = (), track: Tuple[int, ...] = ()) -> Take:
     """Play one exchange from the loaded state. Each side's steps run in lockstep, one frame per bridge RUN (so an
     "until" step can react to RAM); directions are relative to where the opponent is at the start. After both
     sides' inputs, idle until SETTLE neutral frames in a row or ``tail`` frames. Screenshots every ``every`` frames
     (0: none), or exactly at the frame indices in ``shots``. ``d_hold``: tokens the defender holds once its steps
-    are used up (a posture such as crouch-block that must last the whole take)."""
+    are used up (a posture such as crouch-block that must last the whole take). ``track``: players whose F / B are
+    resolved every frame from where the other fighter is NOW (a block holds away from him even after he crosses over),
+    instead of once at the start."""
     snap = (lambda k: k in shots) if shots is not None else (lambda k: bool(every) and k % every == 0)
     obs0 = bridge.run([], caps=[0] if snap(0) else [])
     first = rows_of(obs0)
@@ -200,6 +202,8 @@ def record(bridge, attacker: int, a_steps: Sequence[Step], d_steps: Sequence[Ste
             frame[3 - attacker] = frame[3 - attacker] or d_hold
         if not busy:
             idle_left -= 1
+        for p in track:
+            right[p] = rows[-1]["p%d_x" % p] < rows[-1]["p%d_x" % (3 - p)]
         b1 = physical(frame[1], right[1], pad)
         b2 = physical(frame[2], right[2], pad)
         k = len(rows)

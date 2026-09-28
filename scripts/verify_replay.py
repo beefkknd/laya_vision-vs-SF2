@@ -38,7 +38,8 @@ def load_img(path: str) -> np.ndarray:
 
 def sample(char: str, side: str, n: int, seed: int) -> List[Dict]:
     files = ["train_real", "test_real_left"] if side == "left" else ["test_real_right"]
-    recs = [json.loads(x) for f in files for x in open(os.path.join(ROOT, char, f + ".jsonl"))]
+    recs = [r for f in files for r in map(json.loads, open(os.path.join(ROOT, char, f + ".jsonl")))
+            if r.get("kind") != "defense"]      # still-opponent rows; block rows are checked by their own ROM probe
     return random.Random("%s-%s-%d" % (char, side, seed)).sample(recs, min(n, len(recs)))
 
 

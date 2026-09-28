@@ -75,10 +75,18 @@ SPECIAL_STATE = {"hadoken", "shoryuken", "tatsumaki", "spinning_bird_kick", "son
                  "flash_kick", "sumo_headbutt", "rolling_attack", "yoga_fire", "yoga_flame"}
 
 
-def actions(char: str) -> Dict[str, Tuple[Step, ...]]:
+def static_actions(char: str) -> Dict[str, Tuple[Step, ...]]:
+    """The 20 actions tried against the still opponent (their outcome is what they do to him)."""
     out = dict(MOVEMENT, **NORMALS, **SPECIALS[char])
     assert len(out) == 20, (char, len(out))
     return out
+
+
+def actions(char: str) -> Dict[str, Tuple[Step, ...]]:
+    """Everything the character can do: the 20 static actions and the two blocks (their outcome is what they save the
+    character from; sf2/vs_defense.py)."""
+    from .vs_defense import BLOCKS, block_steps
+    return dict(static_actions(char), **{b: block_steps(b) for b in BLOCKS})
 
 
 POSTURES: Dict[str, Tuple[str, ...]] = {"stand": (), "crouch": ("D",), "crouch_block": ("D", "B")}
@@ -128,12 +136,13 @@ def outcome(rows: Sequence[Dict[str, int]], action: str) -> Dict[str, object]:
             "travel": (1 if rows[0]["a_x"] < rows[0]["d_x"] else -1) * (rows[-1]["a_x"] - rows[0]["a_x"])}
 
 
-OUTCOMES = ["hit", "whiff", "blocked", "none"]
+OUTCOMES = ["hit", "whiff", "blocked", "none", "got_hit"]      # new classes go at the end: labels keep their numbers
 OUTCOME_CRITERIA = {
     "hit": "it connects: the opponent is hit or thrown",
     "whiff": "it comes out but touches nothing (falls short or goes over)",
-    "blocked": "the opponent guards it (block stun, at most chip damage)",
-    "none": "a movement, not an attack",
+    "blocked": "a guard stops the attack (block stun, at most chip damage)",
+    "none": "nothing is hit either way",
+    "got_hit": "the opponent's attack hits me (I lose health)",
 }
 
 
@@ -158,6 +167,8 @@ def mirror_record(rec: Dict) -> Dict:
     """The same example seen from the other side: side and dx flip, physical left/right buttons swap."""
     out = dict(rec)
     out["side"] = _SWAP[rec["side"]]
+    if "collected_side" in rec:
+        out["collected_side"] = _SWAP[rec["collected_side"]]
     out["facing"] = _SWAP[rec["facing"]]
     out["dx"] = -rec["dx"]
     out["buttons"] = [[_SWAP.get(b, b) for b in f] for f in rec["buttons"]]

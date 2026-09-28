@@ -22,6 +22,8 @@ from .config import PAD
 from .dataset import save_png
 from .game_log import action_entry, game_entry
 from .memory import prompt_text
+from .vs_defense import BLOCKS
+from .vs_defense import outcome as block_outcome
 from .policy import make_state
 from .vs import GROUND_Y, NAMES, physical, view
 from .vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
@@ -54,21 +56,24 @@ class System1:
                 raise SystemExit("%s sees %d px images; the stage-1 data is 256x256" % (model, size))
         self.me, self.threshold = me, threshold
         self.short = None          # the short memory vs the current opponent (sf2.memory), goes into laya's prompt
-        self.attacks = [a for a in actions(me) if a not in MOVEMENT]
-        self.questions = {a: outcome_question(a) for a in self.attacks}
+        self.attacks = [a for a in actions(me) if a not in MOVEMENT and a not in BLOCKS]
+        self.blocks = list(BLOCKS)
+        self.questions = {a: outcome_question(a) for a in self.attacks + self.blocks}
 
     def decide(self, prev: np.ndarray, cur: np.ndarray, text: str) -> Dict:
         if self.agent is None:
             a = self.rng.choice(self.attacks)
             return {"action": a, "best": a, "p_hit": None, "predicted": "hit", "probs": {}}
         ans = self.agent.predict(make_state(prev, cur, text), self.questions)["answers"]
-        probs = {a: ans[a]["probabilities"] for a in self.attacks}
-        p_hit = {a: probs[a]["hit"] for a in self.attacks}
-        best = max(self.attacks, key=lambda a: p_hit[a])
-        action = best if p_hit[best] >= self.threshold else "forward"
-        return {"action": action, "best": best, "p_hit": p_hit[best],
+        probs = {a: ans[a]["probabilities"] for a in self.attacks + self.blocks}
+        # every action is scored by the outcome that makes it worth doing: an attack by P(hit), a block by P(blocked)
+        score = {a: probs[a]["hit"] for a in self.attacks}
+        score.update({b: probs[b].get("blocked", 0.0) for b in self.blocks})
+        best = max(score, key=score.get)
+        action = best if score[best] >= self.threshold else "forward"
+        return {"action": action, "best": best, "p_hit": score[best],
                 "predicted": max(probs[best], key=probs[best].get) if action != "forward" else "none",
-                "probs": p_hit}
+                "probs": score}
 
 
 def _can_act(r: Dict[str, int]) -> bool:
@@ -129,8 +134,12 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
                     break
                 more, prev, cur = _run(bridge, [[]] * WAIT)
                 live += more[1:]
-        actual = outcome([view(x, 1) for x in [r] + live], d["action"])["outcome"] if d["action"] not in MOVEMENT \
-            else "none"
+        if d["action"] in BLOCKS:         # what the block did for my own health (vs_defense: d_ = me)
+            actual = block_outcome([view(x, 2) for x in [r] + live])["outcome"]
+        elif d["action"] in MOVEMENT:
+            actual = "none"
+        else:
+            actual = outcome([view(x, 1) for x in [r] + live], d["action"])["outcome"]
         pending = (r, list(live), dict(d, prompt=text), actual, rnd.frames, images)
         rnd.frames += len(live)
         rows = [r] + live

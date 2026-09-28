@@ -31,11 +31,13 @@ from sf2.mesen import MesenBridge
 from sf2.vs import boot_vs, gap_state, record, view
 from sf2.vs_moves import CONDS
 from sf2.frames import HUD_ROWS, mirror_frame, model_frame
-from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, RANGES, STAGE1_POSTURES, actions, mirror_record, note,
-                          outcome, outcome_question, range_of, split_of)
+from sf2 import vs_defense as D
+from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, RANGES, STAGE1_POSTURES, mirror_record, note,
+                          outcome, outcome_question, range_of, split_of, static_actions)
 
 ROOT = "test_data"
 MIN_TRAIN, MIN_TEST = 14, 6   # per (action, range): 7 gaps x 2 postures train, 3 x 2 test
+MIN_DEF_TRAIN, MIN_DEF_TEST = 18, 8   # blocks, per (answer, probe): 7 gaps x 3 ranges train, 3 x 3 test
 
 
 def collect(args) -> int:
@@ -48,7 +50,7 @@ def collect(args) -> int:
     os.makedirs(img_dir, exist_ok=True)
     os.makedirs(shard_dir, exist_ok=True)
     shard = os.path.join(shard_dir, "%s_%s_%s.jsonl" % (me, side, "_".join(ranges)))
-    acts = actions(me)
+    acts = static_actions(me)
 
     b = MesenBridge(args.port, launch=launch_argv(args.port, args.rom, args.mesen))
     recs: List[Dict] = []
@@ -102,6 +104,88 @@ def collect(args) -> int:
     return 0
 
 
+def collect_defense(args) -> int:
+    """Block data (sf2/vs_defense.py): at every gap, the other fighter throws each probe attack and the character answers
+    with block_high, block_low or nothing; RAM says what happened to its health."""
+    me, opp = (args.p1, args.p2) if args.who == 1 else (args.p2, args.p1)
+    side = "left" if args.who == 1 else "right"
+    attacker = 3 - args.who
+    splits = {"train", "test"} if args.who == 1 else {"test"}
+    ranges = [args.range] if args.range else list(RANGES)
+    shard_dir = os.path.join(ROOT, "_shards")
+    os.makedirs(os.path.join(ROOT, me, "images"), exist_ok=True)
+    os.makedirs(shard_dir, exist_ok=True)
+    shard = os.path.join(shard_dir, "%s_%s_%s_defense.jsonl" % (me, side, "_".join(ranges)))
+    probes = D.probes(static_actions(opp))
+    b = MesenBridge(args.port, launch=launch_argv(args.port, args.rom, args.mesen))
+    recs: List[Dict] = []
+    try:
+        b.set_capture("raw")
+        start = boot_vs(b, args.p1, args.p2)
+        boot = os.path.splitext(os.path.basename(shard))[0] + ".start.state"
+        with open(os.path.join(shard_dir, boot), "wb") as f:
+            f.write(start)
+        for rng in ranges:
+            for gi, target in enumerate(GAPS[rng]):
+                split = split_of(gi)
+                if split not in splits:
+                    continue
+                state, got = gap_state(b, start, target)
+                if range_of(got) != rng:
+                    continue
+                for name, p in probes.items():
+                    recs += _defense_rows(b, state, args.who, attacker, me, opp, side, rng, gi, split, name, p, boot)
+                print("%s %s defense %-5s gap %3d %-5s: %d examples" % (me, side, rng, got, split, len(recs)),
+                      flush=True)
+    finally:
+        b.close()
+    write_jsonl(shard, recs)
+    print("wrote %d examples to %s" % (len(recs), shard))
+    return 0
+
+
+def _defense_take(b, state, who, attacker, p, answer, conds, shots):
+    b.load_state(state)
+    return record(b, attacker, p["attacker"], p["lead"] + ((D.ANSWERS[answer], D.HOLD),), 60, conds, PAD,
+                  shots=shots, track=(who,))     # a block holds away from the attacker, even after a cross-up
+
+
+def _defense_rows(b, state, who, attacker, me, opp, side, rng, gi, split, name, p, boot) -> List[Dict]:
+    """One probe at one gap: find the take (for the jump-in, the kick height that lands on a character who does not
+    block), save its decision frames, then every answer's outcome."""
+    heights = D.KICK_HEIGHTS if name == "jump_in" else (D.DESCEND_Y,)
+    for kh in heights:
+        conds = D.conds(kh)
+        idle = _defense_take(b, state, who, attacker, p, "idle", conds, set(range(0, 200)))
+        rows = [view(r, attacker) for r in idle.rows]
+        k = D.decision_frame(rows, name)
+        if D.outcome(rows[k:])["outcome"] == "got_hit":
+            break
+    key = "%s_%s_%d_def_%s" % (side, rng, gi, name.replace(".", ""))
+    paths = ["images/%s_prev.png" % key, "images/%s_now.png" % key]
+    for path, f in zip(paths, (k - PREV_GAP, k)):
+        save_png(idle.images[f], os.path.join(ROOT, me, path))
+    mine = view(idle.rows[k], who)
+    base = D.outcome(rows[k:])
+    out = []
+    for answer in D.ANSWERS:
+        take = idle if answer == "idle" else _defense_take(b, state, who, attacker, p, answer, conds, set())
+        o = D.outcome([view(r, attacker) for r in take.rows][k:])
+        pin = take.p1 if who == 1 else take.p2
+        out.append({
+            "id": "%s-%s-%s" % (me, key, answer), "char": me, "opp": opp, "side": side,
+            "facing": "right" if side == "left" else "left", "range": range_of(abs(mine["d_x"] - mine["a_x"])),
+            "gap": abs(mine["d_x"] - mine["a_x"]),
+            "gap_index": gi, "dx": mine["d_x"] - mine["a_x"], "posture": "stand", "action": answer,
+            "kind": "defense", "probe": name, "probe_height": p["height"], "kick_y": kh if name == "jump_in" else None,
+            "buttons": pin[k + 1: k + 1 + (D.HOLD if answer != "idle" else 0)], "images": paths,
+            "state_text": note(me, opp, mine, side), "split": split, "mirrored": False, "source": "real",
+            "boot": "_shards/" + boot, "outcome": o["outcome"], "damage_taken": o["damage_taken"],
+            "damage_saved": base["damage_taken"] - o["damage_taken"], "damage": 0, "thrown": False,
+            "executed": True, "attacked": False, "busy_frames": 0, "travel": 0})
+    return out
+
+
 def _load(path: str) -> np.ndarray:
     from PIL import Image
 
@@ -140,6 +224,12 @@ def _laya(recs: List[Dict]) -> List[Dict]:
     return [dict(r, question=outcome_question(r["action"]), label=OUTCOMES.index(r["outcome"])) for r in recs]
 
 
+def _file_side(r: Dict) -> str:
+    """The side a row was COLLECTED on (which file it belongs in); a cross-up block row's own side is where the
+    character ended up at the decision frame."""
+    return r.get("collected_side", r["side"])
+
+
 def build(args) -> int:
     shards = [os.path.join(ROOT, "_shards", f) for f in sorted(os.listdir(os.path.join(ROOT, "_shards")))
               if f.endswith(".jsonl")]
@@ -147,17 +237,24 @@ def build(args) -> int:
     for s in shards:
         for r in read(s):
             if r["posture"] in STAGE1_POSTURES:
+                if r["kind"] == "defense":     # what laya SEES at the decision frame (a jump-in has flown in, and
+                    r["range"] = range_of(r["gap"])    # may have crossed over: then the character is on the other side)
+                    r["collected_side"] = r.get("collected_side", r["side"])
+                    now = "left" if r["dx"] > 0 else "right"
+                    if now != r["side"]:
+                        r["state_text"] = r["state_text"].replace("side=" + r["side"], "side=" + now)
+                        r["side"], r["facing"] = now, "right" if now == "left" else "left"
                 by_char[r["char"]].append(r)
     problems = []
     for char, recs in sorted(by_char.items()):
         base = os.path.join(ROOT, char)
         # model frames: raw captures (images/) with the HUD blanked, in frames/; mirrored ones flipped whole
         recs = [dict(r, images=[p.replace("images/", "frames/") for p in r["images"]]) for r in recs]
-        train = [r for r in recs if r["split"] == "train" and r["side"] == "left"]
+        train = [r for r in recs if r["split"] == "train" and _file_side(r) == "left"]
         mirrored = [dict(m, images=[p.replace("frames/", "frames/mirror_") for p in m["images"]])
                     for m in map(mirror_record, train)]
         problems += _write_frames(base, recs, mirrored)
-        tests = {s: [r for r in recs if r["split"] == "test" and r["side"] == s] for s in ("left", "right")}
+        tests = {s: [r for r in recs if r["split"] == "test" and _file_side(r) == s] for s in ("left", "right")}
         # laya-vision's loader (laya.vlm_train.jsonl_example) needs a question dict and an int label
         train, mirrored = _laya(train), _laya(mirrored)
         tests = {s: _laya(rs) for s, rs in tests.items()}
@@ -167,8 +264,9 @@ def build(args) -> int:
         for s, rs in tests.items():
             write_jsonl(os.path.join(base, "test_real_%s.jsonl" % s), rs)
         # gates: every (action, range) combination filled; every attack came out
-        count = collections.Counter((r["action"], r["range"], r["split"], r["side"]) for r in recs)
-        for action in actions(char):
+        count = collections.Counter((r["action"], r["range"], r["split"], r["side"]) for r in recs
+                                    if r["kind"] != "defense")
+        for action in static_actions(char):
             for rng in RANGES:
                 need_sides = (("train", "left", MIN_TRAIN), ("test", "left", MIN_TEST)) + (
                     (("test", "right", MIN_TEST),) if args.right_test else ())
@@ -177,6 +275,16 @@ def build(args) -> int:
                         problems.append("%s %s %s %s/%s: %d < %d" % (char, action, rng, split, side,
                                                                        count[(action, rng, split, side)], need))
         problems += ["%s %s never came out (%s)" % (char, r["action"], r["id"]) for r in recs if not r["executed"]]
+        # blocks: every answer to every probe, on the training side and on both test sides
+        dcount = collections.Counter((r["action"], r["probe"], r["split"], _file_side(r)) for r in recs
+                                     if r["kind"] == "defense")
+        for answer in D.ANSWERS:
+            for probe in ("s.hk", "c.mk", "sweep", "jump_in"):
+                for split, side, need in (("train", "left", MIN_DEF_TRAIN), ("test", "left", MIN_DEF_TEST)) + (
+                        (("test", "right", MIN_DEF_TEST),) if args.right_test else ()):
+                    if dcount[(answer, probe, split, side)] < need:
+                        problems.append("%s %s vs %s %s/%s: %d < %d" % (char, answer, probe, split, side,
+                                                                      dcount[(answer, probe, split, side)], need))
         table = collections.defaultdict(collections.Counter)
         for r in train:
             table[(r["action"], r["range"])][r["outcome"]] += 1
@@ -211,11 +319,14 @@ def run(args) -> int:
         for who in (1, 2) if args.right_test else (1,):
             p1, p2 = (me, dummy) if who == 1 else (dummy, me)
             for rng in RANGES:
-                log = os.path.join("logs", "dataset", "%s_%s_%s.log" % (me, "left" if who == 1 else "right", rng))
-                cmd = [sys.executable, os.path.abspath(__file__), "collect", "--p1", p1, "--p2", p2, "--who",
-                       str(who), "--range", rng, "--port", str(port)] + (["--rom", args.rom] if args.rom else [])
-                jobs.append((log, subprocess.Popen(cmd, stdout=open(log, "w"), stderr=subprocess.STDOUT)))
-                port += 1
+                for kind in args.kinds.split(","):
+                    log = os.path.join("logs", "dataset", "%s_%s_%s_%s.log" % (
+                        me, "left" if who == 1 else "right", rng, kind))
+                    cmd = [sys.executable, os.path.abspath(__file__), "collect" if kind == "static" else
+                           "collect-defense", "--p1", p1, "--p2", p2, "--who", str(who), "--range", rng,
+                           "--port", str(port)] + (["--rom", args.rom] if args.rom else [])
+                    jobs.append((log, subprocess.Popen(cmd, stdout=open(log, "w"), stderr=subprocess.STDOUT)))
+                    port += 1
     print("%d collect jobs running (logs in logs/dataset/)" % len(jobs), flush=True)
     failed = [log for log, proc in jobs if proc.wait() != 0]
     for log in failed:
@@ -228,16 +339,18 @@ def run(args) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    c = sub.add_parser("collect")
-    c.add_argument("--p1", required=True)
-    c.add_argument("--p2", required=True)
-    c.add_argument("--who", type=int, choices=(1, 2), required=True)
-    c.add_argument("--range", choices=RANGES)
-    c.add_argument("--port", type=int, required=True)
-    c.add_argument("--rom", default=os.environ.get("SF2_ROM"))
-    c.add_argument("--mesen", default=os.environ.get("SF2_MESEN"))
+    for name, text in (("collect", "still-opponent data"), ("collect-defense", "block data (sf2/vs_defense.py)")):
+        c = sub.add_parser(name, help=text)
+        c.add_argument("--p1", required=True)
+        c.add_argument("--p2", required=True)
+        c.add_argument("--who", type=int, choices=(1, 2), required=True)
+        c.add_argument("--range", choices=RANGES)
+        c.add_argument("--port", type=int, required=True)
+        c.add_argument("--rom", default=os.environ.get("SF2_ROM"))
+        c.add_argument("--mesen", default=os.environ.get("SF2_MESEN"))
     bd = sub.add_parser("build")
     r = sub.add_parser("run", help="collect every shard in parallel, then build")
+    r.add_argument("--kinds", default="static,defense", help="static (still opponent), defense (blocks), or both")
     r.add_argument("--chars", default="ryu,chunli", help="comma-separated; each gets its own test_data/<char>/")
     r.add_argument("--pairs", help="a:b,c:d - each pair are each other's still opponent (overrides --chars)")
     r.add_argument("--dummy", help="the still opponent for every character (default: the next in --chars)")
@@ -247,7 +360,7 @@ def main() -> int:
         p.add_argument("--no-right-test", dest="right_test", action="store_false",
                        help="skip the real right-side test set (the one-time mirroring check)")
     args = ap.parse_args()
-    return {"collect": collect, "build": build, "run": run}[args.cmd](args)
+    return {"collect": collect, "collect-defense": collect_defense, "build": build, "run": run}[args.cmd](args)
 
 
 if __name__ == "__main__":

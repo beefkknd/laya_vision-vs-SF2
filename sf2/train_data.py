@@ -3,8 +3,8 @@ check coverage before any model is loaded.
 
 The coverage gate exists because of a real bug: a validation split sampled across all characters left Ken and
 Dhalsim with no validation rows at all, and nothing failed. ``coverage_problems`` makes every such gap a hard stop:
-each character must be in train and in validation in equal shares, and every (action, range, posture, side) a
-character has must have enough training rows.
+each character must be in train and in validation in equal shares, every (action, range, posture, side) a
+character has must have enough training rows, and so must every block answer to every probe attack on both sides.
 """
 import collections
 import json
@@ -23,6 +23,10 @@ def position(ex: Dict) -> Tuple:
     return ex.get("dataset"), now
 
 
+def _kind(key: Tuple) -> str:
+    return "defense" if "_def_" in key[1] else "static"
+
+
 def split_by_position(rows: List[Dict], rng: random.Random, share: float = 0.05) -> Tuple[List[Dict], List[Dict]]:
     """Hold out ``share`` of each dataset's positions (all their rows) for early stopping, so validation never shows
     a frame the model trains on and every dataset (character) is in it equally. Splitting rows at random would put a
@@ -30,7 +34,11 @@ def split_by_position(rows: List[Dict], rng: random.Random, share: float = 0.05)
     held = set()
     for d in sorted({ex.get("dataset") for ex in rows}):
         keys = sorted({position(ex) for ex in rows if ex.get("dataset") == d})
-        held |= set(rng.sample(keys, max(1, round(share * len(keys)))))
+        # the same share of each KIND of position (a still-opponent position holds 20 rows, a block position 3), so
+        # every character's validation has the same number of rows
+        for kind in sorted({_kind(k) for k in keys}):
+            ks = [k for k in keys if _kind(k) == kind]
+            held |= set(rng.sample(ks, max(1, round(share * len(ks)))))
     return [ex for ex in rows if position(ex) not in held], [ex for ex in rows if position(ex) in held]
 
 
@@ -65,7 +73,8 @@ def _records(dirs: Sequence[str]) -> Dict[Tuple[str, str], Dict]:
 
 def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -> List[str]:
     """Everything wrong with the representation of each dataset in what is about to be trained on; empty = OK."""
-    from .vs_sweep import RANGES, SPECIALS, STAGE1_POSTURES, actions
+    from .vs_defense import ANSWERS
+    from .vs_sweep import RANGES, SPECIALS, STAGE1_POSTURES, static_actions
 
     names = [os.path.basename(os.path.normpath(d)) for d in dirs]
     problems: List[str] = []
@@ -84,15 +93,26 @@ def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -
     recs = _records(dirs)
     combos = collections.Counter()
     labels = collections.defaultdict(set)
+    blocks = collections.Counter()
     for ex in train:
         r = recs.get((ex.get("dataset"), ex.get("id")))
         if r and "action" in r:
-            combos[(ex["dataset"], r["action"], r["range"], r["posture"], r["side"])] += 1
+            if r.get("kind") == "defense":
+                blocks[(ex["dataset"], r["action"], r["probe"], r["side"])] += 1
+            else:
+                combos[(ex["dataset"], r["action"], r["range"], r["posture"], r["side"])] += 1
             labels[ex["dataset"]].add(r["outcome"])
     for name in names:
         if name not in SPECIALS:
             continue                      # not a stage-1 character dir: only the share checks above apply
-        for a in actions(name):
+        for answer in ANSWERS:          # blocks: every answer to every probe attack, on both sides
+            for probe in ("s.hk", "c.mk", "sweep", "jump_in"):
+                for side in ("left", "right"):
+                    got = blocks[(name, answer, probe, side)]
+                    if got < MIN_COMBO_ROWS:
+                        problems.append("%s %s vs %s/%s: %d training rows < %d" % (name, answer, probe, side, got,
+                                                                                   MIN_COMBO_ROWS))
+        for a in static_actions(name):
             for rng in RANGES:
                 for p in STAGE1_POSTURES:
                     for side in ("left", "right"):
