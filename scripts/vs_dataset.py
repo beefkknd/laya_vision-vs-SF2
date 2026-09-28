@@ -275,6 +275,8 @@ def build(args) -> int:
     by_char: Dict[str, List[Dict]] = collections.defaultdict(list)
     for s in shards:
         for r in read(s):
+            if r["kind"] == "live" and r["dx"] == 0:
+                continue        # the fighters at the same x (crossing): no left or right, a mirror would contradict it
             if r["posture"] in STAGE1_POSTURES or r["kind"] == "live":
                 r["state_text"] = current_note(r)    # today's note: no opponent name, general bars, no constants
                 if r["kind"] == "defense":     # what laya SEES at the decision frame (a jump-in has flown in, and
@@ -286,6 +288,19 @@ def build(args) -> int:
                         r["side"], r["facing"] = now, "right" if now == "left" else "left"
                 by_char[r["char"]].append(r)
     problems = []
+    # live play: the same number of training rows for every character, and never more than its other data (the
+    # still-opponent + block rows), so live play cannot dominate laya (System 1 stays general); earliest games first
+    live_n = {c: sum(r["kind"] == "live" and r["split"] == "train" for r in rs) for c, rs in by_char.items()}
+    other_n = {c: sum(r["kind"] != "live" and r["split"] == "train" and _file_side(r) == "left" for r in rs)
+               for c, rs in by_char.items()}
+    cap = min([n for n in live_n.values() if n] + list(other_n.values())) if any(live_n.values()) else 0
+    for c, rs in by_char.items():
+        live_train = sorted((r for r in rs if r["kind"] == "live" and r["split"] == "train"),
+                            key=lambda r: (r["game"], r["id"]))
+        drop = {id(r) for r in live_train[cap:]}
+        by_char[c] = [r for r in rs if id(r) not in drop]
+    if cap:
+        print("live training rows per character: %d (capped; before %s)" % (cap, live_n))
     for char, recs in sorted(by_char.items()):
         base = os.path.join(ROOT, char)
         # model frames: raw captures (images/) with the HUD blanked, in frames/; mirrored ones flipped whole

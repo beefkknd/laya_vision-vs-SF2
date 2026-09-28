@@ -128,7 +128,10 @@ def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
         a.check("hit_has_damage", r["outcome"] != "hit" or r["damage"] > 0 or r["thrown"], rid)
         a.check("whiff_no_damage", r["outcome"] not in ("whiff", "none") or r["damage"] == 0, rid)
     a.check("thrown_is_hit", not r["thrown"] or r["outcome"] == "hit", rid)
-    a.check("boot_state_exists", os.path.exists(os.path.join(ROOT, r.get("boot") or "-")), rid)
+    if r["kind"] == "live":        # live rows come from a game log, not from a boot savestate
+        a.check("live_source_exists", os.path.exists(r["source"].split(":", 1)[1]), rid)
+    else:
+        a.check("boot_state_exists", os.path.exists(os.path.join(ROOT, r.get("boot") or "-")), rid)
     a.check("images_are_frames", len(r["images"]) == 2 and all(p.startswith("frames/") for p in r["images"]), rid)
 
 
