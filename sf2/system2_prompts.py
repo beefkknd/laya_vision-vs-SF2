@@ -76,13 +76,20 @@ def messages(me: str, prompt: str) -> List[Dict]:
     return [{"role": "system", "content": rules(me)}, {"role": "user", "content": prompt}]
 
 
+# said last, right before Qwen answers: the numbers in the digest above pull its wording toward them
+FORMAT_REMINDER = ("Before you answer: every lesson text is plain words for laya - at most %d characters, NO numbers "
+                   "or percentages (the evidence carries them), the move names exactly as listed. JSON only."
+                   % MAX_TEXT)
+
+
 def review_prompt(me: str, playbook: Optional[Dict], by_opp: Dict[str, Tuple[List[Dict], List[Dict]]]) -> str:
     everything = [a for acts, _ in by_opp.values() for a in acts]
     return ("Rewrite %s's long-term PLAYBOOK: up to %d lessons about %s's own moves and approach that hold across "
             "opponents (keep the good ones, fix or drop what the new games contradict).\n\nCurrent playbook:\n%s\n\n"
             "%s\n\n%s" % (me, MAX_PLAYBOOK, me, show(playbook),
                           digest(everything, [g for _, gs in by_opp.values() for g in gs], "all opponents"),
-                          "\n\n".join(digest(a, g, "vs " + o) for o, (a, g) in sorted(by_opp.items()))))
+                          "\n\n".join(digest(a, g, "vs " + o) for o, (a, g) in sorted(by_opp.items())))
+            + "\n\n" + FORMAT_REMINDER)
 
 
 def followed(recent: List[Dict], current: Optional[Dict]) -> List[str]:
@@ -95,9 +102,11 @@ def followed(recent: List[Dict], current: Optional[Dict]) -> List[str]:
         used = [a for a in recent if a["action"] == act and rng in (None, a["range"])]
         where = "%s%s" % (act, " at " + rng if rng else "")
         if les["kind"] == "avoid":
-            out.append("- \"%s\": %s used %d times anyway%s" % (les["text"], where, len(used), _how(used)))
+            verdict = "FOLLOWED" if not used else "IGNORED (used anyway)"
+            out.append("- %s \"%s\": %s used %d times%s" % (verdict, les["text"], where, len(used), _how(used)))
         else:
-            out.append("- \"%s\": %s used %d times%s" % (les["text"], where, len(used), _how(used)))
+            verdict = "IGNORED (never used)" if not used else "FOLLOWED"
+            out.append("- %s \"%s\": %s used %d times%s" % (verdict, les["text"], where, len(used), _how(used)))
     return out
 
 
@@ -112,23 +121,31 @@ def populate_prompt(me: str, opp: str, playbook: Optional[Dict], vs_opp: Tuple[L
                     everything: List[Dict], recent: Optional[List[Dict]] = None, current: Optional[Dict] = None,
                     what: str = "the last round") -> str:
     acts, games = vs_opp
-    past = digest(acts, games, "all games vs " + opp) if acts else "No games against %s yet: use the playbook and " \
-        "the all-opponent digest for my own moves (habit and counter claims need games against him)." % opp
+    past = digest(acts, games, "all games vs " + opp) if acts else (
+        "No games against %s yet. So NO lesson about him: no opponent_habit or counter lesson, nothing starting "
+        "\"when he ...\" (the playbook's counter lessons were learned against other opponents: do not copy them). "
+        "Write only lessons about %s's own moves (claims lands, whiffs, blocked, punished) from the playbook and the "
+        "all-opponent digest." % (opp, me))
     task = ("Write the SHORT MEMORY for %s's next games against %s" % (me, opp)) if not current else (
         "REVISE the SHORT MEMORY %s played %s with against %s. %s just ended; see below what %s actually did with "
-        "each lesson. Keep a lesson that still holds; rewrite or replace one the recent play contradicts or that "
-        "System 1 ignored (say it more directly, or pick a move it will use); add what the recent play shows is new"
+        "each lesson. Rules: a lesson marked IGNORED must NOT come back in the same words - reword it more directly "
+        "in plain words (the move and the moment, still no numbers) or replace it with a move System 1 will use; keep a FOLLOWED lesson that "
+        "still holds; drop or change one the recent play contradicts; add what the recent play shows is new"
         % (me, what, opp, what[0].upper() + what[1:], me))
     now = ""
     if recent:
         rep = followed(recent, current)
-        now = "\n\n%s\n%s" % (digest(recent, [], what + " vs " + opp),
-                                ("What System 1 did with the current short memory:\n" + "\n".join(rep)) if rep else "")
+        banned = [line.split('"')[1] for line in rep if " IGNORED " in " " + line[2:]]
+        now = "\n\n%s\n%s%s" % (
+            digest(recent, [], what + " vs " + opp),
+            ("What System 1 did with the current short memory:\n" + "\n".join(rep)) if rep else "",
+            ("\nThese texts were IGNORED and may not appear again word for word: %s"
+             % "; ".join('"%s"' % b for b in banned)) if banned else "")
     return ("%s: up to %d lessons, the most useful first; they go straight into laya's prompt and are the only memory "
             "it sees. Prefer what is specific to %s; one lesson per move; merge a move's ranges into one lesson when "
-            "it holds at every range.\n\nCurrent short memory:\n%s\n\nPlaybook:\n%s%s\n\n%s\n\n%s" % (
+            "it holds at every range.\n\nCurrent short memory:\n%s\n\nPlaybook:\n%s%s\n\n%s\n\n%s\n\n%s" % (
                 task, MAX_PROMPT_LESSONS, opp, show(current), show(playbook), now, past,
-                digest(everything, [], "my moves against all opponents")))
+                digest(everything, [], "my moves against all opponents"), FORMAT_REMINDER))
 
 
 def show(mem: Optional[Dict]) -> str:

@@ -226,8 +226,8 @@ def test_revise_prompt_shows_which_lessons_system1_followed():
                        {"text": "avoid sweep up close", "kind": "avoid", "action": "sweep", "range": "close"},
                        {"text": "he jumps in at far", "kind": "opponent_habit", "action": None, "range": "far"}]}
     lines = followed(recent, mem)
-    assert lines[0] == '- "use more lp up close": lp at close used 0 times'
-    assert lines[1] == '- "avoid sweep up close": sweep at close used 2 times anyway (whiff 2; punished 1)'
+    assert lines[0] == '- IGNORED (never used) "use more lp up close": lp at close used 0 times'
+    assert lines[1] == '- IGNORED (used anyway) "avoid sweep up close": sweep at close used 2 times (whiff 2; punished 1)'
     assert len(lines) == 2                                          # habits have no move to follow
 
 
