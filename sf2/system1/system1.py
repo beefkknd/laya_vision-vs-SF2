@@ -168,45 +168,11 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
             continue
         if pending:
             rnd.log.append(_close(game, s1.me, opp, pending))
-        side = "left" if r["p1_x"] < r["p2_x"] else "right"
-        if s1.advisor is None:
-            text = prompt_text(note(s1.me, opp, view(r, 1), side), s1.short)
-            d = s1.decide(prev, cur, text)
-        else:           # laya-vision reads the note only (as trained); the memory goes to text laya
-            text = note(s1.me, opp, view(r, 1), side)
-            d = s1.decide(prev, cur, text, situation(r))
+        d, text = _decide(s1, opp, r, prev, cur)
         if live_path or echo:
-            entry = {"t": time.time(), "game": game, "frame": rnd.frames, "opp": opp,
-                     "my_life": r["p1_life"], "opp_life": r["p2_life"], "timer": r["timer"],
-                     **{k: d.get(k) for k in ("action", "advice_text", "shortlist", "advice_probs", "rule",
-                                              "follows_rule")}}
-            if live_path:
-                write_live(live_path, entry)
-            if echo and entry.get("shortlist"):         # the console shows every decision (for watching/recording)
-                print(decision_line(entry), flush=True)
-        images = None
-        if img_dir:
-            base = "g%02d_%05d" % (game, rnd.frames)
-            save_png(prev, os.path.join(img_dir, base + "_prev.png"))
-            save_png(cur, os.path.join(img_dir, base + "_now.png"))
-            images = [base + "_prev.png", base + "_now.png"]
-        # walks resolve F/B from x; other moves from the ROM's facing byte, which the stick is mirrored by
-        facing_right = (r["p1_x"] < r["p2_x"]) if d["action"] in MOVEMENT else r["p1_facing"] == 0x40
-        steps = [t for toks, n in actions(s1.me)[d["action"]] for t in [toks] * n]
-        frames = [physical(t, facing_right, PAD) for t in steps]
-        frames += [[]] * max(0, 4 - len(frames))
-        seen, prev, cur = _run(bridge, frames)
-        live = seen[1:]
-        if d["action"] not in MOVEMENT:        # wait until it can act again, reading what the attack did
-            for _ in range(MAX_RECOVER // WAIT):
-                if _can_act(live[-1]) or live[-1]["result"]:
-                    break
-                more, prev, cur = _run(bridge, [[]] * WAIT)
-                live += more[1:]
-        if d["action"] in BLOCKS or d["action"] in MOVEMENT:   # blocks and moves: what happened to MY health
-            actual = block_outcome([view(x, 2) for x in [r] + live])["outcome"]
-        else:
-            actual = outcome([view(x, 1) for x in [r] + live], d["action"])["outcome"]
+            _show(live_path, echo, game, rnd.frames, opp, r, d)
+        images = _save_images(img_dir, game, rnd.frames, prev, cur) if img_dir else None
+        live, prev, cur, actual = _act(bridge, s1.me, r, d)
         pending = (r, list(live), dict(d, prompt=text), actual, rnd.frames, images)
         rnd.frames += len(live)
         rows = [r] + live
@@ -214,6 +180,58 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
         rnd.log.append(_close(game, s1.me, opp, pending))
     rnd.summary = game_entry(game, rnd.result, rnd.frames, rows[-1], rnd.log)
     return rnd
+
+
+def _decide(s1: System1, opp: str, r: Dict[str, int], prev, cur) -> Tuple[Dict, str]:
+    """(decision, the note laya-vision read). Without an advisor the short memory goes into laya-vision's note (the
+    old path); with one, laya-vision reads the note only (as trained) and the memory goes to text laya."""
+    side = "left" if r["p1_x"] < r["p2_x"] else "right"
+    text = note(s1.me, opp, view(r, 1), side)
+    if s1.advisor is None:
+        text = prompt_text(text, s1.short)
+        return s1.decide(prev, cur, text), text
+    return s1.decide(prev, cur, text, situation(r)), text
+
+
+def _show(live_path: Optional[str], echo: bool, game: int, frame: int, opp: str, r: Dict[str, int], d: Dict) -> None:
+    """The decision for the brain panel (``live_path``) and, with ``echo``, one console line."""
+    entry = {"t": time.time(), "game": game, "frame": frame, "opp": opp,
+             "my_life": r["p1_life"], "opp_life": r["p2_life"], "timer": r["timer"],
+             **{k: d.get(k) for k in ("action", "advice_text", "shortlist", "advice_probs", "rule", "follows_rule")}}
+    if live_path:
+        write_live(live_path, entry)
+    if echo and entry.get("shortlist"):         # the console shows every decision (for watching/recording)
+        print(decision_line(entry), flush=True)
+
+
+def _save_images(img_dir: str, game: int, frame: int, prev, cur) -> List[str]:
+    base = "g%02d_%05d" % (game, frame)
+    save_png(prev, os.path.join(img_dir, base + "_prev.png"))
+    save_png(cur, os.path.join(img_dir, base + "_now.png"))
+    return [base + "_prev.png", base + "_now.png"]
+
+
+def _act(bridge, me: str, r: Dict[str, int], d: Dict):
+    """Press the decided move, wait until System 1 can act again (reading what an attack did), and judge it:
+    (rows since the decision, prev frame, current frame, what happened)."""
+    # walks resolve F/B from x; other moves from the ROM's facing byte, which the stick is mirrored by
+    facing_right = (r["p1_x"] < r["p2_x"]) if d["action"] in MOVEMENT else r["p1_facing"] == 0x40
+    steps = [t for toks, n in actions(me)[d["action"]] for t in [toks] * n]
+    frames = [physical(t, facing_right, PAD) for t in steps]
+    frames += [[]] * max(0, 4 - len(frames))
+    seen, prev, cur = _run(bridge, frames)
+    live = seen[1:]
+    if d["action"] not in MOVEMENT:        # wait until it can act again, reading what the attack did
+        for _ in range(MAX_RECOVER // WAIT):
+            if _can_act(live[-1]) or live[-1]["result"]:
+                break
+            more, prev, cur = _run(bridge, [[]] * WAIT)
+            live += more[1:]
+    if d["action"] in BLOCKS or d["action"] in MOVEMENT:   # blocks and moves: what happened to MY health
+        actual = block_outcome([view(x, 2) for x in [r] + live])["outcome"]
+    else:
+        actual = outcome([view(x, 1) for x in [r] + live], d["action"])["outcome"]
+    return live, prev, cur, actual
 
 
 ADVICE_KEYS = ("advice_text", "shortlist", "advice_probs", "rule_answers", "rule", "follows_rule")
