@@ -11,7 +11,7 @@ from .memory import KINDS
 from .system2 import evidence_for, supported
 from .system2_prompts import CLAIMS, MAX_TEXT
 from .vocab import RANGES
-from .vs_sweep import actions
+from .data.vs_sweep import actions
 
 
 def lessons_of(reply) -> Optional[List[Dict]]:

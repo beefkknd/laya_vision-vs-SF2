@@ -13,7 +13,7 @@ import _path  # noqa: F401
 from sf2 import code_coach
 from sf2.memory import check, playbook_path, short_path
 from sf2.system2 import fits_laya
-from sf2.vs_sweep import actions
+from sf2.data.vs_sweep import actions
 
 
 def write(path: str, mem: dict, me: str) -> None:

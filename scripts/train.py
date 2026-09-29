@@ -18,9 +18,9 @@ import os
 import time
 
 import _path  # noqa: F401
-from sf2 import lora
+from sf2.data import lora
 from sf2.config import BASE_MODEL, IMAGE_CFG
-from sf2.train_data import coverage_problems, coverage_table, load_data
+from sf2.data.train_data import coverage_problems, coverage_table, load_data
 
 
 class EarlyStop(Exception):

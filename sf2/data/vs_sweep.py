@@ -7,7 +7,7 @@ Split by gap, so held-out examples are at distances the model never saw: per ran
 Train is collected on ONE side only (the fighter on the left, facing right) and mirrored for the other facing;
 test is real frames on both sides (the check that mirroring works).
 
-Mirroring (sf2.frames.mirror_frame / ``mirror_record``): every model frame has its HUD blanked (sf2/frames.py),
+Mirroring (sf2.data.frames.mirror_frame / ``mirror_record``): every model frame has its HUD blanked (sf2/data/frames.py),
 so the mirror is a plain left-right flip of the whole frame; physical left/right buttons are swapped and the
 side-dependent note fields (side, signed dx) flip. Action names are relative (forward = toward the opponent), so
 they stay as they are.
@@ -15,8 +15,8 @@ they stay as they are.
 import re
 from typing import Dict, List, Sequence, Tuple
 
-from .vocab import FULL_LIFE, bar, range_of
-from .emu.vs import GROUND_Y, Step
+from ..vocab import FULL_LIFE, bar, range_of
+from ..emu.vs import GROUND_Y, Step
 from .vs_moves import BLOCK_REACTS, GUARD, HIT, SPECIAL, THROWN, JUMP, ATTACK
 
 LEAD = 8        # idle frames before the action; the images are frames LEAD - 4 ("a moment ago") and LEAD ("now")
@@ -85,7 +85,7 @@ def static_actions(char: str) -> Dict[str, Tuple[Step, ...]]:
 
 def actions(char: str) -> Dict[str, Tuple[Step, ...]]:
     """Everything the character can do: the 20 static actions and the two blocks (their outcome is what they save the
-    character from; sf2/vs_defense.py)."""
+    character from; sf2/data/vs_defense.py)."""
     from .vs_defense import BLOCKS, block_steps
     return dict(static_actions(char), **{b: block_steps(b) for b in BLOCKS})
 

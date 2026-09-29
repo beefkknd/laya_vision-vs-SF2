@@ -1,7 +1,7 @@
 """VS BATTLE move checks and measurements on synthetic rows: each check is shown passing AND failing."""
 from sf2.emu.vs import GROUND_Y, view
-from sf2.vs_metrics import measure, reach
-from sf2.vs_moves import MOVESETS, combo, connected, toward
+from sf2.data.vs_metrics import measure, reach
+from sf2.data.vs_moves import MOVESETS, combo, connected, toward
 
 
 def row(p1=None, p2=None, **extra):
@@ -95,12 +95,12 @@ def test_reach_is_widest_connecting_gap():
 # ---------------------------------------------------------------------------------------------------- stage-1 sweep
 import numpy as np  # noqa: E402
 
-from sf2.frames import HUD_ROWS, mirror_frame, model_frame  # noqa: E402
-from sf2.vs_sweep import actions, mirror_record, outcome  # noqa: E402
+from sf2.data.frames import HUD_ROWS, mirror_frame, model_frame  # noqa: E402
+from sf2.data.vs_sweep import actions, mirror_record, outcome  # noqa: E402
 
 
 def test_twenty_static_actions_plus_two_blocks_per_character():
-    from sf2.vs_sweep import static_actions
+    from sf2.data.vs_sweep import static_actions
     assert len(static_actions("ryu")) == len(static_actions("chunli")) == 20
     assert len(actions("ryu")) == len(actions("chunli")) == 22
     assert {"block_high", "block_low"} <= set(actions("dhalsim")) and "block_high" not in static_actions("dhalsim")
@@ -258,7 +258,7 @@ def test_system2_reply_checks_flag_each_broken_rule():
 
 
 def test_block_outcome_needs_real_block_stun():
-    from sf2 import vs_defense as D
+    from sf2.data import vs_defense as D
     def r(d_state=0, react=0, life=176, a_y=192):
         return {"d_state": d_state, "d_react": react, "d_life": life, "a_y": a_y}
     assert D.outcome([r(), r(0x08), r(0x0E, 0x06), r()])["outcome"] == "blocked"                       # block stun
@@ -273,7 +273,7 @@ def test_block_outcome_needs_real_block_stun():
 
 def test_layas_note_is_general_and_opponent_agnostic():
     from sf2.vocab import bar
-    from sf2.vs_sweep import current_note, note
+    from sf2.data.vs_sweep import current_note, note
     r = {"a_x": 200, "d_x": 260, "d_state": 0, "a_life": 176, "d_life": 60, "d_y": 150}
     text = note("chunli", "dhalsim", r, "left")
     assert text == "me=chunli dist=mid side=left dx=+60 my_bar=full opp_bar=half opp_airborne=1 opp_crouch=0"

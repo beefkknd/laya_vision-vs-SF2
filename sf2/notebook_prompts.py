@@ -5,7 +5,7 @@ import json
 from typing import Dict, List
 
 from .notebook import MAX_ADD, MAX_CHARS, MAX_LINES, MAX_PLAN, MAX_PLAN_CHARS, MAX_REMOVE
-from .vs_sweep import actions
+from .data.vs_sweep import actions
 
 
 def rules(me: str) -> str:

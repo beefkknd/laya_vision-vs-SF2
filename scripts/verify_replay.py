@@ -22,8 +22,8 @@ from sf2.config import PAD
 from sf2.emu.headless import launch_argv
 from sf2.emu.mesen import MesenBridge
 from sf2.emu.vs import boot_vs, gap_state, record, view
-from sf2.vs_moves import CONDS
-from sf2.vs_sweep import GAPS, LEAD, POSTURES, PREV_GAP, actions, outcome
+from sf2.data.vs_moves import CONDS
+from sf2.data.vs_sweep import GAPS, LEAD, POSTURES, PREV_GAP, actions, outcome
 
 ROOT = "test_data"
 COMPARE = ("gap", "outcome", "damage", "busy_frames", "travel", "thrown", "executed")

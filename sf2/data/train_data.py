@@ -74,7 +74,7 @@ def _records(dirs: Sequence[str]) -> Dict[Tuple[str, str], Dict]:
 def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -> List[str]:
     """Everything wrong with the representation of each dataset in what is about to be trained on; empty = OK."""
     from .vs_defense import ANSWERS
-    from .vocab import RANGES
+    from ..vocab import RANGES
     from .vs_sweep import SPECIALS, STAGE1_POSTURES, static_actions
 
     names = [os.path.basename(os.path.normpath(d)) for d in dirs]

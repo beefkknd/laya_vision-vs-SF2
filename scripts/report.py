@@ -13,7 +13,7 @@ import sys
 import time
 
 import _path  # noqa: F401
-from sf2.dataset import read
+from sf2.data.dataset import read
 from sf2.eval import churn, gaps
 from sf2.eval.logs import is_test
 

@@ -8,7 +8,7 @@ from typing import Dict
 
 import numpy as np
 
-from .frames import model_frame
+from .data.frames import model_frame
 
 
 def make_state(prev: np.ndarray, cur: np.ndarray, text: str) -> Dict:

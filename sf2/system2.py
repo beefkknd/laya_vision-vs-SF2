@@ -17,7 +17,7 @@ from .qwen import chat, json_reply
 from .system2_prompts import (CLAIMS, MAX_PLAYBOOK, MAX_PROMPT_LESSONS, MAX_TEXT, MIN_TRIES, messages,
                               populate_prompt, review_prompt)
 from .vocab import RANGES
-from .vs_sweep import actions
+from .data.vs_sweep import actions
 
 # ------------------------------------------------------------------------------------------------ evidence (the truth)
 def evidence(acts: List[Dict], claim: str, action: Optional[str], rng: Optional[str]) -> Dict:

@@ -32,7 +32,7 @@ from typing import Dict, List
 import _path  # noqa: F401
 from sf2 import code_coach
 from sf2.advisor import Advisor
-from sf2.dataset import read
+from sf2.data.dataset import read
 from sf2.eval import stats
 from sf2.eval.logs import sources
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs

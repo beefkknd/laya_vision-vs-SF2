@@ -19,12 +19,12 @@ import numpy as np
 import _path  # noqa: F401
 from sf2.config import PAD
 from sf2.config import IMAGE_SIZE
-from sf2.frames import HUD_ROWS
+from sf2.data.frames import HUD_ROWS
 from sf2.emu.vs import physical
-from sf2 import vs_defense as D
+from sf2.data import vs_defense as D
 from sf2.vocab import RANGES, range_of
-from sf2.vs_sweep import (MOVEMENT, OUTCOMES, STAGE1_POSTURES, TEST_INDEX, actions, outcome_question,
-                          static_actions)
+from sf2.data.vs_sweep import (MOVEMENT, OUTCOMES, STAGE1_POSTURES, TEST_INDEX, actions, outcome_question,
+                               static_actions)
 from laya.vlm_train import jsonl_example
 
 ROOT = "test_data"
@@ -70,7 +70,7 @@ def note_fields(text: str) -> Dict[str, str]:
 
 
 def audit_defense(a: Audit, char: str, f: str, r: Dict, rid: str) -> None:
-    """Block rows (sf2/vs_defense.py): a real answer to a real probe, an outcome of the defender's own health."""
+    """Block rows (sf2/data/vs_defense.py): a real answer to a real probe, an outcome of the defender's own health."""
     a.check("def_answer", r["action"] in D.ANSWERS, rid)
     a.check("def_probe", r.get("probe") in ("s.hk", "c.mk", "sweep", "jump_in"), rid)
     a.check("def_outcome", r["outcome"] in ("blocked", "got_hit", "none"), rid)

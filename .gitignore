@@ -8,8 +8,8 @@ runs/
 #   python scripts/vs_dataset.py run --pairs ryu:chunli,ken:guile,honda:blanka,zangief:dhalsim
 # frames/ and the *.jsonl files are derived from _shards/ + images/ by `vs_dataset.py build`
 test_data/
-# Older pipeline outputs (teacher / DAgger / human recordings)
-data/
+# Older pipeline outputs (teacher / DAgger / human recordings; tag legacy-dagger). Anchored: sf2/data/ is code
+/data/
 rollouts/
 human/
 # The game ROM (copied from ~/Downloads; never committed)

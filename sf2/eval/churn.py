@@ -11,7 +11,7 @@ from typing import List
 
 from ..advice import FORWARD
 from ..memory_churn import diff
-from ..vs_sweep import actions
+from ..data.vs_sweep import actions
 
 KEEP = "logs/system2/memory"
 

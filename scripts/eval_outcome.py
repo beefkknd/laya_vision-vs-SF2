@@ -15,7 +15,7 @@ import sys
 from typing import Dict, List
 
 import _path  # noqa: F401
-from sf2.vs_sweep import OUTCOMES
+from sf2.data.vs_sweep import OUTCOMES
 
 ROOT = "test_data"
 FILES = ("test_real_left", "test_real_right")

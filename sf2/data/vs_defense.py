@@ -15,7 +15,7 @@ Record the probe as ``attacker``'s exchange (sf2.emu.vs.record) so a_ = the atta
 """
 from typing import Dict, List, Tuple
 
-from .emu.vs import GROUND_Y, Step
+from ..emu.vs import GROUND_Y, Step
 
 HIGH_Y, DESCEND_Y = 150, 150          # world y is smaller when higher (ground 192)
 LEAD = 4                              # idle frames before the probe starts (the "a moment ago" frame is before it)
@@ -28,7 +28,7 @@ BLOCKS = ("block_high", "block_low")
 
 
 def block_steps(action: str) -> Tuple[Step, ...]:
-    """The move as a character's action (sf2.vs_sweep.actions): hold the guard direction."""
+    """The move as a character's action (sf2.data.vs_sweep.actions): hold the guard direction."""
     return ((ANSWERS[action], HOLD),)
 
 

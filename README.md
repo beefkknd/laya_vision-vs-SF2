@@ -70,7 +70,7 @@ Everything below ran on one Mac Studio (M3 Ultra, 32 cores, 256 GB). Three separ
 
 - **It is not `laya-mlx`.** [`laya-mlx`](https://github.com/mizorewww/laya-mlx) (the Apple MLX runtime) is text-only. laya-vision is a separate research fork, [r33drichards/laya-vision](https://github.com/r33drichards/laya-vision). It uses a **SmolVLM-256M** image backbone with Laya's typed-decision head and the same `predict(state, questions)` API. It is **PyTorch** and runs on Apple **MPS**.
 - **Checkpoint:** [`thaitea/laya-vision-smolvlm-256m`](https://huggingface.co/thaitea/laya-vision-smolvlm-256m). It was trained on photo questions and knows no games.
-- **No LoRA upstream.** Its trainer only freezes whole layers. `sf2/lora.py` adds rank-r adapters to the text layers and merges them back before saving, so a trained run is an ordinary laya-vision checkpoint.
+- **No LoRA upstream.** Its trainer only freezes whole layers. `sf2/data/lora.py` adds rank-r adapters to the text layers and merges them back before saving, so a trained run is an ordinary laya-vision checkpoint.
 - **Upstream already tried this loop on Atari** ([game-training.md](https://github.com/r33drichards/laya-vision/blob/main/docs/game-training.md)):
   - two frames beat one (median score 0.201 vs 0.131)
   - one DAgger round lifted the median from 0.201 to 0.310
@@ -90,10 +90,10 @@ Everything below ran on one Mac Studio (M3 Ultra, 32 cores, 256 GB). Three separ
 | Text state | `me=ryu opp=ken dist=mid my_hp=80 opp_hp=45 last=hadouken airborne=0 opp_airborne=1` |
 | Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` recognises fireball and dragon-punch motions |
 | Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
-| LoRA | `scripts/train.py` + `sf2/lora.py`. Always starts from base laya-vision 256M; early stopping on `val.jsonl`, or 5% of train |
+| LoRA | `scripts/train.py` + `sf2/data/lora.py`. Always starts from base laya-vision 256M; early stopping on `val.jsonl`, or 5% of train |
 | VS BATTLE (both pads) | `sf2/emu/vs.py`: boot to a 2-player fight, place the fighters at a gap, record an exchange. `scripts/vs_moves.py`: every move of both fighters, checked and measured, reach sweeps |
-| Stage-1 data | `sf2/vs_sweep.py` + `scripts/vs_dataset.py`: 20 actions x 3 ranges per character vs a still dummy, labelled hit / whiff / blocked / none from RAM; `scripts/audit_dataset.py`, `scripts/verify_replay.py` check it |
-| What the model sees | `sf2/frames.py`: every frame has its HUD (rows 0-61) blanked, at train and play time |
+| Stage-1 data | `sf2/data/vs_sweep.py` + `scripts/vs_dataset.py`: 20 actions x 3 ranges per character vs a still dummy, labelled hit / whiff / blocked / none from RAM; `scripts/audit_dataset.py`, `scripts/verify_replay.py` check it |
+| What the model sees | `sf2/data/frames.py`: every frame has its HUD (rows 0-61) blanked, at train and play time |
 | Student plays / relabel / gate | `scripts/play_student.py`, `scripts/relabel.py` (`dagger` or `filter`), `scripts/play_teacher.py`, `scripts/gate.py`. `scripts/dagger_round.sh N` runs one turn of the loop |
 
 Directions are relative: `forward` is toward the opponent, `back` is away, and `block` is down-back. Buttons follow SF2's default SNES layout: **Y X L = jab / strong / fierce, B A R = short / forward / roundhouse**. If your in-game button config differs, change `PAD` in `sf2/config.py`.
@@ -183,7 +183,7 @@ python scripts/train.py --out runs/all8 --data test_data/ryu --data test_data/ke
 | `test_real_left.jsonl`, `test_real_right.jsonl` | 540 each | real frames at the 3 held-out gaps per range, on each side (the mirroring check) |
 
 Each record: two model frames (4 frames apart, HUD blanked), the RAM note, the question
-`sf2.vs_sweep.outcome_question(action)` (choice: hit / whiff / blocked / none) and its `label`, plus the measurements
+`sf2.data.vs_sweep.outcome_question(action)` (choice: hit / whiff / blocked / none) and its `label`, plus the measurements
 (damage, frames until the fighter can act again, travel) and the boot savestate it came from. The special-move timings
 are the ROM-verified ones from the move tests; charge moves charge on down-back so the gap does not change.
 

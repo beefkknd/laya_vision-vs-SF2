@@ -2,7 +2,7 @@
 before the first input). Frame counts are 60 Hz frames. Distances are world-x / y pixels."""
 from typing import Dict, List, Optional
 
-from .emu.vs import GROUND_Y
+from ..emu.vs import GROUND_Y
 from .vs_moves import GUARD, HIT, THROWN, Rows, gap, life_drops, toward
 
 NEUTRAL = (0x00, 0x02)

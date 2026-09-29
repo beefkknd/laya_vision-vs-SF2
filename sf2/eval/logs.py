@@ -11,7 +11,7 @@ import json
 import os
 from typing import Dict, Iterable, List
 
-from ..dataset import read
+from ..data.dataset import read
 
 ROOT = "rollouts"
 TEST_DIRS = ("ab", "notebook")

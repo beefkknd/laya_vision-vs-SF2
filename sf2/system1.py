@@ -1,7 +1,7 @@
 """System 1: the stage-1 laya-vision checkpoint plays one character (player 1) against the arcade CPU.
 
 Each decision, when the fighter can act (standing or crouching, on the ground): the model gets the two frames
-(4 frames apart) and its prompt: the RAM note built exactly as in training (sf2.vs_sweep.note) followed by the short
+(4 frames apart) and its prompt: the RAM note built exactly as in training (sf2.data.vs_sweep.note) followed by the short
 memory against this opponent (sf2.memory.prompt_text; nothing when it is empty), and answers the outcome
 question for every attack in one predict call (the images are encoded once). It plays the attack with the highest
 P(hit) if that is at least ``threshold``; otherwise it walks forward. After an attack it waits until the fighter can
@@ -26,18 +26,18 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from .config import PAD
-from .dataset import save_png
+from .data.dataset import save_png
 from .game_log import action_entry, game_entry
 from .advice import opp_doing
 from .advisor import choose
 from .game_log import name as state_name
 from .memory import MAX_PROMPT_LESSONS, prompt_text
-from .vs_defense import BLOCKS
-from .vs_defense import outcome as block_outcome
+from .data.vs_defense import BLOCKS
+from .data.vs_defense import outcome as block_outcome
 from .policy import make_state
 from .emu.vs import GROUND_Y, NAMES, physical, view
 from .vocab import bar, range_of
-from .vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
+from .data.vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
 
 WAIT = 4              # idle frames per step while the fighter cannot act (the 4-frame prev/now gap)
 MAX_RECOVER = 90      # frames to wait after an attack for the fighter to be able to act again

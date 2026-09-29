@@ -55,7 +55,7 @@ from sf2.system1 import System1, play_round
 from sf2.system2 import fits_laya, populate, review
 from sf2.vocab import CHARACTERS
 from sf2.emu.vs import NAMES, VARS
-from sf2.vs_sweep import actions
+from sf2.data.vs_sweep import actions
 
 LOG = None
 MEM_ROOT = "memory"        # memory_runs/<name> with --fresh

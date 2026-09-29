@@ -1,4 +1,4 @@
-"""Stage-1 dataset (still opponent) per character, into test_data/<char>/. See sf2/vs_sweep.py for the design.
+"""Stage-1 dataset (still opponent) per character, into test_data/<char>/. See sf2/data/vs_sweep.py for the design.
 
     # 1. collect shards (each its own headless Mesen; run them in parallel on different ports)
     python scripts/vs_dataset.py collect --p1 ryu --p2 chunli --who 1 --range close --port 48001   # Ryu, left
@@ -26,16 +26,16 @@ import numpy as np
 import _path  # noqa: F401
 from sf2.eval.runner import fan_out
 from sf2.config import PAD
-from sf2.dataset import read, save_png, write_jsonl
+from sf2.data.dataset import read, save_png, write_jsonl
 from sf2.emu.headless import launch_argv
 from sf2.emu.mesen import MesenBridge
 from sf2.emu.vs import boot_vs, gap_state, record, view
-from sf2.vs_moves import CONDS
-from sf2.frames import HUD_ROWS, mirror_frame, model_frame
-from sf2 import vs_defense as D
+from sf2.data.vs_moves import CONDS
+from sf2.data.frames import HUD_ROWS, mirror_frame, model_frame
+from sf2.data import vs_defense as D
 from sf2.vocab import RANGES, range_of
-from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, STAGE1_POSTURES, actions,
-                          mirror_record, note, outcome, outcome_question, split_of, static_actions, current_note)
+from sf2.data.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, STAGE1_POSTURES, actions,
+                               mirror_record, note, outcome, outcome_question, split_of, static_actions, current_note)
 
 ROOT = "test_data"
 MIN_TRAIN, MIN_TEST = 14, 6   # per (action, range): 7 gaps x 2 postures train, 3 x 2 test
@@ -108,7 +108,7 @@ def collect(args) -> int:
 
 
 def collect_defense(args) -> int:
-    """Block data (sf2/vs_defense.py): at every gap, the other fighter throws each probe attack and the character answers
+    """Block data (sf2/data/vs_defense.py): at every gap, the other fighter throws each probe attack and the character answers
     with block_high, block_low or nothing; RAM says what happened to its health."""
     me, opp = (args.p1, args.p2) if args.who == 1 else (args.p2, args.p1)
     side = "left" if args.who == 1 else "right"
@@ -399,7 +399,7 @@ def run(args) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name, text in (("collect", "still-opponent data"), ("collect-defense", "block data (sf2/vs_defense.py)")):
+    for name, text in (("collect", "still-opponent data"), ("collect-defense", "block data (sf2/data/vs_defense.py)")):
         c = sub.add_parser(name, help=text)
         c.add_argument("--p1", required=True)
         c.add_argument("--p2", required=True)

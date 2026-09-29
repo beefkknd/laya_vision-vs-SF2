@@ -19,11 +19,11 @@ import time
 
 import _path  # noqa: F401
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
-from sf2.dataset import read
+from sf2.data.dataset import read
 from sf2.memory import load, short_path
 from sf2.system1 import System1, play_round
 from sf2.vocab import FIGHTERS
-from sf2.vs_sweep import actions
+from sf2.data.vs_sweep import actions
 
 
 

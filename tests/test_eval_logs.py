@@ -61,7 +61,7 @@ def test_rounds_come_from_rounds_jsonl_or_the_older_games_jsonl(tmp_path):
 
 def test_read_jsonl_missing():
     import pytest
-    from sf2.dataset import read
+    from sf2.data.dataset import read
     assert read("/no/such/file.jsonl", missing_ok=True) == []
     with pytest.raises(FileNotFoundError):
         read("/no/such/file.jsonl")

@@ -3,7 +3,7 @@ import pytest
 torch = pytest.importorskip("torch")
 import torch.nn as nn  # noqa: E402
 
-from sf2 import lora  # noqa: E402
+from sf2.data import lora  # noqa: E402
 
 
 class Layer(nn.Module):

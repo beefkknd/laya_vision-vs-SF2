@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 from .memory import KINDS, MAX_PROMPT_LESSONS
 from .vocab import RANGES
-from .vs_sweep import actions
+from .data.vs_sweep import actions
 
 MAX_PLAYBOOK = 8
 MIN_TRIES = 3

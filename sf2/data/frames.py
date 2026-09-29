@@ -12,7 +12,7 @@ takes it at its native pixels with no resize (sf2.config.IMAGE_CFG).
 """
 import numpy as np
 
-from .config import IMAGE_SIZE
+from ..config import IMAGE_SIZE
 
 HUD_ROWS = 62
 

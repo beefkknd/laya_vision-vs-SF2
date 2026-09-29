@@ -20,7 +20,7 @@ QWEN_TEMPERATURE = 0.0
 
 # laya-vision: SmolVLM-256M backbone + Laya typed-decision head (PyTorch, runs on Apple MPS).
 BASE_MODEL = "thaitea/laya-vision-smolvlm-256m"
-# What laya-vision sees: 256x256 frames at their native pixels. sf2/frames.py pads the 256x224 screen to 256x256,
+# What laya-vision sees: 256x256 frames at their native pixels. sf2/data/frames.py pads the 256x224 screen to 256x256,
 # and these settings make laya's image prep an exact identity at that size (checked: max pixel difference 0). The
 # base checkpoint's own settings (image_size 512 via the processor's 2048 px LANCZOS hop) would upscale and resample.
 IMAGE_SIZE = 256

@@ -1,12 +1,12 @@
 """What scripts/train.py trains on must represent every character: run the REAL test_data/ through the same
-load + split + coverage gate train.py uses (sf2/train_data.py). The old global split, which left Ken and Dhalsim
+load + split + coverage gate train.py uses (sf2/data/train_data.py). The old global split, which left Ken and Dhalsim
 with no validation rows, is kept below as a known-bad twin that must fail the gate."""
 import os
 import random
 
 import pytest
 
-from sf2.train_data import coverage_problems, load_data, position, split_by_position
+from sf2.data.train_data import coverage_problems, load_data, position, split_by_position
 from sf2.vocab import FIGHTERS
 
 CHARS = FIGHTERS

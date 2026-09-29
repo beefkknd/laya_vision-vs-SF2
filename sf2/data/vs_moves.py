@@ -4,12 +4,12 @@ range each is tried at, and the RAM fact that proves it came out (docs: laya_two
 input timings from its ROM-verified macros).
 
 A Move's ``check`` is a mechanical yes/no over the recorded rows (a_ = the fighter doing the move, d_ = the other);
-the measurements (sf2/vs_metrics.py) are data, not a gate.
+the measurements (sf2/data/vs_metrics.py) are data, not a gate.
 """
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from .emu.vs import GROUND_Y, Step
+from ..emu.vs import GROUND_Y, Step
 
 ATTACK, SPECIAL, HIT, GUARD, THROWN, JUMP = 0x0A, 0x0C, 0x0E, 0x08, 0x14, 0x04
 BLOCK_REACTS = (0x06, 0x08)

@@ -1,0 +1,1 @@
+"""laya-vision's data: the still-opponent sweep and its notes (vs_sweep), move and defence measurement (vs_moves, vs_defense, vs_metrics), frames as the model sees them (frames), records on disk (dataset), the training split (train_data) and LoRA (lora)."""
