@@ -179,6 +179,32 @@ in 20 defense claims (as "use more", which cannot override the rating) and never
 damage, so Qwen twice re-proposed "avoid hp up close when he jumps" (punished for 221) although hp is her best option
 there (-1.0 vs -10.5, an anti-air).
 
+## 0d. "What if?" when she is stuck (2026-09-29), 3 opponents x 2 seeds
+
+**Change.** When she lost (or won) each of the last 3 games and no registered lesson changed, Qwen gets a third slot,
+"what_if": losing -> a move she rarely or never used where she keeps losing; winning -> a different option where she
+wins, to confirm. Its own test slot, judged like any claim. The defense view now says, per damage row, whether that
+move is better or worse than her other moves there, and names the defensive moves she never used.
+
+| Run | Qwen holds (random) | Stuck -> what-ifs | Registered | Won loop / none | Hit points vs none | Taken less vs none |
+|---|---|---|---|---|---|---|
+| Ken 1 | 41% (10%) | 1 | 5 | 1 / 3 | +14.6 [−11.4, +40.7] | +1.4 [−4.2, +6.9] |
+| Ken 2 | 28% (8%) | 3 | 4, incl. **always block_high up close when he jumps** | 4 / 1 | **+67.3 [+40.1, +94.5]** | **+16.9 [+2.4, +31.4]** |
+| Ryu 1 | 53% (10%) | 0 (never stuck) | 7 | 10 / 5 | +21.7 [−18.6, +62.1] | +0.5 [−17.6, +18.6] |
+| Ryu 2 | 54% (10%) | 0 | 7 | 8 / 9 | −1.9 [−37.4, +33.6] | +0.2 [−15.1, +15.6] |
+| Honda 1 | 41% (12%) | 3 | 3 | 2 / 2 | −6.9 [−42.2, +28.4] | −3.1 [−12.5, +6.3] |
+| Honda 2 | 36% (7%) | 3 | 2 | 1 / 2 | +13.6 [−8.0, +35.1] | −4.1 [−8.7, +0.5] |
+
+Per opponent (60 paired rounds): **Ken hit points +41.0 [+21.1, +60.8], taken 9.1 less [+1.2, +17.1]**; Ryu +9.9
+[−16.9, +36.7]; Honda +3.4 [−17.3, +24.0]. Pooled with the opponent as unit: +18.1 [−3.4, +40.8], not shown. 0
+invariant violations in every run.
+
+**What the what-ifs did.** Stuck runs made Qwen reach for defense with "always" for the first time ("always back /
+crouch / jump_back at mid range when he attacks", "always block_low ...") and one became a verified lesson (block_high
+vs Ken's jump-ins). But back, crouch and jump_back got **0 tries**: System 1 only picks among laya-vision's rated moves
+(attacks, blocks) and walking in, so advice about other movement cannot be followed. Fixed: the loop offers and
+accepts only `system1.choices(me)`.
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced

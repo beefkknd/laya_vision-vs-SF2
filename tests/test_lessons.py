@@ -161,3 +161,12 @@ def test_a_what_if_gets_its_own_test_slot():
     reg, out = L.propose(reg, [wi, claim("use_more", "spinning_bird_kick", "close")], rows, 1, moves=MOVES)
     assert out[0]["state"] == "testing" and out[1]["state"] == "refused"      # a normal third test is not taken
     assert L.in_play(reg)[:3] == ["use more hp up close", "use more mp up close", "always throw up close when he attacks"]
+
+
+def test_the_loop_offers_only_moves_system1_can_choose():
+    """Six what-if runs (2026-09-29): 'always back / crouch / jump_back at mid range when he attacks' got 0 tries in
+    3 games each: System 1 picks only among laya-vision's rated moves (attacks, blocks) and walking in."""
+    from sf2.system1.system1 import choices
+    got = choices("chunli")
+    assert "block_high" in got and "block_low" in got and "forward" in got and "sweep" in got
+    assert not {"back", "crouch", "jump_back", "idle", "jump"} & set(got)

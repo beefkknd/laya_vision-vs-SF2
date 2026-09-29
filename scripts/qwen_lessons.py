@@ -27,8 +27,7 @@ from sf2.eval.logs import load_actions, mark_run, play_dirs
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.eval.stats import ci, paired
 from sf2.system1.advisor import Advisor
-from sf2.system1.system1 import System1, play_round
-from sf2.data.vs_sweep import actions
+from sf2.system1.system1 import System1, choices, play_round
 from sf2.system2 import lessons as L
 from sf2.system2.lesson_prompt import messages, parse_claims, streak
 from sf2.system2.qwen import chat, json_reply
@@ -44,7 +43,7 @@ def decisions(opp: str) -> List[Dict]:
     return [a for d in play_dirs() for a in load_actions(d) if a.get("me") == ME and a.get("opp") == opp]
 
 
-MOVES = list(actions(ME))
+MOVES = choices(ME)          # what System 1 can pick: advice about anything else cannot be followed
 
 
 def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_rounds: List[Dict],

@@ -28,7 +28,7 @@ import numpy as np
 from ..config import PAD
 from ..data.dataset import save_png
 from .game_log import action_entry, game_entry
-from .advice import opp_doing
+from .advice import FORWARD, opp_doing
 from .advisor import choose
 from .game_log import name as state_name
 from ..system2.memory import MAX_PROMPT_LESSONS, prompt_text
@@ -51,6 +51,12 @@ class Round:
     frames: int = 0
     log: List[Dict] = field(default_factory=list)      # sf2.game_log.action_entry per action
     summary: Dict = field(default_factory=dict)         # sf2.game_log.game_entry
+
+
+def choices(me: str) -> List[str]:
+    """Every move System 1 can pick: the attacks and blocks laya-vision rates, and walking in (FORWARD). Other
+    movement (back, crouch, jumps, idle) is never chosen, so advice about it cannot be followed."""
+    return [a for a in actions(me) if a not in MOVEMENT and a not in BLOCKS] + list(BLOCKS) + [FORWARD]
 
 
 class System1:
