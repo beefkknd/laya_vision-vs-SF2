@@ -17,7 +17,7 @@ from typing import Dict, List
 import numpy as np
 
 import _path  # noqa: F401
-from sf2.config import TEST_DATA
+from sf2.config import MESEN_JOB_GB, TEST_DATA
 from sf2.data.dataset import dataset_chars
 from sf2.config import PORTS
 from sf2.eval.runner import exit_on_sigterm, fan_out
@@ -100,7 +100,7 @@ def main() -> int:
     cmds = [((c, s), [sys.executable, os.path.abspath(__file__), "--one", c, s, str(args.base_port + i), "--n",
                       str(args.n), "--seed", str(args.seed)] + (["--rom", args.rom] if args.rom else []))
             for i, (c, s) in enumerate(groups)]
-    failed = fan_out(cmds, os.path.join("logs", "replay"))
+    failed = fan_out(cmds, os.path.join("logs", "replay"), job_gb=MESEN_JOB_GB)
     print("replay: %d of %d (character, side) groups match (logs/replay/)" % (len(groups) - len(failed), len(groups)))
     for c, s in failed:
         print("MISMATCH or error: %s %s, see logs/replay/%s_%s.log" % (c, s, c, s))

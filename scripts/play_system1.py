@@ -18,7 +18,7 @@ import sys
 import time
 
 import _path  # noqa: F401
-from sf2.config import PORTS
+from sf2.config import PORTS, VISION_JOB_GB
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.data.dataset import read
 from sf2.system2.memory import load, short_path
@@ -106,7 +106,7 @@ def main() -> int:
                     "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp]
              + (["--rom", args.rom] if args.rom else [])) for i, c in enumerate(chars)]
     print("%d characters playing (logs/system1/<char>.log)" % len(cmds), flush=True)
-    failed = [c for (c,) in fan_out(cmds, os.path.join("logs", "system1"))]
+    failed = [c for (c,) in fan_out(cmds, os.path.join("logs", "system1"), job_gb=VISION_JOB_GB)]
     summary = summarize(args.out, chars)
     with open(os.path.join(args.out, "summary.json"), "w") as f:
         json.dump(summary, f, indent=1)

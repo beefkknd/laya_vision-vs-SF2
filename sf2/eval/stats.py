@@ -6,6 +6,7 @@ per-opponent means, its 95% interval a two-level bootstrap (resample opponents, 
 A verdict needs every pair to line up and every job to have finished ("NO VERDICT" otherwise), and at least MIN_OPPS
 opponents with MIN_ROUNDS paired rounds each ("TOO FEW" otherwise: a smoke run is not evidence).
 """
+import os
 import random
 from typing import Dict, List, Sequence, Tuple
 
@@ -116,3 +117,23 @@ def summarize(data: Dict[str, Dict[str, List[Dict]]], arms: Sequence[str],
             p = dict(p, verdict="NO VERDICT")
         out["pooled"]["qwen_minus_code_short"] = p
     return out
+
+
+def load_runs(roots: Sequence[str], opps: Sequence[str], arms: Sequence[str],
+              strict: bool = True) -> Dict[str, Dict[str, List[Dict]]]:
+    """{opp: {arm: rounds}} from one or more A/B run folders (<root>/<opp>_<arm>/rounds.jsonl), each run's rounds
+    appended in the same order for every arm so the pairs still line up. An arm that played a different number of
+    rounds than "none" in any run is an error (a crashed or cut job) when ``strict``; with one run, ``strict=False``
+    leaves it to ``summarize``, which marks that arm unpaired (NO VERDICT)."""
+    from ..data.dataset import read
+
+    data: Dict[str, Dict[str, List[Dict]]] = {o: {a: [] for a in arms} for o in opps}
+    for root in roots:
+        for o in opps:
+            got = {a: read(os.path.join(root, "%s_%s" % (o, a), "rounds.jsonl"), missing_ok=True) for a in arms}
+            for a in arms:
+                if strict and got[a] and got.get("none") is not None and len(got[a]) != len(got["none"]):
+                    raise ValueError("%s: %s %s played %d rounds, none %d" % (root, o, a, len(got[a]),
+                                                                            len(got["none"])))
+                data[o][a] += got[a]
+    return data

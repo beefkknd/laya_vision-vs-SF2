@@ -6,14 +6,20 @@ import time
 
 import pytest
 
+from sf2.eval.budget import Budget
 from sf2.eval.runner import fan_out
+
+
+def roomy(tmp_path):
+    """A private ledger with plenty of room (tests never touch the machine's real one)."""
+    return Budget(str(tmp_path / "jobs.json"), total_gb=100, margin_gb=0, load_s=0, available_gb=lambda: 1000.0)
 
 PY = sys.executable
 
 
 def test_reports_the_runs_that_failed(tmp_path):
     cmds = [(("ryu", "none"), [PY, "-c", "print('ok')"]), (("ken", "none"), [PY, "-c", "raise SystemExit(3)"])]
-    assert fan_out(cmds, str(tmp_path)) == [("ken", "none")]
+    assert fan_out(cmds, str(tmp_path), job_gb=1, budget=roomy(tmp_path)) == [("ken", "none")]
     assert open(tmp_path / "ryu_none.log").read() == "ok\n"
 
 
@@ -36,7 +42,7 @@ def test_an_interrupt_stops_every_child(tmp_path, monkeypatch):
     monkeypatch.setattr(real, "wait", interrupted)
     cmds = [((o, "none"), [PY, "-c", "import time; time.sleep(60)"]) for o in ("ryu", "ken")]
     with pytest.raises(KeyboardInterrupt):
-        fan_out(cmds, str(tmp_path))
+        fan_out(cmds, str(tmp_path), job_gb=1, budget=roomy(tmp_path))
     assert len(started) == 2 and all(p.poll() is not None for p in started)
 
 
@@ -60,7 +66,7 @@ def test_a_stopped_child_runs_its_cleanup(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess.Popen, "wait", interrupted)
     with pytest.raises(KeyboardInterrupt):
-        fan_out([(("ryu", "none"), [PY, "-c", child])], str(tmp_path))
+        fan_out([(("ryu", "none"), [PY, "-c", child])], str(tmp_path), job_gb=1, budget=roomy(tmp_path))
     assert mark.read_text() == "yes"
 
 

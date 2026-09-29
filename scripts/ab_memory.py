@@ -30,10 +30,9 @@ import time
 from typing import Dict, List
 
 import _path  # noqa: F401
-from sf2.config import LAYA_VISION, PORTS, TEXT_LAYA
+from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, TEXT_LAYA
 from sf2.system2 import code_coach
 from sf2.system1.advisor import Advisor
-from sf2.data.dataset import read
 from sf2.eval import stats
 from sf2.eval.logs import sources
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
@@ -76,12 +75,23 @@ def play_arm(args, opp: str, arm: str, port: int, out: str) -> int:
     return 0
 
 
-def _rounds(root: str, opp: str, arm: str) -> List[Dict]:
-    return read(os.path.join(root, "%s_%s" % (opp, arm), "rounds.jsonl"), missing_ok=True)
+def summarize(roots: List[str], opps: List[str], arms: List[str], failed=()) -> Dict:
+    return stats.summarize(stats.load_runs(roots, opps, arms, strict=len(roots) > 1), arms, failed)
 
 
-def summarize(root: str, opps: List[str], arms: List[str], failed=()) -> Dict:
-    return stats.summarize({o: {a: _rounds(root, o, a) for a in arms} for o in opps}, arms, failed)
+def report(s: Dict) -> None:
+    for opp, row in s["per_opp"].items():
+        print("%-8s " % opp + "  ".join("%s: won %d hp %+.0f%s" % (
+            arm, v["won"], v["hp"], " (%s)" % v["error"] if "error" in v else
+            "" if "vs_none" not in v else " (vs none %+.0f)" % v["vs_none"][0]) for arm, v in row.items()))
+    for arm, v in s["pooled"].items():
+        if "ci95" in v:
+            print("POOLED %-22s %d opponents%s, %4d paired rounds  mean %+6.1f  95%% CI [%+.1f, %+.1f]  %s%s" % (
+                arm, v["opponents"], " (not played: %s)" % ",".join(v["missing"]) if v.get("missing") else "",
+                v["paired_rounds"], v["mean"], v["ci95"][0], v["ci95"][1], v["verdict"],
+                "  (%s)" % v["why"] if "why" in v else ""))
+        else:
+            print("POOLED %-22s %s  (%s)" % (arm, v["verdict"], v.get("why", "")))
 
 
 def main() -> int:
@@ -95,6 +105,8 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=None,
                     help="start delays for every arm (default: a new one per run, so no earlier run replays the test)")
     ap.add_argument("--base-port", type=int, default=PORTS["ab"][0])
+    ap.add_argument("--pool", default=None, metavar="ROOT,ROOT",
+                    help="no play: pool finished runs (e.g. the same test with several seeds) and print the verdicts")
     ap.add_argument("--one", nargs=4, metavar=("OPP", "ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
     exit_on_sigterm()
@@ -102,6 +114,9 @@ def main() -> int:
         opp, arm, port, out = args.one
         return play_arm(args, opp, arm, int(port), out)
     me, arms, opps = args.char, args.arms.split(","), args.opps.split(",")
+    if args.pool:
+        report(summarize(args.pool.split(","), opps, arms))
+        return 0
     if "none" not in arms:
         raise SystemExit("the control arm 'none' is required")
     seed = int(time.time()) % 100000 if args.seed is None else args.seed
@@ -127,22 +142,11 @@ def main() -> int:
                           "--model", args.model, "--advisor", args.advisor, "--seed", str(seed)])
             for i, (opp, arm) in enumerate(runs)]
     print("%d headless runs, %d rounds each, seed %d; logs/ab/" % (len(cmds), args.rounds, seed), flush=True)
-    failed = fan_out(cmds, os.path.join("logs", "ab"))
-    s = summarize(root, opps, arms, failed)
+    failed = fan_out(cmds, os.path.join("logs", "ab"), job_gb=MODEL_JOB_GB)
+    s = summarize([root], opps, arms, failed)
     with open(os.path.join(root, "summary.json"), "w") as f:
         json.dump(s, f, indent=1)
-    for opp, row in s["per_opp"].items():
-        print("%-8s " % opp + "  ".join("%s: won %d hp %+.0f%s" % (
-            arm, v["won"], v["hp"], " (%s)" % v["error"] if "error" in v else
-            "" if "vs_none" not in v else " (vs none %+.0f)" % v["vs_none"][0]) for arm, v in row.items()))
-    for arm, v in s["pooled"].items():
-        if "ci95" in v:
-            print("POOLED %-22s %d opponents%s, %4d paired rounds  mean %+6.1f  95%% CI [%+.1f, %+.1f]  %s%s" % (
-                arm, v["opponents"], " (not played: %s)" % ",".join(v["missing"]) if v.get("missing") else "",
-                v["paired_rounds"], v["mean"], v["ci95"][0], v["ci95"][1], v["verdict"],
-                "  (%s)" % v["why"] if "why" in v else ""))
-        else:
-            print("POOLED %-22s %s  (%s)" % (arm, v["verdict"], v.get("why", "")))
+    report(s)
     for k in failed:
         print("FAILED:", k, "see logs/ab/%s_%s.log" % k)
     print("saved", root)

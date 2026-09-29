@@ -65,3 +65,15 @@ MEMORY_RUNS = "memory_runs"              # learn_loop --fresh NAME: memory_runs/
 MEMORY_SEED = "memory_seeds/video"       # the brain panel's "cheat" copies from here
 LIVE = "out/live"                        # what the running loop shows the brain panel
 VIDEO_OUT = _env("SF2_VIDEO_OUT", "~/Desktop/laya_video")
+
+# Headless jobs share one memory budget across every run and checkout (sf2.eval.budget). A model job (a runner with
+# laya-vision + its text laya helper) took ~5.5 GB each when 38 of them ran the Mac out of memory (2026-09-29); the
+# budget leaves room for Qwen (~39 GB), the OS and a browser on this 256 GB machine.
+JOBS_LEDGER = _env("SF2_JOBS_LEDGER", "~/.cache/sf2/jobs.json")
+JOBS_BUDGET_GB = float(_env("SF2_JOBS_BUDGET_GB", "150"))
+JOBS_MARGIN_GB = 16.0    # free memory that must remain after a job starts
+JOBS_LOAD_S = 60.0       # a job this young may not show its memory yet
+JOBS_WAIT_S = 1800.0     # waiting longer than this for room (with none of our own jobs running) is an error
+MODEL_JOB_GB = 6.0       # laya-vision + text laya (ab_memory, notebook_run)
+VISION_JOB_GB = 3.0      # laya-vision only (play_system1)
+MESEN_JOB_GB = 0.5       # emulator only (vs_dataset collect, verify_replay)

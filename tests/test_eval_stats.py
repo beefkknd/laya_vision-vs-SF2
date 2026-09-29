@@ -72,3 +72,26 @@ def test_pooled_names_opponents_an_arm_did_not_play():         # e.g. qwen skipp
 def test_slope_per_round():
     from sf2.eval.stats import slope
     assert slope([1, 2, 3, 4]) == 1.0 and slope([5]) == 0.0 and slope([3, 1]) == -2.0
+
+
+def test_runs_pool_by_appending_each_runs_pairs(tmp_path):
+    """Several A/B runs (different seeds) pool per opponent; a run where an arm is short makes it unpaired."""
+    import json
+    import os
+    from sf2.eval.stats import load_runs
+
+    def write(root, opp, arm, hps):
+        os.makedirs(os.path.join(root, "%s_%s" % (opp, arm)))
+        with open(os.path.join(root, "%s_%s" % (opp, arm), "rounds.jsonl"), "w") as f:
+            f.writelines(json.dumps(r) + "\n" for r in rounds(hps))
+    a, b = str(tmp_path / "a"), str(tmp_path / "b")
+    write(a, "ryu", "none", [0, 0])
+    write(a, "ryu", "code_short", [5, 5])
+    write(b, "ryu", "none", [1])
+    write(b, "ryu", "code_short", [9])
+    data = load_runs([a, b], ["ryu"], ["none", "code_short"])
+    assert paired(data["ryu"]["code_short"], data["ryu"]["none"]) == [5, 5, 8]
+    write(b, "ken", "none", [1, 1])
+    write(b, "ken", "code_short", [9])
+    with pytest.raises(ValueError, match="ken code_short"):
+        load_runs([a, b], ["ryu", "ken"], ["none", "code_short"])

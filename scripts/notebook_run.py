@@ -20,7 +20,7 @@ import time
 from typing import Dict, List
 
 import _path  # noqa: F401
-from sf2.config import LAYA_VISION, PORTS, TEXT_LAYA
+from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, TEXT_LAYA
 from sf2.system2 import notebook as nbk
 from sf2.system1.advisor import Advisor
 from sf2.data.dataset import read
@@ -114,7 +114,7 @@ def main() -> int:
     print("%s vs %s: arms %s, %d rounds each, seed %d; logs/notebook/" % (args.char, args.opp, ",".join(ARMS),
                                                                          args.rounds, args.seed),
           flush=True)
-    failed = [arm for _, arm in fan_out(cmds, os.path.join("logs", "notebook"))]
+    failed = [arm for _, arm in fan_out(cmds, os.path.join("logs", "notebook"), job_gb=MODEL_JOB_GB)]
     s = summarize(root)
     with open(os.path.join(root, "summary.json"), "w") as f:
         json.dump(s, f, indent=1)

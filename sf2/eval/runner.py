@@ -2,19 +2,23 @@
 
     open_fight   one headless Mesen with states/p1_<me>_vs_<opp>.state loaded and checked, always closed
     open_logs    the run's JSONL files, always closed
-    fan_out      one child process per job side by side, each with its own log; Ctrl-C, SIGTERM or an error stops
-                 every child and closes every log, so nothing is left running
+    fan_out      one child process per job, as many at once as the machine-wide memory budget allows
+                 (sf2.eval.budget), each with its own log; Ctrl-C, SIGTERM or an error stops every child, releases its
+                 memory and closes every log, so nothing is left running
 """
 import contextlib
 import os
 import signal
 import subprocess
 import sys
+import time
 from typing import Dict, IO, Iterator, List, Optional, Sequence, Tuple
 
+from ..config import JOBS_WAIT_S
 from ..emu.headless import launch_argv
 from ..emu.mesen import MesenBridge
 from ..vocab import IDS
+from .budget import POLL, Budget, NoRoom
 from ..emu.vs import NAMES, VARS
 
 STOP_WAIT = 20          # seconds a child gets to shut Mesen down before it is killed
@@ -62,24 +66,47 @@ def exit_on_sigterm() -> None:
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
 
 
-def fan_out(cmds: Sequence[Tuple[Key, List[str]]], log_dir: str) -> List[Key]:
-    """Start every command, wait for all; the keys of those that exited non-zero. Logs: <log_dir>/<key joined by _>.log"""
+def fan_out(cmds: Sequence[Tuple[Key, List[str]]], log_dir: str, job_gb: float,
+            budget: Optional[Budget] = None) -> List[Key]:
+    """Run every command, as many at once as the machine-wide memory budget allows (``job_gb`` each, sf2.eval.budget);
+    the keys of those that exited non-zero. Logs: <log_dir>/<key joined by _>.log"""
+    budget = budget or Budget()
+    if job_gb > budget.total:
+        raise NoRoom("a %.1f GB job never fits the %.0f GB budget" % (job_gb, budget.total))
     os.makedirs(log_dir, exist_ok=True)
-    jobs, logs = [], []
+    queue, running, failed, logs = list(cmds), [], [], []
+    waited = time.time()
     try:
-        for key, cmd in cmds:
-            logs.append(open(os.path.join(log_dir, "_".join(key) + ".log"), "w"))
-            jobs.append((key, subprocess.Popen(cmd, stdout=logs[-1], stderr=subprocess.STDOUT)))
-        return [k for k, p in jobs if p.wait() != 0]
+        while queue or running:
+            for job in [j for j in running if j[1].poll() is not None]:
+                running.remove(job)
+                budget.release(job[2])
+                if job[1].returncode != 0:
+                    failed.append(job[0])
+            rid = budget.try_reserve(job_gb) if queue else None
+            if rid:
+                key, cmd = queue.pop(0)
+                logs.append(open(os.path.join(log_dir, "_".join(key) + ".log"), "w"))
+                running.append((key, subprocess.Popen(cmd, stdout=logs[-1], stderr=subprocess.STDOUT), rid))
+                waited = time.time()
+                continue
+            if queue and not running and time.time() - waited > JOBS_WAIT_S:
+                raise NoRoom("waited %.0f s for room for a %.1f GB job" % (JOBS_WAIT_S, job_gb))
+            if running and not queue:
+                running[0][1].wait()               # nothing left to start: block on a child instead of polling
+            else:
+                time.sleep(POLL)
+        return [k for k, _ in cmds if k in failed]
     finally:
-        for _, p in jobs:
+        for _, p, _ in running:
             if p.poll() is None:
                 p.terminate()
-        for _, p in jobs:
+        for _, p, rid in running:
             try:
                 p.wait(timeout=STOP_WAIT)
             except subprocess.TimeoutExpired:
                 p.kill()
                 p.wait()
+            budget.release(rid)
         for f in logs:
             f.close()

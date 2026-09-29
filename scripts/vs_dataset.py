@@ -20,7 +20,7 @@ import sys
 
 
 import _path  # noqa: F401
-from sf2.config import PORTS
+from sf2.config import MESEN_JOB_GB, PORTS
 from sf2.data.build import build
 from sf2.data.collect import collect, collect_defense, import_live
 from sf2.eval.runner import fan_out
@@ -50,7 +50,7 @@ def run(args) -> int:
                     cmds.append((key, cmd))
                     port += 1
     print("%d collect jobs running (logs in logs/dataset/)" % len(cmds), flush=True)
-    failed = fan_out(cmds, os.path.join("logs", "dataset"))
+    failed = fan_out(cmds, os.path.join("logs", "dataset"), job_gb=MESEN_JOB_GB)
     for key in failed:
         print("FAILED collect, see logs/dataset/%s.log" % "_".join(key))
     if failed:
