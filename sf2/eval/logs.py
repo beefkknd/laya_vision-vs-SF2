@@ -17,7 +17,7 @@ from typing import Dict, Iterable, List, Tuple
 from ..data.dataset import read
 
 ROOT = "rollouts"
-TEST_DIRS = ("ab", "notebook", "qwen_moves")
+TEST_DIRS = ("ab", "notebook", "qwen_moves", "qwen_lessons")
 RUN_FILE = "run.json"
 
 
