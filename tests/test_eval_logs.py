@@ -85,3 +85,12 @@ def test_dataset_chars_are_the_fighter_folders_only(tmp_path):       # test_data
         (tmp_path / d).mkdir()
     (tmp_path / "ken").write_text("a file, not a folder")
     assert dataset_chars(str(tmp_path)) == ["chunli", "ryu"]
+
+
+def test_qwen_moves_runs_and_runs_marked_test_are_not_play_data(tmp_path):
+    """Found 2026-09-29: the Ken loop's rounds (rollouts/qwen_moves/) counted as play data and changed Q1's truth."""
+    root = str(tmp_path / "rollouts")
+    write_log(root, "qwen_moves/x_ken_loop/loop")
+    write_log(root, "somewhere/new", meta={"test": True})
+    write_log(root, "games_v1/chunli")
+    assert [os.path.relpath(d, root) for d in play_dirs(root)] == ["games_v1/chunli"]

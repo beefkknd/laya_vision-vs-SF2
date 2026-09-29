@@ -1,8 +1,10 @@
 """Which logs are play data. Test runs never feed a coach or System 2 (they replay the same savestates with the same
 seed as the A/B test, so learning from them would leak the test into the lesson):
 
-    rollouts/ab/, rollouts/notebook/      A/B and notebook tests
+    rollouts/ab/, rollouts/notebook/,     A/B, notebook and Qwen move tests
+      rollouts/qwen_moves/
     a run marked "fresh" in run.json      learn_loop --fresh (demo sessions with their own memory_runs/<name>)
+    a run marked "test" in run.json       any other test run
     a run.json that cannot be read        not trusted as play data
 
 A log dir holds actions.jsonl; each action loaded here is tagged ``log`` = its dir relative to the root.
@@ -15,7 +17,7 @@ from typing import Dict, Iterable, List, Tuple
 from ..data.dataset import read
 
 ROOT = "rollouts"
-TEST_DIRS = ("ab", "notebook")
+TEST_DIRS = ("ab", "notebook", "qwen_moves")
 RUN_FILE = "run.json"
 
 
@@ -38,7 +40,7 @@ def is_test(d: str, root: str = ROOT) -> bool:
             meta = json.load(f)
     except (OSError, ValueError):
         return True
-    return not isinstance(meta, dict) or bool(meta.get("fresh"))
+    return not isinstance(meta, dict) or bool(meta.get("fresh")) or bool(meta.get("test"))
 
 
 def play_dirs(root: str = ROOT) -> List[str]:
