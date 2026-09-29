@@ -38,9 +38,17 @@ def _runs(roots: Sequence[str]) -> List[Tuple[str, str, int, str]]:
     return [x[1:] for x in sorted(out)]
 
 
-def _none(d: str) -> bytes:
+LOG_ONLY = ("opp_move", "opp_shot")      # added to the log 2026-09-29 (sf2/system1/opp_moves.py); play is unchanged
+
+
+def _none(d: str):
+    """The no-advice arm's decisions without the logging-only fields (compared as data, not bytes)."""
     with open(os.path.join(d, "none", "actions.jsonl"), "rb") as f:
-        return f.read()
+        raw = f.read()
+    try:
+        return [{k: v for k, v in json.loads(x).items() if k not in LOG_ONLY} for x in raw.splitlines() if x.strip()]
+    except ValueError:
+        return raw
 
 
 def pairs(roots: Sequence[str], prompts: Sequence[str] = PROMPTS) -> Tuple[Dict[Tuple[str, int], Dict[str, str]],
