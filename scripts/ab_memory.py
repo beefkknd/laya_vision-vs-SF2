@@ -27,7 +27,7 @@ import os
 import random
 import sys
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import _path  # noqa: F401
 from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, TEXT_LAYA
@@ -43,10 +43,24 @@ ARMS = ("none", "qwen", "code_short", "code_playbook")
 OPPS = ("ryu", "honda", "ken", "zangief", "dhalsim", "guile", "blanka")
 
 
-def arm_memory(me: str, opp: str, arm: str, rows: List[Dict]):
+def parse_fixed(items: List[str]) -> Dict[str, List[str]]:
+    """--fixed NAME=line; line  ->  {NAME: [lines]}: an arm that plays with exactly these lines."""
+    out = {}
+    for it in items:
+        name, _, lines = it.partition("=")
+        lines = [x.strip() for x in lines.split(";") if x.strip()]
+        if not name or not lines or name in ARMS:
+            raise SystemExit("--fixed %r: use NAME=line; line (NAME not one of %s)" % (it, ", ".join(ARMS)))
+        out[name] = lines
+    return out
+
+
+def arm_memory(me: str, opp: str, arm: str, rows: List[Dict], fixed: Optional[Dict[str, List[str]]] = None):
     """The frozen memory an arm plays with (None for "none"), or False when this arm has nothing for ``opp``."""
     if arm == "none":
         return None
+    if fixed and arm in fixed:
+        return {"me": me, "opp": opp, "source": "fixed", "lessons": [{"text": t} for t in fixed[arm]]}
     if arm == "qwen":
         path = short_path(me, opp)
         return json.load(open(path)) if os.path.exists(path) else False
@@ -98,6 +112,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--char", default="chunli")
     ap.add_argument("--arms", default=",".join(ARMS))
+    ap.add_argument("--fixed", action="append", default=[], metavar="NAME=LINE; LINE",
+                    help="an arm NAME (also list it in --arms) that plays with exactly these advice lines")
     ap.add_argument("--opps", default=",".join(OPPS))
     ap.add_argument("--rounds", type=int, default=30, help="rounds per arm per opponent")
     ap.add_argument("--model", default=LAYA_VISION)
@@ -114,6 +130,7 @@ def main() -> int:
         opp, arm, port, out = args.one
         return play_arm(args, opp, arm, int(port), out)
     me, arms, opps = args.char, args.arms.split(","), args.opps.split(",")
+    fixed = parse_fixed(args.fixed)
     if args.pool:
         report(summarize(args.pool.split(","), opps, arms))
         return 0
@@ -126,7 +143,7 @@ def main() -> int:
     runs = []
     for opp in opps:                               # freeze what is tested, before anything plays
         for arm in arms:
-            mem = arm_memory(me, opp, arm, rows)
+            mem = arm_memory(me, opp, arm, rows, fixed)
             if mem is False:
                 print("skip %s %s: no memory for this opponent" % (opp, arm))
                 continue
