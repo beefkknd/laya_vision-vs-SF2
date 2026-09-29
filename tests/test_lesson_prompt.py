@@ -55,3 +55,12 @@ def test_parse_claims_one_per_view():
 
 def test_record_before_any_game():
     assert record([], []).startswith("No game played yet in this session")
+
+
+def test_the_prompt_lists_her_moves_with_the_defensive_ones_and_last_refusals():
+    moves = ["lp", "sweep", "block_high", "block_low", "back", "jump_back"]
+    refused = [{"claim": {"kind": "avoid", "move": "hp", "range": "close", "when": "jumping"}, "state": "refused",
+                "why": "already registered"}]
+    msgs = messages("chunli", "ken", [], ROWS, ROWS, [], [], moves=moves, refused=refused)
+    assert "block_low" in msgs[0]["content"] and "never used" in msgs[0]["content"]
+    assert "Refused last time" in msgs[1]["content"] and "already registered" in msgs[1]["content"]

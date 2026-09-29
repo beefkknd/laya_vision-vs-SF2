@@ -28,6 +28,7 @@ from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.eval.stats import ci, paired
 from sf2.system1.advisor import Advisor
 from sf2.system1.system1 import System1, play_round
+from sf2.data.vs_sweep import actions
 from sf2.system2 import lessons as L
 from sf2.system2.lesson_prompt import messages, parse_claims
 from sf2.system2.qwen import chat, json_reply
@@ -43,10 +44,13 @@ def decisions(opp: str) -> List[Dict]:
     return [a for d in play_dirs() for a in load_actions(d) if a.get("me") == ME and a.get("opp") == opp]
 
 
+MOVES = list(actions(ME))
+
+
 def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_rounds: List[Dict],
-        last_rounds: List[Dict]):
+        last_rounds: List[Dict], refused: List[Dict]):
     try:
-        raw = chat(messages(ME, opp, reg, rows, last, all_rounds, last_rounds), "lessons_%s" % opp)
+        raw = chat(messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused), "lessons_%s" % opp)
         claims, problems = parse_claims(json_reply(raw))
     except Exception as e:                   # Qwen down, cut off or not JSON: no claims this game
         return [], ["%s: %s" % (type(e).__name__, e)], None
@@ -58,6 +62,7 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     reg: L.Registry = []
     acts: List[Dict] = []
     played: List[Dict] = []
+    refused: List[Dict] = []
     os.makedirs(out, exist_ok=True)
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed)       # never play data (sf2.eval.logs)
     with Advisor(args.advisor) as advisor, open_fight(ME, args.opp, port) as (b, state), \
@@ -67,11 +72,12 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
         rng = random.Random(args.seed)
 
         def learn(game: int, last: List[Dict], last_rounds: List[Dict]) -> None:
-            nonlocal reg
+            nonlocal reg, refused
             rows = base + acts
             reg = L.review(reg, rows, game)
-            claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds)
-            reg, outcome = L.propose(reg, claims, rows, game)
+            claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused)
+            reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES)
+            refused = [o for o in outcome if o["state"] == "refused"]
             logs["ledger"].write(json.dumps({"game": game, "claims": claims, "outcome": outcome, "problems": problems,
                                              "registry": reg, "in_play": L.in_play(reg),
                                              "violations": L.violations(reg, rows), "reply": raw}) + "\n")

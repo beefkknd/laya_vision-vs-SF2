@@ -87,12 +87,12 @@ def test_a_registered_lesson_retires_when_its_evidence_stops_holding():
 def test_duplicates_contradictions_and_covered_claims_are_refused():
     rows = world()
     reg, _ = L.propose([], [claim("avoid", "sweep", "close")], rows, 0)
-    reg, out = L.propose(reg, [claim("avoid", "sweep", "close"), claim("always", "sweep", "close", "attacking"),
+    reg, out = L.propose(reg, [claim("avoid", "sweep", "close"), claim("always", "sweep", "close"),
                                claim("avoid", "sweep", "close", "attacking"), {"kind": "maybe", "move": "x"},
                                claim("use_more", "shoryuken", "close")], rows, 1)
     assert [o["state"] for o in out] == ["refused"] * 5
     assert "already" in out[0]["why"] and "contradicts" in out[1]["why"] and "covered" in out[2]["why"]
-    assert "never tried" in out[4]["why"]
+    assert "not one of her moves" in out[4]["why"]
 
 
 def test_in_play_holds_at_most_five_lines_tests_first_then_the_strongest():
@@ -130,3 +130,24 @@ def test_damage_causes():
     assert L.cause(dict(act("sweep", "mid", -8), actual="none")) == "stuffed"
     assert L.cause(act("back", "mid", -6, kind="movement")) == "caught"
     assert L.cause(act("sweep", "mid", 5)) is None
+
+
+def test_a_narrower_opposite_claim_is_an_exception_not_a_contradiction():
+    """Ken, two views (2026-09-29): 'avoid hp up close when he jumps' was refused 6 games running as contradicting
+    'use more hp up close'. Text laya's rule already lets an applying avoid rule the move out."""
+    rows = many("hp", "close", 6, 40, "standing") + many("hp", "close", -14, 30, "jumping", 1) + \
+        many("sweep", "close", -4, 40, "standing", 2) + many("sweep", "close", -4, 30, "jumping", 3)
+    reg, _ = L.propose([], [claim("use_more", "hp", "close")], rows, 0)
+    reg, out = L.propose(reg, [claim("avoid", "hp", "close", "jumping"), claim("avoid", "hp", None)], rows, 1)
+    assert out[0]["state"] == "registered"                                 # the exception, judged on its own data
+    assert out[1]["state"] == "refused" and "contradicts" in out[1]["why"]   # broader and opposite: a contradiction
+
+
+def test_a_move_she_never_used_can_be_tried_but_not_avoided():
+    """She never blocked (0 of 3853 times he attacked): 'always block_low when he attacks' must be testable."""
+    rows = world()[40:]                                                      # no block rows at all
+    moves = MOVES
+    reg, out = L.propose([], [claim("always", "block_high", "close", "attacking"),
+                              claim("avoid", "block_high", "close")], rows, 0, moves=moves + ["block_high"])
+    assert out[0]["state"] == "testing"
+    assert out[1]["state"] == "refused" and "never" in out[1]["why"]

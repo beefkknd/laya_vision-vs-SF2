@@ -100,13 +100,15 @@ def cause(a: Dict) -> Optional[str]:
     return {"hit": "traded", "whiff": "punished", "blocked": "punished"}.get(a.get("actual"), "stuffed")
 
 
-def _refusal(reg: Registry, c, tried: set) -> Optional[str]:
+def _refusal(reg: Registry, c, tried: set, moves: set) -> Optional[str]:
     if not isinstance(c, dict) or c.get("kind") not in KINDS or not isinstance(c.get("move"), str):
         return "not a claim: %.80r" % (c,)
     if c.get("range") not in (None,) + RANGES or c.get("when") not in (None,) + tuple(WHEN_WORDS):
         return "range must be close / mid / far or none, when one of %s or none" % ", ".join(WHEN_WORDS)
-    if c["move"] not in tried:
-        return "she never tried %s" % c["move"]
+    if c["move"] not in moves:
+        return "%s is not one of her moves" % c["move"]
+    if c["move"] not in tried and c["kind"] == "avoid":
+        return "she never used %s: nothing to avoid" % c["move"]
     for r in reg:
         if key(r["claim"]) == key(c) and r["state"] in ("testing", "registered"):
             return "already %s" % r["state"]
@@ -115,7 +117,8 @@ def _refusal(reg: Registry, c, tried: set) -> Optional[str]:
         same = RIGHT[r["claim"]["kind"]] == RIGHT[c["kind"]]
         if r["state"] in ("testing", "registered") and same and _covers(r["claim"], c):
             return "covered by the %s lesson %r" % (r["state"], r["line"])
-        if r["state"] in ("testing", "registered") and not same and _overlap(r["claim"], c):
+        exception = _covers(r["claim"], c) and key(r["claim"])[2:] != key(c)[2:]     # strictly narrower: allowed
+        if r["state"] in ("testing", "registered") and not same and _overlap(r["claim"], c) and not exception:
             return "contradicts the %s lesson %r" % (r["state"], r["line"])
     return None
 
@@ -144,13 +147,18 @@ def _judge(c: Claim, ev: Dict) -> Tuple[str, str]:
     return "testing", "to be tried in play"
 
 
-def propose(reg: Registry, claims: Sequence, rows: Sequence[Dict], game: int) -> Tuple[Registry, List[Dict]]:
-    """Take Qwen's claims: each is refused (invalid, known, contradicting) or judged. Returns a new registry."""
+def propose(reg: Registry, claims: Sequence, rows: Sequence[Dict], game: int,
+            moves: Optional[Sequence[str]] = None) -> Tuple[Registry, List[Dict]]:
+    """Take Qwen's claims: each is refused (invalid, known, contradicting) or judged. ``moves``: her whole move set (a
+    "use more" / "always" may name a move she never used: it is tried in play); default: the moves in ``rows``.
+    A claim opposite to a lesson but for a strictly narrower situation is an exception, judged on its own data (text
+    laya's rule: an applying avoid rules the move out even where a use more applies). Returns a new registry."""
     reg = [dict(r) for r in reg]
     tried = {a["action"] for a in rows}
+    moves = set(moves) if moves is not None else tried
     out = []
     for c in claims:
-        why = _refusal(reg, c, tried)
+        why = _refusal(reg, c, tried, moves)
         if why:
             out.append({"claim": c, "state": "refused", "why": why})
             continue

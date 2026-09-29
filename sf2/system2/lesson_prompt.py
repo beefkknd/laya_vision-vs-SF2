@@ -32,8 +32,12 @@ Code checks each lesson against what she does now in exactly that situation: kep
 (use more / always) or clearly worse (avoid) than her average there; "use more" and "always" lessons are tried for a
 few games first. "Net" = damage she dealt minus damage she took, per decision.
 
+Her moves: {moves}. Defensive ones: {defensive}. A move she has never used can still be proposed as "use more" or
+"always" (it is tried in play); "avoid" needs a move she has used.
+
 When she loses most rounds, the defense lesson matters most; when she wins, the attack lesson. Do not repeat a lesson
-that is registered, being tested or rejected, and do not contradict a registered one. Use only moves she has used.
+that is registered, being tested, rejected or refused, and do not contradict a registered one (an exception for a
+narrower situation is fine: "avoid X when he jumps" next to "use more X").
 
 Answer with JSON only (null for a side with nothing worth proposing):
 {{"attack": {{"kind": "use_more|always|avoid", "move": "...", "range": "close|mid|far|null", "when": "jumping|crouching|attacking|standing|stunned|null", "why": "one short sentence"}},
@@ -113,16 +117,31 @@ def _registry(reg: L.Registry) -> str:
     return "\n".join("- %s: %s (%s)" % (r["state"], r["line"], r["why"]) for r in reg) if reg else "(nothing yet)"
 
 
+DEFENSIVE = ("block_high", "block_low", "back", "jump_back", "crouch")
+
+
 def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
-             all_rounds: Sequence[Dict], last_rounds: Sequence[Dict]) -> List[Dict]:
-    user = "\n\n".join([
+             all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], moves: Sequence[str] = (),
+             refused: Sequence[Dict] = ()) -> List[Dict]:
+    moves = list(moves) or sorted({a["action"] for a in rows})
+    parts = [
         record(all_rounds, last_rounds),
         "What she knows about %s so far:\n%s" % (opp, _registry(reg)),
         "ATTACK - her attacks in the last game:\n%s" % ("\n".join(attack_view(last)) or "(none shown)"),
         "DEFENSE - the damage she took in the last game:\n%s" % ("\n".join(defense_view(last)) or "(none)"),
         "All games so far, per move and range, against her average at that range:\n%s" % (
-            "\n".join(overall(rows)) or "(not enough yet)")])
-    return [{"role": "system", "content": SYSTEM.format(me=me, opp=opp)}, {"role": "user", "content": user}]
+            "\n".join(overall(rows)) or "(not enough yet)")]
+    if refused:
+        parts.append("Refused last time (do not propose again):\n%s" % "\n".join(
+            "- %s: %s" % (L.render(o["claim"]) if _renderable(o["claim"]) else o["claim"], o["why"]) for o in refused))
+    system = SYSTEM.format(me=me, opp=opp, moves=", ".join(moves),
+                           defensive=", ".join(m for m in DEFENSIVE if m in moves) or "none")
+    return [{"role": "system", "content": system}, {"role": "user", "content": "\n\n".join(parts)}]
+
+
+def _renderable(c) -> bool:
+    return isinstance(c, dict) and c.get("kind") in L.KINDS and isinstance(c.get("move"), str) \
+        and c.get("range") in (None, "close", "mid", "far") and c.get("when") in (None,) + tuple(L.WHEN_WORDS)
 
 
 def _cond(v):
