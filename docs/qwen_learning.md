@@ -372,6 +372,27 @@ when each decision is credited with the damage of the next 2-6 decisions (checke
 at 6). The harm is where it takes her (more time up close with him), which a within-situation comparison cannot see.
 Only the round outcome against no advice shows it, and only across runs.
 
+## 0i. The track record (2026-09-29): Qwen learns across sessions at the level of the round
+
+`sf2/system2/track_record.py`, `scripts/track_record.py` -> `lessons/track_record.json` (frozen, rebuilt byte for byte
+from the same runs), `qwen_lessons.py --track FILE`. Per opponent and lesson line: every round of a finished run with
+the line in play, against the same round without advice (the paired arm); the run is the unit (mean of per-run means,
+two-level bootstrap); "few" under 3 runs or 15 rounds; hurts / helps when the 95% interval is below / above 0.
+
+With --track: Qwen sees this opponent's record (clear verdicts first, at most 10 lines), and a claim whose line hurts
+is refused ("its track record hurts: ..."); the ledger's violations include any registered lesson that hurts (must stay
+empty). Without --track, prompts and verifier are unchanged (checked against the previous commit).
+
+First build, 67 runs: Honda 4 lessons hurt - "use more forward at mid range when he stands" -27.0 [-45.7, -8.5], "...when
+he jumps" -15.3, "avoid spinning_bird_kick at mid range when he stands" -16.0, "avoid sweep at mid range when he jumps"
+-10.6; Ken 10 help (e.g. "use more hp up close when he jumps" +61.5 over 16 runs); Ryu 8 help.
+Caution in the data itself: "avoid spinning_bird_kick at mid range when he stands" hurts vs Honda but helps vs Ryu (+22.6,
+20 runs) - against Honda it was in play next to the walk-in lessons and shares their blame. A record says which rounds
+went badly with a lesson, not that the lesson caused it.
+
+Round 4 (running): character_fgc with and without --track, seeds 31001-31004 x 3 opponents, two waves of 12 runs (a
+30-minute budget queue timeout killed two runs in round 3).
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
