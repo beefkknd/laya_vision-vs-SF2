@@ -60,6 +60,7 @@ MLX_PYTHON = _env("SF2_MLX_PYTHON", "~/work/laya_mlx/.venv/bin/python")
 HF_HOME = _env("HF_HOME", "/Volumes/ExtremeSSD/huggingface")
 
 # Folders the loop and the demo write (all git-ignored).
+TEST_DATA = "test_data"                 # laya-vision's dataset (scripts/vs_dataset.py)
 MEMORY_RUNS = "memory_runs"              # learn_loop --fresh NAME: memory_runs/NAME
 MEMORY_SEED = "memory_seeds/video"       # the brain panel's "cheat" copies from here
 LIVE = "out/live"                        # what the running loop shows the brain panel

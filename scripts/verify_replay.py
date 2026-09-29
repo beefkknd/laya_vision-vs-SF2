@@ -17,6 +17,7 @@ from typing import Dict, List
 import numpy as np
 
 import _path  # noqa: F401
+from sf2.config import TEST_DATA
 from sf2.config import PORTS
 from sf2.eval.runner import exit_on_sigterm, fan_out
 from sf2.config import PAD
@@ -26,7 +27,7 @@ from sf2.emu.vs import boot_vs, gap_state, record, view
 from sf2.data.vs_moves import CONDS
 from sf2.data.vs_sweep import GAPS, LEAD, POSTURES, PREV_GAP, actions, outcome
 
-ROOT = "test_data"
+ROOT = TEST_DATA
 COMPARE = ("gap", "outcome", "damage", "busy_frames", "travel", "thrown", "executed")
 
 

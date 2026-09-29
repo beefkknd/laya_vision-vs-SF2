@@ -17,6 +17,7 @@ from typing import Dict, List
 import numpy as np
 
 import _path  # noqa: F401
+from sf2.config import TEST_DATA
 from sf2.config import PAD
 from sf2.config import IMAGE_SIZE
 from sf2.data.frames import HUD_ROWS
@@ -27,7 +28,7 @@ from sf2.data.vs_sweep import (MOVEMENT, OUTCOMES, STAGE1_POSTURES, TEST_INDEX, 
                                static_actions)
 from laya.vlm_train import jsonl_example
 
-ROOT = "test_data"
+ROOT = TEST_DATA
 FILES = ("train_real", "train_mirrored", "test_real_left", "test_real_right")
 FIELDS = {"id": str, "char": str, "opp": str, "side": str, "facing": str, "range": str, "gap": int, "gap_index": int,
           "dx": int, "posture": str, "action": str, "kind": str, "buttons": list, "images": list, "state_text": str,
