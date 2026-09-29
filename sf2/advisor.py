@@ -7,7 +7,7 @@ followed), and forward. The text is built by sf2.advice exactly as in text laya'
 import json
 import os
 import subprocess
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 from .advice import FORWARD, answers, prompt, question, rating, read, situation_text
 

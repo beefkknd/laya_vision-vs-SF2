@@ -20,7 +20,7 @@ from dataclasses import replace
 from typing import Dict, List, Tuple
 
 import _path  # noqa: F401
-from sf2.advice import (BARS, FAILS, FORWARD, MAY, OPP_STATES, RANGES, WORKS, answers, opp_doing, parse, prompt,
+from sf2.advice import (FAILS, FORWARD, MAY, OPP_STATES, RANGES, WORKS, answers, opp_doing, parse, prompt,
                         question, rating, situation_text)
 from sf2.vs_sweep import MOVEMENT, SPECIALS, actions, bar
 

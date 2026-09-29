@@ -5,7 +5,7 @@ damage taken (the score for now).
 The opponent's moves are known only by kind (jump-in / ground attack / special) and range: RAM does not name them.
 """
 import collections
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Sequence
 
 from .advice import FORWARD, read
 

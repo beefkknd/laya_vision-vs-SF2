@@ -2,7 +2,7 @@
 little, write the next round's plan. The runtime (scripts/notebook_run.py) and the prompt tests build it here only.
 """
 import json
-from typing import Dict, List, Sequence
+from typing import Dict, List
 
 from .notebook import MAX_ADD, MAX_CHARS, MAX_LINES, MAX_PLAN, MAX_PLAN_CHARS, MAX_REMOVE
 from .vs_sweep import actions
