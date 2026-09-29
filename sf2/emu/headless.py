@@ -9,9 +9,9 @@ import os
 import re
 from typing import List
 
-from .config import DEFAULT_ROM
+from ..config import DEFAULT_ROM, REPO
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = REPO
 BRIDGE = os.path.join(ROOT, "mesen", "sf2_bridge.lua")
 MAC_MESEN = "/Applications/Mesen.app/Contents/MacOS/Mesen"
 

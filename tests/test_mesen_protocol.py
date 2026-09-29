@@ -6,8 +6,8 @@ import time
 
 import numpy as np
 
-from sf2.mesen import MesenBridge
-from sf2.ram import Var
+from sf2.emu.mesen import MesenBridge
+from sf2.emu.ram import Var
 
 
 def png(color):

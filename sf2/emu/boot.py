@@ -15,9 +15,10 @@ import os
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from .ram import Var, load_map
-from .vocab import IDS
+from ..config import REPO
+from ..vocab import IDS
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = REPO
 CHUNK = 60  # frames per RUN: a windowed Mesen shows the launch smoothly and the caller can watch each chunk
 
 BOOT: List[Tuple[Tuple[str, ...], int]] = [

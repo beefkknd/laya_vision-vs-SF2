@@ -27,9 +27,9 @@ import _path  # noqa: F401
 from sf2.eval.runner import fan_out
 from sf2.config import PAD
 from sf2.dataset import read, save_png, write_jsonl
-from sf2.headless import launch_argv
-from sf2.mesen import MesenBridge
-from sf2.vs import boot_vs, gap_state, record, view
+from sf2.emu.headless import launch_argv
+from sf2.emu.mesen import MesenBridge
+from sf2.emu.vs import boot_vs, gap_state, record, view
 from sf2.vs_moves import CONDS
 from sf2.frames import HUD_ROWS, mirror_frame, model_frame
 from sf2 import vs_defense as D

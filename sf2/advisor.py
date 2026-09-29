@@ -10,11 +10,12 @@ import subprocess
 from typing import Dict, Optional, Sequence, Tuple
 
 from .advice import FORWARD, answers, prompt, question, rating, read, situation_text
+from .config import REPO
 
 MLX_PYTHON = os.path.expanduser("~/work/laya_mlx/.venv/bin/python")
 HF_HOME = "/Volumes/ExtremeSSD/huggingface"
 SHORTLIST = 3
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = REPO
 
 
 class Advisor:

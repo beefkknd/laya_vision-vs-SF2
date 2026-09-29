@@ -20,9 +20,9 @@ from typing import Dict, List
 import _path  # noqa: F401
 from sf2.config import PAD
 from sf2.dataset import save_png
-from sf2.headless import launch_argv
-from sf2.mesen import MesenBridge
-from sf2.vs import NAMES, boot_vs, gap_state, record, view
+from sf2.emu.headless import launch_argv
+from sf2.emu.mesen import MesenBridge
+from sf2.emu.vs import NAMES, boot_vs, gap_state, record, view
 from sf2.vs_metrics import measure, reach, walk_speed
 from sf2.vs_moves import CONDS, GAPS, MOVESETS, REACH_GAPS, Move, connected
 

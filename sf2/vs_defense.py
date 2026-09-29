@@ -11,11 +11,11 @@ jumps, and presses the kick as it comes back down past DESCEND_Y, so it lands wh
 the attacker, having gone up (above HIGH_Y), comes back down past it. Jumps differ per character, so the collector tries KICK_HEIGHTS in order and
 keeps the first that lands on a character who does not block (a jump-in that never lands is recorded as it is).
 
-Record the probe as ``attacker``'s exchange (sf2.vs.record) so a_ = the attacker, d_ = the character.
+Record the probe as ``attacker``'s exchange (sf2.emu.vs.record) so a_ = the attacker, d_ = the character.
 """
 from typing import Dict, List, Tuple
 
-from .vs import GROUND_Y, Step
+from .emu.vs import GROUND_Y, Step
 
 HIGH_Y, DESCEND_Y = 150, 150          # world y is smaller when higher (ground 192)
 LEAD = 4                              # idle frames before the probe starts (the "a moment ago" frame is before it)

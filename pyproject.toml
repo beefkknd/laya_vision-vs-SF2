@@ -18,8 +18,8 @@ dependencies = [
 model = ["torch>=2.3", "torchvision", "transformers>=4.45", "safetensors", "huggingface_hub"]
 dev = ["pytest"]
 
-[tool.setuptools]
-packages = ["sf2"]
+[tool.setuptools.packages.find]
+include = ["sf2*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

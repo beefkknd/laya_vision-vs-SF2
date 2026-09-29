@@ -12,10 +12,10 @@ import subprocess
 import sys
 from typing import Dict, IO, Iterator, List, Optional, Sequence, Tuple
 
-from ..headless import launch_argv
-from ..mesen import MesenBridge
+from ..emu.headless import launch_argv
+from ..emu.mesen import MesenBridge
 from ..vocab import IDS
-from ..vs import NAMES, VARS
+from ..emu.vs import NAMES, VARS
 
 STOP_WAIT = 20          # seconds a child gets to shut Mesen down before it is killed
 

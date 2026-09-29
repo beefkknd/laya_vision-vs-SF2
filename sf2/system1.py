@@ -35,7 +35,7 @@ from .memory import MAX_PROMPT_LESSONS, prompt_text
 from .vs_defense import BLOCKS
 from .vs_defense import outcome as block_outcome
 from .policy import make_state
-from .vs import GROUND_Y, NAMES, physical, view
+from .emu.vs import GROUND_Y, NAMES, physical, view
 from .vocab import bar, range_of
 from .vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
 

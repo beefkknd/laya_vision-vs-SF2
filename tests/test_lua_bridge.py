@@ -7,8 +7,8 @@ import subprocess
 import numpy as np
 import pytest
 
-from sf2.mesen import MesenBridge
-from sf2.ram import parse_map
+from sf2.emu.mesen import MesenBridge
+from sf2.emu.ram import parse_map
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LUA = shutil.which("lua5.4")

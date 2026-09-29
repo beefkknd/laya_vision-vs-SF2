@@ -80,7 +80,7 @@ class FakeBridge:
 
     def load_state(self, state):
         from types import SimpleNamespace
-        from sf2.vs import NAMES
+        from sf2.emu.vs import NAMES
         row = [0] * len(NAMES)
         row[NAMES.index("p1_char")], row[NAMES.index("p2_char")] = self.chars
         return SimpleNamespace(rams=[row])

@@ -1,6 +1,6 @@
 import pytest
 
-from sf2 import ram
+from sf2.emu import ram
 
 MAP = """
 # name  address  size signed

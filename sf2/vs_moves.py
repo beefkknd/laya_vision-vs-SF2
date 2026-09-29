@@ -1,5 +1,5 @@
 """The move list for a VS BATTLE move test: each fighter's movement, 18 normals, throws, blocks, specials and combos,
-as relative-token scripts (F / B / U / D + lp mp hp lk mk hk; directions resolved per side by sf2.vs.physical), the
+as relative-token scripts (F / B / U / D + lp mp hp lk mk hk; directions resolved per side by sf2.emu.vs.physical), the
 range each is tried at, and the RAM fact that proves it came out (docs: laya_two_system/docs/MOVES.md; special
 input timings from its ROM-verified macros).
 
@@ -9,7 +9,7 @@ the measurements (sf2/vs_metrics.py) are data, not a gate.
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from .vs import GROUND_Y, Step
+from .emu.vs import GROUND_Y, Step
 
 ATTACK, SPECIAL, HIT, GUARD, THROWN, JUMP = 0x0A, 0x0C, 0x0E, 0x08, 0x14, 0x04
 BLOCK_REACTS = (0x06, 0x08)

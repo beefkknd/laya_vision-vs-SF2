@@ -20,7 +20,7 @@ import _path  # noqa: F401
 from sf2.config import PAD
 from sf2.config import IMAGE_SIZE
 from sf2.frames import HUD_ROWS
-from sf2.vs import physical
+from sf2.emu.vs import physical
 from sf2 import vs_defense as D
 from sf2.vocab import RANGES, range_of
 from sf2.vs_sweep import (MOVEMENT, OUTCOMES, STAGE1_POSTURES, TEST_INDEX, actions, outcome_question,

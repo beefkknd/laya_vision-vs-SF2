@@ -16,7 +16,7 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 import numpy as np
 
-from .config import MESEN_PORT
+from ..config import MESEN_PORT
 
 
 @dataclass
@@ -139,7 +139,7 @@ class MesenBridge:
 
     # ------------------------------------------------------------------ commands
     def set_vars(self, specs: Sequence) -> None:
-        """specs: objects with addr / size / signed (sf2.ram.Var)."""
+        """specs: objects with addr / size / signed (sf2.emu.ram.Var)."""
         lines = ["%s %d %d %d" % (v.name, v.addr, v.size, int(v.signed)) for v in specs]
         self._send("\n".join(["VARS %d" % len(lines)] + lines))
         if self._line() != "OK":

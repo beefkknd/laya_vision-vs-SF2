@@ -1,4 +1,8 @@
 """Constants shared by every script. Change them here, not in the scripts."""
+import os
+
+# The checkout: every path into the repo is built from here (modules never count folders up from __file__).
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Emulator: Mesen 2 running SNES Street Fighter II, driven over a local socket by mesen/sf2_bridge.lua.
 MESEN_PORT = 47800

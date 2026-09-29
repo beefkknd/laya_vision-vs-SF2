@@ -13,7 +13,7 @@ Round wins and damage decide whether a round of training worked; validation loss
 
 ```
 Mesen 2 (your SNES ROM)                                Python (this repo)
-  mesen/sf2_bridge.lua  ── TCP 127.0.0.1:47800 ──▶  sf2/mesen.py  →  sf2/env.py  →  teacher / student / recorder
+  mesen/sf2_bridge.lua  ── TCP 127.0.0.1:47800 ──▶  sf2/emu/mesen.py  →  sf2/env.py  →  teacher / student / recorder
   every input poll:                                   RUN n frames of input
     apply the next planned input, or                  ◀── RAM values for every frame
     report and wait for Python                        ◀── screenshots (4 frames before the end, and the end)
@@ -83,7 +83,7 @@ Everything below ran on one Mac Studio (M3 Ultra, 32 cores, 256 GB). Three separ
 
 | Plan piece | Here |
 |---|---|
-| Emulator | `mesen/sf2_bridge.lua` (inside Mesen) + `sf2/mesen.py` (Python end) |
+| Emulator | `mesen/sf2_bridge.lua` (inside Mesen) + `sf2/emu/mesen.py` (Python end) |
 | Fight env | `sf2/env.py`. One call = one decision. It tracks rounds and matches from the life values; an episode is one match from your savestate |
 | RAM map (per cartridge) | `ram_maps/sf2_snes.txt`, found by `scripts/find_ram.py` (`sf2/ramsearch.py`) |
 | Action set (12) | `sf2/actions.py`: `idle forward back jump crouch lp hp lk hk block hadouken shoryuken` |
@@ -91,7 +91,7 @@ Everything below ran on one Mac Studio (M3 Ultra, 32 cores, 256 GB). Three separ
 | Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` recognises fireball and dragon-punch motions |
 | Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
 | LoRA | `scripts/train.py` + `sf2/lora.py`. Always starts from base laya-vision 256M; early stopping on `val.jsonl`, or 5% of train |
-| VS BATTLE (both pads) | `sf2/vs.py`: boot to a 2-player fight, place the fighters at a gap, record an exchange. `scripts/vs_moves.py`: every move of both fighters, checked and measured, reach sweeps |
+| VS BATTLE (both pads) | `sf2/emu/vs.py`: boot to a 2-player fight, place the fighters at a gap, record an exchange. `scripts/vs_moves.py`: every move of both fighters, checked and measured, reach sweeps |
 | Stage-1 data | `sf2/vs_sweep.py` + `scripts/vs_dataset.py`: 20 actions x 3 ranges per character vs a still dummy, labelled hit / whiff / blocked / none from RAM; `scripts/audit_dataset.py`, `scripts/verify_replay.py` check it |
 | What the model sees | `sf2/frames.py`: every frame has its HUD (rows 0-61) blanked, at train and play time |
 | Student plays / relabel / gate | `scripts/play_student.py`, `scripts/relabel.py` (`dagger` or `filter`), `scripts/play_teacher.py`, `scripts/gate.py`. `scripts/dagger_round.sh N` runs one turn of the loop |
@@ -128,7 +128,7 @@ python scripts/find_ram.py --manual --force    # if that fails: you play each ph
 python scripts/check_env.py
 ```
 
-**Why the RAM finder exists.** World Warrior, Turbo and Super SF2 (and each region) keep life and positions at different addresses, and I couldn't verify any of them without your ROM. `find_ram.py` dumps the full 128 KiB of work RAM during known phases: walk right, walk left, jump, get hit, land hits. It keeps the addresses that behave like life, x and y. You can also read them off Mesen's memory viewer (Debug → Memory Tools) and write `ram_maps/sf2_snes.txt` by hand; the format is in `sf2/ram.py`. Commit the map once `check_env.py` looks right.
+**Why the RAM finder exists.** World Warrior, Turbo and Super SF2 (and each region) keep life and positions at different addresses, and I couldn't verify any of them without your ROM. `find_ram.py` dumps the full 128 KiB of work RAM during known phases: walk right, walk left, jump, get hit, land hits. It keeps the addresses that behave like life, x and y. You can also read them off Mesen's memory viewer (Debug → Memory Tools) and write `ram_maps/sf2_snes.txt` by hand; the format is in `sf2/emu/ram.py`. Commit the map once `check_env.py` looks right.
 
 ## The rest of the week
 
@@ -161,7 +161,7 @@ On day 7, compare `scripts/gate.py rollouts/teacher rollouts/r0 rollouts/r1 roll
 
 ## Stage 1: still-opponent data for all 8 characters
 
-Python plays both pads in VS BATTLE (Mesen's saved settings leave port 2 empty; `sf2/headless.py` plugs a pad in for
+Python plays both pads in VS BATTLE (Mesen's saved settings leave port 2 empty; `sf2/emu/headless.py` plugs a pad in for
 the run). Each character stands on the left, facing right, at 10 gaps per range (close < 55 <= mid < 120 <= far px)
 against a dummy that stands, crouches or crouch-blocks, and presses each of its 20 actions. RAM gives the outcome.
 
@@ -192,7 +192,7 @@ are the ROM-verified ones from the move tests; charge moves charge on down-back 
 1. **RAM map.** `check_env.py` must show x moving on `forward`/`back` and y on `jump`. The teacher, the text note and facing all depend on them.
 2. **Buttons (`PAD`).** The `lp`/`hk` screenshots should show a jab and a roundhouse.
 3. **Macro timing (`sf2/actions.py`).** `out/check/11_hadouken.png` should show a fireball. If it doesn't, lengthen each motion step from 3 frames to 4.
-4. **Estimates to tune:** `INTRO_SKIP` (`sf2/env.py`), and `CLOSE`/`MID` (`sf2/ram.py`, SNES pixels).
+4. **Estimates to tune:** `INTRO_SKIP` (`sf2/env.py`), and `CLOSE`/`MID` (`sf2/emu/ram.py`, SNES pixels).
 5. **KO detection.** A round ends when a life value goes negative, or when both bars refill (time over, or a cart that stops at 0). If rounds never end in the logs, look at the life values around a KO in `check_env.py`.
 
 ## Status

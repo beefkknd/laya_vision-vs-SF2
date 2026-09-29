@@ -1,5 +1,5 @@
 """VS BATTLE move checks and measurements on synthetic rows: each check is shown passing AND failing."""
-from sf2.vs import GROUND_Y, view
+from sf2.emu.vs import GROUND_Y, view
 from sf2.vs_metrics import measure, reach
 from sf2.vs_moves import MOVESETS, combo, connected, toward
 

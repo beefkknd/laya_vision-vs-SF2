@@ -1,7 +1,7 @@
 """Stage-1 data: a still opponent. Each fighter is placed at a gap, the opponent holds one posture, the fighter
 presses one of 20 actions, and RAM says what happened: hit, whiff, blocked (or none for movement).
 
-    20 actions x 3 distance ranges (close < 55 <= mid < 120 <= far, sf2.ram) x 10 gaps x 3 postures
+    20 actions x 3 distance ranges (close < 55 <= mid < 120 <= far, sf2.emu.ram) x 10 gaps x 3 postures
 
 Split by gap, so held-out examples are at distances the model never saw: per range 7 gaps train, 3 test.
 Train is collected on ONE side only (the fighter on the left, facing right) and mirrored for the other facing;
@@ -16,7 +16,7 @@ import re
 from typing import Dict, List, Sequence, Tuple
 
 from .vocab import FULL_LIFE, bar, range_of
-from .vs import GROUND_Y, Step
+from .emu.vs import GROUND_Y, Step
 from .vs_moves import BLOCK_REACTS, GUARD, HIT, SPECIAL, THROWN, JUMP, ATTACK
 
 LEAD = 8        # idle frames before the action; the images are frames LEAD - 4 ("a moment ago") and LEAD ("now")

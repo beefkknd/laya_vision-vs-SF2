@@ -5,13 +5,13 @@ Menu route (SF2 World Warrior USA, from reset, observed on the ROM 2026-09-27): 
 V.S. BATTLE, START; player select with 1P's cursor on Ryu and 2P's on Ken; both jab; HANDICAP / STAGE SELECT
 (defaults: equal handicap, the stage of player 1), START; round 1 at clock 99 with x 208 (1P) vs 304 (2P).
 
-Controller 2 needs ``--snes.port2.type=SnesController`` on the Mesen command line (sf2/headless.py adds it).
+Controller 2 needs ``--snes.port2.type=SnesController`` on the Mesen command line (sf2/emu/headless.py adds it).
 """
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from .ram import Var
-from .vocab import FULL_LIFE, IDS
+from ..vocab import FULL_LIFE, IDS
 
 # Both fighters' structs: player 1 at 0x0C00 / 0x0D00, player 2 at 0x0E00 / 0x0F00 (the +0x200 stride of the RAM
 # map in ram_maps/sf2_snes.txt). "special" and "facing" are only verified for player 1; player 2's are the same
