@@ -31,6 +31,7 @@ from .game_log import action_entry, game_entry
 from .advice import FORWARD, opp_doing
 from .advisor import choose
 from .game_log import name as state_name
+from .opp_moves import OppMoveTracker
 from ..system2.memory import MAX_PROMPT_LESSONS, prompt_text
 from ..data.vs_defense import BLOCKS
 from ..data.vs_defense import outcome as block_outcome
@@ -160,6 +161,7 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
     else:
         rows, prev, cur = _run(bridge, [[]] * 4)
     rnd = Round()
+    opp_moves = OppMoveTracker()   # holds each entry until the attack episodes its window overlaps are classified
     pending = None          # (decision row, rows since, decision, actual, frame, images) of the last action
     while True:
         r = rows[-1]
@@ -173,7 +175,7 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
                 pending[1].extend(rows[1:])
             continue
         if pending:
-            rnd.log.append(_close(game, s1.me, opp, pending))
+            rnd.log.extend(opp_moves.add(_close(game, s1.me, opp, pending), pending[0], pending[1]))
         d, text = _decide(s1, opp, r, prev, cur)
         if live_path or echo:
             _show(live_path, echo, game, rnd.frames, opp, r, d)
@@ -183,7 +185,8 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
         rnd.frames += len(live)
         rows = [r] + live
     if pending:
-        rnd.log.append(_close(game, s1.me, opp, pending))
+        rnd.log.extend(opp_moves.add(_close(game, s1.me, opp, pending), pending[0], pending[1]))
+    rnd.log.extend(opp_moves.flush())
     rnd.summary = game_entry(game, rnd.result, rnd.frames, rows[-1], rnd.log)
     return rnd
 

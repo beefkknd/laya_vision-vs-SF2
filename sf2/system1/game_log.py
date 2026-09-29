@@ -9,6 +9,8 @@ actions.jsonl, per action:
     result:        actual (hit / whiff / blocked / none), dealt
     reaction:      opp_reaction (the opponent's states in order), opp_attacked, opp_blocked, i_was_hit, taken
     after:         gap_after, my_life_after, opp_life_after, frames (to the next decision), images
+    his move:      opp_move (fireball / uppercut / hurricane / slap / throw / jump_attack / normal / none: his attack
+                   episode overlapping this window, sf2.system1.opp_moves), opp_shot (his projectile out at the decision)
 games.jsonl, per game: result, frames, clock_end, lives at the end, dealt, taken, action counts, outcome counts.
 """
 import collections
