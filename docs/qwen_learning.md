@@ -205,6 +205,24 @@ vs Ken's jump-ins). But back, crouch and jump_back got **0 tries**: System 1 onl
 (attacks, blocks) and walking in, so advice about other movement cannot be followed. Fixed: the loop offers and
 accepts only `system1.choices(me)`.
 
+**Second round, with the moves fix** (`system1.choices`: attacks, blocks, walking in):
+
+| Run | Qwen holds (random) | What-ifs -> result | Registered | Won loop / none | Hit points vs none | Taken less |
+|---|---|---|---|---|---|---|
+| Ken 1 | 32% (8%) | 2: 1 rejected, 1 in test | 4 | 3 / 1 | +10.7 [−15.5, +36.8] | +2.7 [−1.8, +7.3] |
+| Ken 2 | 61% (8%) | 0 (never stuck) | 4 | 5 / 0 | +30.9 [−0.7, +62.6] | +9.6 [−1.6, +20.7] |
+| Ryu 1 | 53% (11%) | 0 | 8 | 11 / 8 | **+46.0 [+11.9, +80.1]** | **+18.0 [+0.3, +35.6]** |
+| Ryu 2 | 50% (11%) | 3, in test at the end | 6 | 5 / 7 | −5.4 [−51.6, +40.8] | −13.1 [−34.2, +8.0] |
+| Honda 1 | 74% (12%) | 1 refused (already known) | 5, incl. **always block_high at mid range when he attacks** | 2 / 4 | +11.6 [−17.5, +40.7] | +1.0 [−7.3, +9.3] |
+| Honda 2 | 41% (11%) | 1: **always block_low at mid range when he attacks -> registered** | 4 | 1 / 0 | −0.1 [−26.9, +26.8] | −4.7 [−9.3, −0.2] |
+
+Round 2 pooled (opponent as unit): hit points **+15.6 [+0.0, +31.0], helps**. **Both rounds, 12 runs, 120 paired
+rounds per opponent: Ken +30.9 [+16.6, +45.2] (taken 7.6 less [+2.7, +12.6]), Ryu +15.1 [−4.7, +34.9], Honda +4.6
+[−9.6, +18.8]; pooled +16.8 [+2.3, +32.4]: helps.** 0 invariant violations in all 12. Three "always block" lessons
+are now verified (Ken's jump-ins; Honda at mid range, high and low), two of them found by a what-if. laya-vision is
+left as is: its block score (P(blocked)) is low by construction (70 of 336 block training rows ended "blocked"), so
+blocks read "likely fails" and only an "always" lesson makes her block.
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
