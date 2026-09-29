@@ -348,6 +348,30 @@ Evidence so far (`scripts/laya_evidence.py`, 31 runs; still to be split per oppo
 laya-vision has the move in its top 3 vs 41% when not; hard 96%, avoid 98%. Qwen named his specific move in 2 of 618
 claims (both "fireball", Ryu).
 
+## 0h. Round 3 (2026-09-29): three prompts, 18 seeds (`scripts/compare_prompts.py --a X --b Y`)
+
+From the lock (`--lock lesson_loop_v1 --opp O --seed S --prompt P`): the lock's 6 seeds (views, character) plus 4 new
+seeds per opponent (21001-21004) with all three prompts. Every pair's no-advice arms identical (logging-only fields
+aside), 0 invariant violations. Two runs timed out in the memory-budget queue (NoRoom, nothing started) and re-ran.
+
+| hp per round vs no advice | views | character | character_fgc (12 seeds) |
+|---|---|---|---|
+| Ken | +29.3 [+17.3, +41.3] | **+55.8 [+41.8, +69.7]** | **+55.7 [+38.5, +72.9]** |
+| Ryu | +24.5 [+7.0, +42.1] | +20.4 [+3.5, +37.2] | +33.5 [+13.6, +53.4] |
+| Honda | -0.8 [-12.4, +10.8] | **-14.9 [-23.7, -6.0]** | **-13.6 [-23.4, -3.7]** |
+| pooled | +17.7 not shown | +20.4 not shown | +25.2 not shown |
+
+Views and character: 18 seeds, 180 rounds per opponent. character - views: Ken +26.5 [+13.5, +39.5], Ryu -4.2,
+Honda -14.1 [-23.4, -4.7]. character_fgc - character (12 seeds): +4.3 pooled, not shown (Ryu +11.5 [-0.9, +23.9]).
+Qwen claims that hold: 0.50-0.60 for every prompt vs chance 0.08-0.10.
+
+Why the character prompts hurt against Honda: both keep registering "use more forward at mid range when he jumps /
+stands" (walking in). Rounds with it in play: -14 to -39 hp per round vs no advice. Players say the opposite (keep away
+from Honda, 0g). The verifier kept it because walking in is better than her other choices IN THAT SITUATION, even
+when each decision is credited with the damage of the next 2-6 decisions (checked offline: still better at 4, unclear
+at 6). The harm is where it takes her (more time up close with him), which a within-situation comparison cannot see.
+Only the round outcome against no advice shows it, and only across runs.
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
