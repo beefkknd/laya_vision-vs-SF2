@@ -247,6 +247,66 @@ Repeat of run 0 (Ken, seed 11688), `scripts/compare_runs.py`:
 So the lock reproduces the game, laya and the code exactly; the only source of drift is Qwen. A repeat is comparable
 in distribution, not byte for byte.
 
+## 0f. The character prompt (2026-09-29): one opponent, one moment
+
+Owner: "what opponent specific move always win against me, or, if I see X, what works, what doesn't work... the
+prompts now narrow down from general game plays to specific turn, specific character." No laya is retrained (owner):
+where the grammar falls short, the gap is written down here and Qwen compensates.
+
+`qwen_lessons.py --prompt character` (`sf2/system2/character_prompt.py`; the default `views` is the 0c/0d prompt the
+lock ran with). After each game Qwen sees, for this opponent only:
+
+- **his threats** - what he did that hurt her, by her range at the decision: he jumps in / attacks on the ground / hits
+  her from afar (damage with no attack of his in the window: a fireball already on the way), damage and share, and
+  the moves of hers they caught;
+- **if you see X** - per situation of his when she decides (what he is doing x range, the 5 most damaging): her
+  answers ranked against her other moves there (works / fails / unclear / too few) and the moves she never tried there;
+- the record, the registry, refusals, and "what if?" when stuck, as before.
+
+It answers `{"answer": use more / always, "stop": avoid}`; every claim must name what he is doing (a claim without
+"when" is a problem, not a claim). Verified exactly as before; the chance baseline in the verdict also always names a
+"when".
+
+### The gap: his specific moves
+
+| What the owner asks | What exists | Gap |
+|---|---|---|
+| which of his moves beat her | his state per frame: stand, crouch, jump, attack, guard, hit stun; in the air or not | the CPU's specials are logged as a plain attack (state 0C "special" never appears in 6,852 rows vs Ken/Ryu/Honda); no move id; his fireball slot (0x1050) is in the RAM map but not in the logs |
+| "if I see a fireball / an uppercut" | text laya reads "when he jumps / crouches / attacks / stands / is stunned" + a range | no word for a specific move; adding one needs new text-laya training data (not done, owner) |
+
+Compensation on the Qwen side: the prompt tells Qwen to say his moves by where they happen - a fireball is "when he
+attacks far away" (or at mid range), an uppercut or a jump-in kick close by is "when he jumps" / "when he attacks up
+close". Coarse: at mid range "when he attacks" mixes a fireball with a sweep. Cheapest way to narrow it later without
+touching laya: log the fireball slot and prove his move-id address (probably near 0x0F80, by symmetry with hers at
+0x0D80; unverified), so the views (not the grammar) can name his move.
+
+What the frozen play data already shows (share of her damage): Ken 59% from jump-ins; Ryu and Honda 56-57% from
+ground attacks, which cost her 11.7-12.3 per hit (Ken's 5.2).
+
+### First result: the lock's 6 seeds, character vs two views
+
+`qwen_lessons.py --lock lesson_loop_v1 --run N --prompt character`, N = 0..5, output
+`rollouts/locked/lesson_loop_v1/*_character`. All 6 no-advice arms byte-identical to the lock's, so both prompts are
+paired against the same baseline (60 rounds per opponent). 0 invariant violations, 0 failed jobs.
+
+| hp per round vs no advice | two views (lock) | character | character - two views |
+|---|---|---|---|
+| Ken | +20.8 [+0.3, +41.3] | **+51.8 [+30.6, +72.9]** | **+31.0 [+8.8, +53.1]** |
+| Ryu | +20.3 [-8.9, +49.5] | +17.1 [-10.6, +44.9] | -3.1 [-29.7, +23.5] |
+| Honda | +5.8 [-13.9, +25.5] | -10.6 [-27.3, +6.1] | -16.4 [-33.3, +0.6] |
+| pooled (opponent as the unit) | +15.6 [+0.0, +31.0] HELPS | +19.4 [-11.3, +50.4] not shown | +3.8 [-20.6, +30.5] not shown |
+
+Qwen claims that hold: character 33 / 40 / 75 / 67 / 54 / 47% (two views 32 / 61 / 53 / 50 / 74 / 41%; chance 6-11%).
+Ken: both seeds registered the same 4 lessons around his top threat (use more hp, avoid sweep and c.hp up close when
+he jumps; avoid spinning_bird_kick at mid range when he stands); damage taken 13.8 per round less (two views: 6.2).
+
+Honda seed 11703 (-31.0): the loss sits in games 4-6 (-118, -76, -65 per round), while "always block_low at mid
+range when he attacks" was on test next to two "use more forward at mid range" lessons (walking in: 732 decisions vs
+421 without advice). The block itself measured -2.0 per decision vs her -4.5 there (rejected after 3 games as not
+clearly better; "use more block_low" there was then registered as clearly better). The per-decision yardstick saw no
+harm while the rounds were lost - it only counts damage up to her next decision. Confounded (the lines changed
+together), not attributed. Open: a test is not stopped early however badly the rounds go.
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
