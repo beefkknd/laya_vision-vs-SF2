@@ -23,3 +23,8 @@ __pycache__/
 .ruff_cache/
 .venv/
 .DS_Store
+# Blank-start memories (learn_loop --fresh NAME): demo / learning-from-zero runs
+memory_runs/
+memory_seeds/
+# Video tools (whisper captions, kokoro voice): scripts/make_video.py
+.venv-media/

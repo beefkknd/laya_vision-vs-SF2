@@ -8,7 +8,7 @@ up close" vs "avoid sweep up close" is a FLIP (same move and conditions, opposit
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
-from .advice import parse
+from .advice import read
 
 RADICAL_SHARE = 0.5          # more than half the lessons added or dropped in one rewrite
 
@@ -41,7 +41,7 @@ def diff(old: Dict, new: Dict, moves: Sequence[str]) -> Change:
     def keyed(mem):
         out = {}
         for les in (mem or {}).get("lessons", []):
-            p = parse(les["text"], moves)
+            p = read(les["text"], moves)
             kind = "negative" if p.polarity == "neg" else "positive" if p.polarity in ("soft", "hard") else les["kind"]
             out.setdefault((kind, p.move, p.where, p.when), les["text"])
         return out

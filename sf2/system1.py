@@ -15,8 +15,11 @@ the memory. The threshold rule above is then unused.
 The stage-1 model only knows what its own moves do to a still opponent: it has no notion of the CPU's attacks,
 blocking or anti-air. This is the real-play test of that skill, not a finished player.
 """
+import json
 import os
 import random
+import re
+import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -110,8 +113,38 @@ def _run(bridge, frames: List[List[str]]):
     return [dict(zip(NAMES, r)) for r in obs.rams], obs.images[n - 4], obs.images[n]
 
 
+RATING_SHORT = {"likely works": "works", "may work": "may", "likely fails": "fails", None: "walk"}
+
+
+def decision_line(entry: Dict) -> str:
+    """One decision as a short line for ``tail -f out/live/decisions.log`` in a terminal:
+    time, the moment, laya-vision's rating of each move on the shortlist, text laya's pick and why."""
+    text = entry.get("advice_text") or ""
+    m = re.search(r"He is (up close|at mid range|far away) and (\w+)\. My bar is (\w+), his bar is (\w+)", text)
+    where = "%-5s %-9s me:%-4s him:%-4s" % ({"up close": "close", "at mid range": "mid", "far away": "far"}[m.group(1)],
+                                           m.group(2), m.group(3), m.group(4)) if m else text[:36]
+    sl, probs = entry.get("shortlist") or {}, entry.get("advice_probs") or {}
+    rated = " ".join("%s:%s" % (mv, RATING_SHORT.get(r, r)) for mv, r in sl.items() if mv != "forward")
+    why = {"soft": "plan", "hard": "plan", "vision": "rating", "walk": "walk in"}.get(entry.get("rule"),
+                                                                                    entry.get("rule"))
+    return "%s  %s | %-44s | -> %s %.0f%% (%s)" % (time.strftime("%H:%M:%S"), where, rated[:44], entry.get("action"),
+                                                    100 * probs.get(entry.get("action"), 0), why)
+
+
+def write_live(path: str, entry: Dict) -> None:
+    """The latest decision for a live viewer (scripts/brain_panel.py): written to a temp file, then renamed, so a
+    reader never sees half a file."""
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(entry, f)
+    os.replace(tmp, path)
+    if entry.get("shortlist"):                      # with the advisor: one line per decision to tail
+        with open(os.path.join(os.path.dirname(path), "decisions.log"), "a") as f:
+            f.write(decision_line(entry) + "\n")
+
+
 def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: random.Random, img_dir: Optional[str],
-               game: int) -> Round:
+               game: int, live_path: Optional[str] = None, echo: bool = False) -> Round:
     """One game (a round) until the ROM's round result is set: from ``state`` (a savestate), or with ``state`` None
     from wherever the game is now (arcade play from power-on). Every action is logged from its decision to the next
     decision, so the opponent's reaction (and a punish while System 1 cannot act) is part of it."""
@@ -142,6 +175,15 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
         else:           # laya-vision reads the note only (as trained); the memory goes to text laya
             text = note(s1.me, opp, view(r, 1), side)
             d = s1.decide(prev, cur, text, situation(r))
+        if live_path or echo:
+            entry = {"t": time.time(), "game": game, "frame": rnd.frames, "opp": opp,
+                     "my_life": r["p1_life"], "opp_life": r["p2_life"], "timer": r["timer"],
+                     **{k: d.get(k) for k in ("action", "advice_text", "shortlist", "advice_probs", "rule",
+                                              "follows_rule")}}
+            if live_path:
+                write_live(live_path, entry)
+            if echo and entry.get("shortlist"):         # the console shows every decision (for watching/recording)
+                print(decision_line(entry), flush=True)
         images = None
         if img_dir:
             base = "g%02d_%05d" % (game, rnd.frames)

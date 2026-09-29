@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>Two systems vs Street Fighter II</title>
+<meta name="description" content="Part 2: a small vision model, a text model that follows advice, and Qwen writing the advice between rounds. What worked, what didn't, and how I measured it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root { --paper: #F3F5FA; --panel: #FFFFFF; --ink: #16203F; --ink-2: #46516F; --muted: #737D9C; --line: #D7DCEA; --blue: #2E5AAC; --blue-ink: #244C96; --blue-soft: #E5EBF7; --gold: #B97F0A; --gold-soft: #FBF0D6; --red: #C23A31; --bar-muted: #B9C0D3; --shadow: 0 1px 2px rgba(22,32,63,.06), 0 8px 24px rgba(22,32,63,.06); --display: "Chakra Petch", "Avenir Next Condensed", "Arial Narrow", sans-serif; --body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; --paper: #0F1428; --panel: #161D36; --ink: #E7EBF6; --ink-2: #B4BCD5; --muted: #8790AE; --line: #2A3355; --blue: #6B8FE0; --blue-ink: #9DB6EE; --blue-soft: #1C2A4F; --gold: #BE8820; --gold-soft: #33290F; --red: #EF7169; --bar-muted: #4A5378; --shadow: none; }
+}
+:root[data-theme="dark"] { color-scheme: dark; --paper: #0F1428; --panel: #161D36; --ink: #E7EBF6; --ink-2: #B4BCD5; --muted: #8790AE; --line: #2A3355; --blue: #6B8FE0; --blue-ink: #9DB6EE; --blue-soft: #1C2A4F; --gold: #BE8820; --gold-soft: #33290F; --red: #EF7169; --bar-muted: #4A5378; --shadow: none; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.6 var(--body); padding: 0 16px; margin: 0; overflow-wrap: break-word; }
+.page { max-width: 1040px; margin: 0 auto; padding-block: 40px 72px; display: grid; gap: 64px; min-width: 0; }
+.page > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.12; margin: 0; text-wrap: balance; letter-spacing: 0.005em; }
+h1 { font-size: clamp(34px, 5.4vw, 56px); font-weight: 700; }
+h2 { font-size: clamp(24px, 3vw, 32px); font-weight: 600; }
+h3 { font-size: 18px; font-weight: 600; }
+p { margin: 0; }
+a { color: var(--blue-ink); text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 3px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+.eyebrow { font: 600 12px/1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 19px; color: var(--ink-2); max-width: 62ch; }
+.prose { display: grid; gap: 14px; max-width: 68ch; color: var(--ink-2); }
+.prose strong { color: var(--ink); }
+section { display: grid; gap: 22px; min-width: 0; }
+.head { display: grid; gap: 10px; }
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; }
+.hero-text { display: grid; gap: 20px; min-width: 0; }
+.hero h1 .vs { color: var(--muted); font-weight: 500; }
+.hero .sub { font: 500 15px/1.4 var(--display); letter-spacing: 0.04em; color: var(--muted); }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1.5px solid var(--line); color: var(--ink); background: var(--panel); }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn svg { width: 16px; height: 16px; fill: currentColor; }
+.video { position: relative; display: block; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line); background: #000; }
+.video svg.thumb { display: block; width: 100%; height: auto; }
+.video .play { position: absolute; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 999px; background: rgba(10,14,30,.82); color: #fff; font: 600 14px var(--display); letter-spacing: 0.04em; }
+.video .play i { width: 26px; height: 26px; border-radius: 50%; background: #E0453A; display: grid; place-items: center; }
+.video .play i::after { content: ""; border-left: 9px solid #fff; border-top: 6px solid transparent; border-bottom: 6px solid transparent; margin-left: 2px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stat { padding: 12px 14px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 4px; align-content: start; }
+.stat b { display: block; font: 700 22px/1.15 var(--display); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; line-height: 1.4; color: var(--muted); }
+.goals { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.goal { padding: 20px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 8px; align-content: start; }
+.goal .tag { font: 600 12px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue-ink); }
+.goal.slow .tag { color: var(--gold); }
+.goal p { color: var(--ink-2); font-size: 15px; }
+figure { margin: 0; display: grid; gap: 12px; min-width: 0; }
+.fig { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; overflow-x: auto; }
+.fig svg { display: block; width: 100%; height: auto; min-width: 720px; color: var(--ink); }
+.fig.chart svg { min-width: 0; max-width: 560px; margin: 0 auto; }
+figcaption { font-size: 14px; color: var(--muted); max-width: 72ch; }
+svg text { font-family: var(--body); }
+svg .t { fill: var(--ink); font-size: 13px; font-weight: 600; }
+svg .s { fill: var(--muted); font-size: 11.5px; }
+svg .lbl { fill: var(--ink-2); font-size: 11.5px; font-style: italic; }
+svg .box { fill: var(--panel); stroke: var(--ink-2); stroke-width: 1.2; }
+svg .group { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5,4; }
+svg .group-t { fill: var(--muted); font: 600 11px var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
+svg .trained { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 2; }
+svg .judge { fill: var(--gold-soft); stroke: var(--gold); stroke-width: 2; }
+svg .frozen { fill: var(--panel); stroke: var(--ink-2); stroke-width: 1.2; stroke-dasharray: 4,3; }
+svg .wire { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
+svg .wire.hot { stroke: var(--blue); stroke-width: 2; }
+svg .wire.gold { stroke: var(--gold); stroke-width: 2; }
+svg .wire.dash { stroke-dasharray: 5,4; }
+svg .ah { fill: var(--ink-2); }
+svg .ah-hot { fill: var(--blue); }
+svg .ah-gold { fill: var(--gold); }
+svg .tag-blue { fill: var(--blue-ink); font: 600 10.5px var(--display); letter-spacing: 0.1em; text-transform: uppercase; }
+svg .tag-gold { fill: var(--gold); font: 600 10.5px var(--display); letter-spacing: 0.1em; text-transform: uppercase; }
+svg .grid { stroke: var(--line); stroke-width: 1; }
+svg .zero { stroke: var(--ink-2); stroke-width: 1.5; }
+svg .tick { fill: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+svg .bar-muted { fill: var(--bar-muted); }
+svg .bar-blue { fill: var(--blue); }
+svg .bar-gold { fill: var(--gold); }
+svg .bar-red { fill: var(--red); }
+svg .ci { stroke: var(--ink); stroke-width: 1.5; }
+svg .val { fill: var(--ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+svg .val-in { fill: #fff; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+svg .rowname { fill: var(--ink); font-size: 13px; font-weight: 600; }
+svg .rowsub { fill: var(--muted); font-size: 11.5px; }
+svg.halo text { paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+svg.halo text tspan { stroke: var(--panel); }
+.problems { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.card { padding: 20px 22px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 10px; align-content: start; min-width: 0; }
+.card .kind { font: 600 11px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.card p { font-size: 15px; color: var(--ink-2); }
+.card .fix { padding-left: 12px; border-left: 3px solid var(--blue); color: var(--ink); }
+.card .fix strong { color: var(--blue-ink); font-family: var(--display); letter-spacing: 0.06em; font-size: 12px; text-transform: uppercase; margin-right: 4px; }
+.card ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 15px; display: grid; gap: 4px; }
+.card.wide { grid-column: 1 / -1; }
+.tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 16px 10px; }
+.mini { width: 100%; border-collapse: collapse; font-size: 14px; }
+.mini th, .mini td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mini tr:last-child td { border-bottom: 0; }
+.mini th { font: 600 11px var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.mini td { color: var(--ink-2); }
+.mini td:first-child { color: var(--ink); font-weight: 500; }
+.mini td.n, .mini th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.mini td.up { color: var(--blue-ink); font-weight: 600; }
+.mini td.down { color: var(--red); font-weight: 600; }
+.mini .muted { color: var(--muted); font-weight: 400; }
+.mini.setup td:first-child { white-space: nowrap; }
+.mini.setup td:nth-child(2) { min-width: 200px; }
+.mini.setup td:nth-child(3) { min-width: 240px; }
+.mini.setup code { overflow-wrap: anywhere; }
+.verdicts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.verdict { padding: 18px 20px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--blue); display: grid; gap: 6px; align-content: start; }
+.verdict.bad { border-top-color: var(--red); }
+.verdict b { font: 600 17px/1.3 var(--display); }
+.verdict span { font-size: 15px; color: var(--ink-2); }
+.callout { padding: 16px 18px; border-radius: 10px; background: var(--blue-soft); color: var(--ink); max-width: 68ch; font-size: 16px; }
+.callout b { font-family: var(--display); letter-spacing: 0.02em; }
+.causes { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.causes li { padding: 18px 20px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 6px; align-content: start; }
+.causes b { font: 600 17px/1.3 var(--display); }
+.causes span { font-size: 15px; color: var(--ink-2); }
+.advice { padding: 0; margin: 0; display: grid; gap: 0; }
+.advice li { list-style: none; display: grid; grid-template-columns: 220px 1fr; gap: 20px; padding: 16px 0; border-top: 1px solid var(--line); }
+.advice li:last-child { border-bottom: 1px solid var(--line); }
+.advice b { font-family: var(--display); font-size: 17px; font-weight: 600; line-height: 1.3; }
+.advice span { color: var(--ink-2); }
+.open { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.stages { margin: 0; padding-left: 0; list-style: none; color: var(--ink-2); font-size: 15px; display: grid; gap: 6px; }
+footer { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 24px; border-top: 1px solid var(--line); padding-top: 20px; }
+
+@media (max-width: 820px) {
+  .hero, .goals, .problems, .open, .verdicts, .causes { grid-template-columns: 1fr; }
+  .advice li { grid-template-columns: 1fr; gap: 6px; }
+}
+@media (max-width: 520px) {
+  .stats { grid-template-columns: 1fr; }
+  .page { gap: 48px; padding-block: 28px 56px; }
+  .fig { padding: 12px; }
+  .card { padding: 18px; }
+  .lede { font-size: 17px; }
+  .tablewrap { padding: 4px 12px 8px; }
+  .mini { font-size: 13px; }
+  .mini th, .mini td { padding-right: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- 1. HERO -->
+<header class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">Lessons learned · part 2</div>
+    <h1>Two systems <span class="vs">vs</span> Street Fighter II</h1>
+    <div class="sub">laya-vision + text laya + Qwen</div>
+    <p class="lede"><a href="https://ais-demo.yzhou30.workers.dev/laya_sf2">Part 1</a> ended with a small vision model that only knew Dhalsim. Part 2 adds a second system that learns between rounds: a big language model reads her games and writes advice, and a small model follows it. Some of this worked. The part I expected to be smartest did not.</p>
+    <div class="stats">
+      <div class="stat"><b>+29</b><span>hit points / round: a short memory counted from her own games</span></div>
+      <div class="stat"><b>+32</b><span>a playbook from <em>other</em> opponents, even ones she never met</span></div>
+      <div class="stat"><b>0.40 → 0.99</b><span>text laya learns to follow advice</span></div>
+    </div>
+    <div class="links">
+      <!-- TODO: when part 2 is posted, point these three video links (here, the thumbnail below, the footer) at it -->
+      <a class="btn primary" href="https://youtu.be/8VLMJVLKQAY" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>Watch part 1</a>
+      <a class="btn" href="https://github.com/beefkknd/laya_vision-vs-SF2" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0z"/></svg>Code on GitHub</a>
+    </div>
+  </div>
+  <a class="video" href="https://youtu.be/8VLMJVLKQAY" target="_blank" rel="noopener" aria-label="Watch part 1 on YouTube: laya-vision plays Chun-Li">
+    <img class="thumb" src="https://i.ytimg.com/vi/8VLMJVLKQAY/hqdefault.jpg" alt="Part 1 video: laya-vision plays Chun-Li against Dhalsim" loading="lazy" width="640" height="360" style="display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover">
+    <span class="play"><i></i>Part 1 on YouTube</span>
+  </a>
+</header>
+
+<!-- 2. WHY -->
+<section>
+  <div class="head">
+    <div class="eyebrow">Why</div>
+    <h2>Can a big model coach a small one?</h2>
+  </div>
+  <div class="prose">
+    <p>The idea is the old one about fast and slow thinking. A fighter doesn't reason about every punch. She reacts. Between rounds she thinks: what hurt me, what worked, what to try next.</p>
+    <p>So I split the player in two and asked one question: <strong>can a language model, reading her game logs, write advice that makes her win more?</strong></p>
+  </div>
+  <div class="goals">
+    <div class="goal">
+      <div class="tag">System 1 · fast</div>
+      <h3>Sees and acts, every decision</h3>
+      <p>laya-vision looks at the screen and rates every move. text laya reads the situation and the current advice, and picks one. No reasoning chain, about 12 ms.</p>
+    </div>
+    <div class="goal slow">
+      <div class="tag">System 2 · slow</div>
+      <h3>Reflects, between rounds</h3>
+      <p>Qwen reads the game log and rewrites her memory: a short memory for this opponent and a long-term playbook. It runs in the background, so the game never waits for it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3. THE SYSTEMS -->
+<section>
+  <div class="head">
+    <div class="eyebrow">The systems</div>
+    <h2>Three models, one loop</h2>
+  </div>
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 30 1000 370" role="img" aria-label="The loop. System 1: the screen goes to laya-vision, which rates every move as likely works, may work or likely fails. A shortlist of the top 3, the moves the memory names and forward goes to text laya, which reads the moment and the short memory and picks one move in about 12 ms. The move goes to the game. System 2: the game log goes to Qwen between rounds, in a background thread. After a lost round Qwen revises the short memory; after a game it rewrites the playbook. The memory feeds back into the shortlist and text laya.">
+        <defs>
+          <marker id="sa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="sh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah-hot" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="sg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah-gold" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="group" x="8" y="40" width="984" height="150" rx="10"/>
+        <text class="group-t" x="24" y="60">System 1 · every decision</text>
+
+        <rect class="box" x="24" y="76" width="120" height="96" rx="7"/>
+        <text class="t" x="84" y="116" text-anchor="middle">Screen</text>
+        <text class="s" x="84" y="135" text-anchor="middle">2 frames, 4 apart</text>
+        <text class="s" x="84" y="151" text-anchor="middle">HUD blanked</text>
+
+        <rect class="trained" x="180" y="76" width="200" height="96" rx="7"/>
+        <text class="tag-blue" x="280" y="96" text-anchor="middle">sees</text>
+        <text class="t" x="280" y="116" text-anchor="middle">laya-vision</text>
+        <text class="s" x="280" y="135" text-anchor="middle">rates every move:</text>
+        <text class="s" x="280" y="151" text-anchor="middle">likely works · may work</text>
+        <text class="s" x="280" y="166" text-anchor="middle">· likely fails</text>
+
+        <rect class="box" x="416" y="76" width="170" height="96" rx="7"/>
+        <text class="t" x="501" y="104" text-anchor="middle">Shortlist</text>
+        <text class="s" x="501" y="123" text-anchor="middle">top 3</text>
+        <text class="s" x="501" y="140" text-anchor="middle">+ moves the memory names</text>
+        <text class="s" x="501" y="157" text-anchor="middle">+ forward</text>
+
+        <rect class="trained" x="622" y="76" width="190" height="96" rx="7"/>
+        <text class="tag-blue" x="717" y="96" text-anchor="middle">decides</text>
+        <text class="t" x="717" y="116" text-anchor="middle">text laya</text>
+        <text class="s" x="717" y="135" text-anchor="middle">reads the moment +</text>
+        <text class="s" x="717" y="151" text-anchor="middle">short memory, picks one</text>
+        <text class="s" x="717" y="166" text-anchor="middle">~12 ms</text>
+
+        <rect class="box" x="848" y="76" width="128" height="96" rx="7"/>
+        <text class="t" x="912" y="116" text-anchor="middle">Game</text>
+        <text class="s" x="912" y="135" text-anchor="middle">Mesen 2, SNES</text>
+        <text class="s" x="912" y="151" text-anchor="middle">Chun-Li vs CPU</text>
+
+        <line class="wire" x1="144" y1="124" x2="178" y2="124" marker-end="url(#sa)"/>
+        <line class="wire" x1="380" y1="124" x2="414" y2="124" marker-end="url(#sa)"/>
+        <line class="wire" x1="586" y1="124" x2="620" y2="124" marker-end="url(#sa)"/>
+        <line class="wire" x1="812" y1="124" x2="846" y2="124" marker-end="url(#sa)"/>
+
+        <rect class="group" x="300" y="240" width="692" height="150" rx="10"/>
+        <text class="group-t" x="316" y="260">System 2 · between rounds, background thread</text>
+
+        <rect class="box" x="848" y="276" width="128" height="96" rx="7"/>
+        <text class="t" x="912" y="316" text-anchor="middle">Game log</text>
+        <text class="s" x="912" y="335" text-anchor="middle">every decision</text>
+        <text class="s" x="912" y="351" text-anchor="middle">and round</text>
+
+        <rect class="judge" x="560" y="276" width="250" height="96" rx="7"/>
+        <text class="tag-gold" x="685" y="296" text-anchor="middle">reflects</text>
+        <text class="t" x="685" y="316" text-anchor="middle">Qwen</text>
+        <text class="s" x="685" y="335" text-anchor="middle">lost round → revise short memory</text>
+        <text class="s" x="685" y="351" text-anchor="middle">game over → rewrite playbook</text>
+        <text class="s" x="685" y="366" text-anchor="middle">async: the game never waits</text>
+
+        <rect class="box" x="330" y="276" width="190" height="96" rx="7"/>
+        <text class="t" x="425" y="316" text-anchor="middle">Memory</text>
+        <text class="s" x="425" y="335" text-anchor="middle">playbook (long-term)</text>
+        <text class="s" x="425" y="351" text-anchor="middle">short memory (this opponent)</text>
+        <text class="s" x="425" y="366" text-anchor="middle">only Qwen writes it</text>
+
+        <line class="wire" x1="912" y1="172" x2="912" y2="274" marker-end="url(#sa)"/>
+        <line class="wire gold" x1="848" y1="324" x2="812" y2="324" marker-end="url(#sg)"/>
+        <line class="wire gold" x1="560" y1="324" x2="522" y2="324" marker-end="url(#sg)"/>
+        <line class="wire dash" x1="440" y1="276" x2="440" y2="174" marker-end="url(#sa)"/>
+        <text class="lbl" x="432" y="218" text-anchor="end">names moves</text>
+        <path class="wire hot" d="M505,276 V222 H717 V174" marker-end="url(#sh)"/>
+        <text class="lbl" x="611" y="214" text-anchor="middle">short memory</text>
+      </svg>
+    </div>
+    <figcaption>Blue boxes are the two models I fine-tuned; gold is the one that writes advice. <strong>laya-vision</strong>: SmolVLM-256M with my LoRA, 256x256 native pixels, PyTorch on Apple MPS. <strong>text laya</strong>: ModernBERT-large (421M) via laya-mlx, with a LoRA trained only to follow advice. <strong>Qwen</strong>: Qwen3.8 27B, 4-bit oQ4e with MTP, on the omlx server, thinking off.</figcaption>
+  </figure>
+  <div class="prose">
+    <p>laya-vision stays general on purpose. It only says what a move would do right now, from the picture and a one-line note. It gets no opponent name and no advice. Everything opponent-specific lives in the memory, and only Qwen writes the memory.</p>
+  </div>
+</section>
+
+<!-- 4. GETTING ADVICE TO HER HANDS -->
+<section>
+  <div class="head">
+    <div class="eyebrow">Getting advice to her hands</div>
+    <h2>First: can she even read advice?</h2>
+  </div>
+  <div class="prose">
+    <p>My first loop let Qwen write advice for 37 games. She lost every one. When I looked, the advice never reached her hands: "use lp up close" was in most versions of her memory, and she chose lp 0 times. laya-vision had never been trained with advice text.</p>
+    <p>So before judging the coach, I tested the channel: the same moment with different advice. Does the choice move?</p>
+  </div>
+  <div class="tablewrap">
+    <table class="mini">
+      <thead><tr><th>Model</th><th>What it did with advice</th></tr></thead>
+      <tbody>
+        <tr><td>laya-vision, base</td><td>Answered "b" 30/30 whatever the advice said. It just prefers an option position.</td></tr>
+        <tr><td>laya-vision, my LoRA</td><td>Reacts to extra text, not its meaning: "more a" and "avoid a" both lower a.</td></tr>
+        <tr><td>text laya, untrained</td><td>A keyword matcher: "avoid sweep" → picks sweep 95%. Ignores conditions.</td></tr>
+        <tr><td>text laya, fine-tuned</td><td class="up">Follows it: 99.2% on the test set, "avoid" 98%, unseen wordings 98.7%.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>The fix: let laya-vision just watch, and let a <strong>text</strong> model do the choosing. text laya was fine-tuned on 16k rows from all 8 characters' logs, with real and templated Qwen lessons. The labels come from a rule in code, not from outcomes, so it learns to <em>follow</em> advice faithfully. Whether the advice is any good is the coach's problem.</p>
+  </div>
+  <figure>
+    <div class="fig chart">
+      <svg viewBox="0 0 420 312" role="img" aria-label="Text laya accuracy on 2,000 test rows, untrained versus fine-tuned. All rows: 39.8% to 99.2%. Avoid advice: 3.0% to 98.0%. Condition not met: 49.7% to 99.5%. Held-out wordings: 40.6% to 98.7%.">
+        <rect class="bar-muted" x="0" y="2" width="12" height="12" rx="2"/><text class="s" x="18" y="12">untrained</text>
+        <rect class="bar-blue" x="96" y="2" width="12" height="12" rx="2"/><text class="s" x="114" y="12">fine-tuned</text>
+        <line class="grid" x1="0" y1="26" x2="0" y2="288"/>
+        <line class="grid" x1="200" y1="26" x2="200" y2="288"/>
+        <line class="grid" x1="400" y1="26" x2="400" y2="288"/>
+        <text class="tick" x="0" y="304">0%</text><text class="tick" x="200" y="304" text-anchor="middle">50%</text><text class="tick" x="400" y="304" text-anchor="end">100%</text>
+        <text class="rowname" x="0" y="40">All test rows<tspan class="rowsub" dx="8">2,000 rows</tspan></text>
+        <rect class="bar-muted" x="0" y="48" width="159.2" height="16" rx="2"/><text class="val" x="165.2" y="61">39.8%</text>
+        <rect class="bar-blue" x="0" y="68" width="396.8" height="16" rx="2"/><text class="val-in" x="390.8" y="81" text-anchor="end">99.2%</text>
+        <text class="rowname" x="0" y="106">"avoid …" advice<tspan class="rowsub" dx="8">negations</tspan></text>
+        <rect class="bar-muted" x="0" y="114" width="12.0" height="16" rx="2"/><text class="val" x="18.0" y="127">3.0%</text>
+        <rect class="bar-blue" x="0" y="134" width="392.0" height="16" rx="2"/><text class="val-in" x="386.0" y="147" text-anchor="end">98.0%</text>
+        <text class="rowname" x="0" y="172">Condition not met<tspan class="rowsub" dx="8">"when he jumps", he isn't</tspan></text>
+        <rect class="bar-muted" x="0" y="180" width="198.8" height="16" rx="2"/><text class="val" x="204.8" y="193">49.7%</text>
+        <rect class="bar-blue" x="0" y="200" width="398.0" height="16" rx="2"/><text class="val-in" x="392.0" y="213" text-anchor="end">99.5%</text>
+        <text class="rowname" x="0" y="238">Held-out wordings<tspan class="rowsub" dx="8">never seen in training</tspan></text>
+        <rect class="bar-muted" x="0" y="246" width="162.4" height="16" rx="2"/><text class="val" x="168.4" y="259">40.6%</text>
+        <rect class="bar-blue" x="0" y="266" width="394.8" height="16" rx="2"/><text class="val-in" x="388.8" y="279" text-anchor="end">98.7%</text>
+        </svg>
+    </div>
+    <figcaption>How often text laya picks the move the advice calls for, on 2,000 held-out test rows. Untrained, "avoid sweep" made it pick sweep. Fine-tuned, it reads polarity words (more / avoid / never / always / drop) and conditions (up close, when he jumps).</figcaption>
+  </figure>
+  <div class="prose">
+    <p>Wired in, she attacked 30–40% of the time instead of 6%, and in one session won her first rounds ever against Dhalsim, Ryu, Zangief and Ken. That felt like progress. It was not yet proof.</p>
+  </div>
+</section>
+
+<!-- 5. THE FAIR TEST -->
+<section>
+  <div class="head">
+    <div class="eyebrow">The fair test</div>
+    <h2>Same rounds, only the advice differs</h2>
+  </div>
+  <div class="prose">
+    <p>Watching her play and feeling good about it proves nothing. So the test is headless and paired. A savestate locks the opponent. Every arm plays the same rounds with the same start delays. The only thing that changes is the advice.</p>
+    <p>The score is <strong>hit points per round</strong>: damage dealt minus damage taken. Each arm is compared with "Advice: none" round by round. I wrote the verdict rule into the script before running it: an arm <strong>helps</strong> when the 95% confidence interval of its pooled difference is above 0.</p>
+  </div>
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 30 1000 240" role="img" aria-label="The paired test. One savestate and start delay per round feeds four arms: no advice, code_short counted from this opponent, code_playbook counted from other opponents, and qwen, Qwen's short memory. Each round is scored as damage dealt minus taken. The verdict, fixed before the run, compares each arm with no advice round by round and says it helps if the pooled 95% confidence interval is above zero.">
+        <defs>
+          <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="box" x="16" y="100" width="190" height="100" rx="7"/>
+        <text class="t" x="111" y="130" text-anchor="middle">Same start</text>
+        <text class="s" x="111" y="150" text-anchor="middle">savestate locks the opponent</text>
+        <text class="s" x="111" y="167" text-anchor="middle">same start delay per round</text>
+        <text class="s" x="111" y="184" text-anchor="middle">30 rounds per opponent</text>
+
+        <rect class="frozen" x="266" y="40" width="240" height="46" rx="7"/>
+        <text class="t" x="280" y="59">none</text><text class="s" x="280" y="76">"Advice: none", the control</text>
+        <rect class="trained" x="266" y="96" width="240" height="46" rx="7"/>
+        <text class="t" x="280" y="115">code_short</text><text class="s" x="280" y="132">counted from this opponent</text>
+        <rect class="trained" x="266" y="152" width="240" height="46" rx="7"/>
+        <text class="t" x="280" y="171">code_playbook</text><text class="s" x="280" y="188">counted from other opponents</text>
+        <rect class="judge" x="266" y="208" width="240" height="46" rx="7"/>
+        <text class="t" x="280" y="227">qwen</text><text class="s" x="280" y="244">Qwen's current short memory</text>
+
+        <path class="wire" d="M206,150 H232"/>
+        <path class="wire" d="M232,63 V231"/>
+        <path class="wire" d="M232,63 H264" marker-end="url(#fa)"/>
+        <path class="wire" d="M232,119 H264" marker-end="url(#fa)"/>
+        <path class="wire" d="M232,175 H264" marker-end="url(#fa)"/>
+        <path class="wire" d="M232,231 H264" marker-end="url(#fa)"/>
+
+        <path class="wire" d="M506,63 H532 M506,119 H532 M506,175 H532 M506,231 H532 M532,63 V231"/>
+        <path class="wire" d="M532,150 H558" marker-end="url(#fa)"/>
+        <rect class="box" x="560" y="100" width="180" height="100" rx="7"/>
+        <text class="t" x="650" y="134" text-anchor="middle">Score each round</text>
+        <text class="s" x="650" y="154" text-anchor="middle">hit points =</text>
+        <text class="s" x="650" y="171" text-anchor="middle">damage dealt − taken</text>
+
+        <polygon class="judge" points="872,60 984,150 872,240 760,150"/>
+        <text class="tag-gold" x="872" y="128" text-anchor="middle">Fixed before the run</text>
+        <text class="s" x="872" y="148" text-anchor="middle">arm − none, per round</text>
+        <text class="s" x="872" y="165" text-anchor="middle">helps if pooled 95% CI</text>
+        <text class="s" x="872" y="182" text-anchor="middle">is above 0</text>
+        <line class="wire" x1="740" y1="150" x2="758" y2="150" marker-end="url(#fa)"/>
+      </svg>
+    </div>
+    <figcaption>One round, four arms. Pairing removes most of the luck: every arm faces the same opening, so a difference comes from the advice. An arm with no advice replays the control exactly; I checked that in a smoke run.</figcaption>
+  </figure>
+  <div class="prose">
+    <p>The two <code>code_</code> arms are the baseline I should have built first. No language model at all: code sorts her moves by net hit points from her logs, keeps the top 3 as "use" and the bottom 2 as "avoid". <code>code_short</code> counts only rounds against this opponent. <code>code_playbook</code> counts only rounds against the <em>other</em> opponents, so it can also play Blanka and Guile, whom she has never met.</p>
+  </div>
+</section>
+
+<!-- 6. RESULTS -->
+<section>
+  <div class="head">
+    <div class="eyebrow">Results</div>
+    <h2>Counting helps. Qwen doesn't, yet.</h2>
+  </div>
+  <figure>
+    <div class="fig chart">
+      <svg class="halo" viewBox="0 0 420 312" role="img" aria-label="Pooled hit points per round versus no advice, with 95% confidence intervals. code_short: +28.8, from +14.3 to +43.3, 150 paired rounds. code_playbook: +31.8, from +18.4 to +45.1, 210 paired rounds. qwen: +1.1, from −14.2 to +16.4, 150 paired rounds. Qwen minus code_short on the same rounds: −27.7, from −42.0 to −13.5.">
+        <text class="s" x="210" y="12" text-anchor="middle">hit points per round vs no advice · mean and 95% CI</text>
+        <line class="grid" x1="66.0" y1="22" x2="66.0" y2="290"/><text class="tick" x="66.0" y="306" text-anchor="middle">−40</text>
+        <line class="grid" x1="138.0" y1="22" x2="138.0" y2="290"/><text class="tick" x="138.0" y="306" text-anchor="middle">−20</text>
+        <line class="grid" x1="282.0" y1="22" x2="282.0" y2="290"/><text class="tick" x="282.0" y="306" text-anchor="middle">+20</text>
+        <line class="grid" x1="354.0" y1="22" x2="354.0" y2="290"/><text class="tick" x="354.0" y="306" text-anchor="middle">+40</text>
+        <line class="zero" x1="210" y1="22" x2="210" y2="290"/><text class="tick" x="210" y="306" text-anchor="middle">0</text>
+        <text class="rowname" x="0" y="40">code_short<tspan class="rowsub" dx="8">150 paired rounds · helps</tspan></text><text class="val" x="420" y="40" text-anchor="end">+28.8</text>
+        <rect class="bar-blue" x="210.0" y="53" width="103.7" height="18" rx="2"/>
+        <line class="ci" x1="261.5" y1="62" x2="365.9" y2="62"/><line class="ci" x1="261.5" y1="56" x2="261.5" y2="68"/><line class="ci" x1="365.9" y1="56" x2="365.9" y2="68"/>
+        <text class="rowname" x="0" y="104">code_playbook<tspan class="rowsub" dx="8">210 paired rounds · helps</tspan></text><text class="val" x="420" y="104" text-anchor="end">+31.8</text>
+        <rect class="bar-blue" x="210.0" y="117" width="114.5" height="18" rx="2"/>
+        <line class="ci" x1="276.2" y1="126" x2="372.4" y2="126"/><line class="ci" x1="276.2" y1="120" x2="276.2" y2="132"/><line class="ci" x1="372.4" y1="120" x2="372.4" y2="132"/>
+        <text class="rowname" x="0" y="168">qwen<tspan class="rowsub" dx="8">150 paired rounds · not shown</tspan></text><text class="val" x="420" y="168" text-anchor="end">+1.1</text>
+        <rect class="bar-gold" x="210.0" y="181" width="4.0" height="18" rx="2"/>
+        <line class="ci" x1="158.9" y1="190" x2="269.0" y2="190"/><line class="ci" x1="158.9" y1="184" x2="158.9" y2="196"/><line class="ci" x1="269.0" y1="184" x2="269.0" y2="196"/>
+        <line class="grid" x1="0" y1="226" x2="420" y2="226" stroke-dasharray="4 4"/>
+        <text class="rowname" x="0" y="242">Qwen − counting<tspan class="rowsub" dx="8">same 150 rounds · worse</tspan></text><text class="val" x="420" y="242" text-anchor="end">−27.7</text>
+        <rect class="bar-red" x="110.3" y="255" width="99.7" height="18" rx="2"/>
+        <line class="ci" x1="58.8" y1="264" x2="161.4" y2="264"/><line class="ci" x1="58.8" y1="258" x2="58.8" y2="270"/><line class="ci" x1="161.4" y1="258" x2="161.4" y2="270"/>
+        </svg>
+    </div>
+    <figcaption>Pooled over 5 opponents (7 for the playbook, which also played Blanka and Guile), run <code>rollouts/ab/20260928-091745</code>. Whiskers are 95% confidence intervals. The last row is Qwen's advice minus code's advice on the same rounds: −27.7 [−42.0, −13.5].</figcaption>
+  </figure>
+
+  <div class="tablewrap">
+    <table class="mini">
+      <thead><tr><th>Won of 30</th><th class="n">none</th><th class="n">code_<wbr>short</th><th class="n">code_<wbr>playbook</th><th class="n">qwen</th></tr></thead>
+      <tbody>
+        <tr><td>Ken</td><td class="n">3</td><td class="n up">17</td><td class="n up">16</td><td class="n">4</td></tr>
+        <tr><td>Zangief</td><td class="n">6</td><td class="n">6</td><td class="n up">14</td><td class="n">4</td></tr>
+        <tr><td>Ryu</td><td class="n">6</td><td class="n">10</td><td class="n">10</td><td class="n down">0</td></tr>
+        <tr><td>Dhalsim</td><td class="n">8</td><td class="n">9</td><td class="n down">4</td><td class="n up">13</td></tr>
+        <tr><td>E. Honda</td><td class="n">1</td><td class="n">1</td><td class="n">2</td><td class="n">0</td></tr>
+        <tr><td>Blanka <span class="muted">(never met)</span></td><td class="n">3</td><td class="n muted">–</td><td class="n up">11</td><td class="n muted">–</td></tr>
+        <tr><td>Guile <span class="muted">(never met)</span></td><td class="n">16</td><td class="n muted">–</td><td class="n">16</td><td class="n muted">–</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="verdicts">
+    <div class="verdict"><b>A short memory works</b><span>Advice counted from her own rounds against this opponent: +28.8 hit points per round. Against Ken she goes from 3 wins to 17.</span></div>
+    <div class="verdict"><b>A playbook carries over</b><span>Knowing her own strengths helps even against opponents she never met: against Blanka, 3 wins become 11.</span></div>
+    <div class="verdict bad"><b>Qwen is the weak link</b><span>Its advice is no better than none (+1.1), and 27.7 hit points per round worse than plain counting over the same logs. Against Ryu it won 0 of 30.</span></div>
+  </div>
+  <div class="prose">
+    <p>Two honest footnotes. Dhalsim is the exception: the playbook hurt there and Qwen helped. And the path from memory to action is fine: text laya follows advice 98% of the time. When the advice fails, the advice is the problem.</p>
+  </div>
+</section>
+
+<!-- 7. WHY QWEN FAILS -->
+<section>
+  <div class="head">
+    <div class="eyebrow">Why Qwen fails</div>
+    <h2>It judged moves by how often they miss</h2>
+  </div>
+  <div class="prose">
+    <p>Here is what Qwen told her against Ryu, next to what her own logged rounds say. "Net" is hit points per try.</p>
+  </div>
+  <div class="tablewrap">
+    <table class="mini">
+      <thead><tr><th>Qwen's lesson</th><th>The counts</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>avoid c.mk at mid: it misses</td><td>c.mk@mid: 405 tries, hits 37%, <b>+2.2 net</b></td><td class="down">wrong: a winning move, banned for missing</td></tr>
+        <tr><td>avoid c.hp at mid: it misses</td><td>c.hp@mid: 109 tries, hits 39%, <b>+2.6 net</b></td><td class="down">wrong, same reason</td></tr>
+        <tr><td>use lp when he jumps</td><td>lp@close: 574 tries, <b>−3.1 net</b></td><td class="down">a losing move, advised</td></tr>
+        <tr><td>stop spinning_bird_kick</td><td>−6.5 at mid, −18.4 up close</td><td class="up">right</td></tr>
+        <tr><td><span class="muted">(nothing)</span></td><td>throw@close: 100 tries, <b>+10.0 net</b>, her best move</td><td class="down">missed</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>Against Ken the pattern repeats: "avoid c.hp at mid: it whiffs", while c.hp at mid is net positive. Mostly, the causes are in what I gave Qwen:</p>
+  </div>
+  <ol class="causes">
+    <li><b>1 · Wrong yardstick</b><span>The words it could use were lands / whiffs / blocked / punished: rates, not results. A move that misses 60% of the time but wins more than it loses is "whiffs", so it gets banned. Nothing in its input said "net hit points".</span></li>
+    <li><b>2 · Negativity</b><span>The digest led with failures. Its lessons ran 4 avoids to 1 use. Avoiding moves made her passive: with its advice she attacked 59% of decisions, without it 84%.</span></li>
+    <li><b>3 · Recency and churn</b><span>Revising after every lost round means learning from the last 60 seconds. 45–71% of the short memory changed per rewrite. "c.mk at mid" went use → avoid → use 4 times in 4 minutes.</span></li>
+    <li><b>4 · Counting in words</b><span>An LLM estimating rates from a long digest is worse at arithmetic than code, and it doesn't know which differences are noise.</span></li>
+  </ol>
+  <p class="callout"><b>Code counts, Qwen reasons.</b> That's the next step: every number comes from code, Qwen starts from code's advice, and any change it makes must cite a row of the table.</p>
+</section>
+
+<!-- 8. PROBLEMS I HIT -->
+<section>
+  <div class="head">
+    <div class="eyebrow">What went wrong</div>
+    <h2>Problems I hit, and what solved them</h2>
+    <p class="lede">Most of these are harness problems, not model problems. As in part 1, that's where the time went.</p>
+  </div>
+  <div class="problems">
+    <article class="card">
+      <div class="kind">Process</div>
+      <h3>The 10-minute run that ran 67 minutes</h3>
+      <p>I asked for a 10-minute loop and planned to stop it with <code>kill -INT</code> on a background job. Background jobs in a non-interactive shell ignore SIGINT, so it kept going: 37 games, all against Dhalsim, all lost, 112 memory versions.</p>
+      <p class="fix"><strong>Fix</strong> A time limit inside the loop (<code>--minutes</code>), and for measuring, a headless A/B with a fixed number of rounds that ends by itself.</p>
+    </article>
+    <article class="card">
+      <div class="kind">Process</div>
+      <h3>Crashes I couldn't see</h3>
+      <p>Twice a job died silently: the first loop (it ran with the system Python, not the project's) and a training launch. Both times I had sent the output to <code>/dev/null</code>. Same mistake, twice in one day.</p>
+      <p class="fix"><strong>Fix</strong> Always keep the console log. A crash must be loud.</p>
+    </article>
+    <article class="card">
+      <div class="kind">Data</div>
+      <h3>Label bugs, caught before training</h3>
+      <p>A separate, blind reviewer read the text laya label rule and found three bugs before the real run:</p>
+      <ul>
+        <li>"when ryu attacks" lost its condition;</li>
+        <li>a condition after the colon was dropped;</li>
+        <li>the same lessons leaked into train and validation.</li>
+      </ul>
+      <p class="fix"><strong>Fix</strong> A failing test for each, then the fix. Cheap compared to a wasted training run.</p>
+    </article>
+    <article class="card">
+      <div class="kind">Coach</div>
+      <h3>The notebook that stayed empty</h3>
+      <p>Qwen's notebook has a change budget per round, so it can't rewrite everything at once. Its updates were bigger than the budget, the check rejected each one, and the notebook stayed empty round after round.</p>
+      <p class="fix"><strong>Fix</strong> The budget is no longer a reason to reject. Code trims the update to fit, and the rest waits for a later round.</p>
+    </article>
+    <article class="card">
+      <div class="kind">Coach</div>
+      <h3>Qwen wrote things my reader didn't expect</h3>
+      <p>"drop X" wasn't read as negative. A plan line like "at mid and far" names two ranges at once. Gaps like these could crash the game mid-round.</p>
+      <p class="fix"><strong>Fix</strong> "drop" and "skip" read as negative, two-range lines are dropped with a reason, and a line the reader can't use is skipped instead of crashing the game.</p>
+    </article>
+    <article class="card">
+      <div class="kind">Honesty</div>
+      <h3>A chart that flattered me</h3>
+      <p>My first progress chart had a rolling win line that started at 100%, and it compared different opponents with each other. It looked like learning. It wasn't evidence.</p>
+      <p class="fix"><strong>Fix</strong> Same opponent only, sample sizes shown, and a luck check: at a ~14% round-win rate, one match win in 16 tries is about 59% likely by chance.</p>
+    </article>
+    <article class="card wide">
+      <div class="kind">Timing</div>
+      <h3>Stopping waited for Qwen</h3>
+      <p>Qwen reviews in the background so the game never waits for it. But stopping the loop still waited for Qwen's review in progress to finish.</p>
+      <p class="fix"><strong>Fix</strong> System 2 runs in a daemon thread: the game never waits for Qwen, and neither does a stop. A new memory swaps in at the next round.</p>
+    </article>
+  </div>
+</section>
+
+<!-- 9. IF YOU TRY SOMETHING SIMILAR -->
+<section>
+  <div class="head">
+    <div class="eyebrow">If you try something similar</div>
+    <h2>The exact setup, and what I'd tell myself</h2>
+  </div>
+  <div class="tablewrap">
+    <table class="mini setup">
+      <thead><tr><th>Piece</th><th>What</th><th>Settings that matter</th></tr></thead>
+      <tbody>
+        <tr><td>Game</td><td><em>Street Fighter II (USA)</em> SNES ROM (not included), sha1 <code>7ddcb96e0d9fea94d9370635262ac7c28da85214</code>, in Mesen 2 (MesenCE 1.0)</td><td>headless <code>--testrunner</code> or a window; controller 2 plugged in with <code>--snes.port2.type=SnesController</code>; window at 150% speed</td></tr>
+        <tr><td>laya-vision</td><td><a href="https://huggingface.co/thaitea/laya-vision-smolvlm-256m" target="_blank" rel="noopener">thaitea/laya-vision-smolvlm-256m</a> + my LoRA; PyTorch on Apple MPS</td><td><b>256x256 native pixels, no upscale</b>: the 256x224 frame padded, HUD blanked, nearest-neighbour; two frames 4 apart + a one-line note, no opponent name</td></tr>
+        <tr><td>text laya</td><td><a href="https://huggingface.co/aac6fef/laya-mlx" target="_blank" rel="noopener">aac6fef/laya-mlx</a> (ModernBERT-large, 421M) + my LoRA</td><td>runs on <b>laya-mlx</b> (Apple MLX), not omlx, in its own venv as a helper process; LoRA r=16; max 512 tokens in; ~12 ms per decision</td></tr>
+        <tr><td>Qwen</td><td><code>Jundot--Qwen3.8-27B-oQ4e-mtp</code> on the <b>omlx</b> server (OpenAI-compatible)</td><td>thinking <b>off</b>: a review took ~5 min with it, ~9–11 s without; temperature 0; background thread</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul class="advice">
+    <li><b>Test the channel before the coach</b><span>Check that the student's choice actually moves with the advice. Mine didn't, for 37 games.</span></li>
+    <li><b>Pair your rounds</b><span>Same savestate, same start delay, one thing different. Otherwise luck is louder than the effect.</span></li>
+    <li><b>Write the verdict down first</b><span>"Helps if the 95% CI is above 0", in the script, before the run. Then the script prints the verdict, not my mood.</span></li>
+    <li><b>Build the dumb baseline</b><span>Plain counting beat the 27B model by 28 hit points per round. The LLM has to beat counting, not nothing.</span></li>
+    <li><b>Make crashes loud</b><span>Never send a run's output to <code>/dev/null</code>. Stop with a limit built into the job, not a signal from outside.</span></li>
+    <li><b>Code counts, the LLM reasons</b><span>Give the model the numbers and one yardstick. Don't ask it to count in words.</span></li>
+  </ul>
+</section>
+
+<!-- 10. STILL OPEN -->
+<section>
+  <div class="head">
+    <div class="eyebrow">Still open</div>
+    <h2>Where it stops</h2>
+  </div>
+  <div class="open">
+    <div class="goal">
+      <h3>Give Qwen a job it can do</h3>
+      <p>Three stages, each with its own paired test:</p>
+      <ul class="stages">
+        <li><b>A.</b> Qwen gets the net-hit-points table and code's advice as a draft. It must at least match code_short.</li>
+        <li><b>B.</b> Add what counting can't: conditions ("when he jumps"), opponent habits, which strengths to lead with against someone new. It must beat code_playbook.</li>
+        <li><b>C.</b> Learning over rounds, starting from the code baseline. Over 40+ rounds it must beat a fixed code_short arm in the last third.</li>
+      </ul>
+    </div>
+    <div class="goal">
+      <h3>She almost never blocks</h3>
+      <p>laya-vision rated block "likely fails" 981 times out of 993 while the opponent attacked, and 93% of the hits she takes land while she is attacking. Advice about attacks can't fix defence.</p>
+    </div>
+    <div class="goal">
+      <h3>E. Honda</h3>
+      <p>Nothing helps yet: 1–2 rounds won of 30 in every arm. Maybe the same defence problem.</p>
+    </div>
+    <div class="goal">
+      <h3>Selection bias in the counts</h3>
+      <p>"throw@close is +10" means +10 when laya thought a throw fit. Forcing it everywhere may not keep +10. The paired A/B measures the real effect, so I trust it over the table.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>Part 1: <a href="https://ais-demo.yzhou30.workers.dev/laya_sf2">laya-vision vs Street Fighter II</a></span>
+  <span>Code: <a href="https://github.com/beefkknd/laya_vision-vs-SF2" target="_blank" rel="noopener">github.com/beefkknd/laya_vision-vs-SF2</a></span>
+  <span>Part 1 video: <a href="https://youtu.be/8VLMJVLKQAY" target="_blank" rel="noopener">youtu.be/8VLMJVLKQAY</a></span>
+  <!-- TODO: add the part 2 video link here when it is posted -->
+  <span>Part 2 video: coming soon</span>
+</footer>
+
+</div>
+</body>
+</html>

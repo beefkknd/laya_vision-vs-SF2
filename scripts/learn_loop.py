@@ -33,6 +33,7 @@ import glob
 import json
 import os
 import random
+import re
 import shutil
 import signal
 import sys
@@ -43,9 +44,11 @@ from typing import Dict, List, Optional, Tuple
 
 import _path  # noqa: F401
 from sf2.boot import CHARACTERS, next_fight, start_arcade
+from sf2.eval.logs import is_test, mark_run
 from sf2.headless import KeepMesenSettings, launch_argv, window_argv
+from sf2 import demo_cheat
 from sf2.advisor import Advisor
-from sf2.memory import load, playbook_path, short_path
+from sf2.memory import OutsideWatch, load, playbook_path, save, short_path
 from sf2.memory_churn import diff as diff_memory
 from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
@@ -54,6 +57,7 @@ from sf2.vs import NAMES, VARS
 from sf2.vs_sweep import actions
 
 LOG = None
+MEM_ROOT = "memory"        # memory_runs/<name> with --fresh
 
 
 SAY_LOCK = threading.Lock()
@@ -77,8 +81,8 @@ def history(me: str) -> Dict[str, Tuple[List[Dict], List[Dict]]]:
     by_opp: Dict[str, Tuple[List[Dict], List[Dict]]] = {}
     dirs = sorted(glob.glob("rollouts/games_v*/%s" % me)) + sorted(glob.glob("rollouts/learn/%s/*" % me))
     for d in dirs:
-        if not os.path.exists(os.path.join(d, "actions.jsonl")):
-            continue
+        if not os.path.exists(os.path.join(d, "actions.jsonl")) or is_test(d):
+            continue            # --fresh demo sessions are not play data (sf2.eval.logs)
         tag = os.path.relpath(d, "rollouts")
         acts = [dict(json.loads(x), log=tag) for x in open(os.path.join(d, "actions.jsonl"))]
         rfile = os.path.join(d, "rounds.jsonl")
@@ -98,9 +102,7 @@ def save_memory(path: str, mem: Dict) -> None:
         say("    change vs the previous %s: %s" % ("playbook" if "opp" not in mem else "short memory", change.line()))
         for old, new in change.flipped:
             say("        FLIP: %r -> %r" % (old, new))
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(mem, f, indent=1)
+    save(path, mem)
     keep = os.path.join("logs", "system2", "memory", time.strftime("%Y%m%d-%H%M%S_") + os.path.basename(path))
     os.makedirs(os.path.dirname(keep), exist_ok=True)
     shutil.copy(path, keep)
@@ -119,28 +121,28 @@ def run_system2_short(me: str, opp: str, by_opp, recent: Optional[List[Dict]] = 
     say("System 2: %s the short memory vs %s ..." % ("revising" if recent else "writing", opp))
     t = time.time()
     everything = [a for acts, _ in by_opp.values() for a in acts]
-    lessons, rep = populate(me, opp, load(playbook_path(me), list(actions(me))), by_opp.get(opp, ([], [])), everything,
+    lessons, rep = populate(me, opp, load(playbook_path(me, MEM_ROOT), list(actions(me))), by_opp.get(opp, ([], [])), everything,
                             recent=recent, current=current, what=what)
     if lessons is None:
         say("System 2: no usable short memory (%s); keeping the previous one" % rep["attempts"])
     else:
-        save_memory(short_path(me, opp), {"me": me, "opp": opp, "source": sorted({a.get("log") for a in everything}),
+        save_memory(short_path(me, opp, MEM_ROOT), {"me": me, "opp": opp, "source": sorted({a.get("log") for a in everything}),
                                            "lessons": lessons})
         show("System 2 (%.0f s): short memory vs %s - %s" % (time.time() - t, opp, rep.get("notes")), lessons)
         for att in rep["attempts"]:
             for r in att.get("rejected", []):
                 say("    rejected: %s (%s)" % (r["lesson"].get("text"), r["why"]))
-    return load(short_path(me, opp), list(actions(me)))
+    return load(short_path(me, opp, MEM_ROOT), list(actions(me)))
 
 
 def run_system2_review(me: str, by_opp) -> None:
     say("System 2: reviewing %d rounds, rewriting the playbook ..." % sum(len(r) for _, r in by_opp.values()))
     t = time.time()
-    lessons, rep = review(me, load(playbook_path(me), list(actions(me))), by_opp)
+    lessons, rep = review(me, load(playbook_path(me, MEM_ROOT), list(actions(me))), by_opp)
     if lessons is None:
         say("System 2: no usable playbook (%s); keeping the previous one" % rep["attempts"])
         return
-    save_memory(playbook_path(me), {"me": me, "source": sorted({a.get("log") for acts, _ in by_opp.values()
+    save_memory(playbook_path(me, MEM_ROOT), {"me": me, "source": sorted({a.get("log") for acts, _ in by_opp.values()
                                                                 for a in acts}), "lessons": lessons})
     show("System 2 (%.0f s): playbook - %s" % (time.time() - t, rep.get("notes")), lessons)
 
@@ -171,10 +173,12 @@ class System2:
         threading.Thread(target=run, name="system2", daemon=True).start()
         return fut
 
-    def _job(self, kind: str, opp: str, by_opp, recent, current, what) -> Tuple[str, Dict]:
+    def _job(self, kind: str, opp: str, by_opp, recent, current, what) -> Tuple[str, Dict, Optional[float]]:
         if kind == "game":
             run_system2_review(self.me, by_opp)
-        return opp, run_system2_short(self.me, opp, by_opp, recent=recent, what=what, current=current)
+        mem = run_system2_short(self.me, opp, by_opp, recent=recent, what=what, current=current)
+        path = short_path(self.me, opp, MEM_ROOT)          # stamped as System 2 left it (sf2.memory.OutsideWatch)
+        return opp, mem, os.path.getmtime(path) if os.path.exists(path) else None
 
     def ask(self, kind: str, opp: str, by_opp, recent: List[Dict], current: Optional[Dict], what: str) -> None:
         job = (kind, opp, snapshot(by_opp), list(recent), current, what)
@@ -185,8 +189,12 @@ class System2:
                 say("System 2 busy: %s review replaced by the newer %s review" % (self.waiting[0], kind))
             self.waiting = job
 
-    def poll(self) -> Optional[Tuple[str, Dict]]:
-        """(opp, short memory) of a finished job, or None; starts the waiting job."""
+    def busy(self) -> bool:
+        """A review is running or waiting (so a memory file may be about to change under System 2's own hand)."""
+        return self.waiting is not None or (self.future is not None and not self.future.done())
+
+    def poll(self) -> Optional[Tuple[str, Dict, Optional[float]]]:
+        """(opp, short memory, its file's stamp) of a finished job, or None; starts the waiting job."""
         if self.future is None or not self.future.done():
             return None
         try:
@@ -216,7 +224,7 @@ class System2:
 
 def short_for(me: str, opp: str, by_opp) -> Dict:
     """The short memory to play ``opp`` with: a kept one if it meets today's rules, else a fresh one from System 2."""
-    kept = load(short_path(me, opp), list(actions(me)))
+    kept = load(short_path(me, opp, MEM_ROOT), list(actions(me)))
     if fits_laya(kept):
         show("new opponent: %s - short memory kept from before" % opp, kept["lessons"])
         return kept
@@ -236,9 +244,20 @@ def main() -> int:
                     help="text laya checkpoint that turns the short memory into the move ('off': laya-vision's "
                          "threshold rule, the memory in its prompt)")
     ap.add_argument("--minutes", type=float, default=0, help="stop after this long (0: until Ctrl-C)")
+    ap.add_argument("--games", type=int, default=0, help="stop after this many games (matches); 0: no limit")
+    ap.add_argument("--quiet", action="store_true", help="do not print every decision to the console")
+    ap.add_argument("--fresh", default=None, metavar="NAME",
+                    help="start from a blank memory: its own memory folder memory_runs/NAME and no earlier logs "
+                         "(memory/ is not touched); for demos and learning-from-zero tests")
+    ap.add_argument("--seed", default=None, metavar="DIR",
+                    help="with --fresh: start from this seed memory (scripts/seed_memory.py) instead of blank")
+    ap.add_argument("--live", default="out/live/decision.json",
+                    help="the latest decision, for scripts/brain_panel.py ('' to turn off)")
     ap.add_argument("--ab-advice", action="store_true",
                     help="A/B test: odd games are played with 'Advice: none' (text laya still picks); logged as advice")
     args = ap.parse_args()
+    if args.fresh and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", args.fresh):
+        raise SystemExit("--fresh %r: use letters, digits, - and _ only (it names a folder in memory_runs/)" % args.fresh)
     signal.signal(signal.SIGTERM, _stop)     # `kill` stops it like Ctrl-C: Mesen, text laya and settings cleaned up
     me = args.char
     session = time.strftime("%Y%m%d-%H%M%S")
@@ -247,7 +266,27 @@ def main() -> int:
     os.makedirs(os.path.join(out, "images"), exist_ok=True)
     os.makedirs("logs", exist_ok=True)
     LOG = open(os.path.join("logs", "learn_%s.log" % me), "a")
-    by_opp = history(me)
+    global MEM_ROOT
+    MEM_ROOT = os.path.join("memory_runs", args.fresh) if args.fresh else "memory"
+    if args.fresh and os.path.exists(MEM_ROOT):
+        raise SystemExit("%s exists: pick a new --fresh name (a blank start must be blank)" % MEM_ROOT)
+    if args.seed:
+        if not args.fresh:
+            raise SystemExit("--seed needs --fresh (a seed never overwrites memory/)")
+        shutil.copytree(args.seed, MEM_ROOT)
+    mark_run(out, memory=MEM_ROOT, fresh=args.fresh, seed=args.seed)
+    by_opp = {} if args.fresh else history(me)
+    pushed = demo_cheat.apply_pending(MEM_ROOT, me, args.seed or demo_cheat.SEED) if args.fresh else []
+    if args.live:                               # the brain panel: a new session, nothing left from the last one
+        os.makedirs(os.path.dirname(args.live), exist_ok=True)
+        if os.path.exists(args.live):
+            os.remove(args.live)
+        with open(os.path.join(os.path.dirname(args.live), "session.json"), "w") as f:
+            json.dump({"session": out, "memory": MEM_ROOT, "me": me, "log": os.path.join("logs", "learn_%s.log" % me),
+                       "log_offset": os.path.getsize(os.path.join("logs", "learn_%s.log" % me)),
+                       "seed": args.seed, "started": time.time(), "running": True, "pid": os.getpid()}, f)
+    for line in pushed:                         # the brain panel's buttons pressed before this game
+        say(line)
     say("session %s: %s, System 1 %s, earlier rounds: %s" % (session, me, args.model,
                                                              {o: len(r) for o, (_, r) in by_opp.items()}))
     deadline = time.time() + 60 * args.minutes if args.minutes else None
@@ -255,6 +294,7 @@ def main() -> int:
     argv = launch_argv(args.port, None) if args.headless else window_argv(args.port, None, speed=args.speed)
     advisor, b, keep, files, timed_out = None, None, None, {}, False
     rng, n, game, opp = random.Random(0), 0, 0, None
+    outside = OutsideWatch()                         # the brain panel's buttons change a short memory from outside
     score, rounds, game_acts = [0, 0], [], []    # this game's round wins (me, him), round summaries, actions
     try:                                         # everything started from here on is cleaned up in `finally`
         advisor = None if args.advisor == "off" else Advisor(args.advisor)
@@ -275,11 +315,20 @@ def main() -> int:
             if now != opp:
                 opp = now
                 s1.short = short_for(me, opp, by_opp)
+                outside.seen(opp, short_path(me, opp, MEM_ROOT))
             elif done and done[0] == opp:
                 s1.short = done[1]
+                outside.seen(opp, short_path(me, opp, MEM_ROOT), stamp=done[2])
                 say("System 2's new short memory vs %s is in play from this round" % opp)
+            else:
+                got = outside.check(opp, short_path(me, opp, MEM_ROOT), s2.busy(), list(actions(me)))
+                if got:
+                    if got[0] is not OutsideWatch.KEEP:
+                        s1.short = got[0]
+                    say(got[1])
             s1.advice_on = not (args.ab_advice and game % 2 == 1)
-            rnd = play_round(b, s1, opp, None, rng, os.path.join(out, "images"), n)
+            rnd = play_round(b, s1, opp, None, rng, os.path.join(out, "images"), n, live_path=args.live or None,
+                             echo=not args.quiet)
             where = {"game": game, "round": len(rounds), "opp": opp, "log": tag,
                      "advice": "on" if s1.advice_on else "off"}
             summary = dict(rnd.summary, **where)
@@ -309,6 +358,10 @@ def main() -> int:
             for f in files.values():
                 f.flush()
             n += 1
+            if args.games and game >= args.games:
+                say("%d game%s played: stopping (after System 2's review of it)" % (game, "" if game == 1 else "s"))
+                timed_out = True                  # let the running review (the playbook) finish on screen
+                break
             if deadline and time.time() >= deadline:
                 say("%.0f minutes up: stopping after %d games (%d rounds)" % (args.minutes, game, n))
                 timed_out = True
@@ -327,6 +380,14 @@ def main() -> int:
                 step()
             except Exception as e:
                 say("cleanup step failed: %s: %s" % (type(e).__name__, e))
+        if args.live:                           # the panel's buttons stop working once the run is over
+            path = os.path.join(os.path.dirname(args.live), "session.json")
+            try:
+                done = dict(json.load(open(path)), running=False)
+                with open(path, "w") as f:
+                    json.dump(done, f)
+            except (OSError, ValueError) as e:
+                say("could not mark the session finished for the panel: %s" % e)
         say("session %s saved in %s" % (session, out))
     return 0
 

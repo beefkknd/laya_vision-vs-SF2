@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brain Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* A fixed landscape canvas (1120 x 640) for recording next to the game: nothing grows or shrinks. */
+  :root {
+    --bg: #0f1428; --card: #161d38; --line: #26305a; --ink: #e8ecf8; --muted: #8e98bd;
+    --s1: #5b9dff; --s2: #f0a33a; --good: #3ecf8e; --may: #f0c24a; --bad: #ff6b6b; --glow: rgba(240,163,58,.2);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", -apple-system, sans-serif; }
+  body { padding: 12px; }
+  .canvas { width: 1120px; height: 640px; display: grid; grid-template-rows: 44px 1fr 58px; gap: 10px; }
+  .mv { font-family: "IBM Plex Mono", monospace; }
+  .one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  header { display: grid; grid-template-columns: 300px 1fr 1fr auto; align-items: center; gap: 14px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
+  h1 .vs { color: var(--muted); font-weight: 400; }
+  .life { display: grid; gap: 3px; font-size: 11px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .bar { height: 12px; background: #0a0e1d; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+  .bar > i { display: block; height: 100%; background: var(--good); transition: width .2s; }
+  .bar.opp > i { background: var(--bad); margin-left: auto; }
+  .chips { display: flex; gap: 6px; }
+  .chip { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+  .chip b { color: var(--ink); }
+
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-height: 0; overflow: hidden; }
+  .card h2 { margin: 0; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  .s1 h2 { color: var(--s1); } .s2 h2 { color: var(--s2); }
+  .sub { color: var(--muted); font-size: 13px; height: 20px; margin: 2px 0 8px; }
+
+  .sees { font-size: 17px; height: 26px; margin-bottom: 6px; }
+  .row { display: grid; grid-template-columns: 200px 96px 1fr 44px; align-items: center; gap: 8px; height: 33px; padding: 0 8px; border-radius: 7px; font-size: 16px; }
+  .row.head { height: 20px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .row.pick { background: rgba(91,157,255,.16); outline: 1px solid var(--s1); }
+  #short-list { height: 220px; overflow: hidden; }
+  .rate { font-size: 12px; border-radius: 6px; padding: 2px 6px; text-align: center; }
+  .rate.works { background: rgba(62,207,142,.18); color: var(--good); }
+  .rate.may { background: rgba(240,194,74,.16); color: var(--may); }
+  .rate.fails { background: rgba(255,107,107,.15); color: var(--bad); }
+  .rate.walk { background: rgba(142,152,189,.15); color: var(--muted); }
+  .pbar { height: 9px; background: #0a0e1d; border-radius: 5px; overflow: hidden; }
+  .pbar > i { display: block; height: 100%; background: var(--s1); }
+  .pct { text-align: right; color: var(--muted); font-size: 14px; }
+  .why { font-size: 16px; height: 26px; margin-top: 8px; }
+  .why b { color: var(--s1); }
+  .flow { margin-top: 10px; display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr auto 1fr; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); text-align: center; }
+  .flow span { border: 1px solid var(--line); border-radius: 6px; padding: 4px 4px; white-space: nowrap; }
+  .flow .on { border-color: var(--s1); color: var(--ink); }
+
+  .status { display: flex; align-items: center; gap: 8px; font-size: 15px; height: 24px; margin-bottom: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .thinking .dot { background: var(--s2); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .mem h3 { display: flex; align-items: center; gap: 6px; height: 24px; margin: 4px 0 4px; font-size: 14px; }
+  .mem h3 .grow { flex: 1; color: var(--muted); font-weight: 400; font-size: 12px; min-width: 0; }
+  ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; height: 142px; overflow: hidden; }
+  li { height: 25px; line-height: 23px; padding: 0 9px; border-radius: 6px; background: #11172f; border: 1px solid var(--line); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background 1.5s, border-color 1.5s; }
+  li.new { background: var(--glow); border-color: var(--s2); }
+  li.used { border-color: var(--s1); }
+  li.empty { color: var(--muted); font-style: italic; }
+  .btn { font: 600 11px "IBM Plex Sans", sans-serif; border-radius: 6px; padding: 2px 8px; cursor: pointer; border: 1px solid; }
+  .btn.cheat { background: rgba(240,163,58,.15); color: var(--s2); border-color: var(--s2); }
+  .btn.clean { background: transparent; color: var(--muted); border-color: var(--line); }
+  .btn:active { transform: translateY(1px); }
+  select { font: 500 12px "IBM Plex Sans", sans-serif; background: #11172f; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 1px 4px; }
+  .ready .dot { background: var(--s2); }
+  .notes { margin-top: 4px; height: 54px; overflow: hidden; color: var(--muted); font-size: 12px; display: grid; gap: 2px; align-content: start; }
+  .toast { height: 16px; font-size: 12px; color: var(--s2); }
+
+  footer.card { padding: 8px 12px; display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 10px; }
+  footer h2 { color: var(--muted) !important; font-size: 12px !important; }
+  .rounds { display: flex; gap: 5px; overflow: hidden; height: 26px; flex-wrap: nowrap; justify-content: flex-end; }
+  .r { font-size: 12px; padding: 3px 7px; border-radius: 6px; background: #11172f; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .r.win { border-color: var(--good); color: var(--good); }
+  .r.game { border-color: var(--s2); color: var(--s2); }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <header>
+    <h1 class="one" id="title">Chun-Li <span class="vs">vs</span> Dhalsim</h1>
+    <div class="life"><span>Chun-Li</span><div class="bar"><i id="myl" style="width:100%"></i></div></div>
+    <div class="life"><span id="opp-name" style="text-align:right">Dhalsim</span><div class="bar opp"><i id="opl" style="width:100%"></i></div></div>
+    <div class="chips"><span class="chip">game <b id="game">–</b></span><span class="chip">match <b id="score">0–0</b></span><span class="chip">clock <b id="clock">–</b></span></div>
+  </header>
+
+  <main>
+    <section class="card s1">
+      <h2>System 1 · every 4 frames</h2>
+      <div class="sub one">laya-vision rates each move from the screen · text laya picks one, following the plan</div>
+      <div class="sees one" id="sees">waiting for the game…</div>
+      <div id="short-list"></div>
+      <div class="why one" id="why"></div>
+      <div class="flow"><span class="on">screen</span>→<span class="on">laya-vision</span>→<span class="on">text laya</span>→<span class="on">move</span>→<span>game log</span></div>
+    </section>
+
+    <section class="card s2">
+      <h2>System 2 · Qwen, between rounds</h2>
+      <div class="sub one">reads the game log · writes the playbook · turns it into the short memory text laya reads</div>
+      <div class="status" id="status"><span class="dot"></span><span class="one" id="status-text">–</span></div>
+      <div class="mem">
+        <h3>Playbook <span class="grow one">long-term · every opponent</span>
+          <button class="btn cheat" data-what="playbook" data-do="cheat">cheat</button>
+          <button class="btn clean" data-what="playbook" data-do="clean">clean</button></h3>
+        <ul id="playbook"></ul>
+        <h3>Short memory <span class="grow one" id="short-for"></span>
+          <button class="btn cheat" data-what="short" data-do="cheat">cheat</button>
+          <button class="btn clean" data-what="short" data-do="clean">clean</button></h3>
+        <ul id="short"></ul>
+      </div>
+      <div class="toast one" id="toast"></div>
+      <div class="notes" id="notes"></div>
+    </section>
+  </main>
+
+  <footer class="card">
+    <h2>Rounds</h2>
+    <div class="rounds" id="rounds"></div>
+  </footer>
+</div>
+<script>
+const NAMES = {chunli: "Chun-Li", dhalsim: "Dhalsim", ryu: "Ryu", ken: "Ken", zangief: "Zangief", honda: "E. Honda",
+               blanka: "Blanka", guile: "Guile"};
+const WHY = {soft: "following the plan", hard: "following the plan (always)", vision: "laya-vision's best rating",
+             walk: "nothing looks good: walk in", nothing_left: "the plan ruled everything out"};
+const seen = {playbook: new Map(), short: new Map()};          // line -> first time seen (for the glow)
+const GLOW_MS = 25000, SLOTS = 5, MOVE_ROWS = 5;
+const first = {playbook: true, short: true};
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]); }
+function hhmmss(s) { const [h, m, x] = s.split(":").map(Number); return h * 3600 + m * 60 + x; }
+function nowSec() { const d = new Date(); return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); }
+const pad = n => '<li class="empty"></li>'.repeat(Math.max(0, n));
+
+function list(id, lines, key, pick) {
+  const now = Date.now(), el = document.getElementById(id);
+  if (!lines.length) { el.innerHTML = '<li class="empty">blank</li>' + pad(SLOTS - 1); return; }
+  for (const l of lines) if (!seen[key].has(l)) seen[key].set(l, first[key] ? 0 : now);
+  first[key] = false;
+  el.innerHTML = lines.slice(0, SLOTS).map(l => {
+    const cls = [now - seen[key].get(l) < GLOW_MS ? "new" : "", pick && l.includes(pick) ? "used" : ""].join(" ");
+    return `<li class="${cls}" title="${esc(l)}">${esc(l)}</li>`;
+  }).join("") + pad(SLOTS - lines.length);
+}
+
+const OPP = "dhalsim";                                  // the demo always fights Dhalsim
+
+function renderIdle(s) {
+  const pick = OPP, p = s.pending || {};
+  const ready = Object.values(p).map(x => `${x.do} ${x.what === "playbook" ? "playbook" : "short memory vs " + (NAMES[x.opp] || x.opp)}`);
+  const st = document.getElementById("status");
+  st.className = "status" + (ready.length ? " ready" : "");
+  document.getElementById("status-text").textContent = ready.length
+    ? "No game running · ready for the next game: " + ready.join(" · ") : "No game running · press cheat / clean to prepare the next game";
+  document.getElementById("sees").textContent = "waiting for the game…";
+  document.getElementById("short-list").innerHTML = "";
+  document.getElementById("why").innerHTML = "";
+  list("playbook", s.playbook.lessons || [], "playbook");
+  list("short", ((s.short_by_opp || {})[pick] || {}).lessons || [], "short");
+  document.getElementById("short-for").textContent = `vs ${NAMES[pick]} · pushed in when the game starts`;
+  document.getElementById("notes").innerHTML = "";
+  document.getElementById("rounds").innerHTML = '<span class="r">none yet</span>';
+}
+
+function render(s) {
+  if (s.running === false) { renderIdle(s); return; }
+  const d = s.decision || {}, opp = d.opp, probs = d.advice_probs || {}, sl = d.shortlist || {};
+  const oppName = NAMES[opp || OPP];
+  document.getElementById("title").innerHTML = `Chun-Li <span class="vs">vs</span> ${esc(oppName)}`;
+  document.getElementById("opp-name").textContent = oppName;
+  document.getElementById("game").textContent = d.game ?? "–";
+  const rs = s.rounds || [], cur = rs.filter(r => r.game === d.game);
+  document.getElementById("score").textContent =
+    `${cur.filter(r => r.result === "win").length}–${cur.filter(r => r.result === "loss").length}`;
+  document.getElementById("clock").textContent = d.timer !== undefined ? (d.timer >> 4) * 10 + (d.timer & 15) : "–";
+  const life = v => Math.max(0, Math.min(100, (v > 200 ? 0 : v) / 176 * 100));
+  document.getElementById("myl").style.width = life(d.my_life ?? 176) + "%";
+  document.getElementById("opl").style.width = life(d.opp_life ?? 176) + "%";
+
+  const adv = (d.advice_text || "").split(" Advice:")[0];
+  document.getElementById("sees").textContent = adv ? "She sees: " + adv : "waiting for the game…";
+  const moves = Object.keys(sl).sort((a, b) => (probs[b] || 0) - (probs[a] || 0)).slice(0, MOVE_ROWS);
+  document.getElementById("short-list").innerHTML = `<div class="row head"><span>move</span><span>laya-vision</span>
+      <span>text laya's choice</span><span></span></div>` + moves.map(m => {
+    const r = sl[m], cls = r === null ? "walk" : r.includes("works") ? "works" : r.includes("may") ? "may" : "fails";
+    const p = Math.round((probs[m] || 0) * 100);
+    return `<div class="row ${m === d.action ? "pick" : ""}"><span class="mv one">${m === d.action ? "▶ " : ""}${esc(m)}</span>
+      <span class="rate ${cls}">${esc(r === null ? "walk in" : r)}</span><span class="pbar"><i style="width:${p}%"></i></span>
+      <span class="pct">${p}%</span></div>`;
+  }).join("");
+  document.getElementById("why").innerHTML = d.action ? `Picked <b class="mv">${esc(d.action)}</b>: ${esc(WHY[d.rule] || d.rule || "")}` : "";
+
+  const q = s.system2 || {}, thinking = q.status && q.status !== "idle" && !q.status.startsWith("waiting");
+  document.getElementById("status").className = "status" + (thinking ? " thinking" : "");
+  const secs = q.since ? Math.max(0, nowSec() - hhmmss(q.since)) : 0;
+  document.getElementById("status-text").textContent =
+    thinking ? `Qwen is ${q.status}… ${secs}s` : q.status === "idle" ? "Qwen is idle · System 1 keeps playing" : q.status;
+  list("playbook", s.playbook.lessons || [], "playbook");
+  list("short", s.short.lessons || [], "short", d.rule === "soft" || d.rule === "hard" ? d.action : null);
+  document.getElementById("short-for").textContent = opp ? `vs ${oppName} · what text laya reads` : "what text laya reads";
+  document.getElementById("notes").innerHTML = (q.notes || []).slice(-3).reverse()
+    .map(n => `<div class="one">${esc(n.t)} · ${esc(n.text)}</div>`).join("");
+
+  const g = new Map((s.games || []).map(x => [x.game, x]));
+  const chips = [];
+  let prev = null;
+  for (const r of rs) {
+    if (prev !== null && r.game !== prev && g.has(prev)) chips.push(`<span class="r game">match ${g.get(prev).result}</span>`);
+    const net = r.dealt - r.taken;
+    chips.push(`<span class="r ${r.result === "win" ? "win" : ""}">${r.result === "win" ? "W" : "L"} ${net > 0 ? "+" : ""}${net}</span>`);
+    prev = r.game;
+  }
+  if (prev !== null && g.has(prev)) chips.push(`<span class="r game">match ${g.get(prev).result}</span>`);
+  document.getElementById("rounds").innerHTML = chips.slice(-16).join("") || '<span class="r">none yet</span>';
+}
+
+document.querySelectorAll(".btn").forEach(b => b.addEventListener("click", async () => {
+  const t = document.getElementById("toast");
+  try {
+    const body = {what: b.dataset.what, do: b.dataset.do, opp: OPP};
+    const r = await (await fetch("/action", {method: "POST", body: JSON.stringify(body)})).json();
+    t.textContent = r.ok ? r.said : "not done: " + r.error;
+  } catch (e) { t.textContent = "not done: " + e; }
+  setTimeout(() => { t.textContent = ""; }, 8000);
+}));
+
+async function tick() {
+  try { render(await (await fetch("/state", {cache: "no-store"})).json()); } catch (e) { /* loop not started yet */ }
+  setTimeout(tick, 250);
+}
+tick();
+</script>
+</body>
+</html>

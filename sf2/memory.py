@@ -14,7 +14,8 @@ path: laya-vision was never trained to read them).
 """
 import json
 import os
-from typing import Dict, List, Optional
+import tempfile
+from typing import Dict, List, Optional, Tuple
 
 ROOT = "memory"
 KINDS = ("use_more", "avoid", "opponent_habit", "counter")
@@ -47,6 +48,21 @@ def check(mem: Dict, actions: List[str]) -> List[str]:
     return problems
 
 
+def save(path: str, mem: Dict) -> None:
+    """Write ``mem`` whole or not at all (a temp file in the same folder, then a rename): a reader never sees half."""
+    folder = os.path.dirname(path) or "."
+    os.makedirs(folder, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=folder, prefix=".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(mem, f, indent=1)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+
+
 def load(path: str, actions: List[str]) -> Optional[Dict]:
     """The memory at ``path`` (None if there is none yet); a malformed file stops the run."""
     if not os.path.exists(path):
@@ -57,6 +73,60 @@ def load(path: str, actions: List[str]) -> Optional[Dict]:
     if problems:
         raise SystemExit("%s is malformed:\n  %s" % (path, "\n  ".join(problems)))
     return mem
+
+
+def try_load(path: str, actions: List[str]) -> Tuple[Optional[Dict], Optional[str]]:
+    """(memory, None), (None, None) when there is no file, or (None, why) when it cannot be used; never raises."""
+    if not os.path.exists(path):
+        return None, None
+    try:
+        with open(path) as f:
+            mem = json.load(f)
+    except ValueError as e:
+        return None, "not JSON (%s)" % e
+    except OSError as e:
+        return None, "unreadable (%s)" % e
+    if not isinstance(mem, dict) or not isinstance(mem.get("lessons", []), list):
+        return None, "not a memory: %.60r" % (mem,)
+    odd = [i for i, les in enumerate(mem.get("lessons", []))
+           if not isinstance(les, dict) or not isinstance(les.get("evidence", {}), dict)]
+    if odd:
+        return None, "lessons %s are not lesson objects" % odd
+    try:
+        problems = check(mem, actions)
+    except (AttributeError, TypeError) as e:           # a field of the wrong type deeper down
+        return None, "malformed (%s)" % e
+    return (None, "; ".join(problems)) if problems else (mem, None)
+
+
+def _stamp(path: str) -> Optional[float]:
+    return os.path.getmtime(path) if os.path.exists(path) else None
+
+
+class OutsideWatch:
+    """Spots a short memory changed from outside the loop (the brain panel's buttons). Checked only while System 2
+    is idle, since System 2's own write also changes the file; a file that cannot be used keeps the memory in play."""
+    KEEP = object()
+
+    def __init__(self):
+        self._seen: Dict[str, Optional[float]] = {}
+
+    def seen(self, opp: str, path: str, stamp: Optional[float] = None) -> None:
+        """The loop has the file for ``opp`` as it was at ``stamp`` (default: as it is now). For System 2's new
+        version pass the stamp of System 2's own save, so a panel edit made after it is still seen as new."""
+        self._seen[opp] = _stamp(path) if stamp is None else stamp
+
+    def check(self, opp: str, path: str, busy: bool, actions: List[str]):
+        """None (nothing new), or (memory, message): the new memory (None if the file is gone) or KEEP."""
+        stamp = _stamp(path)
+        if busy or opp not in self._seen or stamp == self._seen[opp]:
+            return None
+        self._seen[opp] = stamp
+        mem, why = try_load(path, actions)
+        if why:
+            return self.KEEP, "short memory vs %s changed outside the loop but %s: kept the memory in play" % (opp, why)
+        return mem, "short memory vs %s changed outside the loop: %d lessons in play from this round" % (
+            opp, len((mem or {}).get("lessons", [])))
 
 
 def prompt_text(note: str, short: Optional[Dict]) -> str:

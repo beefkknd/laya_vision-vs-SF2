@@ -128,6 +128,15 @@ def parse(text: str, moves: Sequence[str]) -> Lesson:
     return Lesson(text, move, pol, where[0] if where else None, when[0] if when else None)
 
 
+def read(text: str, moves: Sequence[str]) -> Lesson:
+    """``parse`` for play time: a lesson it cannot read (e.g. two ranges in one line) counts as naming no move, so
+    System 1 and System 2's checks skip it instead of crashing the game."""
+    try:
+        return parse(text, moves)
+    except ValueError:
+        return Lesson(text, None, "none", None, None)
+
+
 def answers(rng: str, doing: str, options: Dict[str, str], lessons: Sequence[Lesson]) -> Tuple[List[str], str]:
     """The correct move(s) and which rule decided. ``options``: move -> rating words (FORWARD always offered)."""
     if FORWARD not in options:

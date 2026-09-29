@@ -9,7 +9,7 @@ import os
 import subprocess
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .advice import FORWARD, answers, parse, prompt, question, rating, situation_text
+from .advice import FORWARD, answers, prompt, question, rating, read, situation_text
 
 MLX_PYTHON = os.path.expanduser("~/work/laya_mlx/.venv/bin/python")
 HF_HOME = "/Volumes/ExtremeSSD/huggingface"
@@ -58,7 +58,7 @@ class Advisor:
 def shortlist(scores: Dict[str, float], lessons: Sequence[str], moves: Sequence[str]) -> Dict[str, Optional[str]]:
     """move -> laya-vision's rating in words: the best-rated moves, every move a lesson names, and forward."""
     best = sorted(scores, key=scores.get, reverse=True)[:SHORTLIST]
-    named = [les.move for les in (parse(t, list(moves) + [FORWARD]) for t in lessons)
+    named = [les.move for les in (read(t, list(moves) + [FORWARD]) for t in lessons)
              if les.move in scores and les.move not in best]
     out = {m: rating(scores[m]) for m in best + sorted(set(named))}
     out[FORWARD] = None
@@ -72,6 +72,6 @@ def choose(advisor: Advisor, situation: Tuple[str, str, str, str], scores: Dict[
     text = prompt(situation_text(*situation), lessons)
     probs = advisor.ask(text, question(options))
     pick = max(probs, key=probs.get)
-    rule, why = answers(situation[0], situation[1], options, [parse(t, list(moves) + [FORWARD]) for t in lessons])
+    rule, why = answers(situation[0], situation[1], options, [read(t, list(moves) + [FORWARD]) for t in lessons])
     return {"action": pick, "advice_text": text, "shortlist": options, "advice_probs": probs,
             "rule_answers": rule, "rule": why, "follows_rule": pick in rule}
