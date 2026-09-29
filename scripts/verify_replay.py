@@ -11,13 +11,13 @@ import argparse
 import json
 import os
 import random
-import subprocess
 import sys
 from typing import Dict, List
 
 import numpy as np
 
 import _path  # noqa: F401
+from sf2.eval.runner import exit_on_sigterm, fan_out
 from sf2.config import PAD
 from sf2.headless import launch_argv
 from sf2.mesen import MesenBridge
@@ -88,18 +88,20 @@ def main() -> int:
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--one", nargs=3, metavar=("CHAR", "SIDE", "PORT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
+    exit_on_sigterm()
     if args.one:
         c, s, p = args.one
         return replay(c, s, args.n, args.seed, int(p), args.rom)
     chars = args.chars.split(",") if args.chars else sorted(d for d in os.listdir(ROOT) if not d.startswith("_"))
-    jobs = []
-    for i, (c, s) in enumerate((c, s) for c in chars for s in ("left", "right")):
-        cmd = [sys.executable, os.path.abspath(__file__), "--one", c, s, str(args.base_port + i), "--n", str(args.n),
-               "--seed", str(args.seed)] + (["--rom", args.rom] if args.rom else [])
-        jobs.append(subprocess.Popen(cmd))
-    codes = [j.wait() for j in jobs]
-    print("replay: %d of %d (character, side) groups match" % (codes.count(0), len(codes)))
-    return 1 if any(codes) else 0
+    groups = [(c, s) for c in chars for s in ("left", "right")]
+    cmds = [((c, s), [sys.executable, os.path.abspath(__file__), "--one", c, s, str(args.base_port + i), "--n",
+                      str(args.n), "--seed", str(args.seed)] + (["--rom", args.rom] if args.rom else []))
+            for i, (c, s) in enumerate(groups)]
+    failed = fan_out(cmds, os.path.join("logs", "replay"))
+    print("replay: %d of %d (character, side) groups match (logs/replay/)" % (len(groups) - len(failed), len(groups)))
+    for c, s in failed:
+        print("MISMATCH or error: %s %s, see logs/replay/%s_%s.log" % (c, s, c, s))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

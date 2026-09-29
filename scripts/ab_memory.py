@@ -35,13 +35,9 @@ from sf2.advisor import Advisor
 from sf2.dataset import read
 from sf2.eval import stats
 from sf2.eval.logs import sources
-from sf2.eval.runner import exit_on_sigterm, fan_out
-from sf2.headless import launch_argv
+from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.memory import short_path
-from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
-from sf2.vocab import IDS
-from sf2.vs import NAMES, VARS
 
 ARMS = ("none", "qwen", "code_short", "code_playbook")
 OPPS = ("ryu", "honda", "ken", "zangief", "dhalsim", "guile", "blanka")
@@ -60,37 +56,22 @@ def arm_memory(me: str, opp: str, arm: str, rows: List[Dict]):
 
 def play_arm(args, opp: str, arm: str, port: int, out: str) -> int:
     me = args.char
-    os.makedirs(out, exist_ok=True)
-    state = open("states/p1_%s_vs_%s.state" % (me, opp), "rb").read()
     mem_path = os.path.join(os.path.dirname(out), "memory_%s_%s.json" % (opp, arm))
-    advisor, b = None, None
-    try:                                  # everything started here is closed in `finally`
-        advisor = Advisor(args.advisor)
+    with Advisor(args.advisor) as advisor, open_fight(me, opp, port) as (b, state), \
+            open_logs(out, ("actions", "rounds")) as logs:
         s1 = System1(args.model, me, advisor=advisor)
         s1.short = json.load(open(mem_path)) if os.path.exists(mem_path) else None
         s1.advice_on = arm != "none"
-        b = MesenBridge(port, launch=launch_argv(port, None))
-        b.set_capture("raw")
-        b.set_vars(VARS)
-        r = dict(zip(NAMES, b.load_state(state).rams[-1]))
-        if (r["p1_char"], r["p2_char"]) != (IDS[me], IDS[opp]):
-            raise SystemExit("savestate holds %s, expected %s" % ((r["p1_char"], r["p2_char"]), (IDS[me], IDS[opp])))
         rng = random.Random(args.seed)            # the same seed in every arm: the same start delays, round by round
-        with open(os.path.join(out, "actions.jsonl"), "w") as act, open(os.path.join(out, "rounds.jsonl"), "w") as rf:
-            for i in range(args.rounds):
-                rnd = play_round(b, s1, opp, state, rng, None, i)
-                where = {"round": i, "opp": opp, "arm": arm}
-                act.write("".join(json.dumps(dict(e, **where)) + "\n" for e in rnd.log))
-                rf.write(json.dumps(dict(rnd.summary, **where)) + "\n")
-                act.flush()
-                rf.flush()
-                print("%s %s round %d: %s dealt %d taken %d" % (opp, arm, i, rnd.result, rnd.summary["dealt"],
-                                                                 rnd.summary["taken"]), flush=True)
-    finally:
-        if b:
-            b.close()
-        if advisor:
-            advisor.close()
+        for i in range(args.rounds):
+            rnd = play_round(b, s1, opp, state, rng, None, i)
+            where = {"round": i, "opp": opp, "arm": arm}
+            logs["actions"].write("".join(json.dumps(dict(e, **where)) + "\n" for e in rnd.log))
+            logs["rounds"].write(json.dumps(dict(rnd.summary, **where)) + "\n")
+            for f in logs.values():
+                f.flush()
+            print("%s %s round %d: %s dealt %d taken %d" % (opp, arm, i, rnd.result, rnd.summary["dealt"],
+                                                             rnd.summary["taken"]), flush=True)
     return 0
 
 

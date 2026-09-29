@@ -24,6 +24,7 @@ from typing import Dict, List
 import numpy as np
 
 import _path  # noqa: F401
+from sf2.eval.runner import fan_out
 from sf2.config import PAD
 from sf2.dataset import read, save_png, write_jsonl
 from sf2.headless import launch_argv
@@ -367,15 +368,12 @@ def run(args) -> int:
     """Everything, in parallel: per character, one collect per range on the left (train + test) and, with
     --right-test, one per range on the right (real test frames, the mirroring check); then build. Each character's
     still opponent is --dummy, or else the next character in --chars (the last one's is the first)."""
-    import subprocess
-
     if args.pairs:   # "a:b,c:d": a's dummy is b and b's is a
         who_vs = [(x, y) for pair in args.pairs.split(",") for a, b in [pair.split(":")] for x, y in ((a, b), (b, a))]
     else:
         chars = args.chars.split(",")
         who_vs = [(me, args.dummy or chars[(i + 1) % len(chars)]) for i, me in enumerate(chars)]
-    jobs, port = [], args.base_port
-    os.makedirs(os.path.join("logs", "dataset"), exist_ok=True)
+    cmds, port = [], args.base_port
     for me, dummy in who_vs:
         if dummy == me:
             raise SystemExit("%s needs a different dummy (--dummy, or two or more --chars)" % me)
@@ -383,17 +381,16 @@ def run(args) -> int:
             p1, p2 = (me, dummy) if who == 1 else (dummy, me)
             for rng in RANGES:
                 for kind in args.kinds.split(","):
-                    log = os.path.join("logs", "dataset", "%s_%s_%s_%s.log" % (
-                        me, "left" if who == 1 else "right", rng, kind))
+                    key = (me, "left" if who == 1 else "right", rng, kind)
                     cmd = [sys.executable, os.path.abspath(__file__), "collect" if kind == "static" else
                            "collect-defense", "--p1", p1, "--p2", p2, "--who", str(who), "--range", rng,
                            "--port", str(port)] + (["--rom", args.rom] if args.rom else [])
-                    jobs.append((log, subprocess.Popen(cmd, stdout=open(log, "w"), stderr=subprocess.STDOUT)))
+                    cmds.append((key, cmd))
                     port += 1
-    print("%d collect jobs running (logs in logs/dataset/)" % len(jobs), flush=True)
-    failed = [log for log, proc in jobs if proc.wait() != 0]
-    for log in failed:
-        print("FAILED collect, see", log)
+    print("%d collect jobs running (logs in logs/dataset/)" % len(cmds), flush=True)
+    failed = fan_out(cmds, os.path.join("logs", "dataset"))
+    for key in failed:
+        print("FAILED collect, see logs/dataset/%s.log" % "_".join(key))
     if failed:
         return 1
     return build(args)

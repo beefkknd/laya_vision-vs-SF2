@@ -43,6 +43,12 @@ class Advisor:
             raise RuntimeError("text laya: %s" % reply["error"])
         return reply["probabilities"]
 
+    def __enter__(self) -> "Advisor":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
     def close(self) -> None:
         """Stop the helper; kill it if it does not exit in time (never leaves it running)."""
         if self.proc.poll() is None:

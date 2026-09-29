@@ -23,16 +23,12 @@ import _path  # noqa: F401
 from sf2 import notebook as nbk
 from sf2.advisor import Advisor
 from sf2.dataset import read
-from sf2.eval.runner import exit_on_sigterm, fan_out
+from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.eval.stats import slope
-from sf2.headless import launch_argv
-from sf2.mesen import MesenBridge
 from sf2.notebook_prompts import messages, reflect_prompt
 from sf2.qwen import chat, json_reply
 from sf2.round_facts import facts, plan_check, text, unexpected
 from sf2.system1 import System1, play_round
-from sf2.vocab import IDS
-from sf2.vs import NAMES, VARS
 from sf2.vs_sweep import actions
 
 ARMS = ("learn", "none")
@@ -55,23 +51,13 @@ def reflect(me: str, opp: str, nb: Dict, plan: List[str], rnd, results: List[str
 
 def play_arm(args, arm: str, port: int, out: str) -> int:
     me, opp = args.char, args.opp
-    os.makedirs(out, exist_ok=True)
-    moves = [a for a in actions(me)]
-    state = open("states/p1_%s_vs_%s.state" % (me, opp), "rb").read()
-    advisor, b, files = None, None, {}
+    moves = list(actions(me))
     nb, plan, results = nbk.empty(me), [], []
-    try:
-        advisor = Advisor(args.advisor)
+    with Advisor(args.advisor) as advisor, open_fight(me, opp, port) as (b, state), \
+            open_logs(out, ("rounds", "actions", "notebook")) as files:
         s1 = System1(args.model, me, advisor=advisor)
         s1.advice_on = arm == "learn"
-        b = MesenBridge(port, launch=launch_argv(port, None))
-        b.set_capture("raw")
-        b.set_vars(VARS)
-        r = dict(zip(NAMES, b.load_state(state).rams[-1]))
-        if (r["p1_char"], r["p2_char"]) != (IDS[me], IDS[opp]):
-            raise SystemExit("savestate holds %s, expected %s" % ((r["p1_char"], r["p2_char"]), (IDS[me], IDS[opp])))
         rng = random.Random(args.seed)                  # same seed in both arms: same start delays round by round
-        files = {k: open(os.path.join(out, k + ".jsonl"), "w") for k in ("rounds", "actions", "notebook")}
         for i in range(args.rounds):
             s1.short = nbk.shortlist_memory(plan, me, opp)
             rnd = play_round(b, s1, opp, state, rng, None, i)
@@ -88,13 +74,6 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
             for f in files.values():
                 f.flush()
             print("%s round %d: %s hp %+d  next plan %s" % (arm, i, rnd.result, log["hp"], plan), flush=True)
-    finally:
-        for f in files.values():
-            f.close()
-        if b:
-            b.close()
-        if advisor:
-            advisor.close()
     return 0
 
 

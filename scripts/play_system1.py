@@ -14,17 +14,15 @@ import collections
 import json
 import os
 import random
-import subprocess
 import sys
 import time
 
 import _path  # noqa: F401
-from sf2.headless import launch_argv
+from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
+from sf2.dataset import read
 from sf2.memory import load, short_path
-from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
-from sf2.vocab import FIGHTERS, IDS
-from sf2.vs import NAMES, VARS
+from sf2.vocab import FIGHTERS
 from sf2.vs_sweep import actions
 
 
@@ -40,34 +38,22 @@ def play_one(args, me: str, port: int) -> int:
     out = os.path.join(args.out, me)
     img_dir = os.path.join(out, "images")
     os.makedirs(img_dir, exist_ok=True)
-    state = open("states/p1_%s_vs_%s.state" % (me, opp), "rb").read()
     s1 = System1(None if args.model == "random" else args.model, me, args.threshold, args.device, args.seed)
     if args.memory != "none":     # the short memory vs THIS opponent: a new opponent has its own (or no) file
         s1.short = load(short_path(me, opp, args.memory), list(actions(me)))
     print("%s vs %s: short memory %s" % (me, opp, "%d lessons" % len(s1.short["lessons"]) if s1.short else "empty"),
           flush=True)
-    b = MesenBridge(port, launch=launch_argv(port, args.rom))
-    games, t0 = [], time.time()
-    try:
-        b.set_capture("raw")
-        b.set_vars(VARS)
-        r = dict(zip(NAMES, b.load_state(state).rams[-1]))
-        if (r["p1_char"], r["p2_char"]) != (IDS[me], IDS[opp]):
-            raise SystemExit("%s: savestate holds characters %s, expected %s" % (
-                me, (r["p1_char"], r["p2_char"]), (IDS[me], IDS[opp])))
+    t0 = time.time()
+    with open_fight(me, opp, port, args.rom) as (b, state), open_logs(out, ("actions", "games")) as logs:
         rng = random.Random(args.seed)
-        with open(os.path.join(out, "actions.jsonl"), "w") as act, open(os.path.join(out, "games.jsonl"), "w") as gm:
-            for i in range(args.games):
-                rnd = play_round(b, s1, opp, state, rng, img_dir, i)
-                act.write("".join(json.dumps(e) + "\n" for e in rnd.log))
-                gm.write(json.dumps(rnd.summary) + "\n")
-                act.flush()
-                gm.flush()
-                games.append(rnd.summary)
-                print("%-8s game %d: %-10s dealt %3d taken %3d  %d actions" % (
-                    me, i, rnd.result, rnd.summary["dealt"], rnd.summary["taken"], len(rnd.log)), flush=True)
-    finally:
-        b.close()
+        for i in range(args.games):
+            rnd = play_round(b, s1, opp, state, rng, img_dir, i)
+            logs["actions"].write("".join(json.dumps(e) + "\n" for e in rnd.log))
+            logs["games"].write(json.dumps(rnd.summary) + "\n")
+            for f in logs.values():
+                f.flush()
+            print("%-8s game %d: %-10s dealt %3d taken %3d  %d actions" % (
+                me, i, rnd.result, rnd.summary["dealt"], rnd.summary["taken"], len(rnd.log)), flush=True)
     print("%s done in %.0f s" % (me, time.time() - t0))
     return 0
 
@@ -78,8 +64,7 @@ def summarize(out_dir: str, chars) -> dict:
         gpath, apath = os.path.join(out_dir, c, "games.jsonl"), os.path.join(out_dir, c, "actions.jsonl")
         if not os.path.exists(gpath):
             continue
-        games = [json.loads(x) for x in open(gpath)]
-        acts = [json.loads(x) for x in open(apath)]
+        games, acts = read(gpath), read(apath)
         att = [a for a in acts if a["kind"] == "attack"]
         pred_hit = [a for a in att if a["predicted"] == "hit"]
         res = collections.Counter(g["result"] for g in games)
@@ -111,19 +96,16 @@ def main() -> int:
                     help="memory dir (sf2/memory.py); 'none' plays with an empty short memory")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
+    exit_on_sigterm()
     if args.one:
         return play_one(args, args.one[0], int(args.one[1]))
     chars = args.chars.split(",")
-    os.makedirs("logs/system1", exist_ok=True)
-    jobs = []
-    for i, c in enumerate(chars):
-        cmd = [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model", args.model,
-               "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
-               "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp] + (["--rom", args.rom] if args.rom else [])
-        log = open(os.path.join("logs", "system1", c + ".log"), "w")
-        jobs.append((c, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)))
-    print("%d characters playing (logs/system1/<char>.log)" % len(jobs), flush=True)
-    failed = [c for c, p in jobs if p.wait() != 0]
+    cmds = [((c,), [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model",
+                    args.model, "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
+                    "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp]
+             + (["--rom", args.rom] if args.rom else [])) for i, c in enumerate(chars)]
+    print("%d characters playing (logs/system1/<char>.log)" % len(cmds), flush=True)
+    failed = [c for (c,) in fan_out(cmds, os.path.join("logs", "system1"))]
     summary = summarize(args.out, chars)
     with open(os.path.join(args.out, "summary.json"), "w") as f:
         json.dump(summary, f, indent=1)
