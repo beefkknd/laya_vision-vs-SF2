@@ -51,6 +51,12 @@ def _overlap(a: Claim, b: Claim) -> bool:
                                           for k in ("range", "when"))
 
 
+def _covers(broad: Claim, narrow: Claim) -> bool:
+    """``broad`` applies wherever ``narrow`` does (same move; each condition of broad is absent or the same)."""
+    return broad["move"] == narrow["move"] and all(broad.get(k) is None or broad.get(k) == narrow.get(k)
+                                                   for k in ("range", "when"))
+
+
 def stat(xs: Sequence[float]) -> Dict:
     n = len(xs)
     if not n:
@@ -81,6 +87,8 @@ def _refusal(reg: Registry, c, tried: set) -> Optional[str]:
             return "already %s" % r["state"]
         if key(r["claim"]) == key(c) and r["state"] == "rejected" and not r["why"].startswith("too few"):
             return "already rejected: %s" % r["why"]
+        if r["state"] in ("testing", "registered") and r["claim"]["kind"] == c["kind"] and _covers(r["claim"], c):
+            return "covered by the %s lesson %r" % (r["state"], r["line"])
         if r["state"] in ("testing", "registered") and r["claim"]["kind"] != c["kind"] and _overlap(r["claim"], c):
             return "contradicts the %s lesson %r" % (r["state"], r["line"])
     return None

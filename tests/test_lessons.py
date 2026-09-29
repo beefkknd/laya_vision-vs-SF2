@@ -121,3 +121,14 @@ def test_a_test_with_too_few_tries_is_not_disproven():
     assert reg[0]["state"] == "rejected" and reg[0]["why"].startswith("too few tries")
     reg, out = L.propose(reg, [claim("use_more", "hp", "close", "standing")], rows + many("hp", "close", 14, 30), 4)
     assert out[0]["state"] == "registered"                             # proposed again once the data is there
+
+
+def test_a_claim_a_broader_lesson_already_covers_is_refused():
+    """Second Ken lesson loop: both 'avoid c.mk up close' and 'avoid c.mk up close when he jumps' were registered,
+    using 2 of the 5 lines for one lesson."""
+    rows = many("c.mk", "close", -9, 40) + many("c.mk", "close", -9, 30, "jumping", 1)
+    reg, _ = L.propose([], [claim("avoid", "c.mk", "close")], rows, 0)
+    reg, out = L.propose(reg, [claim("avoid", "c.mk", "close", "jumping"), claim("avoid", "c.mk", None, "jumping")],
+                         rows, 1)
+    assert out[0]["state"] == "refused" and "covered" in out[0]["why"]
+    assert out[1]["state"] == "registered"                            # broader in range: not covered
