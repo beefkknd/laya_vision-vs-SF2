@@ -12,7 +12,7 @@ import json
 import os
 import random
 import sys
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -39,15 +39,23 @@ def load_img(path: str) -> np.ndarray:
         return np.asarray(im.convert("RGB")).copy()
 
 
-def sample(char: str, side: str, n: int, seed: int) -> List[Dict]:
+def replayable(recs: List[Dict]) -> Tuple[List[Dict], int]:
+    """The rows a savestate recipe (gap, posture, action) can re-record, and how many live-play rows were left out:
+    those come from played games, not the sweep, so they have no recipe."""
+    live = sum(r["posture"] not in POSTURES for r in recs)
+    keep = [r for r in recs if r["posture"] in POSTURES
+            and r.get("kind") != "defense"]     # still-opponent rows; block rows are checked by their own ROM probe
+    return keep, live
+
+
+def sample(char: str, side: str, n: int, seed: int) -> Tuple[List[Dict], int]:
     files = ["train_real", "test_real_left"] if side == "left" else ["test_real_right"]
-    recs = [r for f in files for r in map(json.loads, open(os.path.join(ROOT, char, f + ".jsonl")))
-            if r.get("kind") != "defense"]      # still-opponent rows; block rows are checked by their own ROM probe
-    return random.Random("%s-%s-%d" % (char, side, seed)).sample(recs, min(n, len(recs)))
+    recs, live = replayable([r for f in files for r in map(json.loads, open(os.path.join(ROOT, char, f + ".jsonl")))])
+    return random.Random("%s-%s-%d" % (char, side, seed)).sample(recs, min(n, len(recs))), live
 
 
 def replay(char: str, side: str, n: int, seed: int, port: int, rom: str) -> int:
-    recs = sample(char, side, n, seed)
+    recs, live = sample(char, side, n, seed)
     who = 1 if side == "left" else 2
     opp = recs[0]["opp"]
     p1, p2 = (char, opp) if who == 1 else (opp, char)
@@ -77,8 +85,8 @@ def replay(char: str, side: str, n: int, seed: int, port: int, rom: str) -> int:
                 bad.append({"id": r["id"], "diff": diff})
     finally:
         b.close()
-    print("%-8s %-5s %d replayed, %d mismatched%s" % (char, side, len(recs), len(bad),
-                                                       "" if not bad else ": %s" % json.dumps(bad[:3])), flush=True)
+    print("%-8s %-5s %d replayed, %d mismatched, %d live rows skipped (no savestate recipe)%s"
+          % (char, side, len(recs), len(bad), live, "" if not bad else ": %s" % json.dumps(bad[:3])), flush=True)
     return 1 if bad else 0
 
 
