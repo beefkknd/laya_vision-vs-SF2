@@ -1,5 +1,5 @@
 """The no-LLM coach: net hit points per (move, range) -> use-more / avoid lines text laya can read."""
-from sf2.advice import parse
+from sf2.system1.advice import parse
 from sf2.system2.code_coach import lines, memory, table
 
 MOVES = ["lp", "sweep", "c.mk", "spinning_bird_kick", "forward"]

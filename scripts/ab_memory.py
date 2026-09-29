@@ -31,13 +31,13 @@ from typing import Dict, List
 
 import _path  # noqa: F401
 from sf2.system2 import code_coach
-from sf2.advisor import Advisor
+from sf2.system1.advisor import Advisor
 from sf2.data.dataset import read
 from sf2.eval import stats
 from sf2.eval.logs import sources
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.system2.memory import short_path
-from sf2.system1 import System1, play_round
+from sf2.system1.system1 import System1, play_round
 
 ARMS = ("none", "qwen", "code_short", "code_playbook")
 OPPS = ("ryu", "honda", "ken", "zangief", "dhalsim", "guile", "blanka")

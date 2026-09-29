@@ -9,7 +9,7 @@ import os
 import statistics
 from typing import List
 
-from ..advice import FORWARD
+from ..system1.advice import FORWARD
 from ..system2.memory_churn import diff
 from ..data.vs_sweep import actions
 

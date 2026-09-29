@@ -8,7 +8,7 @@ Each file: {"me", "opp" (short only), "source" (the logs it was built from), "le
 {"text", "kind", "action", "range", "evidence": {"tries", "count", "rate", "refs": ["g<game>f<frame>", ...]}}:
 ``count`` of the ``tries`` are what the lesson claims (landed, got punished, the habit), ``refs`` point at them.
 
-The short memory reaches System 1 through text laya (sf2/advisor.py, sf2/advice.py), which picks the move following
+The short memory reaches System 1 through text laya (sf2/system1/advisor.py, sf2/system1/advice.py), which picks the move following
 its lessons. Without an advisor, ``prompt_text`` appends the lesson texts to laya-vision's RAM note instead (the old
 path: laya-vision was never trained to read them).
 """

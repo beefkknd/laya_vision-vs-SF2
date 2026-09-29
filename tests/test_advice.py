@@ -1,7 +1,7 @@
-"""The label rule text laya is trained on (sf2.advice): every polarity word, every condition, and the fallbacks."""
+"""The label rule text laya is trained on (sf2.system1.advice): every polarity word, every condition, and the fallbacks."""
 import pytest
 
-from sf2.advice import FAILS, FORWARD, MAY, WORKS, answers, parse, situation_text
+from sf2.system1.advice import FAILS, FORWARD, MAY, WORKS, answers, parse, situation_text
 
 MOVES = ["lp", "mp", "c.mk", "mk", "sweep", "spinning_bird_kick", "block_high", "block_low", FORWARD]
 OPTS = {"lp": MAY, "sweep": WORKS, "spinning_bird_kick": FAILS, FORWARD: None}

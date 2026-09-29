@@ -19,7 +19,7 @@ import time
 import numpy as np
 
 import _path  # noqa: E402,F401
-from sf2 import mlx_lora, text_laya  # noqa: E402
+from sf2.system1 import mlx_lora, text_laya  # noqa: E402
 
 DATA = "test_data/advice"
 LOG = None

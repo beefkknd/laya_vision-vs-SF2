@@ -1,4 +1,4 @@
-"""System 1 (sf2/system1.py) plays every character against the arcade CPU, in parallel (one headless Mesen and one
+"""System 1 (sf2/system1/system1.py) plays every character against the arcade CPU, in parallel (one headless Mesen and one
 model per character), and records every decision: frames, note, the model's P(hit) for each attack, the choice, and
 what really happened.
 
@@ -6,7 +6,7 @@ what really happened.
     python scripts/play_system1.py --model runs/all8/best --chars ryu --games 2
 
 Opponent: states/p1_<char>_vs_ryu.state (Ryu: p1_ryu_vs_ken.state), round 1 against the CPU.
-Writes the game log for System 2 (sf2/game_log.py): rollouts/<run>/<char>/{actions.jsonl, games.jsonl, images/}
+Writes the game log for System 2 (sf2/system1/game_log.py): rollouts/<run>/<char>/{actions.jsonl, games.jsonl, images/}
 and rollouts/<run>/summary.json; process logs in logs/system1/<char>.log.
 """
 import argparse
@@ -21,7 +21,7 @@ import _path  # noqa: F401
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.data.dataset import read
 from sf2.system2.memory import load, short_path
-from sf2.system1 import System1, play_round
+from sf2.system1.system1 import System1, play_round
 from sf2.vocab import FIGHTERS
 from sf2.data.vs_sweep import actions
 

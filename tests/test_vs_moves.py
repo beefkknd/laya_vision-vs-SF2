@@ -140,7 +140,7 @@ def test_outcome_labels():
 
 
 def test_game_log_puts_the_opponents_reaction_on_the_action_that_caused_it():
-    from sf2.game_log import action_entry, clock
+    from sf2.system1.game_log import action_entry, clock
     def raw(p1=None, p2=None, timer=0x87):
         r = row(p1=p1, p2=p2, timer=timer)
         return r

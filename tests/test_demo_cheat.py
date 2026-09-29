@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from sf2 import demo_cheat
+from sf2.demo import demo_cheat
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

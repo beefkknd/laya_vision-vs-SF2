@@ -24,7 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Dict, List, Optional, Tuple
 
 import _path  # noqa: E402,F401
-from sf2 import demo_cheat  # noqa: E402
+from sf2.demo import demo_cheat  # noqa: E402
 
 LIVE = "out/live"
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "brain_panel.html")

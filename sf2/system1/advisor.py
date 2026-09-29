@@ -2,7 +2,7 @@
 laya-mlx venv, scripts/text_laya_server.py) picks one from a shortlist using System 2's short memory.
 
 The shortlist: laya-vision's SHORTLIST best-rated moves, every move a memory lesson names (so advice can always be
-followed), and forward. The text is built by sf2.advice exactly as in text laya's training data.
+followed), and forward. The text is built by sf2.system1.advice exactly as in text laya's training data.
 """
 import json
 import os
@@ -10,7 +10,7 @@ import subprocess
 from typing import Dict, Optional, Sequence, Tuple
 
 from .advice import FORWARD, answers, prompt, question, rating, read, situation_text
-from .config import REPO
+from ..config import REPO
 
 MLX_PYTHON = os.path.expanduser("~/work/laya_mlx/.venv/bin/python")
 HF_HOME = "/Volumes/ExtremeSSD/huggingface"

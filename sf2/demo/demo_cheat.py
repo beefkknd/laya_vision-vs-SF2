@@ -7,8 +7,8 @@ import os
 import time
 from typing import Dict, List, Optional
 
-from .system2.memory import save
-from .vocab import IDS
+from ..system2.memory import save
+from ..vocab import IDS
 
 SEED = "memory_seeds/video"
 PENDING = "out/live/pending.json"

@@ -12,7 +12,7 @@ import collections
 import re
 from typing import Dict, List
 
-from ..advice import FAILS, MAY, WORKS, parse
+from ..system1.advice import FAILS, MAY, WORKS, parse
 
 
 def pct(a: int, b: int) -> str:

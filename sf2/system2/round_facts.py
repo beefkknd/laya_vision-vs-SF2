@@ -7,7 +7,7 @@ The opponent's moves are known only by kind (jump-in / ground attack / special) 
 import collections
 from typing import Dict, List, Sequence
 
-from ..advice import FORWARD, read
+from ..system1.advice import FORWARD, read
 
 MIN_TRIES = 3          # a move needs this many tries in a round before it can contradict the notebook
 

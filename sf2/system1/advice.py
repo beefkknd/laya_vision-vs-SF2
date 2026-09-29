@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .vocab import BARS, OPP_STATES, RANGE_WORDS, RANGES
+from ..vocab import BARS, OPP_STATES, RANGE_WORDS, RANGES
 
 FORWARD = "forward"
 

@@ -78,8 +78,8 @@ def test_prompt_mentions_new_opponent_and_budget():
 
 
 def test_a_line_with_two_ranges_never_crashes():          # Qwen wrote this (notebook run, 2026-09-28)
-    from sf2.advice import read
-    from sf2.advisor import shortlist
+    from sf2.system1.advice import read
+    from sf2.system1.advisor import shortlist
     line = "avoid spinning_bird_kick at mid and far"
     assert read(line, MOVES).move is None                  # unreadable: ignored, not a crash
     f = facts(ROUND, SUMMARY)

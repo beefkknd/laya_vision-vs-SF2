@@ -2,13 +2,13 @@
 should move slowly; a rewrite that replaces most of it, or turns "use X" into "avoid X", is flagged.
 
 A lesson's identity is what it tells System 1 to do, not its wording: (kind, move, polarity, where, when) as
-sf2.advice reads the text. "avoid sweep up close: it whiffs" and "no sweep up close" are the same lesson; "use sweep
+sf2.system1.advice reads the text. "avoid sweep up close: it whiffs" and "no sweep up close" are the same lesson; "use sweep
 up close" vs "avoid sweep up close" is a FLIP (same move and conditions, opposite advice).
 """
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
-from ..advice import read
+from ..system1.advice import read
 
 RADICAL_SHARE = 0.5          # more than half the lessons added or dropped in one rewrite
 

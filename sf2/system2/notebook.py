@@ -13,7 +13,7 @@ import math
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..advice import FORWARD, read
+from ..system1.advice import FORWARD, read
 
 MAX_LINES = 10          # per section
 MAX_CHARS = 90          # a notebook line

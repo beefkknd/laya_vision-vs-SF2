@@ -12,7 +12,7 @@ From power-on: GAME START, pick the character, then the arcade ladder as it come
 decided: win the match (best of 3 rounds) and the next opponent comes; lose it and the continue starts a new game
 against the same opponent. System 2 steps in:
 System 1: laya-vision rates every move from the screen; text laya (--advisor) picks from its best-rated moves and the
-moves the short memory names, following the memory (sf2.advisor). The actions log keeps what text laya read and
+moves the short memory names, following the memory (sf2.system1.advisor). The actions log keeps what text laya read and
 picked, and whether that matches the label rule (follows_rule).
     new opponent  -> the short memory for him (memory/short/<me>_vs_<opp>.json, goes into laya's prompt); one kept
                      from an earlier session is reused at once if it still meets today's rules (system2.fits_laya)
@@ -46,12 +46,12 @@ import _path  # noqa: F401
 from sf2.emu.boot import next_fight, start_arcade
 from sf2.eval.logs import is_test, load_actions, load_rounds, mark_run
 from sf2.emu.headless import KeepMesenSettings, launch_argv, window_argv
-from sf2 import demo_cheat
-from sf2.advisor import Advisor
+from sf2.demo import demo_cheat
+from sf2.system1.advisor import Advisor
 from sf2.system2.memory import OutsideWatch, load, playbook_path, save, short_path
 from sf2.system2.memory_churn import diff as diff_memory
 from sf2.emu.mesen import MesenBridge
-from sf2.system1 import System1, play_round
+from sf2.system1.system1 import System1, play_round
 from sf2.system2.system2 import fits_laya, populate, review
 from sf2.vocab import CHARACTERS
 from sf2.emu.vs import NAMES, VARS

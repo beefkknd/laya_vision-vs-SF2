@@ -1,4 +1,4 @@
-"""Training data for text laya (sf2.advice): real moments from every character's game logs, laya-vision's real
+"""Training data for text laya (sf2.system1.advice): real moments from every character's game logs, laya-vision's real
 top-3 ratings, advice lessons (Qwen's real ones plus templated ones over every polarity word and condition), and the
 answer from the label rule. Nothing opponent-specific: the lessons name the character's own moves only.
 
@@ -20,8 +20,8 @@ from dataclasses import replace
 from typing import Dict, List, Tuple
 
 import _path  # noqa: F401
-from sf2.advice import (FAILS, FORWARD, MAY, WORKS, answers, opp_doing, parse, prompt,
-                        question, rating, situation_text)
+from sf2.system1.advice import (FAILS, FORWARD, MAY, WORKS, answers, opp_doing, parse, prompt, question, rating,
+                                situation_text)
 from sf2.vocab import OPP_STATES, RANGES, bar
 from sf2.data.vs_sweep import MOVEMENT, SPECIALS, actions
 

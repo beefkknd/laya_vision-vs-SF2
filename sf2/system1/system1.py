@@ -8,7 +8,7 @@ P(hit) if that is at least ``threshold``; otherwise it walks forward. After an a
 act again and reads what really happened from RAM (hit / whiff / blocked), so every attack is also a check of the
 model's prediction against the live game.
 
-With an advisor (sf2.advisor) the pick is text laya's instead: laya-vision reads the note only (as it was trained),
+With an advisor (sf2.system1.advisor) the pick is text laya's instead: laya-vision reads the note only (as it was trained),
 rates every move, and text laya chooses from the best-rated ones and the moves the short memory names, following
 the memory. The threshold rule above is then unused.
 
@@ -25,19 +25,19 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .config import PAD
-from .data.dataset import save_png
+from ..config import PAD
+from ..data.dataset import save_png
 from .game_log import action_entry, game_entry
 from .advice import opp_doing
 from .advisor import choose
 from .game_log import name as state_name
-from .system2.memory import MAX_PROMPT_LESSONS, prompt_text
-from .data.vs_defense import BLOCKS
-from .data.vs_defense import outcome as block_outcome
+from ..system2.memory import MAX_PROMPT_LESSONS, prompt_text
+from ..data.vs_defense import BLOCKS
+from ..data.vs_defense import outcome as block_outcome
 from .policy import make_state
-from .emu.vs import GROUND_Y, NAMES, physical, view
-from .vocab import bar, range_of
-from .data.vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
+from ..emu.vs import GROUND_Y, NAMES, physical, view
+from ..vocab import bar, range_of
+from ..data.vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
 
 WAIT = 4              # idle frames per step while the fighter cannot act (the 4-frame prev/now gap)
 MAX_RECOVER = 90      # frames to wait after an attack for the fighter to be able to act again

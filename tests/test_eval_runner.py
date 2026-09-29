@@ -132,7 +132,7 @@ def test_open_logs_closes_every_file(tmp_path):
 
 
 def test_the_advisor_closes_its_server_when_the_block_ends():
-    from sf2.advisor import Advisor
+    from sf2.system1.advisor import Advisor
     a = Advisor.__new__(Advisor)                   # no server started: only the context protocol is tested
     closed = []
     a.close = lambda: closed.append(True)

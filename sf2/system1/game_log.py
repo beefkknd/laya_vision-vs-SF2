@@ -14,9 +14,9 @@ games.jsonl, per game: result, frames, clock_end, lives at the end, dealt, taken
 import collections
 from typing import Dict, List
 
-from .vocab import range_of
-from .data.vs_defense import BLOCKS
-from .data.vs_sweep import MOVEMENT
+from ..vocab import range_of
+from ..data.vs_defense import BLOCKS
+from ..data.vs_sweep import MOVEMENT
 
 STATE = {0x00: "stand", 0x02: "crouch", 0x04: "jump", 0x06: "turn", 0x08: "guard", 0x0A: "attack",
          0x0C: "special", 0x0E: "hit_stun", 0x10: "win_pose", 0x12: "timeover", 0x14: "thrown"}

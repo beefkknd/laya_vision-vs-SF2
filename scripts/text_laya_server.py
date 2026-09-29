@@ -9,7 +9,7 @@ import json
 import sys
 
 import _path  # noqa: E402,F401
-from sf2 import text_laya  # noqa: E402
+from sf2.system1 import text_laya  # noqa: E402
 
 
 def main() -> None:
