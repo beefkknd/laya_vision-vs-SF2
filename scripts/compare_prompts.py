@@ -34,7 +34,8 @@ def _runs(roots: Sequence[str]) -> List[Tuple[str, str, int, str]]:
                 continue
             with open(path) as f:
                 v = json.load(f)
-            out.append((name.split("_")[0], d, opponent(name), v["seed"], v.get("prompt", "views")))
+            out.append((name.split("_")[0], d, opponent(name), v["seed"],
+                        v.get("prompt", "views") + ("+track" if v.get("track") else "")))
     return [x[1:] for x in sorted(out)]
 
 

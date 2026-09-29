@@ -1,0 +1,976 @@
+{
+ "opponents": {
+  "honda": {
+   "always back at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 7.67,
+    "lo": -59.44,
+    "hi": 80.56,
+    "verdict": "few"
+   },
+   "always block_high at mid range when he attacks": {
+    "runs": 8,
+    "rounds": 69,
+    "mean": 9.11,
+    "lo": -25.18,
+    "hi": 39.43,
+    "verdict": "unclear"
+   },
+   "always block_high up close when he attacks": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": -16.33,
+    "lo": -135.0,
+    "hi": 72.0,
+    "verdict": "few"
+   },
+   "always block_low at mid range when he attacks": {
+    "runs": 9,
+    "rounds": 75,
+    "mean": -8.6,
+    "lo": -35.65,
+    "hi": 17.04,
+    "verdict": "unclear"
+   },
+   "always block_low up close when he attacks": {
+    "runs": 2,
+    "rounds": 24,
+    "mean": -33.44,
+    "lo": -61.64,
+    "hi": -7.22,
+    "verdict": "few"
+   },
+   "always crouch at mid range when he attacks": {
+    "runs": 2,
+    "rounds": 15,
+    "mean": 7.78,
+    "lo": -46.89,
+    "hi": 68.22,
+    "verdict": "few"
+   },
+   "always jump_back at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 13.67,
+    "lo": -35.44,
+    "hi": 55.56,
+    "verdict": "few"
+   },
+   "avoid c.hp at mid range when he jumps": {
+    "runs": 2,
+    "rounds": 21,
+    "mean": -44.06,
+    "lo": -116.83,
+    "hi": 15.25,
+    "verdict": "few"
+   },
+   "avoid forward at mid range when he attacks": {
+    "runs": 11,
+    "rounds": 132,
+    "mean": -27.41,
+    "lo": -59.97,
+    "hi": 1.12,
+    "verdict": "unclear"
+   },
+   "avoid spinning_bird_kick at mid range": {
+    "runs": 1,
+    "rounds": 21,
+    "mean": 28.05,
+    "lo": 2.95,
+    "hi": 53.95,
+    "verdict": "few"
+   },
+   "avoid spinning_bird_kick at mid range when he attacks": {
+    "runs": 5,
+    "rounds": 15,
+    "mean": -34.8,
+    "lo": -98.47,
+    "hi": 36.07,
+    "verdict": "unclear"
+   },
+   "avoid spinning_bird_kick at mid range when he stands": {
+    "runs": 15,
+    "rounds": 237,
+    "mean": -16.03,
+    "lo": -31.79,
+    "hi": -0.77,
+    "verdict": "hurts"
+   },
+   "avoid sweep at mid range": {
+    "runs": 9,
+    "rounds": 252,
+    "mean": -1.08,
+    "lo": -15.14,
+    "hi": 11.48,
+    "verdict": "unclear"
+   },
+   "avoid sweep at mid range when he is stunned": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 25.33,
+    "lo": -15.44,
+    "hi": 72.56,
+    "verdict": "few"
+   },
+   "avoid sweep at mid range when he jumps": {
+    "runs": 12,
+    "rounds": 348,
+    "mean": -10.6,
+    "lo": -20.68,
+    "hi": -0.74,
+    "verdict": "hurts"
+   },
+   "avoid sweep at mid range when he stands": {
+    "runs": 8,
+    "rounds": 90,
+    "mean": -2.13,
+    "lo": -27.93,
+    "hi": 22.93,
+    "verdict": "unclear"
+   },
+   "avoid sweep up close": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 75.78,
+    "lo": 39.56,
+    "hi": 110.44,
+    "verdict": "few"
+   },
+   "use more block_high up close when he jumps": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": -14.17,
+    "lo": -49.83,
+    "hi": 25.33,
+    "verdict": "few"
+   },
+   "use more c.hp at mid range": {
+    "runs": 9,
+    "rounds": 99,
+    "mean": 7.45,
+    "lo": -13.1,
+    "hi": 26.62,
+    "verdict": "unclear"
+   },
+   "use more c.hp at mid range when he attacks": {
+    "runs": 12,
+    "rounds": 213,
+    "mean": -8.16,
+    "lo": -17.91,
+    "hi": 1.05,
+    "verdict": "unclear"
+   },
+   "use more c.hp at mid range when he jumps": {
+    "runs": 2,
+    "rounds": 12,
+    "mean": 34.06,
+    "lo": -0.44,
+    "hi": 74.0,
+    "verdict": "few"
+   },
+   "use more c.hp at mid range when he stands": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": -33.33,
+    "lo": -72.89,
+    "hi": 5.67,
+    "verdict": "few"
+   },
+   "use more c.hp up close when he attacks": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": -55.0,
+    "lo": -110.0,
+    "hi": 3.67,
+    "verdict": "few"
+   },
+   "use more c.mk at mid range": {
+    "runs": 2,
+    "rounds": 15,
+    "mean": 12.14,
+    "lo": -22.78,
+    "hi": 51.0,
+    "verdict": "few"
+   },
+   "use more c.mk at mid range when he attacks": {
+    "runs": 2,
+    "rounds": 12,
+    "mean": 4.78,
+    "lo": -61.06,
+    "hi": 45.67,
+    "verdict": "few"
+   },
+   "use more c.mk at mid range when he jumps": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": -12.0,
+    "lo": -44.78,
+    "hi": 26.67,
+    "verdict": "few"
+   },
+   "use more c.mk at mid range when he stands": {
+    "runs": 8,
+    "rounds": 102,
+    "mean": -17.12,
+    "lo": -43.17,
+    "hi": 4.67,
+    "verdict": "unclear"
+   },
+   "use more forward at mid range when he attacks": {
+    "runs": 4,
+    "rounds": 33,
+    "mean": -12.67,
+    "lo": -53.58,
+    "hi": 28.94,
+    "verdict": "unclear"
+   },
+   "use more forward at mid range when he jumps": {
+    "runs": 10,
+    "rounds": 270,
+    "mean": -15.32,
+    "lo": -26.39,
+    "hi": -4.25,
+    "verdict": "hurts"
+   },
+   "use more forward at mid range when he stands": {
+    "runs": 5,
+    "rounds": 102,
+    "mean": -27.02,
+    "lo": -45.66,
+    "hi": -8.47,
+    "verdict": "hurts"
+   },
+   "use more forward up close when he jumps": {
+    "runs": 3,
+    "rounds": 27,
+    "mean": -13.17,
+    "lo": -58.64,
+    "hi": 10.41,
+    "verdict": "unclear"
+   },
+   "use more spinning_bird_kick far away": {
+    "runs": 1,
+    "rounds": 15,
+    "mean": 20.67,
+    "lo": -6.53,
+    "hi": 47.53,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick far away when he stands": {
+    "runs": 2,
+    "rounds": 18,
+    "mean": -1.72,
+    "lo": -30.89,
+    "hi": 40.67,
+    "verdict": "few"
+   },
+   "use more sweep at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": 7.67,
+    "lo": -48.0,
+    "hi": 46.0,
+    "verdict": "few"
+   },
+   "use more sweep up close when he is stunned": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": -44.56,
+    "lo": -84.89,
+    "hi": -6.33,
+    "verdict": "few"
+   }
+  },
+  "ken": {
+   "always back at mid range when he attacks": {
+    "runs": 2,
+    "rounds": 12,
+    "mean": 52.33,
+    "lo": -3.25,
+    "hi": 101.25,
+    "verdict": "few"
+   },
+   "always block_high at mid range when he attacks": {
+    "runs": 6,
+    "rounds": 54,
+    "mean": -1.0,
+    "lo": -21.83,
+    "hi": 22.17,
+    "verdict": "unclear"
+   },
+   "always block_high far away when he attacks": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": 92.67,
+    "lo": 33.0,
+    "hi": 154.5,
+    "verdict": "few"
+   },
+   "always block_high up close when he attacks": {
+    "runs": 1,
+    "rounds": 15,
+    "mean": 14.53,
+    "lo": -25.8,
+    "hi": 58.27,
+    "verdict": "few"
+   },
+   "always block_high up close when he jumps": {
+    "runs": 1,
+    "rounds": 27,
+    "mean": 73.33,
+    "lo": 43.89,
+    "hi": 101.52,
+    "verdict": "few"
+   },
+   "always block_low at mid range when he attacks": {
+    "runs": 11,
+    "rounds": 108,
+    "mean": 56.31,
+    "lo": 33.3,
+    "hi": 80.71,
+    "verdict": "helps"
+   },
+   "always block_low far away when he attacks": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 37.56,
+    "lo": -13.89,
+    "hi": 91.33,
+    "verdict": "few"
+   },
+   "always crouch at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": 69.33,
+    "lo": 40.0,
+    "hi": 107.0,
+    "verdict": "few"
+   },
+   "avoid c.hp up close when he jumps": {
+    "runs": 13,
+    "rounds": 213,
+    "mean": 50.5,
+    "lo": 33.18,
+    "hi": 67.17,
+    "verdict": "helps"
+   },
+   "avoid c.mk up close when he jumps": {
+    "runs": 1,
+    "rounds": 12,
+    "mean": 13.92,
+    "lo": -52.17,
+    "hi": 76.17,
+    "verdict": "few"
+   },
+   "avoid spinning_bird_kick at mid range": {
+    "runs": 5,
+    "rounds": 69,
+    "mean": 41.9,
+    "lo": 14.15,
+    "hi": 68.56,
+    "verdict": "helps"
+   },
+   "avoid spinning_bird_kick at mid range when he jumps": {
+    "runs": 5,
+    "rounds": 39,
+    "mean": 22.94,
+    "lo": -12.36,
+    "hi": 59.45,
+    "verdict": "unclear"
+   },
+   "avoid spinning_bird_kick at mid range when he stands": {
+    "runs": 8,
+    "rounds": 48,
+    "mean": 62.77,
+    "lo": 30.67,
+    "hi": 95.6,
+    "verdict": "helps"
+   },
+   "avoid sweep at mid range when he stands": {
+    "runs": 17,
+    "rounds": 446,
+    "mean": 32.93,
+    "lo": 21.24,
+    "hi": 45.31,
+    "verdict": "helps"
+   },
+   "avoid sweep up close when he jumps": {
+    "runs": 25,
+    "rounds": 589,
+    "mean": 34.12,
+    "lo": 20.59,
+    "hi": 46.78,
+    "verdict": "helps"
+   },
+   "use more block_high up close when he jumps": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 40.22,
+    "lo": 10.22,
+    "hi": 74.44,
+    "verdict": "few"
+   },
+   "use more block_low at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": 46.83,
+    "lo": -27.0,
+    "hi": 125.67,
+    "verdict": "few"
+   },
+   "use more c.hp at mid range when he attacks": {
+    "runs": 4,
+    "rounds": 36,
+    "mean": 58.28,
+    "lo": 20.97,
+    "hi": 98.61,
+    "verdict": "helps"
+   },
+   "use more c.hp at mid range when he stands": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 41.78,
+    "lo": -20.44,
+    "hi": 93.89,
+    "verdict": "few"
+   },
+   "use more c.lk up close when he jumps": {
+    "runs": 3,
+    "rounds": 27,
+    "mean": 33.15,
+    "lo": -30.19,
+    "hi": 85.78,
+    "verdict": "unclear"
+   },
+   "use more c.mk at mid range when he attacks": {
+    "runs": 9,
+    "rounds": 84,
+    "mean": 66.27,
+    "lo": 40.23,
+    "hi": 91.47,
+    "verdict": "helps"
+   },
+   "use more c.mk at mid range when he stands": {
+    "runs": 3,
+    "rounds": 18,
+    "mean": 25.31,
+    "lo": -17.81,
+    "hi": 66.81,
+    "verdict": "unclear"
+   },
+   "use more forward at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 46.22,
+    "lo": -9.78,
+    "hi": 116.33,
+    "verdict": "few"
+   },
+   "use more forward at mid range when he stands": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": 85.5,
+    "lo": -23.83,
+    "hi": 186.33,
+    "verdict": "few"
+   },
+   "use more hp at mid range when he attacks": {
+    "runs": 4,
+    "rounds": 27,
+    "mean": 22.71,
+    "lo": -13.61,
+    "hi": 57.47,
+    "verdict": "unclear"
+   },
+   "use more hp at mid range when he jumps": {
+    "runs": 9,
+    "rounds": 132,
+    "mean": 59.83,
+    "lo": 41.18,
+    "hi": 78.79,
+    "verdict": "helps"
+   },
+   "use more hp up close": {
+    "runs": 6,
+    "rounds": 63,
+    "mean": 41.39,
+    "lo": 17.47,
+    "hi": 69.49,
+    "verdict": "helps"
+   },
+   "use more hp up close when he jumps": {
+    "runs": 16,
+    "rounds": 378,
+    "mean": 61.46,
+    "lo": 46.75,
+    "hi": 77.9,
+    "verdict": "helps"
+   },
+   "use more hp up close when he stands": {
+    "runs": 17,
+    "rounds": 262,
+    "mean": 4.5,
+    "lo": -9.9,
+    "hi": 19.02,
+    "verdict": "unclear"
+   },
+   "use more lightning_legs at mid range when he stands": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 39.56,
+    "lo": -9.67,
+    "hi": 83.67,
+    "verdict": "few"
+   },
+   "use more mp up close when he jumps": {
+    "runs": 1,
+    "rounds": 12,
+    "mean": 51.92,
+    "lo": 11.83,
+    "hi": 96.17,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick at mid range when he attacks": {
+    "runs": 2,
+    "rounds": 12,
+    "mean": 24.06,
+    "lo": -37.67,
+    "hi": 69.0,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick at mid range when he is stunned": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": 41.17,
+    "lo": -6.83,
+    "hi": 87.17,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick at mid range when he jumps": {
+    "runs": 4,
+    "rounds": 33,
+    "mean": 50.22,
+    "lo": 21.47,
+    "hi": 80.11,
+    "verdict": "helps"
+   },
+   "use more spinning_bird_kick at mid range when he stands": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": -15.44,
+    "lo": -70.22,
+    "hi": 37.22,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick far away when he jumps": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 3.33,
+    "lo": -50.33,
+    "hi": 51.56,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick far away when he stands": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 52.22,
+    "lo": 1.67,
+    "hi": 95.0,
+    "verdict": "few"
+   },
+   "use more sweep at mid range when he attacks": {
+    "runs": 2,
+    "rounds": 12,
+    "mean": 50.17,
+    "lo": -48.33,
+    "hi": 124.56,
+    "verdict": "few"
+   },
+   "use more sweep at mid range when he is stunned": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": 92.0,
+    "lo": 35.33,
+    "hi": 151.83,
+    "verdict": "few"
+   },
+   "use more sweep at mid range when he jumps": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 0.67,
+    "lo": -69.78,
+    "hi": 73.78,
+    "verdict": "few"
+   },
+   "use more throw up close when he stands": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 4.78,
+    "lo": -39.44,
+    "hi": 61.33,
+    "verdict": "few"
+   }
+  },
+  "ryu": {
+   "always block_high far away when he attacks": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": -6.0,
+    "lo": -46.22,
+    "hi": 38.22,
+    "verdict": "few"
+   },
+   "always block_high up close when he jumps": {
+    "runs": 3,
+    "rounds": 24,
+    "mean": 54.78,
+    "lo": 5.59,
+    "hi": 114.89,
+    "verdict": "helps"
+   },
+   "always block_low at mid range when he attacks": {
+    "runs": 3,
+    "rounds": 12,
+    "mean": 23.0,
+    "lo": -81.67,
+    "hi": 135.33,
+    "verdict": "few"
+   },
+   "avoid c.lk up close when he jumps": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": 6.67,
+    "lo": -176.0,
+    "hi": 132.0,
+    "verdict": "few"
+   },
+   "avoid c.mk up close": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": -52.67,
+    "lo": -199.0,
+    "hi": 111.0,
+    "verdict": "few"
+   },
+   "avoid spinning_bird_kick at mid range when he attacks": {
+    "runs": 9,
+    "rounds": 126,
+    "mean": 41.6,
+    "lo": 2.71,
+    "hi": 86.82,
+    "verdict": "helps"
+   },
+   "avoid spinning_bird_kick at mid range when he is stunned": {
+    "runs": 5,
+    "rounds": 42,
+    "mean": 29.89,
+    "lo": -20.0,
+    "hi": 83.73,
+    "verdict": "unclear"
+   },
+   "avoid spinning_bird_kick at mid range when he stands": {
+    "runs": 20,
+    "rounds": 600,
+    "mean": 22.63,
+    "lo": 10.13,
+    "hi": 35.3,
+    "verdict": "helps"
+   },
+   "avoid spinning_bird_kick far away when he attacks": {
+    "runs": 20,
+    "rounds": 453,
+    "mean": 25.6,
+    "lo": 10.88,
+    "hi": 40.17,
+    "verdict": "helps"
+   },
+   "avoid spinning_bird_kick up close": {
+    "runs": 2,
+    "rounds": 30,
+    "mean": 19.15,
+    "lo": -25.21,
+    "hi": 62.83,
+    "verdict": "few"
+   },
+   "avoid sweep up close": {
+    "runs": 2,
+    "rounds": 24,
+    "mean": 13.46,
+    "lo": -49.33,
+    "hi": 68.04,
+    "verdict": "few"
+   },
+   "avoid sweep up close when he jumps": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": -15.0,
+    "lo": -119.0,
+    "hi": 115.0,
+    "verdict": "few"
+   },
+   "use more block_low at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": 35.67,
+    "lo": -38.0,
+    "hi": 152.0,
+    "verdict": "few"
+   },
+   "use more c.hp at mid range when he attacks": {
+    "runs": 1,
+    "rounds": 3,
+    "mean": -70.0,
+    "lo": -233.0,
+    "hi": 166.0,
+    "verdict": "few"
+   },
+   "use more c.hp at mid range when he stands": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": 34.0,
+    "lo": -34.67,
+    "hi": 101.33,
+    "verdict": "few"
+   },
+   "use more c.lk up close when he is stunned": {
+    "runs": 5,
+    "rounds": 48,
+    "mean": 40.61,
+    "lo": -2.8,
+    "hi": 87.63,
+    "verdict": "unclear"
+   },
+   "use more c.lk up close when he jumps": {
+    "runs": 3,
+    "rounds": 24,
+    "mean": -4.59,
+    "lo": -68.07,
+    "hi": 51.8,
+    "verdict": "unclear"
+   },
+   "use more c.lk up close when he stands": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": -5.44,
+    "lo": -85.22,
+    "hi": 69.56,
+    "verdict": "few"
+   },
+   "use more c.mk at mid range": {
+    "runs": 4,
+    "rounds": 84,
+    "mean": 18.02,
+    "lo": -20.66,
+    "hi": 65.23,
+    "verdict": "unclear"
+   },
+   "use more c.mk at mid range when he attacks": {
+    "runs": 4,
+    "rounds": 27,
+    "mean": -0.44,
+    "lo": -87.03,
+    "hi": 74.38,
+    "verdict": "unclear"
+   },
+   "use more c.mk at mid range when he jumps": {
+    "runs": 2,
+    "rounds": 15,
+    "mean": 17.22,
+    "lo": -24.89,
+    "hi": 65.22,
+    "verdict": "few"
+   },
+   "use more c.mk at mid range when he stands": {
+    "runs": 12,
+    "rounds": 234,
+    "mean": 26.19,
+    "lo": 2.21,
+    "hi": 49.41,
+    "verdict": "helps"
+   },
+   "use more c.mk up close when he jumps": {
+    "runs": 1,
+    "rounds": 6,
+    "mean": 45.67,
+    "lo": 4.33,
+    "hi": 88.17,
+    "verdict": "few"
+   },
+   "use more forward at mid range when he jumps": {
+    "runs": 2,
+    "rounds": 15,
+    "mean": 16.03,
+    "lo": -30.56,
+    "hi": 69.56,
+    "verdict": "few"
+   },
+   "use more forward far away when he attacks": {
+    "runs": 10,
+    "rounds": 225,
+    "mean": 21.67,
+    "lo": 2.88,
+    "hi": 40.39,
+    "verdict": "helps"
+   },
+   "use more lp up close when he is stunned": {
+    "runs": 2,
+    "rounds": 21,
+    "mean": 19.85,
+    "lo": -46.06,
+    "hi": 72.42,
+    "verdict": "few"
+   },
+   "use more lp up close when he jumps": {
+    "runs": 9,
+    "rounds": 201,
+    "mean": 21.17,
+    "lo": -2.8,
+    "hi": 44.57,
+    "verdict": "unclear"
+   },
+   "use more mp at mid range": {
+    "runs": 1,
+    "rounds": 12,
+    "mean": 23.0,
+    "lo": -20.67,
+    "hi": 67.83,
+    "verdict": "few"
+   },
+   "use more mp at mid range when he stands": {
+    "runs": 8,
+    "rounds": 108,
+    "mean": 9.77,
+    "lo": -19.41,
+    "hi": 36.69,
+    "verdict": "unclear"
+   },
+   "use more spinning_bird_kick at mid range when he is stunned": {
+    "runs": 1,
+    "rounds": 9,
+    "mean": 23.22,
+    "lo": -30.89,
+    "hi": 78.33,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick at mid range when he jumps": {
+    "runs": 2,
+    "rounds": 15,
+    "mean": -7.89,
+    "lo": -79.08,
+    "hi": 65.17,
+    "verdict": "few"
+   },
+   "use more spinning_bird_kick far away when he stands": {
+    "runs": 2,
+    "rounds": 18,
+    "mean": 49.0,
+    "lo": 3.28,
+    "hi": 97.83,
+    "verdict": "few"
+   },
+   "use more sweep at mid range when he attacks": {
+    "runs": 13,
+    "rounds": 168,
+    "mean": 39.67,
+    "lo": 10.34,
+    "hi": 66.49,
+    "verdict": "helps"
+   },
+   "use more sweep at mid range when he is stunned": {
+    "runs": 2,
+    "rounds": 15,
+    "mean": 50.83,
+    "lo": 5.22,
+    "hi": 97.67,
+    "verdict": "few"
+   },
+   "use more sweep at mid range when he jumps": {
+    "runs": 6,
+    "rounds": 48,
+    "mean": 27.07,
+    "lo": -22.98,
+    "hi": 80.61,
+    "verdict": "unclear"
+   },
+   "use more sweep at mid range when he stands": {
+    "runs": 7,
+    "rounds": 60,
+    "mean": 72.3,
+    "lo": 25.59,
+    "hi": 123.88,
+    "verdict": "helps"
+   }
+  }
+ },
+ "sources": [
+  "rollouts/qwen_lessons/20260929-134810_ken",
+  "rollouts/qwen_lessons/20260929-134857_ken",
+  "rollouts/qwen_lessons/20260929-135527_ken",
+  "rollouts/qwen_lessons/20260929-140126_ryu",
+  "rollouts/qwen_lessons/20260929-140720_honda",
+  "rollouts/qwen_lessons/20260929-140723_ryu",
+  "rollouts/qwen_lessons/20260929-141358_honda",
+  "rollouts/qwen_lessons/20260929-145756_ken",
+  "rollouts/qwen_lessons/20260929-145858_ken",
+  "rollouts/qwen_lessons/20260929-145901_ken",
+  "rollouts/qwen_lessons/20260929-150730_ken",
+  "rollouts/qwen_lessons/20260929-150733_ken",
+  "rollouts/qwen_lessons/20260929-153953_ken",
+  "rollouts/qwen_lessons/20260929-153956_ken",
+  "rollouts/qwen_lessons/20260929-153959_ryu",
+  "rollouts/qwen_lessons/20260929-154002_ryu",
+  "rollouts/qwen_lessons/20260929-154005_honda",
+  "rollouts/qwen_lessons/20260929-154008_honda",
+  "rollouts/qwen_lessons/20260929-155448_ken",
+  "rollouts/qwen_lessons/20260929-155451_ken",
+  "rollouts/qwen_lessons/20260929-155454_ryu",
+  "rollouts/qwen_lessons/20260929-155457_ryu",
+  "rollouts/qwen_lessons/20260929-155500_honda",
+  "rollouts/qwen_lessons/20260929-155503_honda",
+  "rollouts/locked/lesson_loop_v1/20260929-164514_ken",
+  "rollouts/locked/lesson_loop_v1/20260929-170523_ken_character",
+  "rollouts/locked/lesson_loop_v1/20260929-170526_ken_character",
+  "rollouts/locked/lesson_loop_v1/20260929-170529_ryu_character",
+  "rollouts/locked/lesson_loop_v1/20260929-170532_ryu_character",
+  "rollouts/locked/lesson_loop_v1/20260929-170535_honda_character",
+  "rollouts/locked/lesson_loop_v1/20260929-170538_honda_character",
+  "rollouts/locked/lesson_loop_v1/20260929-172936_ken",
+  "rollouts/locked/lesson_loop_v1/20260929-172938_ken_character",
+  "rollouts/locked/lesson_loop_v1/20260929-172940_ken",
+  "rollouts/locked/lesson_loop_v1/20260929-172942_ken_character",
+  "rollouts/locked/lesson_loop_v1/20260929-172944_ken",
+  "rollouts/locked/lesson_loop_v1/20260929-172946_ken_character",
+  "rollouts/locked/lesson_loop_v1/20260929-172948_ken",
+  "rollouts/locked/lesson_loop_v1/20260929-172950_ken_character",
+  "rollouts/locked/lesson_loop_v1/20260929-172952_ryu",
+  "rollouts/locked/lesson_loop_v1/20260929-172954_ryu_character",
+  "rollouts/locked/lesson_loop_v1/20260929-172958_ryu_character",
+  "rollouts/locked/lesson_loop_v1/20260929-173000_ryu",
+  "rollouts/locked/lesson_loop_v1/20260929-173002_ryu_character",
+  "rollouts/locked/lesson_loop_v1/20260929-173006_ryu_character",
+  "rollouts/locked/lesson_loop_v1/20260929-173008_honda",
+  "rollouts/locked/lesson_loop_v1/20260929-173010_honda_character",
+  "rollouts/locked/lesson_loop_v1/20260929-173012_honda",
+  "rollouts/locked/lesson_loop_v1/20260929-173014_honda_character",
+  "rollouts/locked/lesson_loop_v1/20260929-173016_honda",
+  "rollouts/locked/lesson_loop_v1/20260929-173018_honda_character",
+  "rollouts/locked/lesson_loop_v1/20260929-173020_honda",
+  "rollouts/locked/lesson_loop_v1/20260929-173022_honda_character",
+  "rollouts/locked/lesson_loop_v1/20260929-180618_ken_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180620_ken_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180622_ken_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180624_ken_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180626_ryu_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180628_ryu_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180630_ryu_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180632_ryu_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180634_honda_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180636_honda_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180638_honda_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-180640_honda_character_fgc",
+  "rollouts/locked/lesson_loop_v1/20260929-185408_ryu",
+  "rollouts/locked/lesson_loop_v1/20260929-185410_ryu"
+ ],
+ "skipped": []
+}

@@ -101,3 +101,14 @@ def test_no_advice_arms_that_differ_in_play_are_still_refused(tmp_path):
     run(r, "2_ken_character", "ken", 1, "character", [30] * 10, [0] * 10, none_bytes=lines({}))
     pairs, problems = cp().pairs([r])
     assert pairs == {} and "differ" in problems[0]
+
+
+def test_a_run_with_a_track_record_is_its_own_prompt(tmp_path):
+    r = str(tmp_path)
+    run(r, "1_ken_character", "ken", 1, "character", [10] * 10, [0] * 10)
+    d = run(r, "2_ken_character_track", "ken", 1, "character", [40] * 10, [0] * 10)
+    v = json.load(open(os.path.join(d, "verdict.json")))
+    with open(os.path.join(d, "verdict.json"), "w") as f:
+        json.dump(dict(v, track="lessons/track_record.json"), f)
+    pairs, _ = cp().pairs([r], ("character", "character+track"))
+    assert cp().diffs(pairs, ("character", "character+track"))["b_minus_a"]["ken"] == [30] * 10

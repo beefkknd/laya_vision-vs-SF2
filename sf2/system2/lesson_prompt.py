@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS, RANGES
 from . import lessons as L
+from . import track_record as T
 
 VIEWS = ("attack", "defense", "what_if")
 DEFENSIVE = ("block_high", "block_low", "back", "jump_back", "crouch")
@@ -160,7 +161,8 @@ def _registry(reg: L.Registry) -> str:
 
 def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
              all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], moves: Sequence[str] = (),
-             refused: Sequence[Dict] = (), stable: Optional[str] = None) -> List[Dict]:
+             refused: Sequence[Dict] = (), stable: Optional[str] = None,
+             track: Optional[Dict] = None) -> List[Dict]:
     moves = list(moves) or sorted({a["action"] for a in rows})
     parts = [
         record(all_rounds, last_rounds),
@@ -170,6 +172,8 @@ def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Seq
                                                                   "(none)"),
         "All games so far, per move and range, against her average at that range:\n%s" % (
             "\n".join(overall(rows)) or "(not enough yet)")]
+    if track is not None:
+        parts.append(T.prompt_part(opp, track))
     if refused:
         parts.append("Refused last time (do not propose again):\n%s" % "\n".join(
             "- %s: %s" % (L.render(o["claim"]) if _renderable(o["claim"]) else o["claim"], o["why"]) for o in refused))

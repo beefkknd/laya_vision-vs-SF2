@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS
 from . import lessons as L
+from . import track_record as T
 from .lesson_prompt import STREAK, WHAT_IF, _registry, _renderable, record
 
 VIEWS = ("answer", "stop", "what_if")
@@ -139,7 +140,8 @@ def if_you_see(rows: Sequence[Dict], moves: Sequence[str] = (), terms: bool = Fa
 
 def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
              all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], moves: Sequence[str] = (),
-             refused: Sequence[Dict] = (), stable: Optional[str] = None, fgc: bool = False) -> List[Dict]:
+             refused: Sequence[Dict] = (), stable: Optional[str] = None,
+             track: Optional[Dict] = None, fgc: bool = False) -> List[Dict]:
     """Same signature as sf2.system2.lesson_prompt.messages; ``rows`` = all her decisions against him so far.
     ``fgc``: situations named the way players do, and a primer on the game and this opponent (``messages_fgc``)."""
     moves = list(moves) or sorted({a["action"] for a in rows})
@@ -150,6 +152,8 @@ def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Seq
         "HIS THREATS - the last game:\n%s" % ("\n".join(threats(last)) or "(none)"),
         "IF YOU SEE - her answers in each of his situations, all games (the most damage to her first):\n\n%s" % (
             "\n\n".join(if_you_see(rows, moves, terms=fgc)) or "(not enough yet)")]
+    if track is not None:
+        parts.append(T.prompt_part(opp, track))
     if refused:
         parts.append("Refused last time (do not propose again):\n%s" % "\n".join(
             "- %s: %s" % (L.render(o["claim"]) if _renderable(o["claim"]) else o["claim"], o["why"]) for o in refused))

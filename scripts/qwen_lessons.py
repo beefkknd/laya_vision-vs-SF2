@@ -17,6 +17,7 @@ Verdict (rollouts/qwen_lessons/<stamp>_<opp>/verdict.json):
     outcome       hit points per round vs the no-advice arm, paired (reported, not a gate)
 """
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -36,6 +37,7 @@ from sf2.system1.advisor import Advisor
 from sf2.system1.system1 import System1, choices, play_round
 from sf2.system2 import lessons as L
 from sf2.system2 import character_prompt, lesson_prompt
+from sf2.system2 import track_record as T
 from sf2.system2.lesson_prompt import streak
 from sf2.system2.qwen import chat, json_reply
 from sf2.vocab import RANGES
@@ -79,11 +81,20 @@ def apply_lock(args) -> None:
         args.state = os.path.join(p["states"], "p1_%s_vs_%s.state" % (ME, args.opp))
 
 
+def load_track(path, opp: str):
+    """(this opponent's track record, sha256 of the file); (None, None) without a file (sf2.system2.track_record)."""
+    if not path:
+        return None, None
+    with open(path, "rb") as f:
+        raw = f.read()
+    return json.loads(raw)["opponents"].get(opp, {}), hashlib.sha256(raw).hexdigest()
+
+
 def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_rounds: List[Dict],
-        last_rounds: List[Dict], refused: List[Dict], stable=None, prompt: str = "views"):
+        last_rounds: List[Dict], refused: List[Dict], stable=None, prompt: str = "views", track=None):
     p = PROMPTS[prompt]
     try:
-        raw = chat(p.messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused, stable),
+        raw = chat(p.messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused, stable, track=track),
                    "lessons_%s" % opp)
         claims, problems = p.parse_claims(json_reply(raw))
     except Exception as e:                   # Qwen down, cut off or not JSON: no claims this game
@@ -100,8 +111,9 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     games: List[Dict] = []             # per game: rounds won / lost
     changed: List[bool] = []           # per update: did the registered lessons change
     os.makedirs(out, exist_ok=True)
+    track, digest = load_track(args.track, args.opp)
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock,
-             prompt=args.prompt)       # never play data (sf2.eval.logs)
+             prompt=args.prompt, track=args.track, track_sha256=digest)       # never play data (sf2.eval.logs)
     with Advisor(args.advisor) as advisor, open_fight(ME, args.opp, port, state=args.state) as (b, state), \
             open_logs(out, ("actions", "rounds", "ledger")) as logs:
         s1 = System1(args.model, ME, advisor=advisor)
@@ -115,14 +127,15 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
             reg = L.review(reg, rows, game)
             stable = streak(games, changed)
             claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused, stable,
-                                        args.prompt)
-            reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES)
+                                        args.prompt, track)
+            reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES, track=track)
             changed.append({r["line"] for r in reg if r["state"] == "registered"} != before)
             refused = [o for o in outcome if o["state"] == "refused"]
             logs["ledger"].write(json.dumps({"game": game, "prompt": args.prompt, "stable": stable, "claims": claims, "outcome": outcome,
                                              "problems": problems,
                                              "registry": reg, "in_play": L.in_play(reg),
-                                             "violations": L.violations(reg, rows), "reply": raw}) + "\n")
+                                             "violations": L.violations(reg, rows) + T.violations(reg, track or {}),
+                                             "reply": raw}) + "\n")
             logs["ledger"].flush()
             print("after game %d: %s | in play %s" % (game, ["%s -> %s" % (o.get("line", o["claim"]), o["state"])
                                                             for o in outcome], L.in_play(reg)), flush=True)
@@ -247,6 +260,8 @@ def main() -> int:
     ap.add_argument("--model", default=LAYA_VISION)
     ap.add_argument("--advisor", default=TEXT_LAYA)
     ap.add_argument("--prompt", choices=sorted(PROMPTS), default="views", help="what Qwen is asked after each game")
+    ap.add_argument("--track", help="a track record file (scripts/track_record.py): shown to Qwen, and a lesson that "
+                                    "hurts there is refused")
     ap.add_argument("--lock", help="play from this lock's copies only (sf2.eval.lock)")
     ap.add_argument("--run", type=int, help="with --lock: repeat the lock's run N (its opponent, seed, games)")
     ap.add_argument("--one", nargs=3, metavar=("ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
@@ -262,17 +277,20 @@ def main() -> int:
     args.seed = int(time.time()) % 100000 if args.seed is None else args.seed
     root = os.path.join(os.path.join("rollouts", "locked", args.lock) if args.lock else ROOT,
                         "%s_%s%s" % (time.strftime("%Y%m%d-%H%M%S"), args.opp,
-                                    "" if args.prompt == "views" else "_" + args.prompt))
+                                    ("" if args.prompt == "views" else "_" + args.prompt)
+                                    + ("_track" if args.track else "")))
     cmds = [((args.opp, arm), [sys.executable, os.path.abspath(__file__), "--opp", args.opp, "--games",
                                str(args.games), "--rounds", str(args.rounds), "--seed", str(args.seed), "--model",
                                args.model, "--advisor", args.advisor] + ([] if args.history else ["--no-history"])
                               + (["--lock", args.lock] if args.lock else []) + ["--prompt", args.prompt]
+                              + (["--track", args.track] if args.track else [])
                               + ["--one", arm, str(args.base_port + i), os.path.join(root, arm)])
             for i, arm in enumerate(("loop", "none"))]
     print("Chun-Li vs %s: %d games x %d rounds, seed %d; %s/" % (
         args.opp, args.games, args.rounds, args.seed, log_dir(root)), flush=True)
     failed = fan_out(cmds, log_dir(root), job_gb=MODEL_JOB_GB)
-    v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, failed_jobs=[list(k) for k in failed])
+    v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, track=args.track,
+             track_sha256=load_track(args.track, args.opp)[1], failed_jobs=[list(k) for k in failed])
     with open(os.path.join(root, "verdict.json"), "w") as f:
         json.dump(v, f, indent=1)
     print(json.dumps(v, indent=1))
