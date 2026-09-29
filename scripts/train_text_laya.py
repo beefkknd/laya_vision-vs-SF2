@@ -19,17 +19,23 @@ import time
 import numpy as np
 
 import _path  # noqa: E402,F401
+from sf2.config import TEST_DATA  # noqa: E402
 from sf2.system1 import mlx_lora, text_laya  # noqa: E402
 
-DATA = "test_data/advice"
-LOG = None
+DATA = os.path.join(TEST_DATA, "advice")
 
 
-def say(msg: str) -> None:
-    line = "%s  %s" % (time.strftime("%H:%M:%S"), msg)
-    print(line, flush=True)
-    LOG.write(line + "\n")
-    LOG.flush()
+class Say:
+    """One line to the console and the run's log, with the time."""
+
+    def __init__(self, path: str):
+        self.log = open(path, "a")
+
+    def __call__(self, msg: str) -> None:
+        line = "%s  %s" % (time.strftime("%H:%M:%S"), msg)
+        print(line, flush=True)
+        self.log.write(line + "\n")
+        self.log.flush()
 
 
 def batches(encoded, size, rng):
@@ -56,8 +62,7 @@ def accuracy(agent, rows) -> float:
     return text_laya.score(rows, probs)["accuracy"]
 
 
-def main() -> None:
-    global LOG
+def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", required=True)
     ap.add_argument("--rank", type=int, default=16)
@@ -69,31 +74,26 @@ def main() -> None:
     ap.add_argument("--val-limit", type=int, default=400, help="validation rows per evaluation (speed)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, default=0, help="smoke test: this many rows of each split")
-    args = ap.parse_args()
+    return ap.parse_args()
 
-    import mlx.core as mx
-    import mlx.nn as nn
-    import mlx.optimizers as optim
-    from mlx.utils import tree_flatten, tree_map
 
-    out = os.path.join("runs", "text_laya", args.name)
-    if os.path.exists(os.path.join(out, "adapter.safetensors")):
-        raise SystemExit("%s already has a checkpoint; pick a new --name" % out)
-    os.makedirs(out, exist_ok=True)
-    os.makedirs("logs/text_laya", exist_ok=True)
-    LOG = open(os.path.join("logs", "text_laya", args.name + ".log"), "a")
-    rng = random.Random(args.seed)
-    mx.random.seed(args.seed)
-
+def load_splits(args, rng):
+    """(train, val rows evaluated during training, test); ``--limit`` cuts each split for a smoke test."""
     train = text_laya.read(os.path.join(DATA, "train.jsonl"))
     val = text_laya.read(os.path.join(DATA, "val.jsonl"))
     test = text_laya.read(os.path.join(DATA, "test.jsonl"))
     if args.limit:
         train, val, test = train[:args.limit], val[:args.limit], test[:args.limit]
-    val_eval = rng.sample(val, min(args.val_limit, len(val)))
-    agent = text_laya.load()
-    base_test = text_laya.score(test, text_laya.predict_rows(agent, test))
-    say("base %s: val %.3f  test %s" % (text_laya.BASE, accuracy(agent, val_eval), json.dumps(base_test)))
+    return train, rng.sample(val, min(args.val_limit, len(val))), test
+
+
+def train_lora(args, agent, train, val_eval, rng, say):
+    """LoRA on the encoder plus the trainable heads, early stopping on validation accuracy: (best val, the best
+    adapter's weights, steps taken)."""
+    import mlx.core as mx
+    import mlx.nn as nn
+    import mlx.optimizers as optim
+    from mlx.utils import tree_map
 
     model = agent.model
     n_wrapped = mlx_lora.apply_lora(model.encoder, r=args.rank, alpha=2.0 * args.rank)
@@ -140,6 +140,13 @@ def main() -> None:
         if stale >= args.patience:
             say("no gain in %d evaluations: stop" % args.patience)
             break
+    return best, best_state, step
+
+
+def save_and_test(args, out, best, best_state, step, base_test, test, say) -> None:
+    """Save the best adapter, reload it, and score it on the test split next to the base model."""
+    import mlx.core as mx
+    from mlx.utils import tree_flatten
 
     mx.save_safetensors(os.path.join(out, "adapter.safetensors"), dict(tree_flatten(best_state)))
     with open(os.path.join(out, "adapter.json"), "w") as f:
@@ -153,6 +160,27 @@ def main() -> None:
     say("best val %.3f; test base %.3f -> tuned %.3f" % (best, base_test["accuracy"], result["tuned"]["accuracy"]))
     say("tuned test %s" % json.dumps(result["tuned"]))
     say("saved %s" % out)
+
+
+def main() -> None:
+    args = parse_args()
+    import mlx.core as mx
+
+    out = os.path.join("runs", "text_laya", args.name)
+    if os.path.exists(os.path.join(out, "adapter.safetensors")):
+        raise SystemExit("%s already has a checkpoint; pick a new --name" % out)
+    os.makedirs(out, exist_ok=True)
+    os.makedirs("logs/text_laya", exist_ok=True)
+    say = Say(os.path.join("logs", "text_laya", args.name + ".log"))
+    rng = random.Random(args.seed)
+    mx.random.seed(args.seed)
+    train, val_eval, test = load_splits(args, rng)
+    agent = text_laya.load()
+    base_test = text_laya.score(test, text_laya.predict_rows(agent, test))
+    say("base %s: val %.3f  test %s" % (text_laya.BASE, accuracy(agent, val_eval), json.dumps(base_test)))
+    best, best_state, step = train_lora(args, agent, train, val_eval, rng, say)
+    save_and_test(args, out, best, best_state, step, base_test, test, say)
+    say.log.close()
 
 
 if __name__ == "__main__":
