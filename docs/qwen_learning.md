@@ -146,6 +146,39 @@ pooled with the opponent as the unit +16.7 [−2.1, +35.9]: not shown.
 4. Lessons are reproducible: 12 were registered in both runs of their opponent. All are in `lessons/chunli.json`
    (`python scripts/qwen_lessons.py --export`), for reuse.
 
+## 0c. Two views, a relative yardstick (2026-09-29), Ken only so far
+
+**Why.** In the 12 lesson-loop arms she took 92% of her damage while attacking, and chose a block in **0** of 3853
+decisions where he attacked (laya-vision rates blocks "likely fails"; a "use more" lesson does not override that, an
+"always" lesson does). A fixed-lesson A/B (`ab_memory.py --fixed`, Ken, 30 rounds): "always block_low when he attacks"
+-> 120 blocks, 78 blocked cleanly, 4.3 taken per block vs ~10 otherwise, yet total taken unchanged (166 vs 169): the
+blocks replaced cheap walking, not her attacks into his (15.6 taken each; most damage is both starting at once, when
+he is still standing at her decision).
+
+**Changes.** Each claim is judged against her own average in the same situation (so a block at -4 is "better" when
+her average there is -10); a third kind "always"; Qwen sees an ATTACK view (her attacks vs her average there) and a
+DEFENSE view (damage taken by cause: traded / punished / stuffed / caught, and what she chose when he attacked) plus
+her record, and proposes one claim per view; exceptions (a narrower opposite claim) are judged instead of refused;
+a "use more" / "always" may name a move she never used.
+
+| Ken run | Loop version | Qwen holds (random) | Lessons | Hit points vs none | Damage taken vs none |
+|---|---|---|---|---|---|
+| 1 | one view, absolute (0b) | 43% (12%) | 6 | +22.9 [−13.9, +59.7] | – |
+| 2 | one view, absolute (0b) | 38% (12%) | 7 | +42.9 [+14.8, +70.9] | – |
+| 3 | two views, relative | 29% (13%) | 3 | +2.5 [−28.6, +33.7] | −6.7 [−2.9, +16.2] |
+| 4 | two views, relative | 44% (12%) | 3 | +9.6 [−25.5, +44.7] | −4.9 [−5.9, +15.6] |
+| 5 | + exceptions, untried moves | 50% (13%) | 3 | +18.8 [−5.5, +43.2] | **−5.5 [+1.9, +9.1]** |
+| 6 | + exceptions, untried moves | 56% (12%) | 3 | +0.7 [−28.8, +30.1] | −2.9 [−5.3, +11.1] |
+
+(damage-taken column: how much less she took per round than the no-advice arm; interval of that difference)
+
+**Trend.** Qwen's claims keep holding at 3-5x chance from both views; damage taken tends down (significant once);
+hit points are not better than the one-view loop: the relative yardstick registers about half as many lessons (it
+rejects avoids that are bad in absolute terms but no worse than her other options there). Qwen proposed a block once
+in 20 defense claims (as "use more", which cannot override the rating) and never "always"; the defense view shows raw
+damage, so Qwen twice re-proposed "avoid hp up close when he jumps" (punished for 221) although hp is her best option
+there (-1.0 vs -10.5, an anti-air).
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
