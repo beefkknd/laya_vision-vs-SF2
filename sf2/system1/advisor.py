@@ -10,10 +10,8 @@ import subprocess
 from typing import Dict, Optional, Sequence, Tuple
 
 from .advice import FORWARD, answers, prompt, question, rating, read, situation_text
-from ..config import REPO
+from ..config import HF_HOME, MLX_PYTHON, REPO
 
-MLX_PYTHON = os.path.expanduser("~/work/laya_mlx/.venv/bin/python")
-HF_HOME = "/Volumes/ExtremeSSD/huggingface"
 SHORTLIST = 3
 ROOT = REPO
 
@@ -22,7 +20,7 @@ class Advisor:
     def __init__(self, checkpoint: str, python: str = MLX_PYTHON):
         if checkpoint != "none" and not os.path.exists(os.path.join(checkpoint, "adapter.safetensors")):
             raise SystemExit("no text laya checkpoint at %s" % checkpoint)
-        env = dict(os.environ, HF_HOME=os.environ.get("HF_HOME", HF_HOME), HF_HUB_OFFLINE="1")
+        env = dict(os.environ, HF_HOME=HF_HOME, HF_HUB_OFFLINE="1")
         self.checkpoint = checkpoint
         self.proc = subprocess.Popen([python, os.path.join(ROOT, "scripts", "text_laya_server.py"), checkpoint],
                                      cwd=ROOT, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)

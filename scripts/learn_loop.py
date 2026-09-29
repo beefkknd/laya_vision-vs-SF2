@@ -43,6 +43,7 @@ from concurrent.futures import Future
 from typing import Dict, List, Optional, Tuple
 
 import _path  # noqa: F401
+from sf2.config import LAYA_VISION, LIVE, MEMORY_RUNS, PORTS, TEXT_LAYA
 from sf2.emu.boot import next_fight, start_arcade
 from sf2.eval.logs import is_test, load_actions, load_rounds, mark_run
 from sf2.emu.headless import KeepMesenSettings, launch_argv, window_argv
@@ -234,11 +235,11 @@ def main() -> int:
     global LOG
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--char", default="chunli")
-    ap.add_argument("--model", default="runs/all8/best")
+    ap.add_argument("--model", default=LAYA_VISION)
     ap.add_argument("--headless", action="store_true", help="no window, full speed")
     ap.add_argument("--speed", type=int, default=150, help="window speed in percent (100 = the real game)")
-    ap.add_argument("--port", type=int, default=47990)
-    ap.add_argument("--advisor", default="runs/text_laya/advice_v1",
+    ap.add_argument("--port", type=int, default=PORTS["learn"][0])
+    ap.add_argument("--advisor", default=TEXT_LAYA,
                     help="text laya checkpoint that turns the short memory into the move ('off': laya-vision's "
                          "threshold rule, the memory in its prompt)")
     ap.add_argument("--minutes", type=float, default=0, help="stop after this long (0: until Ctrl-C)")
@@ -249,7 +250,7 @@ def main() -> int:
                          "(memory/ is not touched); for demos and learning-from-zero tests")
     ap.add_argument("--seed", default=None, metavar="DIR",
                     help="with --fresh: start from this seed memory (scripts/seed_memory.py) instead of blank")
-    ap.add_argument("--live", default="out/live/decision.json",
+    ap.add_argument("--live", default=os.path.join(LIVE, "decision.json"),
                     help="the latest decision, for scripts/brain_panel.py ('' to turn off)")
     ap.add_argument("--ab-advice", action="store_true",
                     help="A/B test: odd games are played with 'Advice: none' (text laya still picks); logged as advice")
@@ -265,7 +266,7 @@ def main() -> int:
     os.makedirs("logs", exist_ok=True)
     LOG = open(os.path.join("logs", "learn_%s.log" % me), "a")
     global MEM_ROOT
-    MEM_ROOT = os.path.join("memory_runs", args.fresh) if args.fresh else "memory"
+    MEM_ROOT = os.path.join(MEMORY_RUNS, args.fresh) if args.fresh else "memory"
     if args.fresh and os.path.exists(MEM_ROOT):
         raise SystemExit("%s exists: pick a new --fresh name (a blank start must be blank)" % MEM_ROOT)
     if args.seed:

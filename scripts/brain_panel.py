@@ -24,9 +24,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Dict, List, Optional, Tuple
 
 import _path  # noqa: E402,F401
+from sf2.config import LIVE, PORTS  # noqa: E402
 from sf2.demo import demo_cheat  # noqa: E402
 
-LIVE = "out/live"
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "brain_panel.html")
 
 
@@ -196,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=PORTS["panel"][0])
     args = ap.parse_args()
     print("brain panel: http://127.0.0.1:%d" % args.port, flush=True)
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()

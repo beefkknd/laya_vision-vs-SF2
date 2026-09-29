@@ -8,11 +8,12 @@ import time
 from typing import Dict, List, Optional
 
 from ..system2.memory import save
+from ..config import LIVE, MEMORY_RUNS, MEMORY_SEED
 from ..vocab import IDS
 
-SEED = "memory_seeds/video"
-PENDING = "out/live/pending.json"
-RUNS = "memory_runs"
+SEED = MEMORY_SEED
+PENDING = os.path.join(LIVE, "pending.json")
+RUNS = MEMORY_RUNS
 WHAT = ("playbook", "short")
 DO = ("cheat", "clean")
 

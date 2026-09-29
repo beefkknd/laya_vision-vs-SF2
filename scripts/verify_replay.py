@@ -17,6 +17,7 @@ from typing import Dict, List
 import numpy as np
 
 import _path  # noqa: F401
+from sf2.config import PORTS
 from sf2.eval.runner import exit_on_sigterm, fan_out
 from sf2.config import PAD
 from sf2.emu.headless import launch_argv
@@ -84,7 +85,7 @@ def main() -> int:
     ap.add_argument("--chars")
     ap.add_argument("--n", type=int, default=40)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--base-port", type=int, default=48401)
+    ap.add_argument("--base-port", type=int, default=PORTS["replay"][0])
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--one", nargs=3, metavar=("CHAR", "SIDE", "PORT"), help=argparse.SUPPRESS)
     args = ap.parse_args()

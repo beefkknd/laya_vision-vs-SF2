@@ -18,6 +18,7 @@ import sys
 import time
 
 import _path  # noqa: F401
+from sf2.config import PORTS
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.data.dataset import read
 from sf2.system2.memory import load, short_path
@@ -87,7 +88,7 @@ def main() -> int:
     ap.add_argument("--games", type=int, default=10, help="games per character (a game = round 1 vs the CPU)")
     ap.add_argument("--threshold", type=float, default=0.5, help="attack only if P(hit) is at least this")
     ap.add_argument("--out", default="rollouts/system1")
-    ap.add_argument("--base-port", type=int, default=48901)
+    ap.add_argument("--base-port", type=int, default=PORTS["system1"][0])
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--device", default=None)
     ap.add_argument("--seed", type=int, default=0)

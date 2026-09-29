@@ -24,6 +24,7 @@ from typing import Dict, List
 import numpy as np
 
 import _path  # noqa: F401
+from sf2.config import PORTS
 from sf2.eval.runner import fan_out
 from sf2.config import PAD
 from sf2.data.dataset import read, save_png, write_jsonl
@@ -416,7 +417,7 @@ def main() -> int:
     r.add_argument("--chars", default="ryu,chunli", help="comma-separated; each gets its own test_data/<char>/")
     r.add_argument("--pairs", help="a:b,c:d - each pair are each other's still opponent (overrides --chars)")
     r.add_argument("--dummy", help="the still opponent for every character (default: the next in --chars)")
-    r.add_argument("--base-port", type=int, default=48001)
+    r.add_argument("--base-port", type=int, default=PORTS["dataset"][0])
     r.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     for p in (bd, r):
         p.add_argument("--no-right-test", dest="right_test", action="store_false",

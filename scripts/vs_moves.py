@@ -18,6 +18,7 @@ import time
 from typing import Dict, List
 
 import _path  # noqa: F401
+from sf2.config import PORTS
 from sf2.config import PAD
 from sf2.data.dataset import save_png
 from sf2.emu.headless import launch_argv
@@ -110,7 +111,7 @@ def main() -> int:
     ap.add_argument("--p2", default="chunli")
     ap.add_argument("--tag", default="game1")
     ap.add_argument("--out", default="out/vs_moves")
-    ap.add_argument("--port", type=int, default=47991)
+    ap.add_argument("--port", type=int, default=PORTS["vs_moves"][0])
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--mesen", default=os.environ.get("SF2_MESEN"))
     ap.add_argument("--every", type=int, default=2, help="screenshot every N frames of each take")

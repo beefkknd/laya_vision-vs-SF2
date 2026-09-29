@@ -10,7 +10,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-BASE = "aac6fef/laya-mlx"         # text laya, MLX conversion of convaiinnovations/laya
+from ..config import TEXT_LAYA_BASE
+
+BASE = TEXT_LAYA_BASE
 TRAINABLE = ("head", "scorer", "type_emb")   # the decision head trains with the LoRA; act_head stays as it is
 
 

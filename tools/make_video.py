@@ -26,14 +26,16 @@ import numpy as np
 import soundfile as sf
 from PIL import Image, ImageDraw, ImageFont
 
-OUT = os.path.expanduser("~/Desktop/laya_video")
+import _path  # noqa: F401
+from sf2.config import QWEN_MODEL, QWEN_URL, VIDEO_OUT
+
+OUT = VIDEO_OUT
 WORK = os.path.join(OUT, "work")
 STITCHED = os.path.join(OUT, "stitched_en_nocaptions.mp4")
 CROP_TOP = 94                                 # the browser's tabs and address bar at the top of the recording
 W, H = 1420, 1150 - CROP_TOP
 SR = 24000                                   # Kokoro's sample rate
-QWEN = "http://127.0.0.1:8000/v1/chat/completions"
-QWEN_MODEL = "Jundot--Qwen3.8-27B-oQ4e-mtp"
+QWEN = QWEN_URL
 FONT_ZH = "/System/Library/Fonts/Hiragino Sans GB.ttc"
 FONT_EN = "/System/Library/Fonts/Hiragino Sans GB.ttc"     # has the arrow and every Latin glyph the captions use
 

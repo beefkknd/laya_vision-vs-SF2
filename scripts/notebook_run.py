@@ -20,6 +20,7 @@ import time
 from typing import Dict, List
 
 import _path  # noqa: F401
+from sf2.config import LAYA_VISION, PORTS, TEXT_LAYA
 from sf2.system2 import notebook as nbk
 from sf2.system1.advisor import Advisor
 from sf2.data.dataset import read
@@ -94,10 +95,10 @@ def main() -> int:
     ap.add_argument("--char", default="chunli")
     ap.add_argument("--opp", default="ryu")
     ap.add_argument("--rounds", type=int, default=40)
-    ap.add_argument("--model", default="runs/all8/best")
-    ap.add_argument("--advisor", default="runs/text_laya/advice_v1")
+    ap.add_argument("--model", default=LAYA_VISION)
+    ap.add_argument("--advisor", default=TEXT_LAYA)
     ap.add_argument("--seed", type=int, default=None, help="start delays for both arms (default: a new one per run)")
-    ap.add_argument("--base-port", type=int, default=49501)
+    ap.add_argument("--base-port", type=int, default=PORTS["notebook"][0])
     ap.add_argument("--one", nargs=3, metavar=("ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
     exit_on_sigterm()

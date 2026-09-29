@@ -9,11 +9,10 @@ import os
 import re
 from typing import List
 
-from ..config import DEFAULT_ROM, REPO
+from ..config import DEFAULT_ROM, MESEN_CANDIDATES, MESEN_SETTINGS, REPO
 
 ROOT = REPO
 BRIDGE = os.path.join(ROOT, "mesen", "sf2_bridge.lua")
-MAC_MESEN = "/Applications/Mesen.app/Contents/MacOS/Mesen"
 
 
 def bridge_for_port(port: int, out_dir: str = os.path.join(ROOT, "out", "bridge")) -> str:
@@ -31,13 +30,11 @@ def bridge_for_port(port: int, out_dir: str = os.path.join(ROOT, "out", "bridge"
 
 
 def find_mesen(explicit: str = None) -> str:
-    # ~/Applications is where a per-user drag install lands; the app may keep its "Mesen 2" download name
-    user_apps = ["~/Applications/%s.app/Contents/MacOS/Mesen" % app for app in ("Mesen", "Mesen 2")]
-    for cand in (explicit, os.environ.get("SF2_MESEN"), MAC_MESEN, *user_apps):
+    for cand in (explicit, *MESEN_CANDIDATES):
         if cand and os.path.exists(os.path.expanduser(cand)):
             return os.path.expanduser(cand)
     raise FileNotFoundError("Mesen binary not found: pass --mesen or set SF2_MESEN (on macOS usually %s)"
-                            % MAC_MESEN)
+                            % MESEN_CANDIDATES[0])
 
 
 def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
@@ -62,7 +59,7 @@ def window_argv(port: int, rom: str = None, mesen: str = None, speed: int = 100)
         a for a in argv[1:] if not a.startswith(("--testrunner", "--timeout"))]
 
 
-SETTINGS = os.path.expanduser("~/Library/Application Support/MesenCE/settings.json")
+SETTINGS = MESEN_SETTINGS
 
 
 class KeepMesenSettings:
