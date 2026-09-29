@@ -44,7 +44,7 @@ from typing import Dict, List, Optional, Tuple
 
 import _path  # noqa: F401
 from sf2.boot import next_fight, start_arcade
-from sf2.eval.logs import is_test, mark_run
+from sf2.eval.logs import is_test, load_actions, load_rounds, mark_run
 from sf2.headless import KeepMesenSettings, launch_argv, window_argv
 from sf2 import demo_cheat
 from sf2.advisor import Advisor
@@ -84,10 +84,7 @@ def history(me: str) -> Dict[str, Tuple[List[Dict], List[Dict]]]:
     for d in dirs:
         if not os.path.exists(os.path.join(d, "actions.jsonl")) or is_test(d):
             continue            # --fresh demo sessions are not play data (sf2.eval.logs)
-        tag = os.path.relpath(d, "rollouts")
-        acts = [dict(json.loads(x), log=tag) for x in open(os.path.join(d, "actions.jsonl"))]
-        rfile = os.path.join(d, "rounds.jsonl")
-        rounds = [json.loads(x) for x in open(rfile if os.path.exists(rfile) else os.path.join(d, "games.jsonl"))]
+        acts, rounds = load_actions(d), load_rounds(d)
         opps = {a["opp"] for a in acts}
         for o in opps:
             a0, r0 = by_opp.setdefault(o, ([], []))

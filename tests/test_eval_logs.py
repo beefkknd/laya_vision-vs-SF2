@@ -45,3 +45,23 @@ def test_a_broken_marker_is_a_test_run(tmp_path):                         # unre
     with open(os.path.join(d, "run.json"), "w") as f:
         f.write("{half")
     assert play_dirs(root) == []
+
+
+def test_rounds_come_from_rounds_jsonl_or_the_older_games_jsonl(tmp_path):
+    from sf2.eval.logs import load_rounds
+    new, old = tmp_path / "new", tmp_path / "old"
+    new.mkdir()
+    old.mkdir()
+    (new / "rounds.jsonl").write_text('{"round": 0}\n\n{"round": 1}\n')
+    (new / "games.jsonl").write_text('{"game": 0}\n')
+    (old / "games.jsonl").write_text('{"game": 0}\n')
+    assert load_rounds(str(new)) == [{"round": 0}, {"round": 1}]
+    assert load_rounds(str(old)) == [{"game": 0}] and load_rounds(str(tmp_path / "none")) == []
+
+
+def test_read_jsonl_missing():
+    import pytest
+    from sf2.dataset import read
+    assert read("/no/such/file.jsonl", missing_ok=True) == []
+    with pytest.raises(FileNotFoundError):
+        read("/no/such/file.jsonl")

@@ -14,13 +14,13 @@ Log: logs/gaps_<me>.log
 import argparse
 import collections
 import glob
-import json
 import os
 import re
 from typing import Dict, List
 
 import _path  # noqa: F401
 from sf2.advice import FAILS, MAY, WORKS, parse
+from sf2.dataset import read
 
 LOG_LINES: List[str] = []
 
@@ -146,9 +146,7 @@ def main() -> None:
     ap.add_argument("--session", default=None)
     args = ap.parse_args()
     session = args.session or sorted(glob.glob("rollouts/learn/%s/*" % args.char))[-1]
-    acts = [json.loads(line) for line in open(os.path.join(session, "actions.jsonl"))]
-    rounds = [json.loads(line) for line in open(os.path.join(session, "rounds.jsonl"))]
-    games = [json.loads(line) for line in open(os.path.join(session, "games.jsonl"))]
+    acts, rounds, games = (read(os.path.join(session, k + ".jsonl")) for k in ("actions", "rounds", "games"))
     out("session %s: %d rounds, %d decisions" % (session, len(rounds), len(acts)))
     for opp in ["all"] + sorted({a["opp"] for a in acts}):
         a = acts if opp == "all" else [x for x in acts if x["opp"] == opp]

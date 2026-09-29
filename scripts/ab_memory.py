@@ -32,6 +32,7 @@ from typing import Dict, List
 import _path  # noqa: F401
 from sf2 import code_coach
 from sf2.advisor import Advisor
+from sf2.dataset import read
 from sf2.eval import stats
 from sf2.eval.logs import sources
 from sf2.eval.runner import exit_on_sigterm, fan_out
@@ -94,11 +95,7 @@ def play_arm(args, opp: str, arm: str, port: int, out: str) -> int:
 
 
 def _rounds(root: str, opp: str, arm: str) -> List[Dict]:
-    path = os.path.join(root, "%s_%s" % (opp, arm), "rounds.jsonl")
-    if not os.path.exists(path):
-        return []
-    with open(path) as f:
-        return [json.loads(x) for x in f if x.strip()]
+    return read(os.path.join(root, "%s_%s" % (opp, arm), "rounds.jsonl"), missing_ok=True)
 
 
 def summarize(root: str, opps: List[str], arms: List[str], failed=()) -> Dict:

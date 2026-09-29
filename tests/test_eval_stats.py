@@ -67,3 +67,8 @@ def test_pooled_names_opponents_an_arm_did_not_play():         # e.g. qwen skipp
     data = {"ryu": {"none": base, "qwen": rounds(noisy(5, 30, 4))}, "ken": {"none": base},
             "honda": {"none": base, "qwen": rounds(noisy(5, 30, 5))}}
     assert summarize(data, ["none", "qwen"])["pooled"]["qwen"]["missing"] == ["ken"]
+
+
+def test_slope_per_round():
+    from sf2.eval.stats import slope
+    assert slope([1, 2, 3, 4]) == 1.0 and slope([5]) == 0.0 and slope([3, 1]) == -2.0

@@ -11,6 +11,8 @@ import json
 import os
 from typing import Dict, Iterable, List
 
+from ..dataset import read
+
 ROOT = "rollouts"
 TEST_DIRS = ("ab", "notebook")
 RUN_FILE = "run.json"
@@ -49,8 +51,13 @@ def play_dirs(root: str = ROOT) -> List[str]:
 
 def load_actions(d: str, root: str = ROOT) -> List[Dict]:
     tag = os.path.relpath(d, root)
-    with open(os.path.join(d, "actions.jsonl")) as f:
-        return [dict(json.loads(x), log=tag) for x in f if x.strip()]
+    return [dict(a, log=tag) for a in read(os.path.join(d, "actions.jsonl"))]
+
+
+def load_rounds(d: str) -> List[Dict]:
+    """Per-round summaries: rounds.jsonl, or games.jsonl in the older logs (games_v*: one line per round)."""
+    path = os.path.join(d, "rounds.jsonl")
+    return read(path if os.path.exists(path) else os.path.join(d, "games.jsonl"), missing_ok=True)
 
 
 def sources(rows: Iterable[Dict]) -> List[str]:

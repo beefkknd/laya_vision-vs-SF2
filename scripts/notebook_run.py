@@ -22,7 +22,9 @@ from typing import Dict, List
 import _path  # noqa: F401
 from sf2 import notebook as nbk
 from sf2.advisor import Advisor
+from sf2.dataset import read
 from sf2.eval.runner import exit_on_sigterm, fan_out
+from sf2.eval.stats import slope
 from sf2.headless import launch_argv
 from sf2.mesen import MesenBridge
 from sf2.notebook_prompts import messages, reflect_prompt
@@ -96,22 +98,10 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     return 0
 
 
-def slope(ys: List[float]) -> float:
-    n = len(ys)
-    if n < 2:
-        return 0.0
-    mx, my = (n - 1) / 2, sum(ys) / n
-    return sum((i - mx) * (y - my) for i, y in enumerate(ys)) / sum((i - mx) ** 2 for i in range(n))
-
-
 def summarize(root: str) -> Dict:
     out = {}
     for arm in ARMS:
-        path = os.path.join(root, arm, "rounds.jsonl")
-        rs = []
-        if os.path.exists(path):
-            with open(path) as f:
-                rs = [json.loads(x) for x in f if x.strip()]
+        rs = read(os.path.join(root, arm, "rounds.jsonl"), missing_ok=True)
         hp = [r["hp"] for r in rs]
         k = max(1, len(hp) // 3)
         out[arm] = {"rounds": len(rs), "won": sum(r["result"] == "win" for r in rs),

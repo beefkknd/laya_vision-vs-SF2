@@ -37,6 +37,15 @@ def ci(d: Sequence[float]) -> Tuple[float, float, float]:
     return m, m - 1.96 * sd / n ** 0.5, m + 1.96 * sd / n ** 0.5
 
 
+def slope(ys: Sequence[float]) -> float:
+    """Least-squares change per round (0 with fewer than 2 rounds)."""
+    n = len(ys)
+    if n < 2:
+        return 0.0
+    mx, my = (n - 1) / 2, sum(ys) / n
+    return sum((i - mx) * (y - my) for i, y in enumerate(ys)) / sum((i - mx) ** 2 for i in range(n))
+
+
 def verdict(lo: float, hi: float) -> str:
     return "HELPS" if lo > 0 else "HURTS" if hi < 0 else "NOT SHOWN"
 
