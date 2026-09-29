@@ -151,3 +151,13 @@ def test_a_move_she_never_used_can_be_tried_but_not_avoided():
                               claim("avoid", "block_high", "close")], rows, 0, moves=moves + ["block_high"])
     assert out[0]["state"] == "testing"
     assert out[1]["state"] == "refused" and "never" in out[1]["why"]
+
+
+def test_a_what_if_gets_its_own_test_slot():
+    rows = world()
+    reg, _ = L.propose([], [claim("use_more", "hp", "close"), claim("use_more", "mp", "close")], rows, 0,
+                       moves=MOVES)
+    wi = dict(claim("always", "throw", "close", "attacking"), view="what_if")
+    reg, out = L.propose(reg, [wi, claim("use_more", "spinning_bird_kick", "close")], rows, 1, moves=MOVES)
+    assert out[0]["state"] == "testing" and out[1]["state"] == "refused"      # a normal third test is not taken
+    assert L.in_play(reg)[:3] == ["use more hp up close", "use more mp up close", "always throw up close when he attacks"]

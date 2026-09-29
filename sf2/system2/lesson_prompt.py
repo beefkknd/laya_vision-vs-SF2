@@ -15,7 +15,9 @@ from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS, RANGES
 from . import lessons as L
 
-VIEWS = ("attack", "defense")
+VIEWS = ("attack", "defense", "what_if")
+DEFENSIVE = ("block_high", "block_low", "back", "jump_back", "crouch")
+STREAK = 3             # games won (or lost) in a row, with no lesson changing, before Qwen is asked "what if?"
 MIN_SHOWN = 3          # a situation needs this many decisions in the last game to be shown
 ROWS_SHOWN = 10
 
@@ -65,8 +67,15 @@ def attack_view(rows: Sequence[Dict]) -> List[str]:
     return [t for _, t in sorted(out, key=lambda x: -x[0])][:ROWS_SHOWN]
 
 
-def defense_view(rows: Sequence[Dict]) -> List[str]:
-    """The damage she took by cause and situation, most first; then what she chose when he attacked."""
+COMPARE = {"better": "better than her other moves there", "worse": "worse than her other moves there",
+           "unclear": "no clearer than her other moves there", "few": "too few to compare"}
+
+
+def defense_view(rows: Sequence[Dict], all_rows: Optional[Sequence[Dict]] = None,
+                 moves: Sequence[str] = ()) -> List[str]:
+    """The damage she took by cause and situation, most first, each move compared with her other moves there (over
+    ``all_rows``); what she chose when he attacked; the defensive moves she never used."""
+    all_rows = rows if all_rows is None else all_rows
     hurt = collections.defaultdict(lambda: [0, 0])
     for a in rows:
         c = L.cause(a)
@@ -74,8 +83,12 @@ def defense_view(rows: Sequence[Dict]) -> List[str]:
             h = hurt[(c, a["action"], a["range"], opp_doing(a))]
             h[0] += 1
             h[1] += a["taken"]
-    out = ["- %s %s %s: %d times, %d damage" % (c, "while" if c == "caught" else "after", _where(m, r, d), n, t)
-           for (c, m, r, d), (n, t) in sorted(hurt.items(), key=lambda kv: -kv[1][1])][:ROWS_SHOWN]
+    out = []
+    for (c, m, r, d), (n, t) in sorted(hurt.items(), key=lambda kv: -kv[1][1])[:ROWS_SHOWN]:
+        ev = L.condition_evidence(all_rows, {"kind": "use_more", "move": m, "range": r, "when": d})
+        out.append("- %s %s %s: %d times, %d damage; %s there nets %+.1f per decision vs her %+.1f with other moves: "
+                   "%s" % (c, "while" if c == "caught" else "after", _where(m, r, d), n, t, m, ev["net"], ev["base"],
+                           COMPARE[ev["cls"]]))
     chose = collections.defaultdict(lambda: [0, 0])
     for a in rows:
         if a.get("opp_attacked"):
@@ -84,7 +97,35 @@ def defense_view(rows: Sequence[Dict]) -> List[str]:
     if chose:
         out.append("- when he attacked, she chose: %s" % ", ".join(
             "%s %d (took %.1f each)" % (m, n, t / n) for m, (n, t) in sorted(chose.items(), key=lambda kv: -kv[1][0])))
+    used = {a["action"] for a in all_rows}
+    never = [m for m in DEFENSIVE if m in moves and m not in used]
+    if never:
+        out.append("- never used: %s (laya-vision rates them unlikely to work, so a \"use more\" lesson will not make "
+                   "her try one; an \"always\" lesson will)" % ", ".join(never))
     return out
+
+
+def streak(games: Sequence[Dict], changed: Sequence[bool], n: int = STREAK) -> Optional[str]:
+    """"losing" / "winning" when she lost (won) each of the last ``n`` games and no lesson changed in them."""
+    if len(games) < n or any(changed[-n:]):
+        return None
+    last = games[-n:]
+    if all(g["lost"] > g["won"] for g in last):
+        return "losing"
+    if all(g["won"] > g["lost"] for g in last):
+        return "winning"
+    return None
+
+
+WHAT_IF = {
+    "losing": "WHAT IF: she lost each of the last %d games and her lessons have not changed. Time to try something new "
+              "to break it: propose one \"what_if\" lesson (use more or always) with a move she has rarely or never used, "
+              "in a situation where she keeps losing. It is tried for a few games.",
+    "winning": "WHAT IF: she won each of the last %d games and her lessons have not changed. Check what makes the "
+               "difference: propose one \"what_if\" lesson (use more or always) with a different option in a situation "
+               "where she wins, to confirm whether her current way is really the best there."}
+WHAT_IF_JSON = (',\n "what_if": {{"kind": "use_more|always", "move": "...", "range": "close|mid|far|null", '
+                '"when": "jumping|crouching|attacking|standing|stunned|null", "why": "one short sentence"}}')
 
 
 def record(all_rounds: Sequence[Dict], last: Sequence[Dict]) -> str:
@@ -117,25 +158,27 @@ def _registry(reg: L.Registry) -> str:
     return "\n".join("- %s: %s (%s)" % (r["state"], r["line"], r["why"]) for r in reg) if reg else "(nothing yet)"
 
 
-DEFENSIVE = ("block_high", "block_low", "back", "jump_back", "crouch")
-
-
 def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
              all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], moves: Sequence[str] = (),
-             refused: Sequence[Dict] = ()) -> List[Dict]:
+             refused: Sequence[Dict] = (), stable: Optional[str] = None) -> List[Dict]:
     moves = list(moves) or sorted({a["action"] for a in rows})
     parts = [
         record(all_rounds, last_rounds),
         "What she knows about %s so far:\n%s" % (opp, _registry(reg)),
         "ATTACK - her attacks in the last game:\n%s" % ("\n".join(attack_view(last)) or "(none shown)"),
-        "DEFENSE - the damage she took in the last game:\n%s" % ("\n".join(defense_view(last)) or "(none)"),
+        "DEFENSE - the damage she took in the last game:\n%s" % ("\n".join(defense_view(last, rows, moves)) or
+                                                                  "(none)"),
         "All games so far, per move and range, against her average at that range:\n%s" % (
             "\n".join(overall(rows)) or "(not enough yet)")]
     if refused:
         parts.append("Refused last time (do not propose again):\n%s" % "\n".join(
             "- %s: %s" % (L.render(o["claim"]) if _renderable(o["claim"]) else o["claim"], o["why"]) for o in refused))
+    if stable:
+        parts.append(WHAT_IF[stable] % STREAK)
     system = SYSTEM.format(me=me, opp=opp, moves=", ".join(moves),
                            defensive=", ".join(m for m in DEFENSIVE if m in moves) or "none")
+    if stable:
+        system = system[:-1] + WHAT_IF_JSON.replace("{{", "{").replace("}}", "}") + "}"      # inside the object
     return [{"role": "system", "content": system}, {"role": "user", "content": "\n\n".join(parts)}]
 
 

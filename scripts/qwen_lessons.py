@@ -30,7 +30,7 @@ from sf2.system1.advisor import Advisor
 from sf2.system1.system1 import System1, play_round
 from sf2.data.vs_sweep import actions
 from sf2.system2 import lessons as L
-from sf2.system2.lesson_prompt import messages, parse_claims
+from sf2.system2.lesson_prompt import messages, parse_claims, streak
 from sf2.system2.qwen import chat, json_reply
 from sf2.vocab import RANGES
 
@@ -48,9 +48,10 @@ MOVES = list(actions(ME))
 
 
 def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_rounds: List[Dict],
-        last_rounds: List[Dict], refused: List[Dict]):
+        last_rounds: List[Dict], refused: List[Dict], stable=None):
     try:
-        raw = chat(messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused), "lessons_%s" % opp)
+        raw = chat(messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused, stable),
+                   "lessons_%s" % opp)
         claims, problems = parse_claims(json_reply(raw))
     except Exception as e:                   # Qwen down, cut off or not JSON: no claims this game
         return [], ["%s: %s" % (type(e).__name__, e)], None
@@ -63,6 +64,8 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     acts: List[Dict] = []
     played: List[Dict] = []
     refused: List[Dict] = []
+    games: List[Dict] = []             # per game: rounds won / lost
+    changed: List[bool] = []           # per update: did the registered lessons change
     os.makedirs(out, exist_ok=True)
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed)       # never play data (sf2.eval.logs)
     with Advisor(args.advisor) as advisor, open_fight(ME, args.opp, port) as (b, state), \
@@ -74,11 +77,15 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
         def learn(game: int, last: List[Dict], last_rounds: List[Dict]) -> None:
             nonlocal reg, refused
             rows = base + acts
+            before = {r["line"] for r in reg if r["state"] == "registered"}
             reg = L.review(reg, rows, game)
-            claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused)
+            stable = streak(games, changed)
+            claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused, stable)
             reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES)
+            changed.append({r["line"] for r in reg if r["state"] == "registered"} != before)
             refused = [o for o in outcome if o["state"] == "refused"]
-            logs["ledger"].write(json.dumps({"game": game, "claims": claims, "outcome": outcome, "problems": problems,
+            logs["ledger"].write(json.dumps({"game": game, "stable": stable, "claims": claims, "outcome": outcome,
+                                             "problems": problems,
                                              "registry": reg, "in_play": L.in_play(reg),
                                              "violations": L.violations(reg, rows), "reply": raw}) + "\n")
             logs["ledger"].flush()
@@ -105,6 +112,8 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
                                                           rnd.summary["dealt"] - rnd.summary["taken"]), flush=True)
             acts += this
             played += this_rounds
+            games.append({"won": sum(r["result"] == "win" for r in this_rounds),
+                          "lost": sum(r["result"] != "win" for r in this_rounds)})
             if arm == "loop":
                 learn(game, this, this_rounds)
     return 0
@@ -140,6 +149,9 @@ def verdict(root: str, opp: str, history: bool) -> Dict:
             "qwen_hold_rate": sum(holds(c, rows) for c in valid) / len(valid) if valid else None,
             "qwen_hold_rate_by_view": {v: (sum(holds(c, rows) for c in cs) / len(cs) if cs else None, len(cs))
                                        for v, cs in views.items()},
+            "what_if_asked": sum(bool(r.get("stable")) for r in led),
+            "what_if": [(o.get("line") or o["claim"], o["state"]) for r in led for o in r["outcome"]
+                        if isinstance(o["claim"], dict) and o["claim"].get("view") == "what_if"],
             "kinds_registered": {k: sum(r["state"] == "registered" and r["claim"]["kind"] == k for r in final)
                                  for k in L.KINDS},
             "random_hold_rate": sum(holds(c, rows) for c in rand) / len(rand) if rand else None,

@@ -64,3 +64,41 @@ def test_the_prompt_lists_her_moves_with_the_defensive_ones_and_last_refusals():
     msgs = messages("chunli", "ken", [], ROWS, ROWS, [], [], moves=moves, refused=refused)
     assert "block_low" in msgs[0]["content"] and "never used" in msgs[0]["content"]
     assert "Refused last time" in msgs[1]["content"] and "already registered" in msgs[1]["content"]
+
+
+def test_the_defense_view_compares_each_row_with_her_other_options_there():
+    """Ken (2026-09-29): Qwen re-proposed 'avoid hp up close when he jumps' (punished for 221) although hp was her
+    best option there (-1.0 vs -10.5): the view showed raw damage only."""
+    rows = [act("hp", "close", -1, air=True, actual="whiff")] * 30 + [act("sweep", "close", -12, air=True)] * 30
+    got = "\n".join(defense_view(rows, rows))
+    assert "punished after hp up close when he jumps" in got and "better than her other moves there" in got
+    assert "worse than her other moves there" in got                          # sweep
+
+
+def test_the_defense_view_names_defensive_moves_she_never_used():
+    got = "\n".join(defense_view(ROWS, ROWS, moves=["sweep", "back", "block_high", "block_low"]))
+    assert "never used: block_high, block_low" in got and "always" in got
+
+
+def test_a_stable_streak_asks_what_if():
+    from sf2.system2.lesson_prompt import streak
+    lose, win = {"won": 0, "lost": 3}, {"won": 2, "lost": 1}
+    assert streak([lose, lose, lose], changed=[False, False, False]) == "losing"
+    assert streak([win, win, win], changed=[False, False, False]) == "winning"
+    assert streak([lose, lose, lose], changed=[False, True, False]) is None      # still learning: not stable
+    assert streak([lose, win, lose], changed=[False, False, False]) is None
+    assert streak([lose, lose], changed=[False, False]) is None                 # too short
+    msgs = messages("chunli", "ken", [], ROWS, ROWS, [], [], stable="losing")
+    assert "WHAT IF" in msgs[1]["content"] and '"what_if"' in msgs[0]["content"]
+    assert "WHAT IF" not in messages("chunli", "ken", [], ROWS, ROWS, [], [])[1]["content"]
+    claims, _ = parse_claims({"attack": None, "defense": None, "what_if": {"kind": "always", "move": "block_high",
+                                                                          "range": "close", "when": "jumping"}})
+    assert claims[0]["view"] == "what_if"
+
+
+def test_the_answer_template_is_valid_json_with_and_without_what_if():
+    import json
+    for stable in (None, "losing", "winning"):
+        system = messages("chunli", "ken", [], ROWS, ROWS, [], [], stable=stable)[0]["content"]
+        template = json.loads(system[system.index('{"attack"'):])
+        assert set(template) == ({"attack", "defense"} | ({"what_if"} if stable else set()))

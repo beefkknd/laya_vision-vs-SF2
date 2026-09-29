@@ -30,7 +30,7 @@ LEAD = {"use_more": "use more", "always": "always", "avoid": "avoid"}
 WHEN_WORDS = {"jumping": "when he jumps", "crouching": "when he crouches", "attacking": "when he attacks",
               "standing": "when he stands", "stunned": "when he is stunned"}
 MAX_LINES = 5          # text laya reads at most 5 advice lines
-MAX_TESTS = 2          # claims being tried at once
+MAX_TESTS = 2          # claims being tried at once (+1 for a "what if" when she is stuck in a streak)
 TEST_GAMES = 3         # games a "use more" claim is tried before it is judged
 
 Claim = Dict
@@ -164,8 +164,9 @@ def propose(reg: Registry, claims: Sequence, rows: Sequence[Dict], game: int,
             continue
         ev = condition_evidence(rows, c)
         state, why = _judge(c, ev)
-        if state == "testing" and sum(r["state"] == "testing" for r in reg) >= MAX_TESTS:
-            out.append({"claim": c, "state": "refused", "why": "already %d claims in test" % MAX_TESTS})
+        limit = MAX_TESTS + (c.get("view") == "what_if")       # a what-if gets its own slot
+        if state == "testing" and sum(r["state"] == "testing" for r in reg) >= limit:
+            out.append({"claim": c, "state": "refused", "why": "already %d claims in test" % limit})
             continue
         entry = _entry(c, state, why, game, ev, c.get("why", ""))
         reg.append(entry)
@@ -196,7 +197,7 @@ def review(reg: Registry, rows: Sequence[Dict], game: int) -> Registry:
 
 
 def in_play(reg: Registry) -> List[str]:
-    tests = [r["line"] for r in reg if r["state"] == "testing"][:MAX_TESTS]
+    tests = [r["line"] for r in reg if r["state"] == "testing"][:MAX_TESTS + 1]
     lessons = sorted((r for r in reg if r["state"] == "registered"), key=lambda r: -strength(r))
     return tests + [r["line"] for r in lessons][:MAX_LINES - len(tests)]
 
