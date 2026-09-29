@@ -4,8 +4,8 @@ frozen fixtures (tests/fixtures/system2/, never memory/), and check its RAW repl
 a case passes only if EVERY run passes. A mix of passes and fails is reported as FLIP: a sign the prompt is ambiguous,
 not something to retry until green.
 
-    python scripts/test_system2_prompts.py                 # needs omlx running (~/work/omlx/start); a few minutes
-    python scripts/test_system2_prompts.py --repeats 3 --only revise_ignored
+    python scripts/check_system2_prompts.py                 # needs omlx running (~/work/omlx/start); a few minutes
+    python scripts/check_system2_prompts.py --repeats 3 --only revise_ignored
 
 Cases (Chun-Li; her real logs vs Ryu and Dhalsim):
     new_opponent       short memory vs an opponent with no games: no habit or counter lessons (nothing backs them)

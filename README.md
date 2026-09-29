@@ -49,9 +49,9 @@ screen ─▶ laya-vision (runs/all8/best)      rates every move: "likely works 
 |---|---|
 | Play arcade mode in a window, learn until stopped | `python scripts/learn_loop.py` (`--minutes 10`, `--headless`, `--advisor off`, `--ab-advice`) |
 | Does the short memory help? (headless, opponent locked, paired) | `python scripts/ab_memory.py --rounds 30` |
-| Where the loop loses (see / choose / advice / walk / defend / lessons) | `python scripts/learning_gaps.py` |
-| How much each memory rewrite changed (churn, flips) | `python scripts/memory_churn.py` |
-| Does a model read advice words at all? | `scripts/probe_memory_words.py` (laya-vision), `scripts/probe_text_laya.py` (text laya) |
+| Where the loop loses (see / choose / advice / walk / defend / lessons) | `python scripts/report.py gaps` |
+| How much each memory rewrite changed (churn, flips) | `python scripts/report.py churn` |
+| Does a model read advice words at all? | the probes `probe_memory_words.py` / `probe_text_laya.py`, removed 2026-09-29; in git at 7b5e280 |
 
 Start omlx first (`~/work/omlx/start`). Findings so far and the next plan: `~/work/me/journals/laya_vision-vs-SF2/`.
 

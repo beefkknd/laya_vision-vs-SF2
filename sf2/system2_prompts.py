@@ -1,6 +1,6 @@
 """Everything System 2 sends Qwen, in one place: the rules (system prompt), the log digest, the report of what System
 1 did with each lesson, and the task prompts. The runtime (sf2/system2.py, via scripts/learn_loop.py) and the prompt
-tests (scripts/test_system2_prompts.py) both build their chats here, so what is tested is exactly what runs."""
+tests (scripts/check_system2_prompts.py) both build their chats here, so what is tested is exactly what runs."""
 import collections
 from typing import Dict, List, Optional, Tuple
 

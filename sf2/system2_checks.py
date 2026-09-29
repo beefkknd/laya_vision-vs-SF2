@@ -1,5 +1,5 @@
 """Mechanical checks on Qwen's RAW reply to a System 2 prompt (before sf2.system2.vet filters anything): every rule
-is a yes/no a program computes. Used by scripts/test_system2_prompts.py (live Qwen) and tests/ (canned replies).
+is a yes/no a program computes. Used by scripts/check_system2_prompts.py (live Qwen) and tests/ (canned replies).
 
     reply_problems(...)   the rules every reply must meet: JSON with lessons, at most the limit, known kind / claim /
                           range / move, laya-sized text (<= MAX_TEXT, no numbers), no move twice, no move both

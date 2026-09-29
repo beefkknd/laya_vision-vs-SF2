@@ -6,8 +6,8 @@ in two versions:
 
 Runs in the media venv (.venv-media: mlx-whisper, mlx-audio/Kokoro, Pillow); Qwen on omlx translates.
 
-    .venv-media/bin/python scripts/make_video.py                 # everything, from ~/Desktop/laya_video/work
-    .venv-media/bin/python scripts/make_video.py --only en
+    .venv-media/bin/python tools/make_video.py                 # everything, from ~/Desktop/laya_video/work
+    .venv-media/bin/python tools/make_video.py --only en
 
 Inputs (made by earlier steps): stitched_en_nocaptions.mp4 (the four parts joined), work/transcript_en.json (Whisper
 large-v3-turbo). Outputs in ~/Desktop/laya_video/: laya_sf2_part2_en.mp4 / _zh.mp4 (captions burned in) and

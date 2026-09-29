@@ -52,5 +52,5 @@ def diff(old: Dict, new: Dict, moves: Sequence[str]) -> Change:
         opposite = ({"negative": "positive", "positive": "negative"}.get(k[0]),) + k[1:]
         if opposite in b and k[1] is not None:
             flips.append((a[k], b[opposite]))
-    return Change(kept=len(kept), added=[b[k] for k in set(b) - kept], dropped=[a[k] for k in set(a) - kept],
+    return Change(kept=len(kept), added=[b[k] for k in b if k not in kept], dropped=[a[k] for k in a if k not in kept],
                   flipped=sorted(flips), size=(len(a), len(b)))

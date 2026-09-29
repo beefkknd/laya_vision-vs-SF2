@@ -20,3 +20,6 @@ dev = ["pytest"]
 
 [tool.setuptools]
 packages = ["sf2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
