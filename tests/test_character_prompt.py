@@ -4,6 +4,7 @@ what does not. Owner, 2026-09-29: "what opponent specific move always win agains
 doesn't work". The logs cannot name his move (a CPU special is logged as a plain attack), text laya is not retrained:
 Qwen says it in the grammar's words (docs/qwen_learning.md, the gap)."""
 import json
+import os
 
 from sf2.system1.advice import read
 from sf2.system2 import character_prompt as C
@@ -108,3 +109,10 @@ def test_the_chance_baseline_names_what_he_is_doing_like_a_character_lesson():
     q = qwen_lessons()
     assert all(c["when"] for c in q.random_claims(world(), 200, need_when=True))
     assert any(c["when"] is None for c in q.random_claims(world(), 200))
+
+
+def test_two_runs_against_one_opponent_keep_separate_console_logs():
+    """2026-09-29: six runs at once, two per opponent, wrote into the same logs/qwen_lessons/ken_loop.log."""
+    q = qwen_lessons()
+    a, b = (q.log_dir(os.path.join("rollouts", "x", s)) for s in ("20260929-170523_ken", "20260929-170526_ken"))
+    assert a != b and a.startswith(os.path.join("logs", "qwen_lessons"))

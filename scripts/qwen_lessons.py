@@ -227,6 +227,11 @@ def export(out: str = os.path.join("lessons", "chunli.json")) -> int:
     return 0
 
 
+def log_dir(root: str) -> str:
+    """The arms' console logs, one folder per run (two runs against one opponent must not share a file)."""
+    return os.path.join("logs", "qwen_lessons", os.path.basename(root))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--opp")
@@ -261,9 +266,9 @@ def main() -> int:
                               + (["--lock", args.lock] if args.lock else []) + ["--prompt", args.prompt]
                               + ["--one", arm, str(args.base_port + i), os.path.join(root, arm)])
             for i, arm in enumerate(("loop", "none"))]
-    print("Chun-Li vs %s: %d games x %d rounds, seed %d; logs/qwen_lessons/" % (
-        args.opp, args.games, args.rounds, args.seed), flush=True)
-    failed = fan_out(cmds, os.path.join("logs", "qwen_lessons"), job_gb=MODEL_JOB_GB)
+    print("Chun-Li vs %s: %d games x %d rounds, seed %d; %s/" % (
+        args.opp, args.games, args.rounds, args.seed, log_dir(root)), flush=True)
+    failed = fan_out(cmds, log_dir(root), job_gb=MODEL_JOB_GB)
     v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, failed_jobs=[list(k) for k in failed])
     with open(os.path.join(root, "verdict.json"), "w") as f:
         json.dump(v, f, indent=1)
