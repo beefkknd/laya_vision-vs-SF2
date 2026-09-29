@@ -6,7 +6,8 @@ own condition (net hit points per try: damage dealt - taken, to her next decisio
 
     avoid      judged at once: clearly bad -> registered, else rejected (she should not play a bad move to test it)
     use more   clearly good -> registered, clearly bad -> rejected, else testing: in play for up to TEST_GAMES games,
-               then registered if it became clearly good, rejected if not
+               then registered if it became clearly good, rejected if not (with too few tries in its condition:
+               "too few", and it may be proposed again, like an avoid with too few tries)
     registered -> retired when its evidence stops holding (a "use more" no longer clearly good, an "avoid" no longer
                clearly bad)
 
@@ -135,8 +136,10 @@ def review(reg: Registry, rows: Sequence[Dict], game: int) -> Registry:
         if r["state"] == "testing":
             state, why = _judge(r["claim"], ev)
             if state == "testing" and game - r["since"] >= TEST_GAMES:
-                state, why = "rejected", "not shown after %d games: %+.1f per try, 95%% %+.1f to %+.1f" % (
-                    TEST_GAMES, ev["net"], ev["lo"], ev["hi"])
+                state, why = "rejected", (
+                    "too few tries after %d games (%d): may be proposed again" % (TEST_GAMES, ev["tries"])
+                    if ev["cls"] == "few" else "not shown after %d games: %+.1f per try over %d tries, 95%% %+.1f "
+                    "to %+.1f" % (TEST_GAMES, ev["net"], ev["tries"], ev["lo"], ev["hi"]))
             r.update(state=state, why=why, evidence=ev)
         elif r["state"] == "registered" and ev["cls"] != right:
             r.update(state="retired", why="no longer clearly %s: %+.1f per try, 95%% %+.1f to %+.1f" % (

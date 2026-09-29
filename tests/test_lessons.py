@@ -109,3 +109,15 @@ def test_invariant_no_registered_lesson_contradicts_its_evidence():
         reg, _ = L.propose(reg, claims, rows, game=g)
         reg = L.review(reg, rows, game=g)
         assert L.violations(reg, rows) == []
+
+
+def test_a_test_with_too_few_tries_is_not_disproven():
+    """First Ken lesson loop (2026-09-29): 'use more hp up close when he stands' was rejected as 'not shown after
+    3 games: +14.6 per try, 95% +3.1 to +26.0' (only 14 tries in its condition), and Qwen's re-proposal was refused."""
+    rows = many("hp", "close", 14, 6)
+    reg, _ = L.propose([], [claim("use_more", "hp", "close", "standing")], rows, game=0)
+    for g in range(1, L.TEST_GAMES + 1):
+        reg = L.review(reg, rows + many("hp", "close", 14, 2 * g, seed=g), game=g)
+    assert reg[0]["state"] == "rejected" and reg[0]["why"].startswith("too few tries")
+    reg, out = L.propose(reg, [claim("use_more", "hp", "close", "standing")], rows + many("hp", "close", 14, 30), 4)
+    assert out[0]["state"] == "registered"                             # proposed again once the data is there
