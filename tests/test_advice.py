@@ -141,3 +141,29 @@ def test_churn_replacing_most_is_radical():
 @pytest.mark.parametrize("text", ["drop spinning_bird_kick: ryu hits you back", "skip sweep up close"])
 def test_drop_and_skip_are_negative(text):          # Qwen wrote "drop X" (live loop, 2026-09-28)
     assert parse(text, MOVES).polarity == "neg"
+
+
+def test_a_named_move_joins_the_shortlist_only_where_its_lesson_applies():
+    """The trace of 2026-09-29: 'use more c.mk at mid range' put c.mk on the shortlist at every range; up close
+    laya-vision rates it 'likely works' (wrongly), so text laya played it there 10 -> 134 times at -2.7 per try."""
+    from sf2.system1.advisor import shortlist
+    moves = ["lp", "sweep", "c.mk", "hp", "throw"]
+    scores = {"lp": 0.7, "sweep": 0.6, "hp": 0.5, "c.mk": 0.3, "throw": 0.1}      # c.mk is not in the top 3
+    lines = ["use more c.mk at mid range", "avoid throw up close", "use more lp when he jumps"]
+    assert "c.mk" in shortlist(scores, lines, moves, ("mid", "standing"))
+    assert "c.mk" not in shortlist(scores, lines, moves, ("close", "standing"))
+    assert "throw" not in shortlist(scores, lines, moves, ("close", "standing"))    # avoid: nothing to add
+    assert list(shortlist(scores, [], moves, ("close", "standing"))) == ["lp", "sweep", "hp", "forward"]
+
+
+def test_text_laya_reads_only_the_lessons_that_apply_now():
+    """After the shortlist fix, c.mk tied with other 'likely works' moves up close was still picked 53% vs 16%:
+    the words 'use more c.mk at mid range' in its advice lean the tie. Only lessons that apply here are shown."""
+    from sf2.system1.advisor import applicable
+    moves = ["lp", "sweep", "c.mk", "spinning_bird_kick"]
+    lines = ["use more c.mk at mid range", "avoid spinning_bird_kick up close", "use more lp when he jumps",
+             "avoid sweep", "he jumps a lot"]
+    assert applicable(lines, moves, ("close", "standing")) == ["avoid spinning_bird_kick up close", "avoid sweep",
+                                                               "he jumps a lot"]
+    assert applicable(lines, moves, ("mid", "jumping")) == ["use more c.mk at mid range", "use more lp when he jumps",
+                                                            "avoid sweep", "he jumps a lot"]

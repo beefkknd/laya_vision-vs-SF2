@@ -7,7 +7,7 @@ followed), and forward. The text is built by sf2.system1.advice exactly as in te
 import json
 import os
 import subprocess
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .advice import FORWARD, answers, prompt, question, rating, read, situation_text
 from ..config import HF_HOME, MLX_PYTHON, REPO
@@ -60,20 +60,41 @@ class Advisor:
                 self.proc.wait(timeout=10)
 
 
-def shortlist(scores: Dict[str, float], lessons: Sequence[str], moves: Sequence[str]) -> Dict[str, Optional[str]]:
-    """move -> laya-vision's rating in words: the best-rated moves, every move a lesson names, and forward."""
+def shortlist(scores: Dict[str, float], lessons: Sequence[str], moves: Sequence[str],
+              situation: Tuple[str, str]) -> Dict[str, Optional[str]]:
+    """move -> laya-vision's rating in words: the best-rated moves, the moves a "use more" / "always" lesson names
+    where that lesson applies (``situation``: range, what he is doing), and forward. A named move is not added where
+    its lesson does not apply: laya-vision may rate it well there, and text laya then leans to the named move
+    (2026-09-29: "use more c.mk at mid range" made her play c.mk up close 10 -> 134 times)."""
+    rng, doing = situation
     best = sorted(scores, key=scores.get, reverse=True)[:SHORTLIST]
     named = [les.move for les in (read(t, list(moves) + [FORWARD]) for t in lessons)
-             if les.move in scores and les.move not in best]
+             if les.move in scores and les.move not in best and les.polarity in ("soft", "hard")
+             and les.applies(rng, doing)]
     out = {m: rating(scores[m]) for m in best + sorted(set(named))}
     out[FORWARD] = None
     return out
 
 
+def applicable(lessons: Sequence[str], moves: Sequence[str], situation: Tuple[str, str]) -> List[str]:
+    """The lessons that apply now (range, what he is doing), in their order; a lesson that names no move of hers
+    (an opponent habit) always does. The rest are not shown to text laya: the words of a lesson about another range
+    lean its choice anyway (2026-09-29: "use more c.mk at mid range" -> c.mk picked in 53% of close-range ties, 16%
+    without advice)."""
+    out = []
+    for t in lessons:
+        les = read(t, list(moves) + [FORWARD])
+        if les.move is None or les.applies(*situation):
+            out.append(t)
+    return out
+
+
 def choose(advisor: Advisor, situation: Tuple[str, str, str, str], scores: Dict[str, float],
            lessons: Sequence[str], moves: Sequence[str]) -> Dict:
-    """Text laya's pick, with what it saw and what the label rule says (logged, so every game checks it)."""
-    options = shortlist(scores, lessons, moves)
+    """Text laya's pick, with what it saw and what the label rule says (logged, so every game checks it). It reads
+    only the lessons that apply now (``applicable``)."""
+    lessons = applicable(lessons, moves, situation[:2])
+    options = shortlist(scores, lessons, moves, situation[:2])
     text = prompt(situation_text(*situation), lessons)
     probs = advisor.ask(text, question(options))
     pick = max(probs, key=probs.get)

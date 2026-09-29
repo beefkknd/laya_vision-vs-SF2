@@ -85,7 +85,7 @@ def test_a_line_with_two_ranges_never_crashes():          # Qwen wrote this (not
     f = facts(ROUND, SUMMARY)
     assert unexpected(f, [line], MOVES) == [] and plan_check(f, [line], MOVES) == []
     assert clean_plan([line], MOVES, 1) == ([], ["names none of my moves, or two ranges at once: %r" % line])
-    assert "forward" in shortlist({"lp": 0.4, "sweep": 0.6}, [line], MOVES)
+    assert "forward" in shortlist({"lp": 0.4, "sweep": 0.6}, [line], MOVES, ("mid", "standing"))
 
 
 def test_a_reply_that_is_not_an_object_keeps_book_and_plan():      # valid JSON, wrong shape: never a crash
