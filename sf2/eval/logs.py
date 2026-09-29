@@ -2,7 +2,8 @@
 seed as the A/B test, so learning from them would leak the test into the lesson):
 
     rollouts/ab/, rollouts/notebook/,     A/B, notebook and Qwen move tests
-      rollouts/qwen_moves/
+      rollouts/qwen_moves/, rollouts/qwen_lessons/,
+      rollouts/locked/                    (and runs repeated from a lock, sf2.eval.lock)
     a run marked "fresh" in run.json      learn_loop --fresh (demo sessions with their own memory_runs/<name>)
     a run marked "test" in run.json       any other test run
     a run.json that cannot be read        not trusted as play data
@@ -17,7 +18,7 @@ from typing import Dict, Iterable, List, Tuple
 from ..data.dataset import read
 
 ROOT = "rollouts"
-TEST_DIRS = ("ab", "notebook", "qwen_moves", "qwen_lessons")
+TEST_DIRS = ("ab", "notebook", "qwen_moves", "qwen_lessons", "locked")
 RUN_FILE = "run.json"
 
 

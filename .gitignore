@@ -28,3 +28,5 @@ memory_runs/
 memory_seeds/
 # Video tools (whisper captions, kokoro voice): tools/make_video.py
 .venv-media/
+# Lock copies (sf2.eval.lock): manifest.json is committed, the copied checkpoints / states / play logs are not
+locks/*/artifacts/

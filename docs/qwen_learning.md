@@ -223,6 +223,30 @@ are now verified (Ken's jump-ins; Honda at mid range, high and low), two of them
 left as is: its block score (P(blocked)) is low by construction (70 of 336 block training rows ended "blocked"), so
 blocks read "likely fails" and only an "always" lesson makes her block.
 
+## 0e. Lock `lesson_loop_v1` (2026-09-29): the 0d round 2 frozen, git tag `lesson-loop-v1`
+
+`scripts/lock.py make` copied (APFS clones) and hashed the inputs of the 6 round-2 runs of 0d into
+`locks/lesson_loop_v1/` (manifest committed, copies git-ignored): laya-vision `runs/all8/best`, text laya
+`runs/text_laya/advice_v1`, 3 savestates, 9 play logs (her history: identical rows to the live read, Ken 2552, Ryu
+2259, Honda 2041); the Qwen model, Hugging Face base revisions and ROM hash are recorded. `scripts/lock.py verify` checks
+it; `qwen_lessons.py --lock lesson_loop_v1 --run N` repeats run N from the copies only (refused if anything changed),
+output under `rollouts/locked/` (never play data).
+
+Repeat of run 0 (Ken, seed 11688), `scripts/compare_runs.py`:
+
+| | original | from the lock |
+|---|---|---|
+| no-advice arm (30 rounds, 649 decisions) | | byte-identical |
+| loop: rounds 0-17 | | identical |
+| loop: Qwen's reply after game 1 | | differs (Qwen at temperature 0 is not repeatable) |
+| lessons in play differ from | | game 6 |
+| registered at end | 4 avoid | the same 4 + "use more hp up close" |
+| hp/round vs none | +10.7 [-15.5, +36.8] | +13.7 [-12.7, +40.1] |
+| Qwen claims that hold | 32% | 37% |
+
+So the lock reproduces the game, laya and the code exactly; the only source of drift is Qwen. A repeat is comparable
+in distribution, not byte for byte.
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced

@@ -1,0 +1,502 @@
+{
+ "commit": "94f4ede24cb80e7202160871187688f63c5337d3",
+ "extra": {
+  "hf_bases": {
+   "aac6fef/laya-mlx": "20aed815fc6acde75733882e7ec0e3f28aeb9717",
+   "thaitea/laya-vision-smolvlm-256m": "f2fe3c12cb6d04c59d8a190250bf3fb40fc828dc"
+  },
+  "note": "the 6 round-2 what-if runs (Ken/Ryu/Honda x2) of docs/qwen_learning.md 0d",
+  "qwen": {
+   "model": "Jundot--Qwen3.8-27B-oQ4e-mtp",
+   "temperature": 0.0
+  },
+  "rom": {
+   "path": "roms/Street Fighter II (USA).sfc",
+   "sha256": "2b34161e96ef3f0f48cecd67e531a9bb94310652d8686f301bac426e4ab97e77"
+  }
+ },
+ "files": {
+  "advisor/adapter.json": "64fe66d73069e6c1cfcb7301d8f97ce129a46a08b945b27484bff70ea51f901f",
+  "advisor/adapter.safetensors": "cb2a522ecc74ccb44820fef3a18271ca031d953fbf77f450d30d622073a6387e",
+  "advisor/test.json": "82558e14d94af858e8ab19a281cb26e0b93250f39557233bf270311483e4240a",
+  "model/backbone/config.json": "865861b8d4e8ee99826ff58a72b84e376dddbe191265abb3dfed68aef40c226d",
+  "model/eval_outcome.json": "9f5a6e6c6232f67719d5770e1a0a88ee6ffd877cd97514a2e769ecc19adb933b",
+  "model/model.safetensors": "4fcfbb97ed9e02fd608846e7efd05ae4f08953ba333900dcd41ab5b593ab408c",
+  "model/processor/chat_template.jinja": "830005085ddd94cec605b6e21b885b28ffad6e3f82ee6a212c523533e8f04f01",
+  "model/processor/processor_config.json": "aa2f2e29588f8e140b356b4cf03026f320ea16200db45f7fa3d2bbe73d79b03b",
+  "model/processor/tokenizer.json": "2500f374cdc89040032a7d8437b6ed0fe745667b1194c17914d062ee31701605",
+  "model/processor/tokenizer_config.json": "e3dbc4d0735aa794532520ec36b6ab46bc075a306f18a8fa725a8aad6c39caa1",
+  "model/vlm_agent_config.json": "74866a32ff1b30843832c2f940fafe4625f3a13191e5fff0376625f206d10254",
+  "play/blocks_v1/chunli/actions.jsonl": "b890bf2e4eddc4b3126ffd624cd5577dc413808023366223dfd1b85382c80366",
+  "play/blocks_v1/chunli/games.jsonl": "733dfb8320a27650004fe1d75fd386989246df1fac1f10cbc98f4b208b99e39b",
+  "play/games_v1/chunli/actions.jsonl": "983d344099842a1ef2a733d768ec259f7dc9004cca2ba8c8c3e2c37988a612c0",
+  "play/games_v1/chunli/games.jsonl": "0a3db54ef57de1209bf448a60a78c4a58df1de19f70e0dd0cd32bd75dc8f1c93",
+  "play/games_v2/chunli/actions.jsonl": "d3d7e9b1348e4ab7bd1eff915c312bebd7c67a661b0395b7cffbf7e7bda72d8f",
+  "play/games_v2/chunli/games.jsonl": "8fd11e54ff0995ac4a1f02c47e33e0e5caab8bc10b40a0ba3f36ccf657590575",
+  "play/learn/chunli/20260927-194458/actions.jsonl": "d6ddbb763aececcfbcb9c059ad066e919ea5f4e7ed77c8481925c6184e06538e",
+  "play/learn/chunli/20260927-194458/games.jsonl": "8857503fd77765cdaf2d11c80afd1bbdbcbdc9eda4f17269c61604892e5b8bd6",
+  "play/learn/chunli/20260927-195522/actions.jsonl": "2b28c3fe05bc58d6ca51c13836c640398778455c56fcc01268311bc026b42f92",
+  "play/learn/chunli/20260927-195522/games.jsonl": "a27234d386011c3851b2ba4d243233a15073540d4dfe69815c4f42714d7fddd3",
+  "play/learn/chunli/20260927-195522/rounds.jsonl": "49216dc2056f313465049db37ae0ceb7551b21dac41f8ebfdb3681bf5f87f4ee",
+  "play/learn/chunli/20260927-203134/actions.jsonl": "815f8a55d40de4bf42ee3edcc213f922defd7044f71ecbd5109784955a3920d2",
+  "play/learn/chunli/20260927-203134/games.jsonl": "69aadc59d75114402cbe7e681d306c40e91577be8ae74cce1ebfb697670dc745",
+  "play/learn/chunli/20260927-203134/rounds.jsonl": "f634c68e8a06c673dec518903abfe2042335348cb06da302f7f3705a6ff40f98",
+  "play/learn/chunli/20260928-060236/actions.jsonl": "6a5610211f10c98270c3829cc88b7fdab85d8782af52367f769ff441d7d35196",
+  "play/learn/chunli/20260928-060236/games.jsonl": "ed0cb202cc44cb970aa4b250d6e5235f6b154a0a175f8413d372bffe8b09a303",
+  "play/learn/chunli/20260928-060236/rounds.jsonl": "1b5fac21a3062b8058d6b9b4064e1d6ef55c1770b1dd078c8e7c85840a42dc20",
+  "play/learn/chunli/20260928-062237/actions.jsonl": "bde47327f7fe513bb19a40f10d07439c88e56a280cbd6b9c79c4c8ea9b3f465e",
+  "play/learn/chunli/20260928-062237/games.jsonl": "d8466a77f17bf5d0bee5fd0015abc28a489d1c7c1a4ad1a5aef9b4c32df2a71a",
+  "play/learn/chunli/20260928-062237/rounds.jsonl": "b57c1f388781085da36a2f92a708d0983225b2031e20eac9af09d807346f430c",
+  "play/learn/chunli/20260928-074358/actions.jsonl": "6f9ccd541a975b19a9bce373c5522a234c2ac34a1e89d1248ea88da22f97758b",
+  "play/learn/chunli/20260928-074358/games.jsonl": "5fce51848cf55fbfcda1fea6f618a0733a4e001400c90d881ad512eda209907a",
+  "play/learn/chunli/20260928-074358/rounds.jsonl": "b13b233b135a75c043c0e630189db0070fa3a752ca72c840221aa2cb02b7f906",
+  "states/p1_chunli_vs_honda.state": "606529db54f4e1e4170efa802dc86b0fc537bbe370889a8094538f539c0afe75",
+  "states/p1_chunli_vs_ken.state": "f9540ec60413d8e3c0c30a76afb37302eb2ab38b853ba315b5a94c60b4eef74d",
+  "states/p1_chunli_vs_ryu.state": "92cfc01222ee59af9b3abb9de7078f8ca14875563bfc88ea2295178f74fba3fb"
+ },
+ "made": "2026-09-29 16:44:50",
+ "name": "lesson_loop_v1",
+ "runs": [
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 11688,
+   "source": "rollouts/qwen_lessons/20260929-155448_ken",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     10.666666666666666,
+     -15.464470022622786,
+     36.79780335595612
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 0
+    },
+    "outcomes": {
+     "refused": 5,
+     "registered": 4,
+     "rejected": 7,
+     "testing": 8
+    },
+    "proposed": 24,
+    "qwen_hold_rate": 0.3157894736842105,
+    "qwen_hold_rate_by_view": {
+     "attack": [
+      0.3333333333333333,
+      9
+     ],
+     "defense": [
+      0.375,
+      8
+     ]
+    },
+    "random_hold_rate": 0.07661290322580645,
+    "registered_at_end": [
+     "avoid sweep at mid range when he stands",
+     "avoid sweep up close when he jumps",
+     "avoid spinning_bird_kick at mid range when he jumps",
+     "avoid c.hp up close when he jumps"
+    ],
+    "retired": [],
+    "seed": 11688,
+    "taken_vs_none": [
+     2.7333333333333334,
+     -1.8086095122186157,
+     7.275276178885282
+    ],
+    "updates": 11,
+    "violations": 0,
+    "what_if": [
+     [
+      "use more c.mk at mid range when he stands",
+      "testing"
+     ],
+     [
+      "use more hp up close when he stands",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 2,
+    "won": {
+     "loop": 3,
+     "none": 1
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 11691,
+   "source": "rollouts/qwen_lessons/20260929-155451_ken",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     30.933333333333334,
+     -0.7301713663952114,
+     62.59683803306188
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 1
+    },
+    "outcomes": {
+     "refused": 3,
+     "registered": 6,
+     "rejected": 7,
+     "testing": 5
+    },
+    "proposed": 21,
+    "qwen_hold_rate": 0.6111111111111112,
+    "qwen_hold_rate_by_view": {
+     "attack": [
+      0.7,
+      10
+     ],
+     "defense": [
+      0.5,
+      8
+     ]
+    },
+    "random_hold_rate": 0.08139534883720931,
+    "registered_at_end": [
+     "avoid sweep at mid range when he stands",
+     "avoid sweep up close when he jumps",
+     "use more hp up close when he jumps",
+     "avoid spinning_bird_kick at mid range when he stands"
+    ],
+    "retired": [
+     "avoid spinning_bird_kick at mid range when he jumps",
+     "use more c.mk at mid range"
+    ],
+    "seed": 11691,
+    "taken_vs_none": [
+     9.566666666666666,
+     -1.590119371315689,
+     20.72345270464902
+    ],
+    "updates": 11,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 5,
+     "none": 0
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 11694,
+   "source": "rollouts/qwen_lessons/20260929-155454_ryu",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     45.96666666666667,
+     11.865012411671891,
+     80.06832092166144
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 4
+    },
+    "outcomes": {
+     "refused": 7,
+     "registered": 7,
+     "rejected": 5,
+     "testing": 3
+    },
+    "proposed": 22,
+    "qwen_hold_rate": 0.5333333333333333,
+    "qwen_hold_rate_by_view": {
+     "attack": [
+      0.5714285714285714,
+      7
+     ],
+     "defense": [
+      0.5,
+      8
+     ]
+    },
+    "random_hold_rate": 0.11070110701107011,
+    "registered_at_end": [
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more sweep at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "use more sweep at mid range when he stands",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more spinning_bird_kick far away when he stands",
+     "avoid spinning_bird_kick at mid range when he is stunned",
+     "use more c.mk at mid range"
+    ],
+    "retired": [],
+    "seed": 11694,
+    "taken_vs_none": [
+     17.966666666666665,
+     0.3010317386500212,
+     35.63230159468331
+    ],
+    "updates": 11,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 11,
+     "none": 8
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 11697,
+   "source": "rollouts/qwen_lessons/20260929-155457_ryu",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -5.4,
+     -51.569144638921514,
+     40.76914463892152
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 2
+    },
+    "outcomes": {
+     "refused": 9,
+     "registered": 5,
+     "rejected": 5,
+     "testing": 6
+    },
+    "proposed": 25,
+    "qwen_hold_rate": 0.5,
+    "qwen_hold_rate_by_view": {
+     "attack": [
+      0.5714285714285714,
+      7
+     ],
+     "defense": [
+      0.6666666666666666,
+      6
+     ]
+    },
+    "random_hold_rate": 0.11481481481481481,
+    "registered_at_end": [
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more c.mk at mid range",
+     "avoid spinning_bird_kick far away when he attacks",
+     "avoid spinning_bird_kick at mid range when he is stunned",
+     "use more mp at mid range when he stands",
+     "avoid sweep up close when he jumps"
+    ],
+    "retired": [],
+    "seed": 11697,
+    "taken_vs_none": [
+     -13.1,
+     -34.22978137741778,
+     8.029781377417779
+    ],
+    "updates": 11,
+    "violations": 0,
+    "what_if": [
+     [
+      "use more c.hp at mid range when he stands",
+      "testing"
+     ],
+     [
+      "use more block_low at mid range when he attacks",
+      "testing"
+     ],
+     [
+      "use more hp up close when he stands",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 3,
+    "won": {
+     "loop": 5,
+     "none": 7
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 11700,
+   "source": "rollouts/qwen_lessons/20260929-155500_honda",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     11.633333333333333,
+     -17.470117217446475,
+     40.73678388411314
+    ],
+    "kinds_registered": {
+     "always": 1,
+     "avoid": 3,
+     "use_more": 1
+    },
+    "outcomes": {
+     "refused": 3,
+     "registered": 6,
+     "rejected": 9,
+     "testing": 4
+    },
+    "proposed": 22,
+    "qwen_hold_rate": 0.7368421052631579,
+    "qwen_hold_rate_by_view": {
+     "attack": [
+      0.6666666666666666,
+      9
+     ],
+     "defense": [
+      0.8,
+      10
+     ]
+    },
+    "random_hold_rate": 0.11790393013100436,
+    "registered_at_end": [
+     "avoid sweep at mid range",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "always block_high at mid range when he attacks"
+    ],
+    "retired": [
+     "use more c.hp at mid range",
+     "avoid forward at mid range when he attacks",
+     "always block_high at mid range when he attacks"
+    ],
+    "seed": 11700,
+    "taken_vs_none": [
+     1.0,
+     -7.2953729243490315,
+     9.295372924349032
+    ],
+    "updates": 11,
+    "violations": 0,
+    "what_if": [
+     [
+      {
+       "kind": "use_more",
+       "move": "c.mk",
+       "range": "mid",
+       "view": "what_if",
+       "when": "standing",
+       "why": "Crouch medium kick is statistically her best move at mid range against standing Honda, offering a safe offensive option."
+      },
+      "refused"
+     ]
+    ],
+    "what_if_asked": 1,
+    "won": {
+     "loop": 2,
+     "none": 4
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 11703,
+   "source": "rollouts/qwen_lessons/20260929-155503_honda",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -0.06666666666666667,
+     -26.888356358326828,
+     26.755023024993495
+    ],
+    "kinds_registered": {
+     "always": 1,
+     "avoid": 2,
+     "use_more": 1
+    },
+    "outcomes": {
+     "refused": 2,
+     "registered": 3,
+     "rejected": 11,
+     "testing": 3
+    },
+    "proposed": 19,
+    "qwen_hold_rate": 0.4117647058823529,
+    "qwen_hold_rate_by_view": {
+     "attack": [
+      0.42857142857142855,
+      7
+     ],
+     "defense": [
+      0.3333333333333333,
+      9
+     ]
+    },
+    "random_hold_rate": 0.1087866108786611,
+    "registered_at_end": [
+     "avoid sweep at mid range",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more c.mk at mid range when he stands",
+     "always block_low at mid range when he attacks"
+    ],
+    "retired": [
+     "use more c.hp at mid range"
+    ],
+    "seed": 11703,
+    "taken_vs_none": [
+     -4.733333333333333,
+     -9.261645061904051,
+     -0.20502160476261633
+    ],
+    "updates": 11,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_low at mid range when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 1,
+    "won": {
+     "loop": 1,
+     "none": 0
+    }
+   }
+  }
+ ],
+ "sources": {
+  "advisor": "runs/text_laya/advice_v1",
+  "model": "runs/all8/best",
+  "play": [
+   "rollouts/blocks_v1/chunli",
+   "rollouts/games_v1/chunli",
+   "rollouts/games_v2/chunli",
+   "rollouts/learn/chunli/20260927-194458",
+   "rollouts/learn/chunli/20260927-195522",
+   "rollouts/learn/chunli/20260927-203134",
+   "rollouts/learn/chunli/20260928-060236",
+   "rollouts/learn/chunli/20260928-062237",
+   "rollouts/learn/chunli/20260928-074358"
+  ],
+  "states": [
+   "states/p1_chunli_vs_honda.state",
+   "states/p1_chunli_vs_ken.state",
+   "states/p1_chunli_vs_ryu.state"
+  ]
+ }
+}

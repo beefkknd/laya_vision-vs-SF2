@@ -31,10 +31,12 @@ def savestate(me: str, opp: str) -> str:
 
 
 @contextlib.contextmanager
-def open_fight(me: str, opp: str, port: int, rom: Optional[str] = None) -> Iterator[Tuple[MesenBridge, bytes]]:
+def open_fight(me: str, opp: str, port: int, rom: Optional[str] = None,
+               state: Optional[str] = None) -> Iterator[Tuple[MesenBridge, bytes]]:
     """(bridge, savestate bytes): headless Mesen on ``port`` with raw capture and the fight VARS, the savestate
-    loaded and checked to hold ``me`` (player 1) vs ``opp``. Mesen is closed on the way out, whatever happens."""
-    path = savestate(me, opp)
+    (``state``, default states/p1_<me>_vs_<opp>.state) loaded and checked to hold ``me`` (player 1) vs ``opp``.
+    Mesen is closed on the way out, whatever happens."""
+    path = state or savestate(me, opp)
     if not os.path.exists(path):
         raise SystemExit("no savestate %s" % path)
     with open(path, "rb") as f:
