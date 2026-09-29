@@ -14,12 +14,11 @@ import argparse
 import json
 import os
 import random
-import sys
 import time
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _path  # noqa: E402,F401
 from sf2 import mlx_lora, text_laya  # noqa: E402
 
 DATA = "test_data/advice"

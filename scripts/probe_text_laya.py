@@ -15,12 +15,11 @@ import argparse
 import json
 import os
 import statistics
-import sys
 from typing import Dict, List
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _path  # noqa: E402,F401
 from sf2 import text_laya  # noqa: E402
 from sf2.advice import INSTRUCTIONS, opp_doing, situation_text  # noqa: E402
 from sf2.vocab import bar  # noqa: E402

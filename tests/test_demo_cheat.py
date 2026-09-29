@@ -3,6 +3,7 @@ that), and only from the panel's own page."""
 import importlib.util
 import json
 import os
+import sys
 
 import pytest
 
@@ -59,6 +60,8 @@ def test_a_symlinked_run_folder_cannot_reach_memory(repo):
 
 
 def panel():
+    if os.path.join(HERE, "scripts") not in sys.path:
+        sys.path.insert(0, os.path.join(HERE, "scripts"))
     spec = importlib.util.spec_from_file_location("brain_panel", os.path.join(HERE, "scripts", "brain_panel.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

@@ -19,12 +19,11 @@ import argparse
 import json
 import os
 import re
-import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Dict, List, Optional, Tuple
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _path  # noqa: E402,F401
 from sf2 import demo_cheat  # noqa: E402
 
 LIVE = "out/live"

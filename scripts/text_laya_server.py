@@ -6,10 +6,9 @@ one JSON reply per stdout line. Runs in the laya-mlx venv; started by sf2.adviso
 The first line it writes is {"ready": <checkpoint>} once the model is loaded.
 """
 import json
-import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _path  # noqa: E402,F401
 from sf2 import text_laya  # noqa: E402
 
 
