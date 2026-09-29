@@ -112,7 +112,7 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
                 "game": game, "picks_before": mc.picks_json(picks), "picks": mc.picks_json(new), "problems": problems,
                 "ok": g["ok"] and not problems, "grade": {k: (list(v) if isinstance(v, tuple) else v)
                                                           for k, v in g.items()},
-                "evidence": [{k: e[k] for k in ("move", "range", "tries", "net", "total", "cls")} for e in ev],
+                "evidence": [{k: e[k] for k in ("move", "range", "tries", "net", "lo", "hi", "total", "cls")} for e in ev],
                 "reply": raw}) + "\n")
             logs["ledger"].flush()
             print("loop update after game %d: %s %s%s" % (game, "PASS" if g["ok"] and not problems else "FAIL",
@@ -184,6 +184,33 @@ def loop(args) -> int:
     return 0 if v["Q2"] == "PASS" else 1
 
 
+def replay(args) -> int:
+    """Re-ask one recorded loop update (its evidence and picks in play) under today's prompt, in every row order and
+    repeat: a regression test for a failure seen in a loop."""
+    from sf2.data.dataset import read
+    rec = [json.loads(x) for x in open(args.ledger)][args.index]
+    loop_acts = read(os.path.join(os.path.dirname(args.ledger), "actions.jsonl"))
+    upto = (rec["game"] + 1) * args.rounds                 # the evidence Qwen saw: play data + rounds so far
+    ev = mc.evidence([a for a in attacks(ME) if a["opp"] == args.opp] +
+                     [a for a in loop_acts if a["round"] < upto])
+    assert [(e["move"], e["range"], e["cls"]) for e in ev] == [(e["move"], e["range"], e["cls"])
+                                                               for e in rec["evidence"]], "evidence not rebuilt"
+    before = {k: [tuple(p) for p in v] for k, v in json.loads(rec["picks_before"]).items()}
+    since = {p: {"tries": 0, "net": 0.0} for k in mc.KINDS for p in before[k]}
+    opp = args.opp
+    ok = 0
+    for order in range(args.orders):
+        for rep_ in range(args.repeats):
+            new, problems, _ = ask(opp, ev, args.level, order, current=before, since=since, task="moves_replay")
+            g = mc.grade_update(before, new, ev)
+            ok += g["ok"] and not problems
+            print("order %d repeat %d: %s %d picks %s" % (order, rep_, "PASS" if g["ok"] and not problems else "FAIL",
+                                                        sum(len(v) for v in new.values()), mc.lines(new)), flush=True)
+    n = args.orders * args.repeats
+    print("replay %s #%d: %d/%d pass -> %s" % (args.ledger, args.index, ok, n, "PASS" if ok == n else "FAIL"))
+    return 0 if ok == n else 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -204,9 +231,17 @@ def main() -> int:
     lo.add_argument("--model", default=LAYA_VISION)
     lo.add_argument("--advisor", default=TEXT_LAYA)
     lo.add_argument("--one", nargs=3, metavar=("ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
+    rp = sub.add_parser("replay", help="re-ask one recorded loop update in every order (a regression test)")
+    rp.add_argument("--ledger", required=True)
+    rp.add_argument("--index", type=int, default=-1, help="which update (row) of the ledger")
+    rp.add_argument("--opp", required=True)
+    rp.add_argument("--rounds", type=int, default=3, help="rounds per game in that loop")
+    rp.add_argument("--level", choices=("table", "classes"), default="classes")
+    rp.add_argument("--orders", type=int, default=10)
+    rp.add_argument("--repeats", type=int, default=2)
     args = ap.parse_args()
     exit_on_sigterm()
-    return identify(args) if args.cmd == "identify" else loop(args)
+    return {"identify": identify, "loop": loop, "replay": replay}[args.cmd](args)
 
 
 if __name__ == "__main__":
