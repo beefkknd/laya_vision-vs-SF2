@@ -21,7 +21,7 @@ MESEN_SETTINGS = _env("SF2_MESEN_SETTINGS", "~/Library/Application Support/Mesen
 # that no two ranges overlap, so runners can play side by side).
 PORTS = {"mesen": (47800, 1), "learn": (47990, 1), "vs_moves": (47991, 1), "dataset": (48001, 128),
          "replay": (48401, 32), "system1": (48901, 16), "ab": (49101, 64), "notebook": (49501, 2),
-         "panel": (8765, 1), "qwen_moves": (49601, 64)}
+         "panel": (8765, 1), "qwen_moves": (49601, 96)}
 MESEN_PORT = PORTS["mesen"][0]
 # The ROM: Street Fighter II (USA), SHA1 7DDCB96E0D9FEA94D9370635262AC7C28DA85214 (git-ignored; $SF2_ROM overrides)
 DEFAULT_ROM = "roms/Street Fighter II (USA).sfc"
