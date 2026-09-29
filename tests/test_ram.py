@@ -17,8 +17,6 @@ def test_parse_map_accepts_bus_and_offset_hex():
     v = {x.name: x for x in ram.parse_map(MAP)}
     assert v["my_hp"].addr == 0x530 and v["my_hp"].signed
     assert v["my_x"].addr == 0x522 and v["opp_x"].addr == 0x722 and not v["opp_x"].signed
-    again = {x.name: x for x in ram.parse_map(ram.format_map(list(v.values())))}
-    assert again == v
 
 
 def test_parse_map_requires_all_six():

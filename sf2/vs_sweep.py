@@ -1,7 +1,7 @@
 """Stage-1 data: a still opponent. Each fighter is placed at a gap, the opponent holds one posture, the fighter
 presses one of 20 actions, and RAM says what happened: hit, whiff, blocked (or none for movement).
 
-    20 actions x 3 distance ranges (sf2.ram.dist_bin: close < 55 <= mid < 120 <= far) x 10 gaps x 3 postures
+    20 actions x 3 distance ranges (close < 55 <= mid < 120 <= far, sf2.ram) x 10 gaps x 3 postures
 
 Split by gap, so held-out examples are at distances the model never saw: per range 7 gaps train, 3 test.
 Train is collected on ONE side only (the fighter on the left, facing right) and mirrored for the other facing;

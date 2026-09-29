@@ -4,11 +4,6 @@
 MESEN_PORT = 47800
 # The ROM: Street Fighter II (USA), SHA1 7DDCB96E0D9FEA94D9370635262AC7C28DA85214 (git-ignored; $SF2_ROM overrides)
 DEFAULT_ROM = "roms/Street Fighter II (USA).sfc"
-# RAM addresses differ per cartridge (World Warrior / Turbo / Super SF2, region). Find yours with
-# scripts/find_ram.py; it writes this file.
-DEFAULT_RAM_MAP = "ram_maps/sf2_snes.txt"
-# A savestate at the start of a fight, made with scripts/record_human.py (press F9 in Mesen).
-DEFAULT_SAVESTATE = "states/ryu_vs_ken.state"
 
 # System 2: Qwen 3.8 27B (Q4, MTP) served by omlx on this machine (OpenAI-style chat API); start it with
 # ~/work/omlx/start. Thinking is OFF and the reply capped: with it on, one playbook review spent 11,593 tokens
@@ -29,13 +24,9 @@ IMAGE_CFG = {"image_size": IMAGE_SIZE, "preprocess": "gpu", "image_interpolation
 LAYA_VISION_REPO = "https://github.com/r33drichards/laya-vision"
 LAYA_VISION_COMMIT = "568feeeada793f70f736756b0f3a7643d1e75910"
 
-FPS = 60
-HOLD = 4               # frames a non-macro action is held => one decision every 4 frames
+HOLD = 4               # frames between two decisions (the dataset's rhythm)
 PREV_GAP = 4           # the "previous" image is always the frame HOLD frames before the current one
-NEXT_WINDOW = 30       # 0.5 s: window for damage_for / damage_against after a decision
-WHIFF_WINDOW = 60      # a hadouken that deals no damage within 1 s counts as a whiff
 
 # SNES pad, SF2's default layout: Y X L = jab / strong / fierce punch, B A R = short / forward / roundhouse.
 # Names are Mesen's (emu.getInput / emu.setInput keys).
 PAD = {"lp": "y", "mp": "x", "hp": "l", "lk": "b", "mk": "a", "hk": "r"}
-BUTTONS = ["a", "b", "x", "y", "l", "r", "up", "down", "left", "right", "select", "start"]
