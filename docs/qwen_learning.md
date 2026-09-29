@@ -307,6 +307,39 @@ clearly better; "use more block_low" there was then registered as clearly better
 harm while the rounds were lost - it only counts damage up to her next decision. Confounded (the lines changed
 together), not attributed. Open: a test is not stopped early however badly the rounds go.
 
+## 0g. How players describe the game (2026-09-29): `--prompt character_fgc`
+
+Owner: see whether players have a standard way to describe SF2, to phrase Qwen and (later) text laya. Research notes
+with sources: `docs/sf2_world_warrior_notes.md` (arcade World Warrior sources; the SNES port may differ).
+
+`--prompt character_fgc` = the character prompt (0f) plus, in `sf2/system2/character_prompt.py`:
+- each situation of his named the way players do (`term()`): jumping = anti-air, attacking far away = his zoning
+  (fireball), attacking closer = his attack (block or beat it), standing at mid/far = footsies, standing up close =
+  throw range, stunned = punish;
+- a primer, framed as ideas for code to test: Chun-Li's WW tools (normals, walk speed, long throw; slow unsafe specials;
+  anti-airs standing mk/hk/hp, c.mk vs far jumps), no reversals / throw escape / meter, the CPU reacting to the move she
+  commits to and getting more aggressive as the clock runs down, and notes on this opponent only (Ken/Ryu: Shoryuken,
+  Hurricane Kick, Hadoken; Honda: Headbutt punishable on block, jab beats it, keep-away).
+The plain `character` prompt is byte-identical to before (checked on the lock's play data, 3 opponents x 2 modes).
+
+Agreement with what the loop already verified: "avoid spinning_bird_kick" is registered in most runs (players: slow,
+unsafe in WW); Ken's "use more hp up close when he jumps" is an anti-air.
+
+### For a later text-laya fine-tune: the words players need that the grammar lacks
+
+| Player's term | Needed in the logs | Needed in the grammar |
+|---|---|---|
+| whiff punish / punish a blocked special | his state split: starting vs recovering from an attack | "when he misses", "after he is blocked" |
+| zoning, fireball | projectile slot 0x1050 (read per frame, not logged) | "when a fireball is coming" |
+| tick throw, pressure | her previous action / "he blocks" (state guard exists, `opp_doing` maps it to standing) | "when he blocks" |
+| throw loop, meaty, wake-up | a knocked-down / getting-up state | "when he gets up" |
+| jump-in, cross-up | none (System 1 cannot pick a jump) | a jump move in `choices` |
+| CPU aggression late in the round | `clock` is logged per decision | "late in the round" |
+
+Evidence so far (`scripts/laya_evidence.py`, 31 runs): soft lessons are followed 48% vs 10% without advice, 65% when
+laya-vision has the move in its top 3 vs 41% when not; hard 96%, avoid 98%. Qwen named his specific move in 2 of 618
+claims (both "fireball", Ryu).
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced

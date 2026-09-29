@@ -116,3 +116,27 @@ def test_two_runs_against_one_opponent_keep_separate_console_logs():
     q = qwen_lessons()
     a, b = (q.log_dir(os.path.join("rollouts", "x", s)) for s in ("20260929-170523_ken", "20260929-170526_ken"))
     assert a != b and a.startswith(os.path.join("logs", "qwen_lessons"))
+
+
+def test_the_fgc_variant_names_each_situation_the_way_players_do():
+    """Owner 2026-09-29: phrase Qwen the way the fighting-game community describes SF2 (docs/qwen_learning.md 0g)."""
+    assert C.term("jumping", "mid") == "anti-air" and C.term("attacking", "far") == "his zoning (fireball)"
+    assert C.term("standing", "mid") == "footsies"
+    blocks = C.if_you_see(world(), MOVES, terms=True)
+    assert blocks[0].startswith("Up close, when he jumps - anti-air")
+    assert all(not b.startswith("Up close, when he jumps -") for b in C.if_you_see(world(), MOVES))   # plain stays
+
+
+def test_the_fgc_primer_carries_only_this_opponents_notes():
+    ken = C.messages_fgc("chunli", "ken", [], world(), world(), [], [], MOVES)[0]["content"]
+    honda = C.messages_fgc("chunli", "honda", [], world(), world(), [], [], MOVES)[0]["content"]
+    assert "Shoryuken" in ken and "Headbutt" not in ken
+    assert "Headbutt" in honda and "Shoryuken" not in honda
+    assert "code checks" in ken.lower() and "arcade" in ken                    # hypotheses, not facts
+    body = ken[ken.index('{"answer"'):]
+    assert set(json.loads(body.replace("|", "_"))) == {"answer", "stop"}
+
+
+def test_the_loop_knows_the_fgc_prompt():
+    q = qwen_lessons()
+    assert q.PROMPTS["character_fgc"].messages is C.messages_fgc and q.PROMPTS["character_fgc"].VIEWS == C.VIEWS

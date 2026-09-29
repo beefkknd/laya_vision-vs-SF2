@@ -106,8 +106,22 @@ def _answers(rows: Sequence[Dict], rng: str, doing: str, moves: Sequence[str]) -
     return out
 
 
-def if_you_see(rows: Sequence[Dict], moves: Sequence[str] = ()) -> List[str]:
-    """One block per situation of his (what he is doing, range), the most damage to her first."""
+def term(doing: str, rng: str) -> str:
+    """The fighting-game word for her decision in this situation of his (docs/qwen_learning.md 0g)."""
+    if doing == "jumping":
+        return "anti-air"
+    if doing == "attacking":
+        return "his zoning (fireball)" if rng == "far" else "his attack: block it or beat it"
+    if doing == "stunned":
+        return "punish: he cannot act"
+    if doing == "crouching":
+        return "he crouches: low pokes, or charging"
+    return "footsies" if rng in ("mid", "far") else "up close in neutral: throw range"
+
+
+def if_you_see(rows: Sequence[Dict], moves: Sequence[str] = (), terms: bool = False) -> List[str]:
+    """One block per situation of his (what he is doing, range), the most damage to her first; ``terms``: each named
+    the way players do (anti-air, footsies, ...)."""
     by = collections.defaultdict(list)
     for a in rows:
         by[(a["range"], opp_doing(a))].append(a)
@@ -115,8 +129,9 @@ def if_you_see(rows: Sequence[Dict], moves: Sequence[str] = ()) -> List[str]:
                    key=lambda kx: -sum(a["taken"] for a in kx[1]))[:SITUATIONS]
     blocks = []
     for (rng, doing), xs in shown:
-        head = "%s, %s (%d decisions, she takes %.1f and deals %.1f per decision):" % (
-            RANGE_WORDS[rng][0].upper() + RANGE_WORDS[rng][1:], L.WHEN_WORDS[doing], len(xs),
+        head = "%s, %s%s (%d decisions, she takes %.1f and deals %.1f per decision):" % (
+            RANGE_WORDS[rng][0].upper() + RANGE_WORDS[rng][1:], L.WHEN_WORDS[doing],
+            " - " + term(doing, rng) if terms else "", len(xs),
             sum(a["taken"] for a in xs) / len(xs), sum(a["dealt"] for a in xs) / len(xs))
         blocks.append("\n".join([head] + _answers(xs, rng, doing, moves)))
     return blocks
@@ -124,8 +139,9 @@ def if_you_see(rows: Sequence[Dict], moves: Sequence[str] = ()) -> List[str]:
 
 def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
              all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], moves: Sequence[str] = (),
-             refused: Sequence[Dict] = (), stable: Optional[str] = None) -> List[Dict]:
-    """Same signature as sf2.system2.lesson_prompt.messages; ``rows`` = all her decisions against him so far."""
+             refused: Sequence[Dict] = (), stable: Optional[str] = None, fgc: bool = False) -> List[Dict]:
+    """Same signature as sf2.system2.lesson_prompt.messages; ``rows`` = all her decisions against him so far.
+    ``fgc``: situations named the way players do, and a primer on the game and this opponent (``messages_fgc``)."""
     moves = list(moves) or sorted({a["action"] for a in rows})
     parts = [
         record(all_rounds, last_rounds),
@@ -133,16 +149,53 @@ def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Seq
         "HIS THREATS - what he did that hurt her, all games:\n%s" % ("\n".join(threats(rows)) or "(none)"),
         "HIS THREATS - the last game:\n%s" % ("\n".join(threats(last)) or "(none)"),
         "IF YOU SEE - her answers in each of his situations, all games (the most damage to her first):\n\n%s" % (
-            "\n\n".join(if_you_see(rows, moves)) or "(not enough yet)")]
+            "\n\n".join(if_you_see(rows, moves, terms=fgc)) or "(not enough yet)")]
     if refused:
         parts.append("Refused last time (do not propose again):\n%s" % "\n".join(
             "- %s: %s" % (L.render(o["claim"]) if _renderable(o["claim"]) else o["claim"], o["why"]) for o in refused))
     if stable:
         parts.append(WHAT_IF[stable] % STREAK)
     system = SYSTEM.format(me=me, opp=opp, moves=", ".join(moves))
+    if fgc:
+        head, tail = system.split("\n\nAnswer with JSON only", 1)
+        system = "%s\n\n%s\n\nAnswer with JSON only%s" % (head, primer(opp), tail)
     if stable:
         system = system[:-1] + WHAT_IF_JSON + "}"                     # inside the object
     return [{"role": "system", "content": system}, {"role": "user", "content": "\n\n".join(parts)}]
+
+
+# What players write about World Warrior (arcade sources, docs/qwen_learning.md 0g): hypotheses for Qwen to test, not
+# facts - code keeps only what her own games show.
+PRIMER = """What players say about World Warrior (from the arcade version; the SNES port may differ, and code checks every
+lesson against her own games, so treat these as ideas to test):
+- Chun-Li's strengths are her normals, walk speed and long throw. Her specials are slow and unsafe in this version:
+  Spinning Bird Kick loses to a crouching medium punch, Lightning Legs recovers slowly.
+- Her anti-airs are standing mk, hk and hp from mid range; c.mk catches jumps from far away. c.mk and standing mk are
+  her pokes in footsies.
+- No reversals, no throw escape, no super meter; only blocked specials chip.
+- The CPU reacts to the move she commits to (it reads it the moment it starts), but not every time, and it gets more
+  aggressive as the round clock runs down.
+- Words: anti-air = hitting him out of a jump; footsies = the mid-range game of pokes; whiff punish = hitting him while
+  he recovers from a missed attack; zoning = keeping her out with fireballs; keep-away = block and stay out of reach."""
+OPPONENT = {
+    "ken": "Ken: Shoryuken beats jump-ins and is very unsafe if blocked; Hurricane Kick does not combo - block the "
+           "first hit, then punish before he lands; Hadoken is slow to start and recover. A known CPU pattern: "
+           "fireballs, then a fierce punch into Shoryuken.",
+    "ryu": "Ryu: Shoryuken beats jump-ins and is very unsafe if blocked; Hurricane Kick does not combo - block the "
+           "first hit, then punish before he lands; Hadoken is slow to start and recover. A known CPU pattern: "
+           "fireballs, then a fierce punch into Shoryuken.",
+    "honda": "E. Honda: the Sumo Headbutt (a flying charge, also his anti-air) is punishable when blocked, and a rapid "
+             "standing jab beats it; the Hundred Hand Slap is strong at mid range. Players advise keep-away: take a "
+             "lead, then stay out of reach; one throw from him starts a lot of damage.",
+}
+
+
+def primer(opp: str) -> str:
+    return PRIMER + ("\n" + OPPONENT[opp] if opp in OPPONENT else "")
+
+
+def messages_fgc(*args, **kw) -> List[Dict]:
+    return messages(*args, fgc=True, **kw)
 
 
 def _cond(v):

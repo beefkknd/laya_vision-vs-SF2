@@ -42,7 +42,7 @@ def test_runs_pair_by_opponent_and_seed(tmp_path):
     run(r, "3_ken", "ken", 2, "views", [5] * 10, [0] * 10)                  # no character twin: not paired
     pairs, problems = cp().pairs([r])
     assert list(pairs) == [("ken", 1)] and not problems
-    assert cp().diffs(pairs)["char_minus_views"]["ken"] == [20] * 10
+    assert cp().diffs(pairs)["b_minus_a"]["ken"] == [20] * 10
 
 
 def test_a_pair_whose_no_advice_arms_differ_is_refused(tmp_path):
@@ -72,3 +72,11 @@ def test_a_run_without_a_verdict_is_ignored(tmp_path):
 @pytest.mark.parametrize("name,opp", [("20260929-172936_ken", "ken"), ("20260929-173010_honda_character", "honda")])
 def test_the_opponent_comes_from_the_run_name(name, opp):
     assert cp().opponent(name) == opp
+
+
+def test_any_two_prompts_can_be_compared(tmp_path):
+    r = str(tmp_path)
+    run(r, "1_ken_character", "ken", 1, "character", [10] * 10, [0] * 10)
+    run(r, "2_ken_character_fgc", "ken", 1, "character_fgc", [25] * 10, [0] * 10)
+    pairs, _ = cp().pairs([r], ("character", "character_fgc"))
+    assert cp().diffs(pairs, ("character", "character_fgc"))["b_minus_a"]["ken"] == [15] * 10

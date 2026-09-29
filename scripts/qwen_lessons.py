@@ -22,6 +22,7 @@ import os
 import random
 import sys
 import time
+from types import SimpleNamespace
 from typing import Dict, List
 
 import _path  # noqa: F401
@@ -42,7 +43,9 @@ from sf2.vocab import RANGES
 ME = "chunli"
 ROOT = os.path.join("rollouts", "qwen_lessons")
 BASELINE = 500
-PROMPTS = {"views": lesson_prompt, "character": character_prompt}
+PROMPTS = {"views": lesson_prompt, "character": character_prompt,
+           "character_fgc": SimpleNamespace(messages=character_prompt.messages_fgc,
+                                            parse_claims=character_prompt.parse_claims, VIEWS=character_prompt.VIEWS)}
 
 
 def decisions(opp: str, lock: str = None) -> List[Dict]:
