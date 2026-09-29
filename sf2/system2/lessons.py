@@ -1,27 +1,32 @@
 """The lesson registry: Qwen proposes what to learn, code verifies it and keeps the books (scripts/qwen_lessons.py).
 
-A claim is one text-laya line: {"kind": "use_more" | "avoid", "move", "range" (or None: anywhere), "when" (what he is
-doing, or None)}; ``render`` writes it in text laya's grammar. Each claim is judged by code on the rounds inside its
-own condition (net hit points per try: damage dealt - taken, to her next decision; its 95% interval):
+A claim is one text-laya line: {"kind": "use_more" | "always" | "avoid", "move", "range" (or None: anywhere), "when"
+(what he is doing, or None)}; ``render`` writes it in text laya's grammar ("always" is the one kind that overrides a
+"likely fails" rating, e.g. for blocks). Each claim is judged by code RELATIVE to what she does now in the same
+situation: in the claim's condition (range, what he is doing), the claim move's net hit points per decision (damage
+dealt - taken, to her next decision) minus her average over every other decision there (attacks, walks, blocks), with
+the 95% interval of that difference: better, worse, unclear, or few. (A block nets about -4 per try, "bad" on its own,
+while her average when he attacks is about -10: it is better than what she does.)
 
-    avoid      judged at once: clearly bad -> registered, else rejected (she should not play a bad move to test it)
-    use more   clearly good -> registered, clearly bad -> rejected, else testing: in play for up to TEST_GAMES games,
-               then registered if it became clearly good, rejected if not (with too few tries in its condition:
-               "too few", and it may be proposed again, like an avoid with too few tries)
-    registered -> retired when its evidence stops holding (a "use more" no longer clearly good, an "avoid" no longer
-               clearly bad)
+    avoid          judged at once: clearly worse -> registered, else rejected (she should not keep doing a worse move
+                   to test it; with too few tries: "too few", and it may be proposed again)
+    use more /     clearly better -> registered, clearly worse -> rejected, else testing: in play for up to TEST_GAMES
+    always         games, then registered if it became clearly better, rejected if not ("too few" if thin)
+    registered -> retired when its evidence stops holding
 
 ``in_play``: the lines text laya reads, at most MAX_LINES: the tests first (at most MAX_TESTS), then the registered
-lessons that cost or gain her the most in total. Nothing here calls Qwen.
+lessons worth the most (``strength``: the difference per decision x decisions). ``cause`` names where damage came
+from, for the defense view. Nothing here calls Qwen.
 """
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS, RANGES
-from .move_coach import classify
+from .move_coach import MIN_TRIES
 
-KINDS = ("use_more", "avoid")
-RIGHT = {"use_more": "good", "avoid": "bad"}
+KINDS = ("use_more", "always", "avoid")
+RIGHT = {"use_more": "better", "always": "better", "avoid": "worse"}
+LEAD = {"use_more": "use more", "always": "always", "avoid": "avoid"}
 WHEN_WORDS = {"jumping": "when he jumps", "crouching": "when he crouches", "attacking": "when he attacks",
               "standing": "when he stands", "stunned": "when he is stunned"}
 MAX_LINES = 5          # text laya reads at most 5 advice lines
@@ -33,7 +38,7 @@ Registry = List[Dict]
 
 
 def render(c: Claim) -> str:
-    words = ["use more" if c["kind"] == "use_more" else "avoid", c["move"]]
+    words = [LEAD[c["kind"]], c["move"]]
     if c.get("range"):
         words.append(RANGE_WORDS[c["range"]])
     if c.get("when"):
@@ -57,22 +62,42 @@ def _covers(broad: Claim, narrow: Claim) -> bool:
                                                    for k in ("range", "when"))
 
 
-def stat(xs: Sequence[float]) -> Dict:
-    n = len(xs)
-    if not n:
-        return {"tries": 0, "net": 0.0, "lo": 0.0, "hi": 0.0, "total": 0, "cls": "few"}
-    m = sum(xs) / n
-    half = 1.96 * (sum((x - m) ** 2 for x in xs) / (n - 1)) ** 0.5 / n ** 0.5 if n > 1 else float("inf")
-    return {"tries": n, "net": m, "lo": m - half, "hi": m + half, "total": sum(xs), "cls": classify(n, m - half, m + half)}
+def _mean_var(xs: Sequence[float]) -> Tuple[float, float]:
+    m = sum(xs) / len(xs)
+    return m, sum((x - m) ** 2 for x in xs) / (len(xs) - 1) if len(xs) > 1 else float("inf")
 
 
 def condition_evidence(rows: Sequence[Dict], c: Claim) -> Dict:
-    """What c's move did in c's condition: her attacks with that move, at that range (if any), while he did that
-    (if any)."""
-    return stat([a["dealt"] - a["taken"] for a in rows
-                  if a.get("kind", "attack") == "attack" and a["action"] == c["move"]
-                  and (c.get("range") is None or a["range"] == c["range"])
-                  and (c.get("when") is None or opp_doing(a) == c["when"])])
+    """c's move against her average over every other decision in c's condition (range, what he was doing)."""
+    here = [a for a in rows if (c.get("range") is None or a["range"] == c["range"])
+            and (c.get("when") is None or opp_doing(a) == c["when"])]
+    mine = [a["dealt"] - a["taken"] for a in here if a["action"] == c["move"]]
+    rest = [a["dealt"] - a["taken"] for a in here if a["action"] != c["move"]]
+    out = {"tries": len(mine), "others": len(rest), "net": sum(mine) / len(mine) if mine else 0.0,
+           "base": sum(rest) / len(rest) if rest else 0.0, "diff": 0.0, "lo": 0.0, "hi": 0.0, "cls": "few"}
+    if len(mine) < MIN_TRIES or len(rest) < MIN_TRIES:
+        return out
+    (m1, v1), (m2, v2) = _mean_var(mine), _mean_var(rest)
+    half = 1.96 * (v1 / len(mine) + v2 / len(rest)) ** 0.5
+    d = m1 - m2
+    return dict(out, diff=d, lo=d - half, hi=d + half, cls="better" if d - half > 0 else "worse" if d + half < 0
+                else "unclear")
+
+
+def strength(r: Dict) -> float:
+    """What a lesson is worth: its difference per decision x its decisions."""
+    return abs(r["evidence"]["diff"]) * r["evidence"]["tries"]
+
+
+def cause(a: Dict) -> Optional[str]:
+    """Where a decision's damage taken came from: traded (her attack hit, and he hit her), punished (she whiffed or
+    was blocked, then got hit), stuffed (her attack did not land and she got hit), caught (hit while walking or
+    blocking); None if she took nothing."""
+    if not a["taken"]:
+        return None
+    if a.get("kind", "attack") != "attack":
+        return "caught"
+    return {"hit": "traded", "whiff": "punished", "blocked": "punished"}.get(a.get("actual"), "stuffed")
 
 
 def _refusal(reg: Registry, c, tried: set) -> Optional[str]:
@@ -87,29 +112,35 @@ def _refusal(reg: Registry, c, tried: set) -> Optional[str]:
             return "already %s" % r["state"]
         if key(r["claim"]) == key(c) and r["state"] == "rejected" and not r["why"].startswith("too few"):
             return "already rejected: %s" % r["why"]
-        if r["state"] in ("testing", "registered") and r["claim"]["kind"] == c["kind"] and _covers(r["claim"], c):
+        same = RIGHT[r["claim"]["kind"]] == RIGHT[c["kind"]]
+        if r["state"] in ("testing", "registered") and same and _covers(r["claim"], c):
             return "covered by the %s lesson %r" % (r["state"], r["line"])
-        if r["state"] in ("testing", "registered") and r["claim"]["kind"] != c["kind"] and _overlap(r["claim"], c):
+        if r["state"] in ("testing", "registered") and not same and _overlap(r["claim"], c):
             return "contradicts the %s lesson %r" % (r["state"], r["line"])
     return None
 
 
 def _entry(c: Claim, state: str, why: str, game: int, ev: Dict, qwen_why: str = "") -> Dict:
-    return {"claim": {k: c.get(k) for k in ("kind", "move", "range", "when")}, "line": render(c), "state": state,
+    return {"claim": {k: c.get(k) for k in ("kind", "move", "range", "when", "view")}, "line": render(c), "state": state,
             "why": why, "since": game, "evidence": ev, "qwen_why": qwen_why}
 
 
+def _vs(ev: Dict) -> str:
+    return "%+.1f per decision vs her %+.1f there (difference %+.1f, 95%% %+.1f to %+.1f, %d tries)" % (
+        ev["net"], ev["base"], ev["diff"], ev["lo"], ev["hi"], ev["tries"])
+
+
 def _judge(c: Claim, ev: Dict) -> Tuple[str, str]:
+    if ev["cls"] == "few":
+        return ("rejected", "too few tries to judge (%d)" % ev["tries"]) if c["kind"] == "avoid" else \
+            ("testing", "to be tried in play")
     if c["kind"] == "avoid":
-        if ev["cls"] == "bad":
-            return "registered", "clearly bad: %+.1f per try over %d tries" % (ev["net"], ev["tries"])
-        if ev["cls"] == "few":
-            return "rejected", "too few tries to judge (%d)" % ev["tries"]
-        return "rejected", "not clearly bad: %+.1f per try, 95%% %+.1f to %+.1f" % (ev["net"], ev["lo"], ev["hi"])
-    if ev["cls"] == "good":
-        return "registered", "clearly good: %+.1f per try over %d tries" % (ev["net"], ev["tries"])
-    if ev["cls"] == "bad":
-        return "rejected", "clearly bad: %+.1f per try over %d tries" % (ev["net"], ev["tries"])
+        return ("registered", "clearly worse: " + _vs(ev)) if ev["cls"] == "worse" else \
+            ("rejected", "not clearly worse: " + _vs(ev))
+    if ev["cls"] == "better":
+        return "registered", "clearly better: " + _vs(ev)
+    if ev["cls"] == "worse":
+        return "rejected", "clearly worse: " + _vs(ev)
     return "testing", "to be tried in play"
 
 
@@ -146,12 +177,10 @@ def review(reg: Registry, rows: Sequence[Dict], game: int) -> Registry:
             if state == "testing" and game - r["since"] >= TEST_GAMES:
                 state, why = "rejected", (
                     "too few tries after %d games (%d): may be proposed again" % (TEST_GAMES, ev["tries"])
-                    if ev["cls"] == "few" else "not shown after %d games: %+.1f per try over %d tries, 95%% %+.1f "
-                    "to %+.1f" % (TEST_GAMES, ev["net"], ev["tries"], ev["lo"], ev["hi"]))
+                    if ev["cls"] == "few" else "not shown after %d games: %s" % (TEST_GAMES, _vs(ev)))
             r.update(state=state, why=why, evidence=ev)
         elif r["state"] == "registered" and ev["cls"] != right:
-            r.update(state="retired", why="no longer clearly %s: %+.1f per try, 95%% %+.1f to %+.1f" % (
-                right, ev["net"], ev["lo"], ev["hi"]), evidence=ev)
+            r.update(state="retired", why="no longer clearly %s: %s" % (right, _vs(ev)), evidence=ev)
         elif r["state"] == "registered":
             r["evidence"] = ev
         out.append(r)
@@ -160,7 +189,7 @@ def review(reg: Registry, rows: Sequence[Dict], game: int) -> Registry:
 
 def in_play(reg: Registry) -> List[str]:
     tests = [r["line"] for r in reg if r["state"] == "testing"][:MAX_TESTS]
-    lessons = sorted((r for r in reg if r["state"] == "registered"), key=lambda r: -abs(r["evidence"]["total"]))
+    lessons = sorted((r for r in reg if r["state"] == "registered"), key=lambda r: -strength(r))
     return tests + [r["line"] for r in lessons][:MAX_LINES - len(tests)]
 
 

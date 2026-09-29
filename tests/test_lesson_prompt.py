@@ -1,38 +1,57 @@
-"""Qwen's one prompt in the lesson loop (sf2.system2.lesson_prompt): what it sees, and reading what it proposes."""
-
+"""Qwen's one prompt in the lesson loop (sf2.system2.lesson_prompt): two views of each game (attack: what her attacks
+did; defense: where the damage she took came from), her record, the registry; one claim per view back."""
 from sf2.system2 import lessons as L
-from sf2.system2.lesson_prompt import MAX_CLAIMS, by_situation, messages, parse_claims
+from sf2.system2.lesson_prompt import attack_view, defense_view, messages, parse_claims, record
 
 
-def act(move, rng, net, air=False, rnd=0):
-    return {"action": move, "range": rng, "kind": "attack", "dealt": max(net, 0), "taken": max(-net, 0),
-            "opp_air": air, "opp_state": "stand", "round": rnd}
+def act(move, rng, net, air=False, rnd=0, kind="attack", actual=None, attacked=False):
+    return {"action": move, "range": rng, "kind": kind, "dealt": max(net, 0), "taken": max(-net, 0),
+            "opp_air": air, "opp_state": "attack" if attacked else "stand", "round": rnd, "opp_attacked": attacked,
+            "actual": actual or ("hit" if net > 0 else "whiff")}
 
 
-def test_the_prompt_shows_the_registry_the_table_and_the_last_game_by_his_state():
-    rows = [act("sweep", "close", -10)] * 30 + [act("hp", "close", 9, air=True, rnd=5)] * 6
-    reg, _ = L.propose([], [{"kind": "avoid", "move": "sweep", "range": "close", "when": None}], rows, 0)
-    reg, _ = L.propose(reg, [{"kind": "avoid", "move": "hp", "range": "close", "when": None}], rows, 0)
-    user = messages("chunli", "ken", reg, rows, [a for a in rows if a["round"] == 5])[1]["content"]
-    assert "registered: avoid sweep up close" in user and "rejected: avoid hp up close" in user
-    assert "move sweep, range close" in user                       # the overall table
-    assert "hp up close when he jumps: 6 tries" in user            # the last game, by his state
+ROWS = ([act("sweep", "close", -12, attacked=True)] * 25 + [act("hp", "close", 9, air=True)] * 22 +
+        [act("back", "close", -1, kind="movement", attacked=True)] * 25 + [act("c.mk", "mid", 2)] * 30)
 
 
-def test_by_situation_groups_and_orders_by_size():
-    rows = [act("hp", "close", 9, air=True)] * 6 + [act("hp", "close", -2)] * 4 + [act("lp", "far", 1)] * 2
-    got = by_situation(rows, min_tries=3)
-    assert got[0].startswith("- hp up close when he jumps: 6 tries, net +9.0") and len(got) == 2
+def test_the_attack_view_is_relative_to_her_average_there():
+    got = attack_view(ROWS)
+    assert got[0].startswith("- hp up close when he jumps: 22 tries, net +9.0 per decision")
+    assert all("vs her" in x for x in got)
 
 
-def test_parse_claims():
-    ok = {"claims": [{"kind": "use_more", "move": "hp", "range": "close", "when": "jumping", "why": "lands"},
-                     {"kind": "avoid", "move": "sweep", "range": None, "when": None, "why": "x"},
-                     {"kind": "avoid", "move": "lp", "range": "far", "when": None}]}
-    claims, problems = parse_claims(ok)
-    assert len(claims) == MAX_CLAIMS == 2 and "only the first" in problems[0]
-    assert claims[0] == {"kind": "use_more", "move": "hp", "range": "close", "when": "jumping", "why": "lands"}
-    for bad in (None, [], "x", {"claims": "hp"}, {"claims": [1]}):
+def test_the_defense_view_says_where_the_damage_came_from():
+    got = "\n".join(defense_view(ROWS))
+    assert "punished after sweep up close when he attacks: 25 times, 300 damage" in got
+    assert "when he attacked, she chose:" in got and "back 25" in got
+
+
+def test_record():
+    rounds = [{"result": "loss", "dealt": 50, "taken": 176}, {"result": "win", "dealt": 176, "taken": 90}]
+    assert record(rounds, rounds[-1:]) == ("Last game: 1 round won, 0 lost (dealt 176, took 90 per round). "
+                                          "So far: 1 won, 1 lost (dealt 113, took 133 per round).")
+
+
+def test_the_prompt_holds_both_views_the_record_and_the_registry():
+    reg, _ = L.propose([], [{"kind": "avoid", "move": "sweep", "range": "close", "when": "attacking"}], ROWS, 0)
+    rounds = [{"result": "loss", "dealt": 50, "taken": 176}]
+    msgs = messages("chunli", "ken", reg, ROWS, ROWS, rounds, rounds)
+    user = msgs[1]["content"]
+    for part in ("So far:", "registered: avoid sweep up close when he attacks", "ATTACK", "DEFENSE"):
+        assert part in user
+    assert '"attack"' in msgs[0]["content"] and '"defense"' in msgs[0]["content"]
+
+
+def test_parse_claims_one_per_view():
+    claims, problems = parse_claims({"attack": {"kind": "use_more", "move": "hp", "range": "close", "when": "jumping",
+                                                "why": "lands"},
+                                     "defense": {"kind": "always", "move": "block_low", "range": "", "when": "attacking"}})
+    assert [c["view"] for c in claims] == ["attack", "defense"] and claims[1]["range"] is None and not problems
+    claims, problems = parse_claims({"attack": None, "defense": {"kind": "avoid", "move": "sweep"}})
+    assert len(claims) == 1 and claims[0]["view"] == "defense"
+    for bad in (None, [], "x", {"attack": [1]}, {"claims": []}):
         assert parse_claims(bad)[0] == [] and parse_claims(bad)[1]
-    claims, _ = parse_claims({"claims": [{"kind": "use_more", "move": "hp", "range": "", "when": "none"}]})
-    assert claims[0]["range"] is None and claims[0]["when"] is None       # empty / "none" mean no condition
+
+
+def test_record_before_any_game():
+    assert record([], []).startswith("No game played yet in this session")

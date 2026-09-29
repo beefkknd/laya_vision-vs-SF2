@@ -23,13 +23,12 @@ from typing import Dict, List
 import _path  # noqa: F401
 from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, TEXT_LAYA
 from sf2.data.dataset import read
-from sf2.eval.logs import mark_run
+from sf2.eval.logs import load_actions, mark_run, play_dirs
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.eval.stats import ci, paired
 from sf2.system1.advisor import Advisor
 from sf2.system1.system1 import System1, play_round
 from sf2.system2 import lessons as L
-from sf2.system2.code_coach import attacks
 from sf2.system2.lesson_prompt import messages, parse_claims
 from sf2.system2.qwen import chat, json_reply
 from sf2.vocab import RANGES
@@ -39,9 +38,15 @@ ROOT = os.path.join("rollouts", "qwen_lessons")
 BASELINE = 500
 
 
-def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict]):
+def decisions(opp: str) -> List[Dict]:
+    """Every decision of hers against ``opp`` in her play data (attacks, walks, blocks)."""
+    return [a for d in play_dirs() for a in load_actions(d) if a.get("me") == ME and a.get("opp") == opp]
+
+
+def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_rounds: List[Dict],
+        last_rounds: List[Dict]):
     try:
-        raw = chat(messages(ME, opp, reg, rows, last), "lessons_%s" % opp)
+        raw = chat(messages(ME, opp, reg, rows, last, all_rounds, last_rounds), "lessons_%s" % opp)
         claims, problems = parse_claims(json_reply(raw))
     except Exception as e:                   # Qwen down, cut off or not JSON: no claims this game
         return [], ["%s: %s" % (type(e).__name__, e)], None
@@ -49,9 +54,10 @@ def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict]):
 
 
 def play_arm(args, arm: str, port: int, out: str) -> int:
-    base = [a for a in attacks(ME) if a["opp"] == args.opp] if args.history else []
+    base = decisions(args.opp) if args.history else []
     reg: L.Registry = []
     acts: List[Dict] = []
+    played: List[Dict] = []
     os.makedirs(out, exist_ok=True)
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed)       # never play data (sf2.eval.logs)
     with Advisor(args.advisor) as advisor, open_fight(ME, args.opp, port) as (b, state), \
@@ -60,11 +66,11 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
         s1.advice_on = arm == "loop"
         rng = random.Random(args.seed)
 
-        def learn(game: int, last: List[Dict]) -> None:
+        def learn(game: int, last: List[Dict], last_rounds: List[Dict]) -> None:
             nonlocal reg
             rows = base + acts
             reg = L.review(reg, rows, game)
-            claims, problems, raw = ask(args.opp, reg, rows, last)
+            claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds)
             reg, outcome = L.propose(reg, claims, rows, game)
             logs["ledger"].write(json.dumps({"game": game, "claims": claims, "outcome": outcome, "problems": problems,
                                              "registry": reg, "in_play": L.in_play(reg),
@@ -74,11 +80,11 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
                                                             for o in outcome], L.in_play(reg)), flush=True)
 
         if arm == "loop" and base:
-            learn(-1, base)                       # before the first game: from her play data
+            learn(-1, base, [])                   # before the first game: from her play data
         for game in range(args.games):
             lines = L.in_play(reg)
             s1.short = {"me": ME, "opp": args.opp, "lessons": [{"text": t} for t in lines]}
-            this = []
+            this, this_rounds = [], []
             for r in range(args.rounds):
                 i = game * args.rounds + r
                 rnd = play_round(b, s1, args.opp, state, rng, None, i)
@@ -86,19 +92,21 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
                 this += [dict(e, **where) for e in rnd.log]
                 logs["actions"].write("".join(json.dumps(dict(e, **where)) + "\n" for e in rnd.log))
                 logs["rounds"].write(json.dumps(dict(rnd.summary, **where, lines=lines)) + "\n")
+                this_rounds.append(rnd.summary)
                 for f in logs.values():
                     f.flush()
                 print("%s game %d round %d: %s hp %+d" % (arm, game, r, rnd.result,
                                                           rnd.summary["dealt"] - rnd.summary["taken"]), flush=True)
             acts += this
+            played += this_rounds
             if arm == "loop":
-                learn(game, this)
+                learn(game, this, this_rounds)
     return 0
 
 
 def random_claims(rows: List[Dict], n: int, seed: int = 0) -> List[Dict]:
     r = random.Random(seed)
-    moves = sorted({a["action"] for a in rows if a.get("kind", "attack") == "attack"})
+    moves = sorted({a["action"] for a in rows})
     return [{"kind": r.choice(L.KINDS), "move": r.choice(moves), "range": r.choice((None,) + RANGES),
              "when": r.choice((None,) + tuple(L.WHEN_WORDS))} for _ in range(n)]
 
@@ -110,8 +118,9 @@ def holds(c: Dict, rows: List[Dict]) -> bool:
 def verdict(root: str, opp: str, history: bool) -> Dict:
     led = read(os.path.join(root, "loop", "ledger.jsonl"), missing_ok=True)
     acts = read(os.path.join(root, "loop", "actions.jsonl"), missing_ok=True)
-    rows = ([a for a in attacks(ME) if a["opp"] == opp] if history else []) + acts
+    rows = (decisions(opp) if history else []) + acts
     valid = [o["claim"] for r in led for o in r["outcome"] if o["state"] != "refused"]
+    views = {v: [c for c in valid if c.get("view") == v] for v in ("attack", "defense")}
     rand = [c for c in random_claims(rows, BASELINE) if L.condition_evidence(rows, c)["tries"] > 0]
     loop, none = (read(os.path.join(root, a, "rounds.jsonl"), missing_ok=True) for a in ("loop", "none"))
     d = paired(loop, none) if loop and len(loop) == len(none) else []
@@ -123,11 +132,16 @@ def verdict(root: str, opp: str, history: bool) -> Dict:
     return {"updates": len(led), "violations": sum(len(r["violations"]) for r in led),
             "proposed": sum(len(r["outcome"]) for r in led), "outcomes": states,
             "qwen_hold_rate": sum(holds(c, rows) for c in valid) / len(valid) if valid else None,
+            "qwen_hold_rate_by_view": {v: (sum(holds(c, rows) for c in cs) / len(cs) if cs else None, len(cs))
+                                       for v, cs in views.items()},
+            "kinds_registered": {k: sum(r["state"] == "registered" and r["claim"]["kind"] == k for r in final)
+                                 for k in L.KINDS},
             "random_hold_rate": sum(holds(c, rows) for c in rand) / len(rand) if rand else None,
             "registered_at_end": [r["line"] for r in final if r["state"] == "registered"],
             "retired": [r["line"] for r in final if r["state"] == "retired"],
             "won": {"loop": sum(r["result"] == "win" for r in loop), "none": sum(r["result"] == "win" for r in none)},
-            "hp_vs_none": ci(d) if d else None}
+            "hp_vs_none": ci(d) if d else None,
+            "taken_vs_none": ci([b["taken"] - a["taken"] for a, b in zip(loop, none)]) if d else None}
 
 
 def export(out: str = os.path.join("lessons", "chunli.json")) -> int:
