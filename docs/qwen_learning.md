@@ -325,7 +325,15 @@ The plain `character` prompt is byte-identical to before (checked on the lock's 
 Agreement with what the loop already verified: "avoid spinning_bird_kick" is registered in most runs (players: slow,
 unsafe in WW); Ken's "use more hp up close when he jumps" is an anti-air.
 
-### For a later text-laya fine-tune: the words players need that the grammar lacks
+### For a later laya fine-tune: general gaps only
+
+Owner (2026-09-29): a laya fine-tune (text laya or laya-vision) is for general game play, never to improve one or a
+couple of characters; Qwen is the second brain and does the character learning. So what counts as fine-tune evidence
+is a gap that holds across opponents (counted per opponent, pooled), and a grammar word only when it is a general game
+concept that applies to every opponent (a projectile, a missed attack, a knockdown) - never a named character's move.
+His specific moves (`opp_move`, sf2/system1/opp_moves.py) feed Qwen's views; they are not laya training data.
+
+Candidate words players need that the grammar lacks (all general):
 
 | Player's term | Needed in the logs | Needed in the grammar |
 |---|---|---|
@@ -336,7 +344,7 @@ unsafe in WW); Ken's "use more hp up close when he jumps" is an anti-air.
 | jump-in, cross-up | none (System 1 cannot pick a jump) | a jump move in `choices` |
 | CPU aggression late in the round | `clock` is logged per decision | "late in the round" |
 
-Evidence so far (`scripts/laya_evidence.py`, 31 runs): soft lessons are followed 48% vs 10% without advice, 65% when
+Evidence so far (`scripts/laya_evidence.py`, 31 runs; still to be split per opponent to show it is general): soft lessons are followed 48% vs 10% without advice, 65% when
 laya-vision has the move in its top 3 vs 41% when not; hard 96%, avoid 98%. Qwen named his specific move in 2 of 618
 claims (both "fireball", Ryu).
 
