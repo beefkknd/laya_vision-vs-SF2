@@ -133,6 +133,26 @@ So the leak roughly doubled the effect: with clean data it is about half, and to
 (the mean is positive for both arms and most opponents), but that is **not proven**; against Dhalsim both arms hurt.
 Everything below this section was written from the 2026-09-28 run and is kept as it was.
 
+### Three seeds pooled (2026-09-29): still not shown
+
+Pre-registered before running: 2 more seeds (31337, 52718) with the same frozen memories, pooled with seed 86160
+per opponent (90 paired rounds each), opponent as the unit (`ab_memory.py --pool`, runs `rollouts/ab/20260929-084920`,
+`-111807`, `-111809`).
+
+| Arm | Opponents | Paired rounds | vs none | 95% CI | Verdict |
+|---|---|---|---|---|---|
+| code_short | 5 | 450 | +12.4 | −7.6 to +36.8 | not shown |
+| code_playbook | 7 | 630 | +14.1 | −1.1 to +29.4 | not shown |
+
+Per opponent, vs none (hp / round): code_short Ryu −8, Honda +4, Ken +56, Zangief +19, Dhalsim −9; code_playbook
+Ryu +14, Honda +14, Ken +44, Zangief +15, Dhalsim −18, Guile +6, Blanka +24. Rounds won of 90, none → playbook:
+Ryu 32→32, Honda 10→20, Ken 10→30, Zangief 16→31, Dhalsim 32→25, Guile 46→54, Blanka 11→14.
+
+**Reading:** the playbook (general knowledge of herself) is positive against 6 of 7 opponents and the interval only just
+touches 0; the short memory (this opponent's rounds) is driven by Ken and hurts against Ryu and Dhalsim. Tripling the
+rounds narrowed little: the spread is **between opponents**, not round noise, so more rounds of the same 7 will not
+settle it. Counted advice is a small, opponent-dependent effect, not yet a general "helps".
+
 ### The 2026-09-28 run (superseded: the coach learned from the test's own replays)
 
 Every test is headless and paired. The opponent is locked by a savestate. Every arm plays the same rounds with the same start delays; only the advice differs. The score is hit points per round (damage dealt minus taken), compared with "Advice: none" round by round. The criteria were fixed before the run: an arm **helps** when the 95% confidence interval of its pooled difference is above 0.
