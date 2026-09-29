@@ -176,7 +176,8 @@ def export(out: str = os.path.join("lessons", "chunli.json")) -> int:
         for r in led[-1]["registry"]:
             if r["state"] == "registered":
                 e = runs["lessons"].setdefault(r["line"], {"claim": r["claim"], "runs": {}})
-                e["runs"][root] = {k: r["evidence"][k] for k in ("tries", "net", "lo", "hi", "total")}
+                e["runs"][root] = {k: v for k, v in r["evidence"].items()      # absolute (old runs) or relative
+                                   if k in ("tries", "net", "base", "diff", "lo", "hi", "total")}
     doc = {"me": ME, "made_by": "scripts/qwen_lessons.py --export: Qwen proposed, code verified (sf2.system2.lessons)",
            "opponents": {o: {"runs": d["runs"], "lessons": [dict(line=line, all_runs=len(e["runs"]) == len(d["runs"]),
                                                                   **e) for line, e in sorted(d["lessons"].items())]}
