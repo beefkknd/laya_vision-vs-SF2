@@ -39,7 +39,8 @@ from sf2.headless import launch_argv
 from sf2.memory import short_path
 from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
-from sf2.vs import IDS, NAMES, VARS
+from sf2.vocab import IDS
+from sf2.vs import NAMES, VARS
 
 ARMS = ("none", "qwen", "code_short", "code_playbook")
 OPPS = ("ryu", "honda", "ken", "zangief", "dhalsim", "guile", "blanka")

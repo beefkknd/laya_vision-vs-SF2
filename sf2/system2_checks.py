@@ -9,7 +9,8 @@ from typing import Dict, List, Optional
 
 from .memory import KINDS
 from .system2 import evidence_for, supported
-from .system2_prompts import CLAIMS, MAX_TEXT, RANGES
+from .system2_prompts import CLAIMS, MAX_TEXT
+from .vocab import RANGES
 from .vs_sweep import actions
 
 

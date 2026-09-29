@@ -25,7 +25,6 @@ LAYA_VISION_REPO = "https://github.com/r33drichards/laya-vision"
 LAYA_VISION_COMMIT = "568feeeada793f70f736756b0f3a7643d1e75910"
 
 HOLD = 4               # frames between two decisions (the dataset's rhythm)
-PREV_GAP = 4           # the "previous" image is always the frame HOLD frames before the current one
 
 # SNES pad, SF2's default layout: Y X L = jab / strong / fierce punch, B A R = short / forward / roundhouse.
 # Names are Mesen's (emu.getInput / emu.setInput keys).

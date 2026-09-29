@@ -15,9 +15,6 @@ from typing import List
 
 REQUIRED = ["my_hp", "opp_hp", "my_x", "opp_x", "my_y", "opp_y"]
 
-# Ranges by |x difference| in game pixels (the SNES screen is 256 wide; a fighter is ~50 wide).
-CLOSE, MID = 55, 120
-
 
 @dataclass
 class Var:

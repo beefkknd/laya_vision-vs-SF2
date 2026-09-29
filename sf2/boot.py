@@ -15,6 +15,7 @@ import os
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from .ram import Var, load_map
+from .vocab import IDS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHUNK = 60  # frames per RUN: a windowed Mesen shows the launch smoothly and the caller can watch each chunk
@@ -71,8 +72,6 @@ def boot(bridge, on_frames: Optional[Callable[[List[List[str]]], None]] = None, 
 # Player 2's character (0x0CD1 is player 1's; ids from the VS screens and the savestates in states/). The select
 # screen's grid holds the same ids: top row 0-3, bottom row 4-7.
 P2_CHAR = 0x0ED1
-CHARACTERS = {0: "ryu", 1: "honda", 2: "blanka", 3: "guile", 4: "ken", 5: "chunli", 6: "zangief", 7: "dhalsim",
-              10: "balrog", 11: "vega"}
 CHUNLI = 5
 # Screen bytes, observed on the ROM. 0x0B: 63 while the player select screen waits for a pick (it blinks to 49 once
 # one is made). 0x0C: 255 while the continue countdown runs. 0x0D: the select cursor. 0x1A7B: 0 outside a game
@@ -91,7 +90,6 @@ COOL = {"start": 150}  # frames to wait after START before the next press (the s
 PICKED = 600          # after the jab the select screen stays up (and 0x0D is reused) for a while: leave it alone
 
 
-IDS = {name: i for i, name in CHARACTERS.items() if i < 8}
 MAX_IDLE = 120  # idle counts tried before the jab; each possible first opponent comes up about every 4
 DECIDED = 300   # frames after the jab by which P2_CHAR holds the first opponent (set 208-231 frames after it;
                 # it starts at 4 = Ken, so reading it at 230 took a Blanka set on frame 231 for Ken: B3b, 2026-09-27)

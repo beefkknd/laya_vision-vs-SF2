@@ -14,8 +14,9 @@ from typing import Dict, List, Optional, Tuple
 
 from .memory import KINDS, check
 from .qwen import chat, json_reply
-from .system2_prompts import (CLAIMS, MAX_PLAYBOOK, MAX_PROMPT_LESSONS, MAX_TEXT, MIN_TRIES, RANGES, messages,
+from .system2_prompts import (CLAIMS, MAX_PLAYBOOK, MAX_PROMPT_LESSONS, MAX_TEXT, MIN_TRIES, messages,
                               populate_prompt, review_prompt)
+from .vocab import RANGES
 from .vs_sweep import actions
 
 # ------------------------------------------------------------------------------------------------ evidence (the truth)

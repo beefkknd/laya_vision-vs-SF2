@@ -10,7 +10,7 @@ Best moves by net hit points -> "use more <move> <range>"; worst -> "avoid <move
 import collections
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from .advice import RANGE_WORDS
+from .vocab import RANGE_WORDS
 from .eval.logs import ROOT, load_actions, play_dirs, sources
 
 MIN_TRIES = 20          # a (move, range) needs this many logged tries to be judged

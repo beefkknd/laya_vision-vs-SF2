@@ -30,14 +30,14 @@ from .dataset import save_png
 from .game_log import action_entry, game_entry
 from .advice import opp_doing
 from .advisor import choose
-from .game_log import _range as range_name
 from .game_log import name as state_name
 from .memory import MAX_PROMPT_LESSONS, prompt_text
 from .vs_defense import BLOCKS
 from .vs_defense import outcome as block_outcome
 from .policy import make_state
 from .vs import GROUND_Y, NAMES, physical, view
-from .vs_sweep import MOVEMENT, actions, bar, note, outcome, outcome_question
+from .vocab import bar, range_of
+from .vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
 
 WAIT = 4              # idle frames per step while the fighter cannot act (the 4-frame prev/now gap)
 MAX_RECOVER = 90      # frames to wait after an attack for the fighter to be able to act again
@@ -223,7 +223,7 @@ def situation(r: Dict[str, int]) -> Tuple[str, str, str, str]:
     """The moment in text laya's words (sf2.advice.situation_text), from the RAM row at the decision."""
     gap = abs(r["p2_x"] - r["p1_x"])
     doing = opp_doing({"opp_air": r["p2_y"] != GROUND_Y, "opp_state": state_name(r["p2_state"])})
-    return range_name(gap), doing, bar(r["p1_life"]), bar(r["p2_life"])
+    return range_of(gap), doing, bar(r["p1_life"]), bar(r["p2_life"])
 
 
 def _close(game: int, me: str, opp: str, pending) -> Dict:

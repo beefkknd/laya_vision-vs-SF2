@@ -43,7 +43,7 @@ from concurrent.futures import Future
 from typing import Dict, List, Optional, Tuple
 
 import _path  # noqa: F401
-from sf2.boot import CHARACTERS, next_fight, start_arcade
+from sf2.boot import next_fight, start_arcade
 from sf2.eval.logs import is_test, mark_run
 from sf2.headless import KeepMesenSettings, launch_argv, window_argv
 from sf2 import demo_cheat
@@ -53,6 +53,7 @@ from sf2.memory_churn import diff as diff_memory
 from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
 from sf2.system2 import fits_laya, populate, review
+from sf2.vocab import CHARACTERS
 from sf2.vs import NAMES, VARS
 from sf2.vs_sweep import actions
 

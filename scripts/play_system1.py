@@ -23,10 +23,10 @@ from sf2.headless import launch_argv
 from sf2.memory import load, short_path
 from sf2.mesen import MesenBridge
 from sf2.system1 import System1, play_round
-from sf2.vs import IDS, NAMES, VARS
+from sf2.vocab import FIGHTERS, IDS
+from sf2.vs import NAMES, VARS
 from sf2.vs_sweep import actions
 
-CHARS = ["ryu", "ken", "chunli", "guile", "honda", "blanka", "zangief", "dhalsim"]
 
 
 def opponent(me: str, choice: str = "ryu") -> str:
@@ -98,7 +98,7 @@ def summarize(out_dir: str, chars) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True, help="checkpoint dir, or 'random' for the random-attack baseline")
-    ap.add_argument("--chars", default=",".join(CHARS))
+    ap.add_argument("--chars", default=",".join(FIGHTERS))
     ap.add_argument("--games", type=int, default=10, help="games per character (a game = round 1 vs the CPU)")
     ap.add_argument("--threshold", type=float, default=0.5, help="attack only if P(hit) is at least this")
     ap.add_argument("--out", default="rollouts/system1")

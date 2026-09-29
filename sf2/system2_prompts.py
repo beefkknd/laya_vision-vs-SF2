@@ -5,12 +5,12 @@ import collections
 from typing import Dict, List, Optional, Tuple
 
 from .memory import KINDS, MAX_PROMPT_LESSONS
+from .vocab import RANGES
 from .vs_sweep import actions
 
 MAX_PLAYBOOK = 8
 MIN_TRIES = 3
 MAX_TEXT = 60              # characters per lesson: it goes into laya's prompt
-RANGES = ("close", "mid", "far")
 CLAIMS = ("lands", "whiffs", "blocked", "punished", "habit:attack", "habit:jump", "habit:guard", "counter:attack",
           "counter:jump")
 

@@ -15,7 +15,7 @@ they stay as they are.
 import re
 from typing import Dict, List, Sequence, Tuple
 
-from .ram import CLOSE, MID
+from .vocab import FULL_LIFE, bar, range_of
 from .vs import GROUND_Y, Step
 from .vs_moves import BLOCK_REACTS, GUARD, HIT, SPECIAL, THROWN, JUMP, ATTACK
 
@@ -95,7 +95,6 @@ POSTURES: Dict[str, Tuple[str, ...]] = {"stand": (), "crouch": ("D",), "crouch_b
 # comes, so its "blocked" rows share inputs with "hit" rows (650 conflicting pairs, 79% of the failing combinations
 # in the first eval). They stay collected (shards) for the moving-opponent stage, where the guard pose shows.
 STAGE1_POSTURES = ("stand", "crouch")
-RANGES = ("close", "mid", "far")
 # Target gaps (world px) per range, 10 each; index 2, 5, 8 are held out for test. The narrowest the fighters get
 # is ~20 px (they push each other), the widest ~206 (the camera).
 GAPS: Dict[str, List[int]] = {
@@ -104,10 +103,6 @@ GAPS: Dict[str, List[int]] = {
     "far": [124, 132, 140, 148, 156, 164, 172, 180, 190, 200],
 }
 TEST_INDEX = (2, 5, 8)
-
-
-def range_of(gap: int) -> str:
-    return "close" if gap < CLOSE else "mid" if gap < MID else "far"
 
 
 def split_of(index: int) -> str:
@@ -152,15 +147,6 @@ def outcome_question(action: str) -> Dict:
     function only. The label is OUTCOMES.index(outcome)."""
     return {"type": "choice", "instructions": "If you do %s now, what happens?" % action,
             "criteria": dict(OUTCOME_CRITERIA)}
-
-
-FULL_LIFE = 176
-
-
-def bar(life: int) -> str:
-    """A health bar in general words (laya gets no numbers: an exact value per row would be misleading)."""
-    share = max(0, life if life < 200 else 0) / FULL_LIFE
-    return "full" if share >= 0.9 else "high" if share >= 0.6 else "half" if share >= 0.3 else "low"
 
 
 def note(me: str, opp: str, r: Dict[str, int], side: str) -> str:

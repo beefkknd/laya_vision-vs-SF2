@@ -14,7 +14,7 @@ games.jsonl, per game: result, frames, clock_end, lives at the end, dealt, taken
 import collections
 from typing import Dict, List
 
-from .ram import CLOSE, MID
+from .vocab import range_of
 from .vs_defense import BLOCKS
 from .vs_sweep import MOVEMENT
 
@@ -29,10 +29,6 @@ def name(state: int) -> str:
 
 def clock(timer_bcd: int) -> int:
     return (timer_bcd >> 4) * 10 + (timer_bcd & 0x0F)
-
-
-def _range(gap: int) -> str:
-    return "close" if gap < CLOSE else "mid" if gap < MID else "far"
 
 
 def _life(v: int) -> int:
@@ -60,7 +56,7 @@ def action_entry(game: int, frame: int, me: str, opp: str, before: Dict, rows: L
     top3 = sorted(decision["probs"].items(), key=lambda kv: -kv[1])[:3]
     return {
         "game": game, "frame": frame, "clock": clock(before["timer"]), "me": me, "opp": opp,
-        "side": "left" if before["p1_x"] < before["p2_x"] else "right", "gap": gap, "range": _range(gap),
+        "side": "left" if before["p1_x"] < before["p2_x"] else "right", "gap": gap, "range": range_of(gap),
         "my_life": _life(before["p1_life"]), "opp_life": _life(before["p2_life"]),
         "my_state": name(before["p1_state"]), "opp_state": name(before["p2_state"]), "opp_air": before["p2_y"] != 192,
         "action": decision["action"], "kind": "movement" if decision["action"] in MOVEMENT else

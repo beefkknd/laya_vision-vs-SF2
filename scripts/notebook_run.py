@@ -29,7 +29,8 @@ from sf2.notebook_prompts import messages, reflect_prompt
 from sf2.qwen import chat, json_reply
 from sf2.round_facts import facts, plan_check, text, unexpected
 from sf2.system1 import System1, play_round
-from sf2.vs import IDS, NAMES, VARS
+from sf2.vocab import IDS
+from sf2.vs import NAMES, VARS
 from sf2.vs_sweep import actions
 
 ARMS = ("learn", "none")

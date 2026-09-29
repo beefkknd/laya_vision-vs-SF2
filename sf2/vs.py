@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from .ram import Var
+from .vocab import FULL_LIFE, IDS
 
 # Both fighters' structs: player 1 at 0x0C00 / 0x0D00, player 2 at 0x0E00 / 0x0F00 (the +0x200 stride of the RAM
 # map in ram_maps/sf2_snes.txt). "special" and "facing" are only verified for player 1; player 2's are the same
@@ -24,11 +25,9 @@ VARS += [Var("timer", 0x1AC8, 1, False), Var("result", 0x1ACF, 1, False),
          Var("shot2", 0x1050, 1, False), Var("shot2_x", 0x1057, 2, False)]
 NAMES = [v.name for v in VARS]
 
-IDS = {"ryu": 0, "honda": 1, "blanka": 2, "guile": 3, "ken": 4, "chunli": 5, "zangief": 6, "dhalsim": 7}
 CURSOR_START = {1: IDS["ryu"], 2: IDS["ken"]}
 GROUND_Y = 192
 START_X = (208, 304)
-FULL_HP = 176
 MENU: List[Tuple[str, int]] = [("-", 900), ("start", 2), ("-", 60), ("down", 2), ("-", 10), ("start", 2), ("-", 150)]
 PICK_WAIT, HANDICAP_WAIT = 150, 150   # frames after the jabs before START on the handicap screen, and after it
 MAX_WAIT = 3000
@@ -89,7 +88,7 @@ def boot_vs(bridge, p1: str, p2: str) -> bytes:
     bridge.run(_frames([("start", 2), ("-", HANDICAP_WAIT)]))
     for _ in range(0, MAX_WAIT, 10):
         r = rows_of(bridge.run([[]] * 10))[-1]
-        laid_out = (r["timer"] == 0x99 and (r["p1_x"], r["p2_x"]) == START_X and r["p1_hp"] == r["p2_hp"] == FULL_HP)
+        laid_out = (r["timer"] == 0x99 and (r["p1_x"], r["p2_x"]) == START_X and r["p1_hp"] == r["p2_hp"] == FULL_LIFE)
         if laid_out:
             break
     else:

@@ -24,10 +24,8 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-RANGES = ("close", "mid", "far")
-RANGE_WORDS = {"close": "up close", "mid": "at mid range", "far": "far away"}
-OPP_STATES = ("jumping", "crouching", "attacking", "standing", "stunned")
-BARS = ("full", "high", "half", "low")
+from .vocab import BARS, OPP_STATES, RANGE_WORDS, RANGES
+
 FORWARD = "forward"
 
 WORKS, MAY, FAILS = "likely works", "may work", "likely fails"

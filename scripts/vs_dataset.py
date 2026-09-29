@@ -32,9 +32,9 @@ from sf2.vs import boot_vs, gap_state, record, view
 from sf2.vs_moves import CONDS
 from sf2.frames import HUD_ROWS, mirror_frame, model_frame
 from sf2 import vs_defense as D
-from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, RANGES, STAGE1_POSTURES, actions,
-                          mirror_record, note, outcome, outcome_question, range_of, split_of, static_actions,
-                          current_note)
+from sf2.vocab import RANGES, range_of
+from sf2.vs_sweep import (GAPS, LEAD, MOVEMENT, OUTCOMES, POSTURES, PREV_GAP, STAGE1_POSTURES, actions,
+                          mirror_record, note, outcome, outcome_question, split_of, static_actions, current_note)
 
 ROOT = "test_data"
 MIN_TRAIN, MIN_TEST = 14, 6   # per (action, range): 7 gaps x 2 postures train, 3 x 2 test

@@ -7,8 +7,9 @@ import random
 import pytest
 
 from sf2.train_data import coverage_problems, load_data, position, split_by_position
+from sf2.vocab import FIGHTERS
 
-CHARS = ["ryu", "ken", "chunli", "guile", "honda", "blanka", "zangief", "dhalsim"]
+CHARS = FIGHTERS
 DIRS = [os.path.join("test_data", c) for c in CHARS]
 real = pytest.mark.skipif(not all(os.path.exists(os.path.join(d, "train.jsonl")) for d in DIRS),
                           reason="test_data/ not built (scripts/vs_dataset.py run)")
