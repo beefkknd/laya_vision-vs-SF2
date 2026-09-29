@@ -120,20 +120,20 @@ def _mem(*texts):
 
 
 def test_churn_same_meaning_is_kept():
-    from sf2.memory_churn import diff
+    from sf2.system2.memory_churn import diff
     c = diff(_mem("avoid sweep up close: it whiffs"), _mem("no sweep up close"), MOVES)
     assert (c.kept, c.added, c.dropped, c.flipped) == (1, [], [], [])
     assert not c.radical
 
 
 def test_churn_flip_is_radical():
-    from sf2.memory_churn import diff
+    from sf2.system2.memory_churn import diff
     c = diff(_mem("avoid sweep up close", "use more lp"), _mem("use sweep up close", "use more lp"), MOVES)
     assert c.flipped == [("avoid sweep up close", "use sweep up close")] and c.radical
 
 
 def test_churn_replacing_most_is_radical():
-    from sf2.memory_churn import diff
+    from sf2.system2.memory_churn import diff
     c = diff(_mem("use more lp", "avoid sweep", "use more mp"), _mem("use more c.mk", "avoid mk", "use more lp"), MOVES)
     assert c.kept == 1 and c.radical and not c.flipped
 

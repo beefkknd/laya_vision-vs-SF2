@@ -1,7 +1,7 @@
 """Round facts (code counts), the notebook's checks (change budget, plan lines, experiments) and the prompt."""
-from sf2.notebook import changes, check, clean_plan, edits, empty, merged, tries_allowed
-from sf2.notebook_prompts import reflect_prompt
-from sf2.round_facts import facts, plan_check, text, unexpected
+from sf2.system2.notebook import changes, check, clean_plan, edits, empty, merged, tries_allowed
+from sf2.system2.notebook_prompts import reflect_prompt
+from sf2.system2.round_facts import facts, plan_check, text, unexpected
 
 MOVES = ["lp", "mp", "c.mk", "sweep", "spinning_bird_kick", "throw", "block_high", "block_low"]
 
@@ -89,7 +89,7 @@ def test_a_line_with_two_ranges_never_crashes():          # Qwen wrote this (not
 
 
 def test_a_reply_that_is_not_an_object_keeps_book_and_plan():      # valid JSON, wrong shape: never a crash
-    from sf2.notebook import apply_reply
+    from sf2.system2.notebook import apply_reply
     book = merged(empty("chunli"), reply(["a"], ["use more sweep at mid"]), "ryu")
     for bad in ([1, 2], "use more sweep", None, 3):
         nb, plan, why = apply_reply(book, ["avoid lp up close"], bad, "ryu", MOVES, 1)
@@ -99,7 +99,7 @@ def test_a_reply_that_is_not_an_object_keeps_book_and_plan():      # valid JSON,
 
 
 def test_trim_edges_duplicates_and_full_sections():
-    from sf2.notebook import MAX_LINES, _trim
+    from sf2.system2.notebook import MAX_LINES, _trim
     # the same line re-worded only in case/punctuation is not new; a repeat in Qwen's list is added once
     assert _trim(["Sweep lands at mid."], ["sweep lands at mid", "throw up close", "throw up close"], [4, 2]) == [
         "Sweep lands at mid.", "throw up close"]

@@ -1,6 +1,6 @@
-"""Live tests of System 2's prompts: send Qwen the exact chats the runtime sends (sf2/system2_prompts.py), built from
+"""Live tests of System 2's prompts: send Qwen the exact chats the runtime sends (sf2/system2/prompts.py), built from
 frozen fixtures (tests/fixtures/system2/, never memory/), and check its RAW replies mechanically
-(sf2/system2_checks.py). Qwen runs inside the product, so every case runs --repeats times, some in several variations;
+(sf2/system2/checks.py). Qwen runs inside the product, so every case runs --repeats times, some in several variations;
 a case passes only if EVERY run passes. A mix of passes and fails is reported as FLIP: a sign the prompt is ambiguous,
 not something to retry until green.
 
@@ -30,9 +30,9 @@ import time
 from typing import Callable, Dict, List
 
 import _path  # noqa: F401
-from sf2.qwen import chat, json_reply
-from sf2.system2_checks import lessons_of, reply_problems
-from sf2.system2_prompts import MAX_PLAYBOOK, MAX_PROMPT_LESSONS, messages, populate_prompt, review_prompt
+from sf2.system2.qwen import chat, json_reply
+from sf2.system2.checks import lessons_of, reply_problems
+from sf2.system2.prompts import MAX_PLAYBOOK, MAX_PROMPT_LESSONS, messages, populate_prompt, review_prompt
 
 FIX = os.path.join("tests", "fixtures", "system2")
 ME = "chunli"

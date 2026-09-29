@@ -8,7 +8,7 @@ up close" vs "avoid sweep up close" is a FLIP (same move and conditions, opposit
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
-from .advice import read
+from ..advice import read
 
 RADICAL_SHARE = 0.5          # more than half the lessons added or dropped in one rewrite
 
@@ -37,7 +37,7 @@ class Change:
 
 
 def diff(old: Dict, new: Dict, moves: Sequence[str]) -> Change:
-    """``old`` / ``new``: memory files (sf2.memory format); a missing one counts as empty."""
+    """``old`` / ``new``: memory files (sf2.system2.memory format); a missing one counts as empty."""
     def keyed(mem):
         out = {}
         for les in (mem or {}).get("lessons", []):

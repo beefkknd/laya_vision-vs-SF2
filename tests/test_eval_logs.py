@@ -2,7 +2,7 @@
 import json
 import os
 
-from sf2.code_coach import attacks
+from sf2.system2.code_coach import attacks
 from sf2.eval.logs import mark_run, play_dirs, sources
 
 

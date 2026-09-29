@@ -20,7 +20,7 @@ import time
 import _path  # noqa: F401
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.data.dataset import read
-from sf2.memory import load, short_path
+from sf2.system2.memory import load, short_path
 from sf2.system1 import System1, play_round
 from sf2.vocab import FIGHTERS
 from sf2.data.vs_sweep import actions
@@ -93,7 +93,7 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--opp", default="ryu", help="the CPU opponent (dhalsim: the novice training opponent)")
     ap.add_argument("--memory", default="memory",
-                    help="memory dir (sf2/memory.py); 'none' plays with an empty short memory")
+                    help="memory dir (sf2/system2/memory.py); 'none' plays with an empty short memory")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
     exit_on_sigterm()

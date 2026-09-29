@@ -13,7 +13,7 @@ import math
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .advice import FORWARD, read
+from ..advice import FORWARD, read
 
 MAX_LINES = 10          # per section
 MAX_CHARS = 90          # a notebook line
@@ -145,5 +145,5 @@ def apply_reply(nb: Dict, plan: List[str], reply, opp: str, moves: Sequence[str]
 
 
 def shortlist_memory(plan: Sequence[str], me: str, opp: str) -> Optional[Dict]:
-    """The plan as the short-memory shape System 1 reads (sf2.memory: lessons with a text)."""
+    """The plan as the short-memory shape System 1 reads (sf2.system2.memory: lessons with a text)."""
     return {"me": me, "opp": opp, "lessons": [{"text": x} for x in plan]} if plan else None

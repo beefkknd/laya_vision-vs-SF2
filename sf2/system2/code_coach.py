@@ -10,8 +10,8 @@ Best moves by net hit points -> "use more <move> <range>"; worst -> "avoid <move
 import collections
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from .vocab import RANGE_WORDS
-from .eval.logs import ROOT, load_actions, play_dirs, sources
+from ..vocab import RANGE_WORDS
+from ..eval.logs import ROOT, load_actions, play_dirs, sources
 
 MIN_TRIES = 20          # a (move, range) needs this many logged tries to be judged
 N_USE, N_AVOID = 3, 2   # lines of each kind (text laya reads at most 5)
@@ -53,7 +53,7 @@ def lines(stats: Dict[Tuple[str, str], Dict], min_tries: int = MIN_TRIES) -> Lis
 
 
 def memory(me: str, opp: str, kind: str, rows: Optional[List[Dict]] = None) -> Dict:
-    """A short-memory file (sf2.memory shape) written by code: ``kind`` "short" (this opponent) or "playbook"
+    """A short-memory file (sf2.system2.memory shape) written by code: ``kind`` "short" (this opponent) or "playbook"
     (every other opponent)."""
     rows = attacks(me) if rows is None else rows
     pick = [a for a in rows if (a["opp"] == opp) == (kind == "short")]
@@ -64,7 +64,7 @@ def memory(me: str, opp: str, kind: str, rows: Optional[List[Dict]] = None) -> D
 
 
 def lesson_file(me: str, opp: Optional[str], kind: str, rows: Optional[List[Dict]] = None) -> Dict:
-    """``memory`` in sf2.memory's full format (kind, action, range, claim, evidence with refs into the logs), so it
+    """``memory`` in sf2.system2.memory's full format (kind, action, range, claim, evidence with refs into the logs), so it
     passes the same checks as System 2's own memory and can seed a run (scripts/seed_memory.py). ``kind`` "all" =
     every opponent (a playbook)."""
     rows = attacks(me) if rows is None else rows

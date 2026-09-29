@@ -1,5 +1,5 @@
 """Build a seed memory for a blank-start run (learn_loop --fresh NAME --seed DIR): a playbook counted by code from
-every logged round of the character (sf2.code_coach, the advice that tested +32 hit points per round), and a short
+every logged round of the character (sf2.system2.code_coach, the advice that tested +32 hit points per round), and a short
 memory per opponent counted from the rounds against him. Qwen takes it from there. Nothing in memory/ is touched.
 
     python scripts/seed_memory.py --out memory_seeds/video
@@ -10,9 +10,9 @@ import json
 import os
 
 import _path  # noqa: F401
-from sf2 import code_coach
-from sf2.memory import check, playbook_path, short_path
-from sf2.system2 import fits_laya
+from sf2.system2 import code_coach
+from sf2.system2.memory import check, playbook_path, short_path
+from sf2.system2.system2 import fits_laya
 from sf2.data.vs_sweep import actions
 
 

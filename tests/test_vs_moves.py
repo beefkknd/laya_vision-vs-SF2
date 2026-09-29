@@ -158,7 +158,7 @@ def test_game_log_puts_the_opponents_reaction_on_the_action_that_caused_it():
 
 
 def test_short_memory_goes_into_the_prompt_and_bad_memory_is_refused():
-    from sf2.memory import check, prompt_text
+    from sf2.system2.memory import check, prompt_text
     note = "me=ryu opp=ken dist=mid side=left dx=+70"
     assert prompt_text(note, None) == note and prompt_text(note, {"opp": "ken", "lessons": []}) == note
     les = [{"text": "use more sweep at mid range", "kind": "use_more", "action": "sweep", "range": "mid",
@@ -173,7 +173,7 @@ def test_short_memory_goes_into_the_prompt_and_bad_memory_is_refused():
 
 
 def test_system2_vet_keeps_laya_lessons_short_unique_and_backed():
-    from sf2.system2 import vet
+    from sf2.system2.system2 import vet
     def act(action, rng, actual, hit_me=False, opp_state="stand"):
         return {"kind": "attack", "action": action, "range": rng, "actual": actual, "i_was_hit": hit_me,
                 "opp_state": opp_state, "game": 0, "frame": 0}
@@ -195,7 +195,7 @@ def test_system2_vet_keeps_laya_lessons_short_unique_and_backed():
 
 
 def test_short_memory_evidence_uses_all_games_until_this_opponent_has_enough():
-    from sf2.system2 import vet
+    from sf2.system2.system2 import vet
     a = lambda act, res, st="stand": {"kind": "attack", "action": act, "range": "close", "actual": res,  # noqa: E731
                                        "i_was_hit": False, "opp_state": st, "game": 0, "frame": 0}
     all_games = [a("lp", "hit") for _ in range(20)]
@@ -211,7 +211,7 @@ def test_short_memory_evidence_uses_all_games_until_this_opponent_has_enough():
 
 
 def test_a_kept_short_memory_must_meet_todays_rules():
-    from sf2.system2 import fits_laya
+    from sf2.system2.system2 import fits_laya
     ok = {"text": "use more lp up close", "kind": "use_more", "action": "lp", "range": "close", "claim": "lands"}
     old_style = {"text": "ryu punishes my spinning_bird_kick at mid range (70%)", "kind": "avoid",
                  "action": "spinning_bird_kick", "range": "mid"}                    # no claim, numbers: the old builder
@@ -222,7 +222,7 @@ def test_a_kept_short_memory_must_meet_todays_rules():
 
 
 def test_revise_prompt_shows_which_lessons_system1_followed():
-    from sf2.system2_prompts import followed
+    from sf2.system2.prompts import followed
     a = lambda act, rng, res, punished=False: {"action": act, "range": rng, "actual": res, "i_was_hit": punished}  # noqa
     recent = [a("sweep", "close", "whiff", True), a("sweep", "close", "whiff"), a("hp", "mid", "hit")]
     mem = {"lessons": [{"text": "use more lp up close", "kind": "use_more", "action": "lp", "range": "close"},
@@ -237,7 +237,7 @@ def test_revise_prompt_shows_which_lessons_system1_followed():
 def test_system2_reply_checks_flag_each_broken_rule():
     """The checks the live Qwen prompt tests gate on, seen red on canned bad replies."""
     import json
-    from sf2.system2_checks import reply_problems
+    from sf2.system2.checks import reply_problems
     logs = json.load(open("tests/fixtures/system2/chunli_logs.json"))
     ryu = logs["ryu"]["actions"]
     every = [a for v in logs.values() for a in v["actions"]]

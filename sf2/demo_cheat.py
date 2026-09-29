@@ -7,7 +7,7 @@ import os
 import time
 from typing import Dict, List, Optional
 
-from .memory import save
+from .system2.memory import save
 from .vocab import IDS
 
 SEED = "memory_seeds/video"

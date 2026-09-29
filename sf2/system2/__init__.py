@@ -1,0 +1,1 @@
+"""System 2 (Qwen): the short memory and playbook it writes (system2, prompts, checks, memory, memory_churn), the notebook (notebook, notebook_prompts, round_facts), the no-LLM code coach (code_coach) and the chat client (qwen)."""

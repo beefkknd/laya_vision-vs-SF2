@@ -1,5 +1,5 @@
 """How much System 2 changed each memory, version by version (scripts/report.py churn): the playbook and every short
-memory of a character, from the kept copies in logs/system2/memory/ (sf2.memory_churn). A stable playbook is the
+memory of a character, from the kept copies in logs/system2/memory/ (sf2.system2.memory_churn). A stable playbook is the
 goal; RADICAL rewrites (most lessons replaced, or a "use X" turned into "avoid X") are listed.
 """
 import collections
@@ -10,7 +10,7 @@ import statistics
 from typing import List
 
 from ..advice import FORWARD
-from ..memory_churn import diff
+from ..system2.memory_churn import diff
 from ..data.vs_sweep import actions
 
 KEEP = "logs/system2/memory"

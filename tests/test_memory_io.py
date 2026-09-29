@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from sf2.memory import OutsideWatch, save, try_load
+from sf2.system2.memory import OutsideWatch, save, try_load
 
 MOVES = ["sweep", "lp"]
 GOOD = {"me": "chunli", "opp": "ryu", "lessons": []}

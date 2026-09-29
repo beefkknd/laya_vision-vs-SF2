@@ -7,7 +7,7 @@ import time
 import urllib.request
 from typing import Dict, List
 
-from .config import QWEN_MAX_TOKENS, QWEN_MODEL, QWEN_TEMPERATURE, QWEN_THINKING, QWEN_URL
+from ..config import QWEN_MAX_TOKENS, QWEN_MODEL, QWEN_TEMPERATURE, QWEN_THINKING, QWEN_URL
 
 LOG_DIR = os.path.join("logs", "system2")
 

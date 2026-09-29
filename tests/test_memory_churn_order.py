@@ -6,7 +6,7 @@ import sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CODE = """
-from sf2.memory_churn import diff
+from sf2.system2.memory_churn import diff
 old = {"lessons": [{"text": t, "kind": "avoid"} for t in ("avoid lp up close", "avoid sweep far away", "avoid throw up close")]}
 new = {"lessons": [{"text": t, "kind": "use_more"} for t in ("use more c.mk at mid range", "use more hk far away", "use more mp up close")]}
 c = diff(old, new, ["lp", "sweep", "throw", "c.mk", "hk", "mp"])

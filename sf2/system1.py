@@ -31,7 +31,7 @@ from .game_log import action_entry, game_entry
 from .advice import opp_doing
 from .advisor import choose
 from .game_log import name as state_name
-from .memory import MAX_PROMPT_LESSONS, prompt_text
+from .system2.memory import MAX_PROMPT_LESSONS, prompt_text
 from .data.vs_defense import BLOCKS
 from .data.vs_defense import outcome as block_outcome
 from .policy import make_state
@@ -69,7 +69,7 @@ class System1:
         self.me, self.threshold = me, threshold
         self.advisor = advisor     # sf2.advisor.Advisor: text laya picks from laya-vision's ratings + the short memory
         self.advice_on = True      # False: text laya still picks, told "Advice: none" (the A/B control)
-        self.short = None          # the short memory vs the current opponent (sf2.memory), goes into laya's prompt
+        self.short = None          # the short memory vs the current opponent (sf2.system2.memory), goes into laya's prompt
         self.attacks = [a for a in actions(me) if a not in MOVEMENT and a not in BLOCKS]
         self.blocks = list(BLOCKS)
         self.questions = {a: outcome_question(a) for a in self.attacks + self.blocks}

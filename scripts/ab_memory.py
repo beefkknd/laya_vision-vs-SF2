@@ -5,7 +5,7 @@ Each arm's memory is frozen (copied into the run folder at the start; nothing re
 Arms:
     none           "Advice: none" (the control)
     qwen           System 2's current short memory (memory/short/<me>_vs_<opp>.json)
-    code_short     written by code from my rounds against THIS opponent (sf2.code_coach)
+    code_short     written by code from my rounds against THIS opponent (sf2.system2.code_coach)
     code_playbook  written by code from my rounds against every OTHER opponent (general knowledge of myself)
 
     python scripts/ab_memory.py --arms none,code_short,code_playbook --opps ryu,honda,ken,zangief,dhalsim,guile,blanka
@@ -30,13 +30,13 @@ import time
 from typing import Dict, List
 
 import _path  # noqa: F401
-from sf2 import code_coach
+from sf2.system2 import code_coach
 from sf2.advisor import Advisor
 from sf2.data.dataset import read
 from sf2.eval import stats
 from sf2.eval.logs import sources
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
-from sf2.memory import short_path
+from sf2.system2.memory import short_path
 from sf2.system1 import System1, play_round
 
 ARMS = ("none", "qwen", "code_short", "code_playbook")

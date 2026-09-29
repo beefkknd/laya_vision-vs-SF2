@@ -9,9 +9,9 @@ from typing import Dict, List, Optional
 
 from .memory import KINDS
 from .system2 import evidence_for, supported
-from .system2_prompts import CLAIMS, MAX_TEXT
-from .vocab import RANGES
-from .data.vs_sweep import actions
+from .prompts import CLAIMS, MAX_TEXT
+from ..vocab import RANGES
+from ..data.vs_sweep import actions
 
 
 def lessons_of(reply) -> Optional[List[Dict]]:

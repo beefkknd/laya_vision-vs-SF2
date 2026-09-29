@@ -1,8 +1,8 @@
 """Does the notebook make her learn? Headless, opponent locked (states/p1_<me>_vs_<opp>.state), two arms playing the
 same rounds (same savestate, same start delays), side by side:
 
-    learn   after every round, win or lose, Qwen reads the round's facts (sf2.round_facts), updates the notebook a
-            little (sf2.notebook) and writes the next round's plan; text laya follows the plan
+    learn   after every round, win or lose, Qwen reads the round's facts (sf2.system2.round_facts), updates the notebook a
+            little (sf2.system2.notebook) and writes the next round's plan; text laya follows the plan
     none    text laya with "Advice: none" every round (the control)
 
     python scripts/notebook_run.py --opp ryu --rounds 40
@@ -20,14 +20,14 @@ import time
 from typing import Dict, List
 
 import _path  # noqa: F401
-from sf2 import notebook as nbk
+from sf2.system2 import notebook as nbk
 from sf2.advisor import Advisor
 from sf2.data.dataset import read
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.eval.stats import slope
-from sf2.notebook_prompts import messages, reflect_prompt
-from sf2.qwen import chat, json_reply
-from sf2.round_facts import facts, plan_check, text, unexpected
+from sf2.system2.notebook_prompts import messages, reflect_prompt
+from sf2.system2.qwen import chat, json_reply
+from sf2.system2.round_facts import facts, plan_check, text, unexpected
 from sf2.system1 import System1, play_round
 from sf2.data.vs_sweep import actions
 

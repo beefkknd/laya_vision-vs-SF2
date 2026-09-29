@@ -1,4 +1,4 @@
-"""Two memories for System 1, both written by System 2 (Qwen, sf2/system2.py) from the game logs.
+"""Two memories for System 1, both written by System 2 (Qwen, sf2/system2/system2.py) from the game logs.
 
     memory/playbook/<me>.json          long term: what this character's own moves do, by range (kept across sessions)
     memory/short/<me>_vs_<opp>.json    short term: lessons against this opponent (starts empty; a new opponent gets
