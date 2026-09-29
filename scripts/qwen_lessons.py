@@ -8,6 +8,8 @@ After every game: code reviews the registry (claims in test judged, lessons whos
 then Qwen proposes at most 2 claims, code judges them. Starts from her play data against him (--no-history: nothing).
 From a lock (sf2.eval.lock): --lock NAME --run N repeats the lock's run N with its checkpoints, savestate and play
 data only (refused when a locked file changed); output under rollouts/locked/NAME/.
+--prompt character: Qwen studies this one opponent - his threats and "if you see X" (sf2.system2.character_prompt);
+the default "views" is the two-view prompt the lock lesson_loop_v1 ran with (sf2.system2.lesson_prompt).
 Verdict (rollouts/qwen_lessons/<stamp>_<opp>/verdict.json):
     invariant     no registered lesson ever contradicts its own evidence (code-enforced; a violation is a bug)
     hypotheses    Qwen's valid claims that hold on all the data at the end, vs 500 random valid claims (the same
@@ -32,13 +34,15 @@ from sf2.eval.stats import ci, paired
 from sf2.system1.advisor import Advisor
 from sf2.system1.system1 import System1, choices, play_round
 from sf2.system2 import lessons as L
-from sf2.system2.lesson_prompt import messages, parse_claims, streak
+from sf2.system2 import character_prompt, lesson_prompt
+from sf2.system2.lesson_prompt import streak
 from sf2.system2.qwen import chat, json_reply
 from sf2.vocab import RANGES
 
 ME = "chunli"
 ROOT = os.path.join("rollouts", "qwen_lessons")
 BASELINE = 500
+PROMPTS = {"views": lesson_prompt, "character": character_prompt}
 
 
 def decisions(opp: str, lock: str = None) -> List[Dict]:
@@ -73,11 +77,12 @@ def apply_lock(args) -> None:
 
 
 def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_rounds: List[Dict],
-        last_rounds: List[Dict], refused: List[Dict], stable=None):
+        last_rounds: List[Dict], refused: List[Dict], stable=None, prompt: str = "views"):
+    p = PROMPTS[prompt]
     try:
-        raw = chat(messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused, stable),
+        raw = chat(p.messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused, stable),
                    "lessons_%s" % opp)
-        claims, problems = parse_claims(json_reply(raw))
+        claims, problems = p.parse_claims(json_reply(raw))
     except Exception as e:                   # Qwen down, cut off or not JSON: no claims this game
         return [], ["%s: %s" % (type(e).__name__, e)], None
     return claims, problems, raw
@@ -92,7 +97,8 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     games: List[Dict] = []             # per game: rounds won / lost
     changed: List[bool] = []           # per update: did the registered lessons change
     os.makedirs(out, exist_ok=True)
-    mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock)       # never play data (sf2.eval.logs)
+    mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock,
+             prompt=args.prompt)       # never play data (sf2.eval.logs)
     with Advisor(args.advisor) as advisor, open_fight(ME, args.opp, port, state=args.state) as (b, state), \
             open_logs(out, ("actions", "rounds", "ledger")) as logs:
         s1 = System1(args.model, ME, advisor=advisor)
@@ -105,11 +111,12 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
             before = {r["line"] for r in reg if r["state"] == "registered"}
             reg = L.review(reg, rows, game)
             stable = streak(games, changed)
-            claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused, stable)
+            claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused, stable,
+                                        args.prompt)
             reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES)
             changed.append({r["line"] for r in reg if r["state"] == "registered"} != before)
             refused = [o for o in outcome if o["state"] == "refused"]
-            logs["ledger"].write(json.dumps({"game": game, "stable": stable, "claims": claims, "outcome": outcome,
+            logs["ledger"].write(json.dumps({"game": game, "prompt": args.prompt, "stable": stable, "claims": claims, "outcome": outcome,
                                              "problems": problems,
                                              "registry": reg, "in_play": L.in_play(reg),
                                              "violations": L.violations(reg, rows), "reply": raw}) + "\n")
@@ -144,24 +151,26 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     return 0
 
 
-def random_claims(rows: List[Dict], n: int, seed: int = 0) -> List[Dict]:
+def random_claims(rows: List[Dict], n: int, seed: int = 0, need_when: bool = False) -> List[Dict]:
+    """``need_when``: every claim names what he is doing, like a character lesson (a fair chance baseline for it)."""
     r = random.Random(seed)
     moves = sorted({a["action"] for a in rows})
+    whens = tuple(L.WHEN_WORDS) if need_when else (None,) + tuple(L.WHEN_WORDS)
     return [{"kind": r.choice(L.KINDS), "move": r.choice(moves), "range": r.choice((None,) + RANGES),
-             "when": r.choice((None,) + tuple(L.WHEN_WORDS))} for _ in range(n)]
+             "when": r.choice(whens)} for _ in range(n)]
 
 
 def holds(c: Dict, rows: List[Dict]) -> bool:
     return L.condition_evidence(rows, c)["cls"] == L.RIGHT[c["kind"]]
 
 
-def verdict(root: str, opp: str, history: bool, lock: str = None) -> Dict:
+def verdict(root: str, opp: str, history: bool, lock: str = None, prompt: str = "views") -> Dict:
     led = read(os.path.join(root, "loop", "ledger.jsonl"), missing_ok=True)
     acts = read(os.path.join(root, "loop", "actions.jsonl"), missing_ok=True)
     rows = (decisions(opp, lock) if history else []) + acts
     valid = [o["claim"] for r in led for o in r["outcome"] if o["state"] != "refused"]
-    views = {v: [c for c in valid if c.get("view") == v] for v in ("attack", "defense")}
-    rand = [c for c in random_claims(rows, BASELINE) if L.condition_evidence(rows, c)["tries"] > 0]
+    views = {v: [c for c in valid if c.get("view") == v] for v in PROMPTS[prompt].VIEWS if v != "what_if"}
+    rand = [c for c in random_claims(rows, BASELINE, need_when=prompt == "character") if L.condition_evidence(rows, c)["tries"] > 0]
     loop, none = (read(os.path.join(root, a, "rounds.jsonl"), missing_ok=True) for a in ("loop", "none"))
     d = paired(loop, none) if loop and len(loop) == len(none) else []
     states = {}
@@ -169,7 +178,7 @@ def verdict(root: str, opp: str, history: bool, lock: str = None) -> Dict:
         for o in r["outcome"]:
             states[o["state"]] = states.get(o["state"], 0) + 1
     final = led[-1]["registry"] if led else []
-    return {"updates": len(led), "violations": sum(len(r["violations"]) for r in led),
+    return {"prompt": prompt, "updates": len(led), "violations": sum(len(r["violations"]) for r in led),
             "proposed": sum(len(r["outcome"]) for r in led), "outcomes": states,
             "qwen_hold_rate": sum(holds(c, rows) for c in valid) / len(valid) if valid else None,
             "qwen_hold_rate_by_view": {v: (sum(holds(c, rows) for c in cs) / len(cs) if cs else None, len(cs))
@@ -229,6 +238,7 @@ def main() -> int:
     ap.add_argument("--base-port", type=int, default=PORTS["qwen_moves"][0], help="two ports: loop and none")
     ap.add_argument("--model", default=LAYA_VISION)
     ap.add_argument("--advisor", default=TEXT_LAYA)
+    ap.add_argument("--prompt", choices=sorted(PROMPTS), default="views", help="what Qwen is asked after each game")
     ap.add_argument("--lock", help="play from this lock's copies only (sf2.eval.lock)")
     ap.add_argument("--run", type=int, help="with --lock: repeat the lock's run N (its opponent, seed, games)")
     ap.add_argument("--one", nargs=3, metavar=("ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
@@ -243,17 +253,18 @@ def main() -> int:
         return play_arm(args, args.one[0], int(args.one[1]), args.one[2])
     args.seed = int(time.time()) % 100000 if args.seed is None else args.seed
     root = os.path.join(os.path.join("rollouts", "locked", args.lock) if args.lock else ROOT,
-                        "%s_%s" % (time.strftime("%Y%m%d-%H%M%S"), args.opp))
+                        "%s_%s%s" % (time.strftime("%Y%m%d-%H%M%S"), args.opp,
+                                    "" if args.prompt == "views" else "_" + args.prompt))
     cmds = [((args.opp, arm), [sys.executable, os.path.abspath(__file__), "--opp", args.opp, "--games",
                                str(args.games), "--rounds", str(args.rounds), "--seed", str(args.seed), "--model",
                                args.model, "--advisor", args.advisor] + ([] if args.history else ["--no-history"])
-                              + (["--lock", args.lock] if args.lock else [])
+                              + (["--lock", args.lock] if args.lock else []) + ["--prompt", args.prompt]
                               + ["--one", arm, str(args.base_port + i), os.path.join(root, arm)])
             for i, arm in enumerate(("loop", "none"))]
     print("Chun-Li vs %s: %d games x %d rounds, seed %d; logs/qwen_lessons/" % (
         args.opp, args.games, args.rounds, args.seed), flush=True)
     failed = fan_out(cmds, os.path.join("logs", "qwen_lessons"), job_gb=MODEL_JOB_GB)
-    v = dict(verdict(root, args.opp, args.history, args.lock), seed=args.seed, lock=args.lock, failed_jobs=[list(k) for k in failed])
+    v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, failed_jobs=[list(k) for k in failed])
     with open(os.path.join(root, "verdict.json"), "w") as f:
         json.dump(v, f, indent=1)
     print(json.dumps(v, indent=1))
