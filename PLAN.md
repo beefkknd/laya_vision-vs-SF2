@@ -1,3 +1,7 @@
+> **Historical (2026-09-29).** This is the first plan: a scripted teacher + DAgger. That pipeline was deleted
+> (git tag `legacy-dagger`). The current system is described in README.md; the plan for System 2 (Qwen) and its
+> measurements are in docs/qwen_learning.md.
+
 # laya-vision → Street Fighter (small closed loop)
 
 **laya-vision** is a System-1 model: **one screenshot (+ a little text) → probabilities over buttons you list.** It does not invent combos, parse video, or get better from “I won/lost the round” alone. You supply a teacher, turn fights into labeled rows, LoRA, play, record, relabel, repeat.

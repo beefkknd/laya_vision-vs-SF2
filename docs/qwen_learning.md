@@ -29,6 +29,19 @@ Verified first: after the other session's changes (brain panel, video, `seed_mem
 
 ### P1: cleanup, so the code stops growing
 
+**P1 status (2026-09-29): done**, one commit per step (3d7239a .. e75bf0e), each after pytest plus a headless smoke. Where
+code moved without meaning to change, the output was compared to a golden taken before the change: report goldens,
+the dataset build reproduced byte for byte, same-seed play runs, the audit, and a seeded text-laya training run.
+Refactors that found real bugs (each now covered by a test):
+- memory_churn listed changes in set order, so the churn report reshuffled on every run;
+- the default character list in the audit, eval_outcome and verify_replay took `test_data/advice/` as a character
+  and crashed;
+- moving modules one folder down would have broken their repo-root paths, so `config.REPO` is now the only place
+  that finds the checkout (with an invariant test).
+Filed separately: `verify_replay` fails on live-play rows (`KeyError: 'live'`). Their `posture` is `"live"`, which
+has no savestate recipe (since a4fe0db). Not done: `train.py`'s main is still long, because it has no smoke mode to
+prove a split. The review's list below is kept as it was written.
+
 **Delete the legacy teacher/DAgger pipeline**, after tagging it `legacy-dagger`. Nothing live imports it; I checked the import graph.
 - Modules: `sf2/{env,teacher,loop,rollout,labeler,cli,ramsearch}.py`.
 - Scripts: `scripts/{play_student,play_teacher,collect_teacher,relabel,gate,label_human,record_human,find_ram,check_env}.py` and `dagger_round.sh`.
@@ -158,7 +171,7 @@ The comparison that matters: plain counting (sort by net, keep the top 3, avoid 
 ## 4. Plan: three stages, each with its own test
 
 ### Stage A: Qwen with the right inputs, fixed advice
-- **Give Qwen** the net-hit-points table (the one `sf2/code_coach.py` computes) and code's own lines as a draft.
+- **Give Qwen** the net-hit-points table (the one `sf2/system2/code_coach.py` computes) and code's own lines as a draft.
 - **Ask for** at most 5 lines. Each line either keeps a draft line or replaces it with a reason naming a row of the table.
 - **Code checks** that every line's direction matches the sign of its row's net, and that at least 2 lines are "use more".
 - **Test:** a `qwen_table` arm in `scripts/ab_memory.py`, same opponents and rounds. **Pass:** not worse than code_short (CI upper bound ≥ 0). **Goal:** better than code_short.
@@ -201,8 +214,11 @@ Only after C passes. `scripts/learn_loop.py` uses the notebook, the code baselin
 
 | What | Where |
 |---|---|
-| counting coach | `sf2/code_coach.py` |
-| fixed-advice A/B (proofs 1–3) | `scripts/ab_memory.py` → `rollouts/ab/<stamp>/summary.json` |
-| per-round facts, notebook, prompts, runner | `sf2/round_facts.py`, `sf2/notebook.py`, `sf2/notebook_prompts.py`, `scripts/notebook_run.py` |
-| advice → move | `sf2/advice.py` (label rule), `sf2/advisor.py`, `runs/text_laya/advice_v1` |
-| where the loop loses, memory churn | `scripts/learning_gaps.py`, `scripts/memory_churn.py` |
+| counting coach | `sf2/system2/code_coach.py` |
+| what counts as play data (test runs excluded) | `sf2/eval/logs.py` (`run.json` per run) |
+| A/B statistics (pairs, opponent-level bootstrap, verdicts) | `sf2/eval/stats.py` |
+| fixed-advice A/B (proofs 1–3) | `scripts/ab_memory.py` → `rollouts/ab/<stamp>/{run.json,summary.json}` |
+| per-round facts, notebook, prompts, runner | `sf2/system2/{round_facts,notebook,notebook_prompts}.py`, `scripts/notebook_run.py` |
+| advice → move | `sf2/system1/advice.py` (label rule), `sf2/system1/advisor.py`, `runs/text_laya/advice_v1` |
+| System 2 beside the game | `sf2/system2/async_runner.py` (used by `scripts/learn_loop.py`) |
+| where the loop loses, memory churn | `scripts/report.py gaps`, `scripts/report.py churn` |

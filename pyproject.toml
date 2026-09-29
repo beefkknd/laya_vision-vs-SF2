@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "laya-vision-vs-sf2"
 version = "0.1.0"
-description = "Teach laya-vision (image -> typed choice) to play SNES Street Fighter II in Mesen with a frame-level teacher + DAgger"
+description = "laya-vision plays SNES Street Fighter II in Mesen (System 1: laya-vision + text laya), and Qwen learns from its games and writes the advice it follows (System 2)"
 requires-python = ">=3.11"
 # The emulator is Mesen 2 (a separate app); mesen/sf2_bridge.lua connects it to Python over a local socket.
 dependencies = [

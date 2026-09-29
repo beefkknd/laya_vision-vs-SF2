@@ -1,22 +1,23 @@
 # laya_vision-vs-SF2
 
-This project teaches **laya-vision** to play **SNES Street Fighter II**, running in **Mesen 2** on a Mac Studio. It follows the plan in [PLAN.md](PLAN.md):
+This project teaches **laya-vision** to play **SNES Street Fighter II**, running in **Mesen 2** on a Mac Studio. **System 1** sees the screen (laya-vision) and decides which move to try (text laya), following advice. **System 2** (Qwen on omlx) writes and refines that advice from game logs.
 
-1. A frame-level teacher labels frames.
-2. laya-vision learns to copy it.
-3. The student plays, and the teacher labels the student's own frames (DAgger).
-4. The model trains again.
+The learning loop is in `scripts/learn_loop.py` (`--minutes`, `--games`, `--headless`, `--advisor off`, `--ab-advice`, `--fresh`). Measurement scripts measure whether the advice helps: `scripts/ab_memory.py` (many opponents, fixed advice, paired), `scripts/notebook_run.py` (learning over rounds), and `scripts/report.py {gaps,churn}` (where losses happen and how much memory changes).
 
-Round wins and damage decide whether a round of training worked; validation loss does not.
+The old teacher/DAgger pipeline (before 2026-09-29) is archived at git tag `legacy-dagger`.
 
 ## How the pieces connect
 
 ```
-Mesen 2 (your SNES ROM)                                Python (this repo)
-  mesen/sf2_bridge.lua  ── TCP 127.0.0.1:47800 ──▶  sf2/emu/mesen.py  →  sf2/env.py  →  teacher / student / recorder
+Mesen 2 (your SNES ROM)                          Python (this repo)
+  mesen/sf2_bridge.lua  ── TCP 127.0.0.1:47800 ──▶  sf2/emu/mesen.py  →  game_log
   every input poll:                                   RUN n frames of input
     apply the next planned input, or                  ◀── RAM values for every frame
     report and wait for Python                        ◀── screenshots (4 frames before the end, and the end)
+
+System 1 (one decision at a time)                System 2 (async, no blocking)
+  screen  →  laya-vision  →  text laya  →  action        Qwen  writes  memory/  (short & playbook)
+              (rates all moves)  (picks one, following advice)             (after every lost round + game end)
 ```
 
 - **The emulator never runs ahead of Python.** At each input poll, the Lua script applies the next planned input. When the plan runs out, it blocks until Python sends the next command. How long the model takes to decide never changes the fight.
@@ -51,9 +52,8 @@ screen ─▶ laya-vision (runs/all8/best)      rates every move: "likely works 
 | Does the short memory help? (headless, opponent locked, paired) | `python scripts/ab_memory.py --rounds 30` |
 | Where the loop loses (see / choose / advice / walk / defend / lessons) | `python scripts/report.py gaps` |
 | How much each memory rewrite changed (churn, flips) | `python scripts/report.py churn` |
-| Does a model read advice words at all? | the probes `probe_memory_words.py` / `probe_text_laya.py`, removed 2026-09-29; in git at 7b5e280 |
 
-Start omlx first (`~/work/omlx/start`). Findings so far and the next plan: `~/work/me/journals/laya_vision-vs-SF2/`.
+Start omlx first (`~/work/omlx/start`). Findings and next steps: `docs/qwen_learning.md` and `~/work/me/journals/laya_vision-vs-SF2/`.
 
 ## Setup details (what this exact setup used)
 
@@ -84,80 +84,26 @@ Everything below ran on one Mac Studio (M3 Ultra, 32 cores, 256 GB). Three separ
 | Plan piece | Here |
 |---|---|
 | Emulator | `mesen/sf2_bridge.lua` (inside Mesen) + `sf2/emu/mesen.py` (Python end) |
-| Fight env | `sf2/env.py`. One call = one decision. It tracks rounds and matches from the life values; an episode is one match from your savestate |
-| RAM map (per cartridge) | `ram_maps/sf2_snes.txt`, found by `scripts/find_ram.py` (`sf2/ramsearch.py`) |
-| Action set (12) | `sf2/actions.py`: `idle forward back jump crouch lp hp lk hk block hadouken shoryuken` |
-| Text state | `me=ryu opp=ken dist=mid my_hp=80 opp_hp=45 last=hadouken airborne=0 opp_airborne=1` |
-| Teacher: you | `scripts/record_human.py` (you play in Mesen), then `scripts/label_human.py` → `sf2/labeler.py` recognises fireball and dragon-punch motions |
-| Teacher: scripted dummy | `sf2/teacher.py`. RAM rules that return a distribution, used as a soft target |
-| LoRA | `scripts/train.py` + `sf2/data/lora.py`. Always starts from base laya-vision 256M; early stopping on `val.jsonl`, or 5% of train |
-| VS BATTLE (both pads) | `sf2/emu/vs.py`: boot to a 2-player fight, place the fighters at a gap, record an exchange. `scripts/vs_moves.py`: every move of both fighters, checked and measured, reach sweeps |
-| Stage-1 data | `sf2/data/vs_sweep.py` + `scripts/vs_dataset.py`: 20 actions x 3 ranges per character vs a still dummy, labelled hit / whiff / blocked / none from RAM; `scripts/audit_dataset.py`, `scripts/verify_replay.py` check it |
-| What the model sees | `sf2/data/frames.py`: every frame has its HUD (rows 0-61) blanked, at train and play time |
-| Student plays / relabel / gate | `scripts/play_student.py`, `scripts/relabel.py` (`dagger` or `filter`), `scripts/play_teacher.py`, `scripts/gate.py`. `scripts/dagger_round.sh N` runs one turn of the loop |
+| Game state | `sf2/data/frames.py` (every frame has HUD rows 0-61 blanked); `sf2/vocab.py` (fighters, ranges, health bars, what the opponent is doing) |
+| RAM values | `ram_maps/sf2_snes.txt`, format in `sf2/emu/ram.py` (`Var`, `load_map`, `CLOSE`, `MID`) |
+| Action set (22 per char) | `sf2/data/vs_sweep.py` (`actions(char)`: 20 moves + block_high / block_low; special moves are macros with the ROM-tested timings from `sf2/data/vs_moves.py`); button names in `sf2/config.py` (`PAD`) |
+| VS BATTLE (both pads) | `sf2/emu/vs.py`: boot to a 2-player fight. `sf2/data/vs_sweep.py`: place fighters at gaps, sweep all moves. `scripts/vs_dataset.py`: build the dataset for all 8 characters. |
+| Stage 1 data | `sf2/data/vs_sweep.py` + `scripts/vs_dataset.py`: 20 actions x 3 ranges per character vs a still dummy, labelled hit / whiff / blocked / none from RAM; `scripts/audit_dataset.py`, `scripts/verify_replay.py` check it. Data is in `test_data/<char>/` (train/test splits with mirroring). |
+| System 1: laya-vision | `sf2/system1/system1.py` plays a round and calls laya-vision; `sf2/system1/policy.py` builds its input (two frames + the note from `sf2/data/vs_sweep.py`). |
+| System 1: text laya | `sf2/system1/advisor.py` starts the text-laya helper process (runs `scripts/text_laya_server.py` in the laya-mlx venv). `sf2/system1/text_laya.py` loads the fine-tuned model. `sf2/system1/advice.py` is the label rule (the grammar of valid advice lines). |
+| System 1: game log | `sf2/system1/game_log.py` saves actions (what text laya read and picked, what move happened, did it follow the rule). |
+| Learning loop | `scripts/learn_loop.py`: System 1 plays arcade mode, System 2 (async) learns. `sf2/system2/async_runner.py` manages the Qwen background thread. |
+| System 2: prompts & checks | `sf2/system2/prompts.py` (what Qwen is asked), `sf2/system2/checks.py` (constraints on Qwen's reply). |
+| System 2: memory | `sf2/system2/memory.py` (short memory per opponent, playbook); `sf2/system2/memory_churn.py` (how much it changed). |
+| System 2: Qwen | `sf2/system2/qwen.py` calls the omlx server. `sf2/system2/notebook.py`: the notebook Qwen keeps between rounds (`scripts/notebook_run.py`). |
+| System 2: code baseline | `sf2/system2/code_coach.py` writes advice lines from net hit points per try of each (move, range), no LLM. |
+| Measurement: A/B | `scripts/ab_memory.py`: paired headless runs (same savestate, same seed, different advice arms). |
+| Measurement: notebook | `scripts/notebook_run.py`: learning over one opponent for 40+ rounds. |
+| Measurement: reports | `scripts/report.py {gaps,churn}`: where losses happen and how memory changes over time. |
+| Evaluation | `sf2/eval/runner.py` (headless arm runner, common to all scripts); `sf2/eval/logs.py` (what counts as play data); `sf2/eval/stats.py` (A/B stats with bootstrap CI). |
+| Video | `tools/make_video.py` (captions + audio sync, runs in `.venv-media`). Needs `~/Desktop/laya_video/work/` inputs. |
 
 Directions are relative: `forward` is toward the opponent, `back` is away, and `block` is down-back. Buttons follow SF2's default SNES layout: **Y X L = jab / strong / fierce, B A R = short / forward / roundhouse**. If your in-game button config differs, change `PAD` in `sf2/config.py`.
-
-## Setup (Mac Studio)
-
-1. **Mesen 2.** Install it from [mesen.ca](https://www.mesen.ca/) or [GitHub releases](https://github.com/SourMesen/Mesen2/releases), and open your SF2 ROM.
-2. **Allow the script to use the network.** Open Debug → Script Window → Settings → Restrictions, and tick **"Allow network access"**. To override the port with `SF2_BRIDGE_PORT`, also tick "Allow access to I/O and OS functions".
-3. **Python.** In this repo:
-   ```bash
-   uv venv -p 3.12 && source .venv/bin/activate
-   uv pip install -e '.[model,dev]'
-   uv pip install "laya @ git+https://github.com/r33drichards/laya-vision@568feeeada793f70f736756b0f3a7643d1e75910"
-   pytest -q      # 20 tests. Needs no ROM or model; the Lua-bridge tests run only if lua5.4 + LuaSocket are installed
-   ```
-4. **Load the bridge.** In Mesen's Script Window: Open → `mesen/sf2_bridge.lua` → Run. It shows "waiting for a Python script". Leave it loaded.
-5. **Speed.** For recording yourself, play at normal speed. For teacher collection and student play, set Mesen's emulation speed to maximum; the bridge still waits for Python on every decision.
-
-Every emulator script starts with *"waiting for Mesen on 127.0.0.1:47800"* and continues once the bridge connects.
-
-## Day 1: savestate, RAM map, check
-
-```bash
-# 1. Pick Ryu vs Ken (vs mode, or wherever you like). At "FIGHT!" press F9 in Mesen (or Enter here), then Ctrl-C.
-python scripts/record_human.py --no-log --save-state-to states/ryu_vs_ken.state
-
-# 2. Find where your cartridge keeps life and positions. Writes ram_maps/sf2_snes.txt
-python scripts/find_ram.py                     # scripted: Python walks, jumps, waits to get hit, punches
-python scripts/find_ram.py --manual --force    # if that fails: you play each phase in Mesen when prompted
-
-# 3. Send each of the 12 actions. x must move on forward/back, y on jump. Screenshots in out/check/
-python scripts/check_env.py
-```
-
-**Why the RAM finder exists.** World Warrior, Turbo and Super SF2 (and each region) keep life and positions at different addresses, and I couldn't verify any of them without your ROM. `find_ram.py` dumps the full 128 KiB of work RAM during known phases: walk right, walk left, jump, get hit, land hits. It keeps the addresses that behave like life, x and y. You can also read them off Mesen's memory viewer (Debug → Memory Tools) and write `ram_maps/sf2_snes.txt` by hand; the format is in `sf2/emu/ram.py`. Commit the map once `check_env.py` looks right.
-
-## The rest of the week
-
-```bash
-# Optional: your own play as teacher (rung 1). Play clean fireballs, anti-airs and blocks for 10–20 minutes
-python scripts/record_human.py --session s1          # Ctrl-C to stop
-python scripts/label_human.py --session human/s1 --name human_s1
-
-# Day 2: seed set from the scripted teacher (epsilon-expert, soft targets) + reference lines for the gate
-python scripts/collect_teacher.py --name seed_teacher --decisions 30000 --eps 0.25
-python scripts/play_teacher.py --name teacher --matches 10
-python scripts/play_teacher.py --name random --policy random --matches 10
-
-# Day 3: first LoRA; the student plays the CPU; compare
-python scripts/train.py --data data/seed_teacher --out runs/r0          # + --data data/human_s1 if recorded
-python scripts/play_student.py --model runs/r0/best --name r0 --matches 10
-python scripts/gate.py rollouts/random rollouts/teacher rollouts/r0
-
-# Days 4–6: DAgger rounds. The student plays, the teacher labels its frames, retrain, gate
-scripts/dagger_round.sh 1
-scripts/dagger_round.sh 2
-
-# Cheap alternative to DAgger: keep only student actions that won the next 0.5 s
-python scripts/relabel.py --rollout rollouts/r0 --name filter_r1 --mode filter
-```
-
-On day 7, compare `scripts/gate.py rollouts/teacher rollouts/r0 rollouts/r1 rollouts/r2`. If win rate and damage per round have not moved, the labels are too coarse. Fix the teacher or add a macro; don't collect more frames.
-
-**Headless runs.** Mesen 2 can run without a window: `Mesen --testrunner <rom> mesen/sf2_bridge.lua`. Pass that as `--launch "<command>"` (or set `SF2_MESEN_LAUNCH`), and Python starts Mesen itself and ends it when done. I haven't confirmed that screenshots work in test-runner mode. If `check_env.py --launch ...` saves blank images, use the windowed setup above.
 
 ## Stage 1: still-opponent data for all 8 characters
 
@@ -169,36 +115,34 @@ against a dummy that stands, crouches or crouch-blocks, and presses each of its 
 python scripts/vs_dataset.py run --pairs ryu:chunli,ken:guile,honda:blanka,zangief:dhalsim   # ~5 min, 48 headless Mesens
 python scripts/audit_dataset.py        # ~96k mechanical checks per character; exit 1 on any violation
 python scripts/verify_replay.py        # re-records a random sample from each record's boot; must match byte for byte
+                                       # (open issue: it fails on live-play rows, which have no boot to replay)
 python scripts/train.py --out runs/all8 --data test_data/ryu --data test_data/ken --data test_data/chunli \
     --data test_data/guile --data test_data/honda --data test_data/blanka --data test_data/zangief --data test_data/dhalsim
 ```
 
-`test_data/<char>/` (local only, git-ignored):
-
-| file | rows | what |
-|---|---|---|
-| `train.jsonl` | 2520 | what `train.py` reads: `train_real` + `train_mirrored` |
-| `train_real.jsonl` | 1260 | real, left side: 20 actions x 3 ranges x 7 gaps x 3 postures |
-| `train_mirrored.jsonl` | 1260 | the same, flipped: frame mirrored, left/right buttons swapped, `side`/`dx` flipped |
-| `test_real_left.jsonl`, `test_real_right.jsonl` | 540 each | real frames at the 3 held-out gaps per range, on each side (the mirroring check) |
+`test_data/<char>/` (local only, git-ignored): `train.jsonl` (what `train.py` reads: `train_real` + `train_mirrored`, the same rows flipped), `test_real_left.jsonl` / `test_real_right.jsonl` (real frames at the held-out gaps, on each side: the mirroring check); row counts in `stats.json`. Besides the still-opponent rows there are block rows and capped live-play rows (`vs_dataset.py import-live`).
 
 Each record: two model frames (4 frames apart, HUD blanked), the RAM note, the question
 `sf2.data.vs_sweep.outcome_question(action)` (choice: hit / whiff / blocked / none) and its `label`, plus the measurements
 (damage, frames until the fighter can act again, travel) and the boot savestate it came from. The special-move timings
 are the ROM-verified ones from the move tests; charge moves charge on down-back so the gap does not change.
 
-## Check these on day 1 (the likely breakpoints)
+## Setup (Mac Studio)
 
-1. **RAM map.** `check_env.py` must show x moving on `forward`/`back` and y on `jump`. The teacher, the text note and facing all depend on them.
-2. **Buttons (`PAD`).** The `lp`/`hk` screenshots should show a jab and a roundhouse.
-3. **Macro timing (`sf2/actions.py`).** `out/check/11_hadouken.png` should show a fireball. If it doesn't, lengthen each motion step from 3 frames to 4.
-4. **Estimates to tune:** `INTRO_SKIP` (`sf2/env.py`), and `CLOSE`/`MID` (`sf2/emu/ram.py`, SNES pixels).
-5. **KO detection.** A round ends when a life value goes negative, or when both bars refill (time over, or a cart that stops at 0). If rounds never end in the logs, look at the life values around a KO in `check_env.py`.
+1. **Mesen 2.** Install it from [mesen.ca](https://www.mesen.ca/) or [GitHub releases](https://github.com/SourMesen/Mesen2/releases), and open your SF2 ROM.
+2. **Allow the script to use the network.** Open Debug → Script Window → Settings → Restrictions, and tick **"Allow network access"**. To override the port with `SF2_BRIDGE_PORT`, also tick "Allow access to I/O and OS functions".
+3. **Python.** In this repo:
+   ```bash
+   uv venv -p 3.12 && source .venv/bin/activate
+   uv pip install -e '.[model,dev]'
+   uv pip install "laya @ git+https://github.com/r33drichards/laya-vision@568feeeada793f70f736756b0f3a7643d1e75910"
+   .venv/bin/python -m pytest -q      # needs no ROM or model; the Lua-bridge tests run only if lua5.4 + LuaSocket are installed
+   ```
+4. **Load the bridge.** In Mesen's Script Window: Open → `mesen/sf2_bridge.lua` → Run. It shows "waiting for a Python script". Leave it loaded.
+5. **Speed.** For learning and testing, set Mesen's emulation speed to maximum; the bridge still waits for Python on every decision.
+
+Every emulator script starts with *"waiting for Mesen on 127.0.0.1:47800"* and continues once the bridge connects.
 
 ## Status
 
-Working end to end in Mesen: stage-1 data for all 8 characters, laya-vision LoRA `runs/all8/best`, text laya
-`runs/text_laya/advice_v1`, the arcade learning loop with async System 2, and the measurement scripts above.
-Known gaps (2026-09-28): laya-vision's live move ratings do not rank well against a moving CPU, she almost never
-blocks, and the short memory changes a lot between rounds. The headless A/B shows the memory makes her attacks
-safer but has no net effect overall (helps vs Honda/Ken/Dhalsim, hurts vs Ryu). Next: a distilled playbook.
+Working end to end: stage-1 data for all 8 characters, laya-vision LoRA `runs/all8/best`, text laya `runs/text_laya/advice_v1`, arcade learning loop with async System 2, and A/B measurement. Known gaps (2026-09-28): laya-vision's live move ratings do not rank well against a moving CPU, she almost never blocks, and Qwen's advice needs both the right inputs (net hit points per move, not miss rates) and a narrower scope (Stage A: fixed advice from counted data). See `docs/qwen_learning.md` for the plan.
