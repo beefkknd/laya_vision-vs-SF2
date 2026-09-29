@@ -104,7 +104,36 @@ Order: tag and delete legacy → `vocab.py` → `eval/logs` + `eval/stats` → `
 2. **Legacy pipeline: delete** (after tagging it `legacy-dagger`).
 3. **Order:** P0 → P1 cleanup → clean re-run of proofs 1–2 → Stage A.
 
-## 1. What is proven *(provisional until P0-1: re-run on clean data with a new seed)*
+## 1. What is proven
+
+### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
+
+Run `rollouts/ab/20260929-084920`: seed 86160 (new); the coach built from play data only (13 logs: no A/B, notebook or
+demo runs); the same arms, opponents and 30 rounds; the P0 statistics (pairs must line up, opponent as the unit).
+
+| Arm | Opponents | Paired rounds | vs none (hp / round) | 95% CI, opponent as unit | Verdict |
+|---|---|---|---|---|---|
+| code_short | 5 (no play data vs Guile, Blanka) | 150 | +15.6 | −13.4 to +43.3 | not shown |
+| code_playbook | 7 | 210 | +9.6 | −11.0 to +29.8 | not shown |
+
+Per opponent, vs none: code_short Ryu +2, Honda +15, Ken +59, Zangief +25, Dhalsim −24; code_playbook Ryu +20,
+Honda +39, Ken +21, Zangief −7, Dhalsim −27, Guile +3, Blanka +17.
+
+**Which change did it** (same data, both statistics):
+
+| Run | Arm | Rounds as independent | Opponent as unit |
+|---|---|---|---|
+| 2026-09-28 (leaky coach, seed 0) | code_short | +28.8 [+14.3, +43.3] | +28.8 [+1.3, +64.0] helps |
+| | code_playbook | +31.8 [+18.4, +45.1] | +31.8 [+1.5, +63.5] helps |
+| 2026-09-29 (clean, seed 86160) | code_short | +15.6 [+1.0, +30.2] | +15.6 [−13.4, +43.3] not shown |
+| | code_playbook | +9.6 [−4.5, +23.6] | +9.6 [−11.0, +29.8] not shown |
+
+So the leak roughly doubled the effect: with clean data it is about half, and too small to show over 7 opponents ×
+30 rounds. The stricter statistics alone would still have passed the leaky run. Counted advice may help a little
+(the mean is positive for both arms and most opponents), but that is **not proven**; against Dhalsim both arms hurt.
+Everything below this section was written from the 2026-09-28 run and is kept as it was.
+
+### The 2026-09-28 run (superseded: the coach learned from the test's own replays)
 
 Every test is headless and paired. The opponent is locked by a savestate. Every arm plays the same rounds with the same start delays; only the advice differs. The score is hit points per round (damage dealt minus taken), compared with "Advice: none" round by round. The criteria were fixed before the run: an arm **helps** when the 95% confidence interval of its pooled difference is above 0.
 
