@@ -77,3 +77,11 @@ def test_history_groups_play_logs_by_opponent_without_test_runs(tmp_path):
     h = history("chunli", root)
     assert {o: len(a) for o, (a, r) in h.items()} == {"ryu": 2, "ken": 3}
     assert h["ken"][0][0]["log"] == "learn/chunli/s1"
+
+
+def test_dataset_chars_are_the_fighter_folders_only(tmp_path):       # test_data/advice/ once crashed the audit
+    from sf2.data.dataset import dataset_chars
+    for d in ("_shards", "advice", "ryu", "chunli", "notes"):
+        (tmp_path / d).mkdir()
+    (tmp_path / "ken").write_text("a file, not a folder")
+    assert dataset_chars(str(tmp_path)) == ["chunli", "ryu"]

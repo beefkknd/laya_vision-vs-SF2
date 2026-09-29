@@ -6,6 +6,8 @@ from typing import Dict, Iterable, List
 
 import numpy as np
 
+from ..vocab import FIGHTERS
+
 
 def save_png(arr: np.ndarray, path: str) -> None:
     from PIL import Image
@@ -28,3 +30,8 @@ def write_jsonl(path: str, recs: Iterable[Dict]) -> int:
             f.write(json.dumps(r) + "\n")
             n += 1
     return n
+
+
+def dataset_chars(root: str) -> List[str]:
+    """The characters with a folder in ``root`` (test_data/): other folders (_shards, advice) are not characters."""
+    return sorted(d for d in os.listdir(root) if d in FIGHTERS and os.path.isdir(os.path.join(root, d)))

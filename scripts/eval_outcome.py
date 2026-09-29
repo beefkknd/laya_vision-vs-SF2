@@ -16,6 +16,7 @@ from typing import Dict, List
 
 import _path  # noqa: F401
 from sf2.config import TEST_DATA
+from sf2.data.dataset import dataset_chars
 from sf2.data.vs_sweep import OUTCOMES
 
 ROOT = TEST_DATA
@@ -47,7 +48,7 @@ def main() -> int:
     ap.add_argument("--bar", type=float, default=0.95)
     ap.add_argument("--device", default=None)
     args = ap.parse_args()
-    chars = args.chars.split(",") if args.chars else sorted(d for d in os.listdir(ROOT) if not d.startswith("_"))
+    chars = args.chars.split(",") if args.chars else dataset_chars(ROOT)
 
     import laya
     import laya.vlm_train as vt

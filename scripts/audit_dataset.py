@@ -18,6 +18,7 @@ import numpy as np
 
 import _path  # noqa: F401
 from sf2.config import TEST_DATA
+from sf2.data.dataset import dataset_chars
 from sf2.config import PAD
 from sf2.config import IMAGE_SIZE
 from sf2.data.frames import HUD_ROWS
@@ -137,8 +138,7 @@ def audit_record(a: Audit, char: str, f: str, r: Dict) -> None:
     a.check("images_are_frames", len(r["images"]) == 2 and all(p.startswith("frames/") for p in r["images"]), rid)
 
 
-def audit_char(a: Audit, char: str) -> Dict[str, int]:
-    base = os.path.join(ROOT, char)
+def _load(a: Audit, base: str, char: str) -> Dict[str, List[Dict]]:
     recs = {}
     for f in FILES:
         path = os.path.join(base, f + ".jsonl")
@@ -149,7 +149,11 @@ def audit_char(a: Audit, char: str) -> Dict[str, int]:
         a.check("unique_ids", len(ids) == len(set(ids)), "%s/%s" % (char, f))
         for r in rs:
             audit_record(a, char, f, r)
-    # coverage: every (action, range, posture) in each file; counts per (action, range)
+    return recs
+
+
+def _coverage(a: Audit, char: str, recs: Dict[str, List[Dict]]) -> None:
+    """Every (action, range, posture) in each file; counts per (action, range)."""
     for f, need in PER_COMBO.items():
         c = collections.Counter((r["action"], r["range"]) for r in recs[f] if r["kind"] != "defense")
         cp = collections.Counter((r["action"], r["range"], r["posture"]) for r in recs[f] if r["kind"] != "defense")
@@ -158,29 +162,39 @@ def audit_char(a: Audit, char: str) -> Dict[str, int]:
                 a.check("combo_count", c[(act, rng)] >= need, "%s/%s %s@%s: %d" % (char, f, act, rng, c[(act, rng)]))
                 for p in STAGE1_POSTURES:
                     a.check("posture_coverage", cp[(act, rng, p)] > 0, "%s/%s %s@%s/%s" % (char, f, act, rng, p))
-    # no leakage: test frames never appear in train, test gaps never in train
+
+
+def _no_leak(a: Audit, recs: Dict[str, List[Dict]]) -> None:
+    """Test frames never appear in train."""
     train_imgs = {p for f in ("train_real", "train_mirrored") for r in recs[f] for p in r["images"]}
     for f in ("test_real_left", "test_real_right"):
         for r in recs[f]:
             a.check("no_image_leak", not set(r["images"]) & train_imgs, "%s:%s" % (f, r["id"]))
-    # the mirrored set is exactly the train set, flipped
-    src = {r["id"]: r for r in recs["train_real"]}
+
+
+MIRROR_SAME = ("action", "range", "gap", "gap_index", "posture", "kind", "outcome", "damage", "thrown", "busy_frames",
+               "travel", "split", "opp", "question", "label")
+
+
+def _mirrors(a: Audit, base: str, char: str, recs: Dict[str, List[Dict]], src: Dict[str, Dict]) -> None:
+    """The mirrored set is exactly the train set, flipped; train.jsonl (what scripts/train.py reads) is exactly
+    real + mirrored."""
     a.check("mirror_count", len(recs["train_mirrored"]) == len(recs["train_real"]), char)
-    # train.jsonl (what scripts/train.py reads) is exactly real + mirrored
     tpath = os.path.join(base, "train.jsonl")
     a.check("train_is_real_plus_mirrored", os.path.exists(tpath) and [json.loads(x) for x in open(tpath)]
             == recs["train_real"] + recs["train_mirrored"], char)
-    same = ("action", "range", "gap", "gap_index", "posture", "kind", "outcome", "damage", "thrown", "busy_frames",
-            "travel", "split", "opp", "question", "label")
     for m in recs["train_mirrored"]:
         s = src.get(m["id"][:-2]) if m["id"].endswith("-m") else None
         a.check("mirror_has_source", s is not None, m["id"])
         if s is None:
             continue
-        a.check("mirror_same_labels", all(m[k] == s[k] for k in same), m["id"])
+        a.check("mirror_same_labels", all(m[k] == s[k] for k in MIRROR_SAME), m["id"])
         a.check("mirror_side_fields", m["dx"] == -s["dx"] and m["side"] == _SWAP[s["side"]]
                 and m["buttons"] == [[_SWAP.get(b, b) for b in fr] for fr in s["buttons"]], m["id"])
-    # frames: exist, 256x224 RGB, HUD black; mirrors are exact flips; prev differs from now
+
+
+def _frames(a: Audit, base: str, recs: Dict[str, List[Dict]]) -> Dict[str, np.ndarray]:
+    """Frames exist, 256x224 RGB padded to 256x256, HUD black, not blank; returns them by path."""
     cache: Dict[str, np.ndarray] = {}
     for f, rs in recs.items():
         for r in rs:
@@ -203,6 +217,10 @@ def audit_char(a: Audit, char: str) -> Dict[str, int]:
                 a.check("hud_black", not img[:HUD_ROWS].any(), full)
                 a.check("pad_black", not img[224:].any(), full)
                 a.check("frame_not_blank", img[HUD_ROWS:].std() > 5, full)
+    return cache
+
+
+def _mirror_flips(a: Audit, recs: Dict[str, List[Dict]], src: Dict[str, Dict], cache: Dict[str, np.ndarray]) -> None:
     for m in recs["train_mirrored"]:
         s = src.get(m["id"][:-2])
         if s is None:
@@ -210,6 +228,16 @@ def audit_char(a: Audit, char: str) -> Dict[str, int]:
         for mp, sp in zip(m["images"], s["images"]):
             if mp in cache and sp in cache:
                 a.check("mirror_exact_flip", np.array_equal(cache[mp], cache[sp][:, ::-1]), mp)
+
+
+def audit_char(a: Audit, char: str) -> Dict[str, int]:
+    base = os.path.join(ROOT, char)
+    recs = _load(a, base, char)
+    _coverage(a, char, recs)
+    _no_leak(a, recs)
+    src = {r["id"]: r for r in recs["train_real"]}
+    _mirrors(a, base, char, recs, src)
+    _mirror_flips(a, recs, src, _frames(a, base, recs))
     return {f: len(rs) for f, rs in recs.items()}
 
 
@@ -220,7 +248,7 @@ def main() -> int:
     ap.add_argument("--out", default="out/audit/audit.json")
     args = ap.parse_args()
     set_root(args.root)
-    chars = args.chars.split(",") if args.chars else sorted(d for d in os.listdir(ROOT) if not d.startswith("_"))
+    chars = args.chars.split(",") if args.chars else dataset_chars(ROOT)
     report = {}
     failed = False
     for char in chars:

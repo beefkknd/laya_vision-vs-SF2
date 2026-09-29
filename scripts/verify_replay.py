@@ -18,6 +18,7 @@ import numpy as np
 
 import _path  # noqa: F401
 from sf2.config import TEST_DATA
+from sf2.data.dataset import dataset_chars
 from sf2.config import PORTS
 from sf2.eval.runner import exit_on_sigterm, fan_out
 from sf2.config import PAD
@@ -94,7 +95,7 @@ def main() -> int:
     if args.one:
         c, s, p = args.one
         return replay(c, s, args.n, args.seed, int(p), args.rom)
-    chars = args.chars.split(",") if args.chars else sorted(d for d in os.listdir(ROOT) if not d.startswith("_"))
+    chars = args.chars.split(",") if args.chars else dataset_chars(ROOT)
     groups = [(c, s) for c in chars for s in ("left", "right")]
     cmds = [((c, s), [sys.executable, os.path.abspath(__file__), "--one", c, s, str(args.base_port + i), "--n",
                       str(args.n), "--seed", str(args.seed)] + (["--rom", args.rom] if args.rom else []))
