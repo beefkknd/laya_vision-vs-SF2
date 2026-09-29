@@ -130,9 +130,40 @@ def verdict(root: str, opp: str, history: bool) -> Dict:
             "hp_vs_none": ci(d) if d else None}
 
 
+def export(out: str = os.path.join("lessons", "chunli.json")) -> int:
+    """Every lesson registered at the end of a run, per opponent, with the runs that registered it and its evidence
+    there (a lesson registered in every run of that opponent is marked "all_runs")."""
+    by_opp: Dict[str, Dict] = {}
+    for root in sorted(d for d in os.listdir(ROOT) if os.path.isdir(os.path.join(ROOT, d))):
+        led = read(os.path.join(ROOT, root, "loop", "ledger.jsonl"), missing_ok=True)
+        v = os.path.join(ROOT, root, "verdict.json")
+        if not led or not os.path.exists(v) or json.load(open(v)).get("updates", 0) < 10:
+            continue                              # smoke runs and unfinished runs are left out
+        opp = root.split("_", 1)[1]
+        runs = by_opp.setdefault(opp, {"runs": [], "lessons": {}})
+        runs["runs"].append(root)
+        for r in led[-1]["registry"]:
+            if r["state"] == "registered":
+                e = runs["lessons"].setdefault(r["line"], {"claim": r["claim"], "runs": {}})
+                e["runs"][root] = {k: r["evidence"][k] for k in ("tries", "net", "lo", "hi", "total")}
+    doc = {"me": ME, "made_by": "scripts/qwen_lessons.py --export: Qwen proposed, code verified (sf2.system2.lessons)",
+           "opponents": {o: {"runs": d["runs"], "lessons": [dict(line=line, all_runs=len(e["runs"]) == len(d["runs"]),
+                                                                  **e) for line, e in sorted(d["lessons"].items())]}
+                         for o, d in sorted(by_opp.items())}}
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w") as f:
+        json.dump(doc, f, indent=1)
+    for o, d in doc["opponents"].items():
+        print("%-8s %d runs, %d lessons (%d in every run)" % (o, len(d["runs"]), len(d["lessons"]),
+                                                             sum(x["all_runs"] for x in d["lessons"])))
+    print("saved", out)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--opp", required=True)
+    ap.add_argument("--opp")
+    ap.add_argument("--export", action="store_true", help="write lessons/chunli.json from every finished run")
     ap.add_argument("--games", type=int, default=10)
     ap.add_argument("--rounds", type=int, default=3, help="rounds per game (Qwen proposes after each game)")
     ap.add_argument("--seed", type=int, default=None)
@@ -143,6 +174,10 @@ def main() -> int:
     ap.add_argument("--one", nargs=3, metavar=("ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
     exit_on_sigterm()
+    if args.export:
+        return export()
+    if not args.opp:
+        ap.error("--opp is required")
     if args.one:
         return play_arm(args, args.one[0], int(args.one[1]), args.one[2])
     args.seed = int(time.time()) % 100000 if args.seed is None else args.seed

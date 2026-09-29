@@ -1,0 +1,627 @@
+{
+ "me": "chunli",
+ "made_by": "scripts/qwen_lessons.py --export: Qwen proposed, code verified (sf2.system2.lessons)",
+ "opponents": {
+  "honda": {
+   "runs": [
+    "20260929-140720_honda",
+    "20260929-141358_honda"
+   ],
+   "lessons": [
+    {
+     "line": "avoid c.mk up close",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "c.mk",
+      "range": "close",
+      "when": null
+     },
+     "runs": {
+      "20260929-140720_honda": {
+       "tries": 35,
+       "net": -8.17142857142857,
+       "lo": -15.081474591535818,
+       "hi": -1.261382551321324,
+       "total": -286
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick at mid range",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "mid",
+      "when": null
+     },
+     "runs": {
+      "20260929-140720_honda": {
+       "tries": 23,
+       "net": -32.869565217391305,
+       "lo": -43.35832471604451,
+       "hi": -22.380805718738102,
+       "total": -756
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick at mid range when he attacks",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "mid",
+      "when": "attacking"
+     },
+     "runs": {
+      "20260929-141358_honda": {
+       "tries": 27,
+       "net": -38.592592592592595,
+       "lo": -49.03296600864349,
+       "hi": -28.1522191765417,
+       "total": -1042
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick at mid range when he stands",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "mid",
+      "when": "standing"
+     },
+     "runs": {
+      "20260929-141358_honda": {
+       "tries": 24,
+       "net": -24.083333333333332,
+       "lo": -32.885891234526866,
+       "hi": -15.280775432139796,
+       "total": -578
+      }
+     }
+    },
+    {
+     "line": "avoid sweep at mid range",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "mid",
+      "when": null
+     },
+     "runs": {
+      "20260929-141358_honda": {
+       "tries": 439,
+       "net": -5.605922551252847,
+       "lo": -7.613313585159174,
+       "hi": -3.59853151734652,
+       "total": -2461
+      }
+     }
+    },
+    {
+     "line": "avoid sweep at mid range when he is stunned",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "mid",
+      "when": "stunned"
+     },
+     "runs": {
+      "20260929-140720_honda": {
+       "tries": 93,
+       "net": -4.43010752688172,
+       "lo": -7.6582075742000555,
+       "hi": -1.2020074795633846,
+       "total": -412
+      }
+     }
+    },
+    {
+     "line": "avoid sweep at mid range when he jumps",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "mid",
+      "when": "jumping"
+     },
+     "runs": {
+      "20260929-140720_honda": {
+       "tries": 94,
+       "net": -13.361702127659575,
+       "lo": -16.943574707079748,
+       "hi": -9.779829548239402,
+       "total": -1256
+      },
+      "20260929-141358_honda": {
+       "tries": 94,
+       "net": -13.361702127659575,
+       "lo": -16.943574707079748,
+       "hi": -9.779829548239402,
+       "total": -1256
+      }
+     }
+    },
+    {
+     "line": "avoid sweep at mid range when he stands",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "mid",
+      "when": "standing"
+     },
+     "runs": {
+      "20260929-140720_honda": {
+       "tries": 246,
+       "net": -4.0894308943089435,
+       "lo": -6.803850227562868,
+       "hi": -1.375011561055019,
+       "total": -1006
+      }
+     }
+    },
+    {
+     "line": "avoid sweep up close",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "close",
+      "when": null
+     },
+     "runs": {
+      "20260929-140720_honda": {
+       "tries": 28,
+       "net": -25.928571428571427,
+       "lo": -37.555129149773535,
+       "hi": -14.302013707369316,
+       "total": -726
+      }
+     }
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "all_runs": false,
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "runs": {
+      "20260929-140720_honda": {
+       "tries": 33,
+       "net": 5.090909090909091,
+       "lo": 2.10259848531902,
+       "hi": 8.079219696499162,
+       "total": 168
+      }
+     }
+    }
+   ]
+  },
+  "ken": {
+   "runs": [
+    "20260929-134857_ken",
+    "20260929-135527_ken"
+   ],
+   "lessons": [
+    {
+     "line": "avoid c.hp up close when he jumps",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "c.hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "runs": {
+      "20260929-134857_ken": {
+       "tries": 107,
+       "net": -11.616822429906541,
+       "lo": -16.008829511223446,
+       "hi": -7.224815348589637,
+       "total": -1243
+      },
+      "20260929-135527_ken": {
+       "tries": 109,
+       "net": -12.81651376146789,
+       "lo": -17.21594076197988,
+       "hi": -8.4170867609559,
+       "total": -1397
+      }
+     }
+    },
+    {
+     "line": "avoid c.lk up close",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "c.lk",
+      "range": "close",
+      "when": null
+     },
+     "runs": {
+      "20260929-134857_ken": {
+       "tries": 46,
+       "net": -7.608695652173913,
+       "lo": -12.395944787837788,
+       "hi": -2.821446516510038,
+       "total": -350
+      }
+     }
+    },
+    {
+     "line": "avoid c.mk up close",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "c.mk",
+      "range": "close",
+      "when": null
+     },
+     "runs": {
+      "20260929-135527_ken": {
+       "tries": 81,
+       "net": -4.197530864197531,
+       "lo": -8.09682050049458,
+       "hi": -0.2982412279004816,
+       "total": -340
+      }
+     }
+    },
+    {
+     "line": "avoid c.mk up close when he jumps",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "c.mk",
+      "range": "close",
+      "when": "jumping"
+     },
+     "runs": {
+      "20260929-134857_ken": {
+       "tries": 56,
+       "net": -7.607142857142857,
+       "lo": -12.911167915358723,
+       "hi": -2.3031177989269906,
+       "total": -426
+      },
+      "20260929-135527_ken": {
+       "tries": 71,
+       "net": -5.225352112676056,
+       "lo": -8.931114133145087,
+       "hi": -1.5195900922070242,
+       "total": -371
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick at mid range",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "mid",
+      "when": null
+     },
+     "runs": {
+      "20260929-134857_ken": {
+       "tries": 62,
+       "net": -7.741935483870968,
+       "lo": -15.018565656621828,
+       "hi": -0.4653053111201073,
+       "total": -480
+      },
+      "20260929-135527_ken": {
+       "tries": 43,
+       "net": -11.30232558139535,
+       "lo": -20.484088067869905,
+       "hi": -2.1205630949207954,
+       "total": -486
+      }
+     }
+    },
+    {
+     "line": "avoid sweep at mid range when he stands",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "mid",
+      "when": "standing"
+     },
+     "runs": {
+      "20260929-134857_ken": {
+       "tries": 113,
+       "net": -5.619469026548672,
+       "lo": -9.342102568216578,
+       "hi": -1.8968354848807656,
+       "total": -635
+      },
+      "20260929-135527_ken": {
+       "tries": 113,
+       "net": -5.619469026548672,
+       "lo": -9.342102568216578,
+       "hi": -1.8968354848807656,
+       "total": -635
+      }
+     }
+    },
+    {
+     "line": "avoid sweep up close when he jumps",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "close",
+      "when": "jumping"
+     },
+     "runs": {
+      "20260929-134857_ken": {
+       "tries": 61,
+       "net": -18.37704918032787,
+       "lo": -23.102280106566255,
+       "hi": -13.651818254089484,
+       "total": -1121
+      },
+      "20260929-135527_ken": {
+       "tries": 41,
+       "net": -17.609756097560975,
+       "lo": -24.06400774149033,
+       "hi": -11.15550445363162,
+       "total": -722
+      }
+     }
+    }
+   ]
+  },
+  "ryu": {
+   "runs": [
+    "20260929-140126_ryu",
+    "20260929-140723_ryu"
+   ],
+   "lessons": [
+    {
+     "line": "avoid c.lk up close when he jumps",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "c.lk",
+      "range": "close",
+      "when": "jumping"
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 47,
+       "net": -10.340425531914894,
+       "lo": -16.492529522112864,
+       "hi": -4.188321541716925,
+       "total": -486
+      }
+     }
+    },
+    {
+     "line": "avoid c.mk up close",
+     "all_runs": false,
+     "claim": {
+      "kind": "avoid",
+      "move": "c.mk",
+      "range": "close",
+      "when": null
+     },
+     "runs": {
+      "20260929-140723_ryu": {
+       "tries": 34,
+       "net": -9.205882352941176,
+       "lo": -18.379627789055185,
+       "hi": -0.032136916827164796,
+       "total": -313
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick at mid range when he attacks",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "mid",
+      "when": "attacking"
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 39,
+       "net": -15.923076923076923,
+       "lo": -23.76452649321042,
+       "hi": -8.08162735294343,
+       "total": -621
+      },
+      "20260929-140723_ryu": {
+       "tries": 48,
+       "net": -15.6875,
+       "lo": -22.13789909219434,
+       "hi": -9.237100907805662,
+       "total": -753
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick at mid range when he stands",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "mid",
+      "when": "standing"
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 132,
+       "net": -15.204545454545455,
+       "lo": -19.95501397722757,
+       "hi": -10.45407693186334,
+       "total": -2007
+      },
+      "20260929-140723_ryu": {
+       "tries": 132,
+       "net": -15.204545454545455,
+       "lo": -19.95501397722757,
+       "hi": -10.45407693186334,
+       "total": -2007
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick far away when he attacks",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "far",
+      "when": "attacking"
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 58,
+       "net": -20.844827586206897,
+       "lo": -26.851675861041496,
+       "hi": -14.837979311372298,
+       "total": -1209
+      },
+      "20260929-140723_ryu": {
+       "tries": 56,
+       "net": -22.642857142857142,
+       "lo": -28.432096062847165,
+       "hi": -16.85361822286712,
+       "total": -1268
+      }
+     }
+    },
+    {
+     "line": "avoid spinning_bird_kick up close",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "spinning_bird_kick",
+      "range": "close",
+      "when": null
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 50,
+       "net": -17.92,
+       "lo": -25.651821663747814,
+       "hi": -10.18817833625219,
+       "total": -896
+      },
+      "20260929-140723_ryu": {
+       "tries": 49,
+       "net": -17.6734693877551,
+       "lo": -25.54930161891222,
+       "hi": -9.797637156597983,
+       "total": -866
+      }
+     }
+    },
+    {
+     "line": "avoid sweep up close",
+     "all_runs": true,
+     "claim": {
+      "kind": "avoid",
+      "move": "sweep",
+      "range": "close",
+      "when": null
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 42,
+       "net": -10.857142857142858,
+       "lo": -17.16104950495977,
+       "hi": -4.553236209325947,
+       "total": -456
+      },
+      "20260929-140723_ryu": {
+       "tries": 33,
+       "net": -11.757575757575758,
+       "lo": -19.36730472929064,
+       "hi": -4.147846785860875,
+       "total": -388
+      }
+     }
+    },
+    {
+     "line": "use more c.mk at mid range",
+     "all_runs": false,
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": null
+     },
+     "runs": {
+      "20260929-140723_ryu": {
+       "tries": 319,
+       "net": 2.5768025078369905,
+       "lo": 1.3494847880070948,
+       "hi": 3.8041202276668864,
+       "total": 822
+      }
+     }
+    },
+    {
+     "line": "use more lp up close when he is stunned",
+     "all_runs": true,
+     "claim": {
+      "kind": "use_more",
+      "move": "lp",
+      "range": "close",
+      "when": "stunned"
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 64,
+       "net": 3.75,
+       "lo": 1.6729401121349974,
+       "hi": 5.827059887865003,
+       "total": 240
+      },
+      "20260929-140723_ryu": {
+       "tries": 57,
+       "net": 4.157894736842105,
+       "lo": 1.8143275211317964,
+       "hi": 6.501461952552415,
+       "total": 237
+      }
+     }
+    },
+    {
+     "line": "use more mp at mid range",
+     "all_runs": false,
+     "claim": {
+      "kind": "use_more",
+      "move": "mp",
+      "range": "mid",
+      "when": null
+     },
+     "runs": {
+      "20260929-140126_ryu": {
+       "tries": 61,
+       "net": 7.491803278688525,
+       "lo": 4.449988648449352,
+       "hi": 10.533617908927697,
+       "total": 457
+      }
+     }
+    }
+   ]
+  }
+ }
+}

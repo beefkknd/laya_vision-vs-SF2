@@ -104,6 +104,48 @@ Order: tag and delete legacy → `vocab.py` → `eval/logs` + `eval/stats` → `
 2. **Legacy pipeline: delete** (after tagging it `legacy-dagger`).
 3. **Order:** P0 → P1 cleanup → clean re-run of proofs 1–2 → Stage A.
 
+## 0b. The lesson loop (2026-09-29): Qwen proposes, code verifies
+
+**Design** (Chun-Li, one opponent at a time; `scripts/qwen_lessons.py`, `sf2/system2/{lessons,lesson_prompt}.py`).
+A lesson is one text-laya line (use more / avoid + move + range + optionally "when he ..."). After every 3-round game,
+code reviews the registry, Qwen proposes at most 2 new claims (seeing the registry with verdicts, her moves overall with
+code's classes, and the last game by move, range and his state), and code judges each claim on the rounds inside its
+own condition: an avoid at once, a use more tried in play for up to 3 games; registered lessons retire when their
+evidence stops holding; at most 5 lines in play. Qwen only proposes; code keeps every book.
+
+**How we got here.** A first loop gave Qwen the whole job (pick and keep 5 lines from a table). Q1 (identify) passed
+20/20 per opponent once code supplied the classes, but Q2 (keep over games) needed six prompt adjustments, each fixing
+one case and exposing another; the last two moved failures around (replays 18/20, 0/20). Every failure was bookkeeping
+(counting lines, an avoided move looking cheap, dropping a line when its class changed), which code does exactly. The
+trace also found a System 1 leak: a lesson's move reached the shortlist, and its words leaned text laya's ties, in
+ranges the lesson did not name (fixed: `advisor.applicable`; c.mk up close 50 -> 28 on the same seed).
+
+**Results** (10 games x 3 rounds, paired no-advice arm, same seed; history = her play data vs him):
+
+| Run | Invariant violations | Qwen claims that hold | Random claims that hold | Won loop / none | Hit points / round vs none |
+|---|---|---|---|---|---|
+| Ken 1 | 0 | 43% | 12% | 6 / 2 | +22.9 [−13.9, +59.7] |
+| Ken 2 | 0 | 38% | 12% | 9 / 3 | **+42.9 [+14.8, +70.9]** |
+| Ryu 1 | 0 | 50% | 10% | 11 / 5 | **+42.6 [+5.7, +79.5]** |
+| Ryu 2 | 0 | 64% | 10% | 10 / 8 | −13.4 [−51.2, +24.4] |
+| Honda 1 | 0 | 50% | 12% | 0 / 1 | +12.3 [−10.0, +34.6] |
+| Honda 2 | 0 | 67% | 9% | 2 / 1 | −6.7 [−31.5, +18.1] |
+
+Per opponent (60 paired rounds): Ken +32.9 [+9.8, +56.0], Ryu +14.6 [−12.6, +41.7], Honda +2.8 [−13.9, +19.5];
+pooled with the opponent as the unit +16.7 [−2.1, +35.9]: not shown.
+
+**Reading.**
+1. *Can Qwen propose what is worth learning?* Yes: its claims hold on the data 38–67% of the time vs 9–12% for random
+   claims over the same moves, ranges and situations, in every run. Most use a condition code does not enumerate
+   ("avoid c.hp up close when he jumps", "use more lp up close when he is stunned").
+2. *Does the loop keep the good and drop the bad, game after game?* Yes, by construction and checked: 0 violations in
+   66 updates; lessons were registered, and "use more" lessons retired when their evidence faded. It also found good
+   moves by testing them ("use more mp at mid range" +7.5, "use more c.mk at mid range when he stands" +5.1).
+3. *Does it win more?* Against Ken, yes; against Ryu and Honda, not shown. The lessons are mostly "avoid" lines: they
+   stop losses but do not tell her what to do instead.
+4. Lessons are reproducible: 12 were registered in both runs of their opponent. All are in `lessons/chunli.json`
+   (`python scripts/qwen_lessons.py --export`), for reuse.
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
