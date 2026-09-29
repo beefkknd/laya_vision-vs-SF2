@@ -7,9 +7,10 @@ seed as the A/B test, so learning from them would leak the test into the lesson)
 
 A log dir holds actions.jsonl; each action loaded here is tagged ``log`` = its dir relative to the root.
 """
+import glob
 import json
 import os
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Tuple
 
 from ..data.dataset import read
 
@@ -62,3 +63,20 @@ def load_rounds(d: str) -> List[Dict]:
 
 def sources(rows: Iterable[Dict]) -> List[str]:
     return sorted({a.get("log", "?") for a in rows})
+
+
+def history(me: str, root: str = ROOT) -> Dict[str, Tuple[List[Dict], List[Dict]]]:
+    """Every earlier play log of ``me`` that System 2 learns from (the games_v* sweeps and the learning sessions; test
+    runs excluded), by opponent: {opp: (actions, rounds)}, each action tagged with its log dir."""
+    by_opp: Dict[str, Tuple[List[Dict], List[Dict]]] = {}
+    dirs = sorted(glob.glob(os.path.join(root, "games_v*", me))) + sorted(glob.glob(os.path.join(root, "learn", me, "*")))
+    for d in dirs:
+        if not os.path.exists(os.path.join(d, "actions.jsonl")) or is_test(d, root):
+            continue
+        acts, rounds = load_actions(d, root), load_rounds(d)
+        opps = {a["opp"] for a in acts}
+        for o in opps:
+            a0, r0 = by_opp.setdefault(o, ([], []))
+            a0 += [a for a in acts if a["opp"] == o]
+            r0 += [r for r in rounds if r.get("opp", next(iter(opps))) == o]
+    return by_opp

@@ -65,3 +65,15 @@ def test_read_jsonl_missing():
     assert read("/no/such/file.jsonl", missing_ok=True) == []
     with pytest.raises(FileNotFoundError):
         read("/no/such/file.jsonl")
+
+
+def test_history_groups_play_logs_by_opponent_without_test_runs(tmp_path):
+    from sf2.eval.logs import history
+    root = str(tmp_path / "rollouts")
+    write_log(root, "games_v1/chunli", opp="ryu", n=2)
+    write_log(root, "learn/chunli/s1", opp="ken", n=3, meta={"fresh": None})
+    write_log(root, "learn/chunli/s2", opp="ken", n=5, meta={"fresh": "video1"})
+    write_log(root, "ab/x/ryu_none", opp="ryu", n=7)
+    h = history("chunli", root)
+    assert {o: len(a) for o, (a, r) in h.items()} == {"ryu": 2, "ken": 3}
+    assert h["ken"][0][0]["log"] == "learn/chunli/s1"
