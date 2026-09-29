@@ -38,8 +38,8 @@ Refactors that found real bugs (each now covered by a test):
   and crashed;
 - moving modules one folder down would have broken their repo-root paths, so `config.REPO` is now the only place
   that finds the checkout (with an invariant test).
-Filed separately: `verify_replay` fails on live-play rows (`KeyError: 'live'`). Their `posture` is `"live"`, which
-has no savestate recipe (since a4fe0db). Not done: `train.py`'s main is still long, because it has no smoke mode to
+`verify_replay` failed on live-play rows (`KeyError: 'live'`, since a4fe0db: they have no savestate recipe). Fixed in
+a separate session (bc3b66d, merged f8569ac): it skips and counts them. Not done: `train.py`'s main is still long, because it has no smoke mode to
 prove a split. The review's list below is kept as it was written.
 
 **Delete the legacy teacher/DAgger pipeline**, after tagging it `legacy-dagger`. Nothing live imports it; I checked the import graph.

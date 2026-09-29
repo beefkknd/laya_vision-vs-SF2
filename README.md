@@ -115,7 +115,7 @@ against a dummy that stands, crouches or crouch-blocks, and presses each of its 
 python scripts/vs_dataset.py run --pairs ryu:chunli,ken:guile,honda:blanka,zangief:dhalsim   # ~5 min, 48 headless Mesens
 python scripts/audit_dataset.py        # ~96k mechanical checks per character; exit 1 on any violation
 python scripts/verify_replay.py        # re-records a random sample from each record's boot; must match byte for byte
-                                       # (open issue: it fails on live-play rows, which have no boot to replay)
+                                       # (live-play rows have no boot: skipped and counted)
 python scripts/train.py --out runs/all8 --data test_data/ryu --data test_data/ken --data test_data/chunli \
     --data test_data/guile --data test_data/honda --data test_data/blanka --data test_data/zangief --data test_data/dhalsim
 ```
