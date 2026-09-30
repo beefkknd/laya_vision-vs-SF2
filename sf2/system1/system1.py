@@ -62,10 +62,15 @@ def choices(me: str) -> List[str]:
 
 class System1:
     def __init__(self, model: Optional[str], me: str, threshold: float = 0.5, device: Optional[str] = None,
-                 seed: int = 0, advisor=None):
+                 seed: int = 0, advisor=None, explore: float = 0.0):
         """``model`` None: the explorer, a uniformly random move of all the character's actions every decision (for
         live data: every move gets real tries, labelled from RAM)."""
+        if not 0.0 <= explore <= 1.0:
+            raise ValueError("explore must be in [0, 1], got %r" % explore)
         self.agent, self.rng = None, random.Random(seed)
+        # the value-data collector (docs/plan_laya_vision_value.md): with this probability a uniformly random move of
+        # choices(me), else laya-vision's pick; its scores are logged either way
+        self.explore = explore
         if model:
             import laya
 
@@ -104,9 +109,16 @@ class System1:
                         predicted=max(probs[action], key=probs[action].get) if action in probs else "none",
                         probs=score)
         action = best if score[best] >= self.threshold else "forward"
-        return {"action": action, "best": best, "p_hit": score[best],
-                "predicted": max(probs[best], key=probs[best].get) if action != "forward" else "none",
-                "probs": score}
+        out = {"action": action, "best": best, "p_hit": score[best],
+               "predicted": max(probs[best], key=probs[best].get) if action != "forward" else "none",
+               "probs": score}
+        if self.explore > 0:
+            out = dict(out, explored=self.rng.random() < self.explore)
+            if out["explored"]:
+                a = self.rng.choice(choices(self.me))
+                out = dict(out, action=a, p_hit=score.get(a),
+                           predicted=max(probs[a], key=probs[a].get) if a in probs else "none")
+        return out
 
 
 def _can_act(r: Dict[str, int]) -> bool:
@@ -260,6 +272,8 @@ def _close(game: int, me: str, opp: str, pending) -> Dict:
     for k in ADVICE_KEYS:                         # with an advisor: what text laya read, and what it picked
         if k in d:
             entry[k] = d[k]
+    if "explored" in d:                           # the value-data collector: a random move, not laya-vision's pick
+        entry["explored"] = d["explored"]
     if images:
         entry["images"] = images
     return entry

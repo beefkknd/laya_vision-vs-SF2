@@ -39,7 +39,8 @@ def play_one(args, me: str, port: int) -> int:
     out = os.path.join(args.out, me)
     img_dir = os.path.join(out, "images")
     os.makedirs(img_dir, exist_ok=True)
-    s1 = System1(None if args.model == "random" else args.model, me, args.threshold, args.device, args.seed)
+    s1 = System1(None if args.model == "random" else args.model, me, args.threshold, args.device, args.seed,
+                 explore=args.explore)
     if args.memory != "none":     # the short memory vs THIS opponent: a new opponent has its own (or no) file
         s1.short = load(short_path(me, opp, args.memory), list(actions(me)))
     print("%s vs %s: short memory %s" % (me, opp, "%d lessons" % len(s1.short["lessons"]) if s1.short else "empty"),
@@ -95,6 +96,11 @@ def main() -> int:
     ap.add_argument("--opp", default="ryu", help="the CPU opponent (dhalsim: the novice training opponent)")
     ap.add_argument("--memory", default="memory",
                     help="memory dir (sf2/system2/memory.py); 'none' plays with an empty short memory")
+    ap.add_argument("--explore", type=float, default=0.0,
+                    help="value data (docs/plan_laya_vision_value.md): play a random move of System 1's choices with "
+                         "this probability, else laya-vision's pick")
+    ap.add_argument("--log-dir", default=os.path.join("logs", "system1"),
+                    help="process logs <dir>/<char>.log (one dir per parallel invocation, or their logs collide)")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
     args = ap.parse_args()
     exit_on_sigterm()
@@ -103,10 +109,11 @@ def main() -> int:
     chars = args.chars.split(",")
     cmds = [((c,), [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model",
                     args.model, "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
-                    "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp]
+                    "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp,
+                    "--explore", str(args.explore)]
              + (["--rom", args.rom] if args.rom else [])) for i, c in enumerate(chars)]
-    print("%d characters playing (logs/system1/<char>.log)" % len(cmds), flush=True)
-    failed = [c for (c,) in fan_out(cmds, os.path.join("logs", "system1"), job_gb=VISION_JOB_GB)]
+    print("%d characters playing (%s/<char>.log)" % (len(cmds), args.log_dir), flush=True)
+    failed = [c for (c,) in fan_out(cmds, args.log_dir, job_gb=VISION_JOB_GB)]
     summary = summarize(args.out, chars)
     with open(os.path.join(args.out, "summary.json"), "w") as f:
         json.dump(summary, f, indent=1)
@@ -117,7 +124,7 @@ def main() -> int:
             c, "%d-%d-%d" % (s["win"], s["loss"], s["draw"]), s["dealt_per_game"], s["taken_per_game"],
             100 * s["attack_share"], 100 * s["predicted_hit_really_hit"], s["actions"], s["attack_outcomes"]))
     for c in failed:
-        print("FAILED:", c, "see logs/system1/%s.log" % c)
+        print("FAILED:", c, "see %s/%s.log" % (args.log_dir, c))
     return 1 if failed else 0
 
 
