@@ -65,13 +65,15 @@ def shortlist(scores: Dict[str, float], lessons: Sequence[str], moves: Sequence[
     """move -> laya-vision's rating in words: the best-rated moves, the moves a "use more" / "always" lesson names
     where that lesson applies (``situation``: range, what he is doing), and forward. A named move is not added where
     its lesson does not apply: laya-vision may rate it well there, and text laya then leans to the named move
-    (2026-09-29: "use more c.mk at mid range" made her play c.mk up close 10 -> 134 times)."""
+    (2026-09-29: "use more c.mk at mid range" made her play c.mk up close 10 -> 134 times). The best-rated moves skip
+    those an applying avoid lesson rules out (review 2026-09-29: 485 decisions vs Honda had nothing left to pick);
+    a block is rated on its own scale (``advice.rating``)."""
     rng, doing = situation
-    best = sorted(scores, key=scores.get, reverse=True)[:SHORTLIST]
-    named = [les.move for les in (read(t, list(moves) + [FORWARD]) for t in lessons)
-             if les.move in scores and les.move not in best and les.polarity in ("soft", "hard")
-             and les.applies(rng, doing)]
-    out = {m: rating(scores[m]) for m in best + sorted(set(named))}
+    live = [les for les in (read(t, list(moves) + [FORWARD]) for t in lessons) if les.applies(rng, doing)]
+    out_ruled = {les.move for les in live if les.polarity == "neg"}
+    best = sorted((m for m in scores if m not in out_ruled), key=scores.get, reverse=True)[:SHORTLIST]
+    named = [les.move for les in live if les.move in scores and les.move not in best and les.polarity in ("soft", "hard")]
+    out = {m: rating(scores[m], m) for m in best + sorted(set(named))}
     out[FORWARD] = None
     return out
 

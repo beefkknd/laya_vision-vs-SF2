@@ -30,13 +30,21 @@ FORWARD = "forward"
 
 WORKS, MAY, FAILS = "likely works", "may work", "likely fails"
 RATING = {WORKS: 2, MAY: 1, FAILS: 0}
-WORKS_AT, MAY_AT = 0.5, 0.3          # laya-vision's score (P(hit), or P(blocked) for a block) -> words
+WORKS_AT, MAY_AT = 0.5, 0.3          # laya-vision's score for an attack, P(hit) -> words
+# A block's score is P(blocked), on another scale (2026-09-29, 131k decisions vs Ken/Ryu/Honda): a block scored 0.1-0.2
+# actually blocked 40% of the time and 0.2+ 59-65%, while an attack scored 0.5+ actually hit 25-44%. With one threshold
+# a block was never rated above "likely fails" (independent review, docs/reviews/2026-09-29_dr_fable.md).
+BLOCK_WORKS_AT, BLOCK_MAY_AT = 0.2, 0.1
+BLOCK_MOVES = ("block_high", "block_low")
 
 INSTRUCTIONS = "Which move do I do now? Follow the advice when it fits this moment."
 
 
-def rating(score: float) -> str:
-    return WORKS if score >= WORKS_AT else MAY if score >= MAY_AT else FAILS
+def rating(score: float, move: Optional[str] = None) -> str:
+    """laya-vision's score in words; a block (``move``) on its own scale. Without ``move`` the attack scale (what
+    scripts/build_advice_data.py built text laya's training data with)."""
+    works, may = (BLOCK_WORKS_AT, BLOCK_MAY_AT) if move in BLOCK_MOVES else (WORKS_AT, MAY_AT)
+    return WORKS if score >= works else MAY if score >= may else FAILS
 
 
 def opp_doing(entry: Dict) -> str:
