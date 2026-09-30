@@ -15,7 +15,7 @@ import time
 import _path  # noqa: F401
 from sf2.data.dataset import read
 from sf2.eval import churn, gaps
-from sf2.eval.logs import is_test
+from sf2.eval.logs import is_test, table_run
 
 
 def newest_session(me: str) -> str:
@@ -47,6 +47,9 @@ def main() -> int:
     args = ap.parse_args()
     if args.cmd == "gaps":
         session = args.session or newest_session(args.char)
+        why = table_run(session)
+        if why:
+            raise SystemExit("%s is a lookup-table run (%s): gaps reads laya-vision's P(hit) ratings" % (session, why))
         logs = [read(os.path.join(session, k + ".jsonl")) for k in ("actions", "rounds", "games")]
         save(os.path.join("logs", "gaps_%s.log" % args.char), gaps.report(session, *logs))
     else:

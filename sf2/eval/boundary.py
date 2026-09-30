@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Sequence
 
 from ..system1.advice import FAILS, FORWARD, Lesson, answers, opp_doing, parse, rating, read
 from ..system2.lessons import condition_evidence
+from .logs import table_rows
 from .stats import paired, run_level
 
 __all__ = ["rating", "lesson_of", "claim_of", "stage_vision", "stage_rule", "stage_text", "stage_game", "round_ab",
@@ -294,6 +295,10 @@ def trace(line: str, moves: Sequence[str], arms: Dict[str, Dict], ledgers: Seque
     """One line through every stage. ``arms``: name -> {"lines", "rows" (actions pooled over seeds), "rounds" (one list
     per seed, in seed order)}, with "none" the no-advice arm. The arm tracing R/T/G is the one whose lines are exactly
     [line], else the first (by name) that has it."""
+    table = sum(table_rows(d["rows"]) for d in arms.values())
+    if table:
+        raise ValueError("%d lookup-table decisions (no laya-vision score, net-scale ratings): boundary traces "
+                         "laya-vision's P(hit) ranking only" % table)
     les = lesson_of(line, moves)
     with_line = sorted(a for a, d in arms.items() if line in d["lines"])
     arm = next((a for a in with_line if arms[a]["lines"] == [line]), with_line[0] if with_line else None)

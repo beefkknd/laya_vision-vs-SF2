@@ -13,6 +13,7 @@ import re
 from typing import Dict, List
 
 from ..system1.advice import FAILS, MAY, WORKS, parse
+from .logs import table_rows
 
 
 def pct(a: int, b: int) -> str:
@@ -140,6 +141,10 @@ def ab(rounds: List[Dict], games: List[Dict]) -> List[str]:
 
 
 def report(session: str, acts: List[Dict], rounds: List[Dict], games: List[Dict]) -> List[str]:
+    table = table_rows(acts)
+    if table:
+        raise ValueError("%s: %d lookup-table decisions (no laya-vision score, net-scale ratings): the gaps report "
+                         "reads laya-vision's P(hit) ratings" % (session, table))
     lines = ["session %s: %d rounds, %d decisions" % (session, len(rounds), len(acts))]
     for opp in ["all"] + sorted({a["opp"] for a in acts}):
         a = acts if opp == "all" else [x for x in acts if x["opp"] == opp]

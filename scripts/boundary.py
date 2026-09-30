@@ -17,6 +17,7 @@ from typing import Dict, Iterator, List
 import _path  # noqa: F401
 from sf2.data.dataset import read
 from sf2.eval.boundary import trace
+from sf2.eval.logs import table_run
 
 
 def roots(log_dir: str, base: str) -> List[str]:
@@ -26,7 +27,12 @@ def roots(log_dir: str, base: str) -> List[str]:
             saved = [x.split()[1] for x in fh if x.startswith("saved ")]
         if not saved:
             raise SystemExit("%s: no run saved" % f)
-        out.append(os.path.join(base, saved[-1]))
+        root = os.path.join(base, saved[-1])
+        why = table_run(root)
+        if why:
+            raise SystemExit("%s is a lookup-table run (%s): boundary traces laya-vision's P(hit) ranking only" % (
+                root, why))
+        out.append(root)
     if not out:
         raise SystemExit("%s: no ab_memory logs" % log_dir)
     return out
@@ -62,7 +68,8 @@ def load_arms(rs: List[str], opp: str) -> Dict[str, Dict]:
 def ledgers(base: str, opp: str) -> List[List[Dict]]:
     pats = [os.path.join(base, "rollouts", "qwen_lessons", "*_%s*" % opp, "loop", "ledger.jsonl"),
             os.path.join(base, "rollouts", "locked", "*", "*_%s*" % opp, "loop", "ledger.jsonl")]
-    return [read(p) for p in sorted(set(p for pat in pats for p in glob.glob(pat)))]
+    found = sorted(set(p for pat in pats for p in glob.glob(pat)))
+    return [read(p) for p in found if not table_run(os.path.dirname(os.path.dirname(p)))]    # runs/all8's only
 
 
 @contextmanager

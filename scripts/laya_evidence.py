@@ -18,7 +18,8 @@ is shown lessons by: range and what he is doing):
                               lesson is dropped by the label rule where its move "likely fails" (sf2.system1.advice)
 Pooled (decision-weighted) by polarity, by the named move's kind (attack / block / forward) and by prompt
 (loop/run.json ``prompt``; missing = views). Unfinished runs (no verdict.json) are listed as skipped; a run that
-cannot be read is listed in ``failures``, never dropped silently.
+cannot be read is listed in ``failures``, never dropped silently. A lookup-table run (qwen_lessons.py --oracle: no
+laya-vision top 3, net-scale ratings; sf2.eval.logs.table_run) is not read: listed in ``skipped_table`` with why.
 
 follows_rule: per arm (loop, none), by rule (soft / hard / vision / walk / nothing_left), by opponent and by opponent x
 rule: the share of decisions where text laya picked an answer of its own label rule (logged per decision as
@@ -39,6 +40,7 @@ from typing import Dict, List, Optional, Sequence
 import _path  # noqa: F401
 from sf2.data.dataset import read
 from sf2.data.vs_defense import BLOCKS
+from sf2.eval.logs import table_run
 from sf2.system1.advice import FORWARD, opp_doing
 from sf2.system1.advice import read as read_lesson
 from sf2.system1.advisor import applicable
@@ -259,11 +261,15 @@ def run_dirs(roots: Sequence[str]) -> List[str]:
 
 
 def collect(roots: Sequence[str] = ROOTS) -> Dict:
-    runs, failures, skipped = [], [], []
+    runs, failures, skipped, table = [], [], [], []
     ledgers: Dict[str, List[Dict]] = {}
     for d in run_dirs(roots):
         if not os.path.exists(os.path.join(d, "verdict.json")):
             skipped.append(d)
+            continue
+        why = table_run(d)
+        if why:                          # no laya-vision top 3 to report on (net-scale ratings): listed, not read
+            table.append((d, why))
             continue
         try:
             r = run_evidence(d)
@@ -283,7 +289,7 @@ def collect(roots: Sequence[str] = ROOTS) -> Dict:
             "situation_mismatch": sum(r["situation_mismatch"] for r in runs),
             "follows_rule": follows_rule(runs),
             "opponent_moves": mentions(ledgers), "ledger_problems": problems(ledgers),
-            "failures": failures, "skipped_unfinished": skipped,
+            "failures": failures, "skipped_unfinished": skipped, "skipped_table": table,
             "runs": [{k: v for k, v in r.items() if k != "rules"} for r in runs]}      # per-decision rules: summed
 
 

@@ -13,7 +13,7 @@ A log dir holds actions.jsonl; each action loaded here is tagged ``log`` = its d
 import glob
 import json
 import os
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from ..data.dataset import read
 
@@ -29,6 +29,42 @@ def mark_run(out: str, **meta) -> None:
     with open(path + ".tmp", "w") as f:
         json.dump(meta, f)
     os.replace(path + ".tmp", path)
+
+
+TABLE_SUFFIX = "+table"
+_TABLE_FILES = (RUN_FILE, "verdict.json")
+
+
+def _names_oracle(path: str) -> Optional[str]:
+    try:
+        with open(path) as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return meta.get("oracle") if isinstance(meta, dict) else None
+
+
+def table_run(d: str) -> Optional[str]:
+    """Why ``d`` (a run, an arm of one, or an A/B arm folder) is a lookup-table run (qwen_lessons.py / ab_memory.py
+    --oracle), or None: its name or its parent's ends "+table", or a run.json / verdict.json there or in its arms
+    (loop, none) names an "oracle". The P(hit)-based eval tools (boundary, laya_evidence, gaps) refuse such runs."""
+    d = os.path.normpath(d)
+    for x in (d, os.path.dirname(d)):
+        if os.path.basename(x).endswith(TABLE_SUFFIX):
+            return "%s: the run's name ends %s" % (x, TABLE_SUFFIX)
+    places = [d, os.path.dirname(d), os.path.join(d, "loop"), os.path.join(d, "none")]
+    for x in places:
+        for f in _TABLE_FILES:
+            oracle = _names_oracle(os.path.join(x, f))
+            if oracle:
+                return "%s names an oracle (the lookup table %s)" % (os.path.join(x, f), oracle)
+    return None
+
+
+def table_rows(rows: Sequence[Dict]) -> int:
+    """How many decisions were ranked by the lookup table (System 1's oracle mode): values logged and no laya-vision
+    top 3 (a value checkpoint logs both)."""
+    return sum("values" in r and not r.get("top3") for r in rows)
 
 
 def full_run(d: str) -> bool:
