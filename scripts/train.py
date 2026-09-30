@@ -11,6 +11,14 @@ Each --data dir supplies <dir>/train.jsonl (and <dir>/val.jsonl if it has one) i
 same weight. Without any val.jsonl, 5% of the screen positions (every action asked there, and the mirrored twin)
 are held out for early stopping, so validation never shows a frame the model trained on. The adapters are merged
 before saving, so <out>/best is an ordinary laya-vision checkpoint.
+
+Opt-in for the value fine-tune's second run (docs/reviews/2026-09-30_dr_fable_lv_value.md B.1-2); the defaults are
+the first runs' recipe:
+    --select nll         keep best and early-stop on validation NLL over all rows (default acc: pooled accuracy)
+    --balance sampling   check that laya samples every dir in equal shares (and has enough rows) instead of equal
+                         row counts (default rows: MIN_SHARE_RATIO)
+    --resume-guard       (on by default) refuse to start if --out exists; --no-resume-guard to allow it
+Every eval logs, per character, the value questions' cross-entropy next to its prior's (train_log.json value_xent).
 """
 import argparse
 import json
@@ -20,14 +28,12 @@ import time
 import _path  # noqa: F401
 from sf2.data import lora
 from sf2.config import BASE_MODEL, IMAGE_CFG
-from sf2.data.train_data import checkpoint_tags, coverage_problems, coverage_table, load_data
+from sf2.data import train_data as TD
+from sf2.data.train_data import checkpoint_tags, coverage_problems, coverage_table, load_data, sampling_problems
+from sf2.data.train_select import EarlyStop, Selection, out_problem
 
 
-class EarlyStop(Exception):
-    pass
-
-
-def main():
+def parse_args(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", action="append", required=True, help="dataset dir (train.jsonl, optional val.jsonl)")
     ap.add_argument("--out", required=True)
@@ -38,12 +44,37 @@ def main():
     ap.add_argument("--lr-head", type=float, default=1e-4)
     ap.add_argument("--lr-backbone", type=float, default=2e-4, help="learning rate of the LoRA adapters")
     ap.add_argument("--eval-every", type=int, default=250)
-    ap.add_argument("--patience", type=int, default=3, help="evals without val-accuracy gain before stopping")
+    ap.add_argument("--patience", type=int, default=3, help="evals without a gain in --select before stopping")
+    ap.add_argument("--select", choices=["acc", "nll"], default="acc",
+                    help="keep best / early-stop on pooled val accuracy (acc) or val NLL over all rows (nll)")
+    ap.add_argument("--balance", choices=["rows", "sampling"], default="rows",
+                    help="rows: equal row counts per dir (MIN_SHARE_RATIO); sampling: equal sampling shares instead")
+    ap.add_argument("--resume-guard", action=argparse.BooleanOptionalAction, default=True,
+                    help="refuse to start if --out exists (default on)")
     ap.add_argument("--val-limit", type=int, default=4000, help="stop if validation is larger (it is not cut at random)")
     ap.add_argument("--max-minutes", type=float, default=None)
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
-    args = ap.parse_args()
+    return ap.parse_args(argv)
+
+
+def data_problems(train, val, args):
+    """The coverage gate for --balance rows (the default) or sampling."""
+    if args.balance == "sampling":
+        return coverage_problems(train, val, args.data, share_check=False) + sampling_problems(train, val, args.data)
+    return coverage_problems(train, val, args.data)
+
+
+def selection(args, evaluate, save_best) -> Selection:
+    """The eval_fn: keeps best and early-stops on --select with --patience."""
+    return Selection(evaluate, save_best, args.select, args.patience)
+
+
+def main():
+    args = parse_args()
+    guard = out_problem(args.out, args.resume_guard)
+    if guard:
+        raise SystemExit(guard)
 
     # data first: a coverage gap stops the run before a model is loaded
     train, val = load_data(args.data, args.seed)
@@ -51,7 +82,7 @@ def main():
         raise SystemExit("val has %d rows > --val-limit %d; a random cut would unbalance the characters"
                          % (len(val), args.val_limit))
     print("coverage:\n" + coverage_table(train, val, args.data), flush=True)
-    problems = coverage_problems(train, val, args.data)
+    problems = data_problems(train, val, args)
     if problems:
         raise SystemExit("coverage check failed (%d):\n  %s" % (len(problems), "\n  ".join(problems[:40])))
 
@@ -95,23 +126,19 @@ def main():
         agent.model, agent.temperature, agent.temperature_by_options = keep_model, keep_t, keep_tb
 
     os.makedirs(args.out, exist_ok=True)
-    hist, best = [], {"acc": -1.0, "step": None, "bad": 0}
 
-    def eval_fn(step):
+    def evaluate(step):
         t = time.time()
         m = vt.metrics_from(vt.collect_logits(agent.model, agent.processor, val, batch_size=16))
         agent.model.train()
-        hist.append({"step": step, **{k: v for k, v in m.items()}})
         print("eval step %d (%.0fs): %s" % (step, time.time() - t, vt.format_metrics(m)), flush=True)
-        if m["all"]["acc"] > best["acc"]:
-            best.update(acc=m["all"]["acc"], step=step, bad=0)
-            save(os.path.join(args.out, "best"))
-            print("  saved best -> %s/best" % args.out, flush=True)
-        else:
-            best["bad"] += 1
-            if best["bad"] >= args.patience:
-                raise EarlyStop()
-        return True
+        return m
+
+    def save_best():
+        save(os.path.join(args.out, "best"))
+        print("  saved best -> %s/best" % args.out, flush=True)
+
+    eval_fn = selection(args, evaluate, save_best)
 
     eval_fn(0)
     steps = max(1, int(args.epochs * len(train) / args.batch_size))
@@ -119,13 +146,16 @@ def main():
         vt.train(agent.model, agent.processor, train, steps=steps, batch_size=args.batch_size, freeze="lora",
                  n_last=4, lr_head=args.lr_head, lr_backbone=args.lr_backbone, device=str(agent.device),
                  seed=args.seed, log_every=25, max_minutes=args.max_minutes, num_workers=0,
-                 warmup=min(100, steps // 10), eval_fn=eval_fn, eval_every=args.eval_every)
+                 warmup=min(100, steps // 10), eval_fn=eval_fn, eval_every=args.eval_every,
+                 balance_key=TD.BALANCE_KEY, mix_weights=TD.MIX_WEIGHTS, mix_alpha=TD.MIX_ALPHA)
         eval_fn(steps)
     except EarlyStop:
         print("early stop: no val gain in %d evals" % args.patience)
+    best = eval_fn.best
     with open(os.path.join(args.out, "train_log.json"), "w") as f:
-        json.dump({"args": vars(args), "base": BASE_MODEL, "tags": tags, "best": best, "evals": hist}, f, indent=2)
-    print("best val accuracy %.3f at step %s -> %s/best" % (best["acc"], best["step"], args.out))
+        json.dump({"args": vars(args), "base": BASE_MODEL, "tags": tags, "best": best, "evals": eval_fn.hist}, f,
+                  indent=2)
+    print("best val %s %.3f at step %s -> %s/best" % (args.select, best[args.select], best["step"], args.out))
 
 
 if __name__ == "__main__":

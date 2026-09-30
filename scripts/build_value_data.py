@@ -21,15 +21,27 @@ def main(argv=None) -> int:
     ap.add_argument("--overwrite", action="store_true", help="remove a previous build of --out first")
     ap.add_argument("--min-value-train", type=int, default=V.MIN_VALUE_TRAIN,
                     help="new real value training rows needed per move of System 1's choices")
+    ap.add_argument("--no-cap", action="store_true",
+                    help="no live cap: every character keeps all its training games (no test_extra); off by default")
+    ap.add_argument("--forward-value-cap", choices=["median_attack"], default=None,
+                    help="cut each character's new forward value training rows to its median attack's count")
     args = ap.parse_args(argv)
     if args.overwrite:
         V.overwrite(args.out)
-    res = V.build(args.test_data, args.lv_root, args.out, args.repo, args.min_value_train)
-    print("live cap: %s new training decisions per character" % res["cap"])
+    res = V.build(args.test_data, args.lv_root, args.out, args.repo, args.min_value_train, args.no_cap,
+                  args.forward_value_cap)
+    if args.no_cap:
+        print("live cap: off (--no-cap): every training game kept")
+    else:
+        print("live cap: %s new training decisions per character" % res["cap"])
     for char, c in sorted(res["counts"].items()):
         if c["logs"]:
             print("%-8s new training decisions kept %d, past the cap -> test_extra %d" % (
                 char, c["new_train_decisions"], c["extra_decisions"]))
+        if "forward_value_cap" in c:
+            f = c["forward_value_cap"]
+            print("%-8s forward value rows %d -> %d (median attack %d); labels before %s after %s" % (
+                char, f["before"], f["after"], f["median_attack"], f["labels_before"], f["labels_after"]))
     for char, c in sorted(res["counts"].items()):
         f = c["files"]
         print("%-8s %s | new logs %s, dx0 dropped %d, partial lines %d" % (

@@ -9,14 +9,21 @@
   and build do it (model frames, mirrored training rows, dx == 0 dropped, game % 10 in TEST_INDEX held out). The
   live cap: every character trains on the same number of new decisions (the smallest character's count; its earliest
   games, evenly across its opponents); training games past the cap go, real only, to test_extra.jsonl (evaluation). Chun-Li vs Guile goes to test_heldout_guile.jsonl only (real rows), never to train or test_real.
+  Opt-in for the second run (docs/reviews/2026-09-30_dr_fable_lv_value.md B.2-3), both off by default so the first
+  run's build stays byte for byte: ``no_cap`` (no live cap: every character keeps all its training games, no
+  test_extra; balance comes from equal-share sampling in training) and ``forward_value_cap="median_attack"`` (per
+  character, the new live forward VALUE training rows are cut, by a hash of the row id, to the median count of its
+  attacks' new value training rows; the mirror follows its source; outcome rows and other moves untouched).
 - next to every live row (old and new, mirrored too) its value row: the same picture and note, the value question,
   the label value_bucket(dealt - taken). A still dummy never punishes: no value rows for the other rows.
 """
 import collections
+import hashlib
 import json
 import os
 import re
 import shutil
+import statistics
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .dataset import read, save_png, write_jsonl
@@ -39,6 +46,9 @@ LIVE_ID = re.compile(r"^(?P<char>[a-z]+)-live_(?P<log>.+)_g(?P<game>\d+)_f(?P<fr
 V1_NOTE = re.compile(r"^me=\S+ dist=\S+ side=(left|right) dx=[+-]\d+ my_bar=\S+ opp_bar=\S+ opp_airborne=[01] "
                      r"opp_crouch=[01]$")
 V2_TAIL = re.compile(r" opp_attacking=[01]$")
+FORWARD = "forward"
+FORWARD_VALUE_CAPS = (None, "median_attack")
+FORWARD_HASH_SALT = "lv_value_forward_cap:"
 
 
 def with_attacking(text: str, flag: int) -> str:
@@ -233,9 +243,40 @@ def keep_games(counts: Dict[Tuple[str, int], int], cap: int) -> set:
     return keep
 
 
-def assign(decs: List[Decision], keep: set) -> Tuple[Dict[str, List[Dict]], List[Tuple[str, str, bool]]]:
+def median_attack(counts: Dict[str, int], attacks: List[str]) -> int:
+    """The median of the new value training rows per attack move (every attack of ``attacks``, none counted as 0),
+    rounded down."""
+    return int(statistics.median([counts.get(a, 0) for a in attacks])) if attacks else 0
+
+
+def forward_value_keep(ids: List[str], n: int) -> set:
+    """``n`` of ``ids`` chosen by the sha256 of each id (no random state): the same ids for the same input in any
+    order, and a larger ``n`` keeps a superset."""
+    ranked = sorted(ids, key=lambda i: hashlib.sha256((FORWARD_HASH_SALT + i).encode()).hexdigest())
+    return set(ranked[:max(0, n)])
+
+
+def _labels(rows: List[Dict]) -> Dict[str, int]:
+    return dict(collections.Counter(list(VALUE_BUCKETS)[value_row(r)["label"]] for r in rows))
+
+
+def forward_value_plan(kept: List[Dict], attacks: List[str]) -> Tuple[set, Dict]:
+    """The real forward rows (of ``kept``, a character's kept new real training rows) whose value rows are dropped,
+    and the report: forward value rows before/after, the median attack count, the label counts before/after."""
+    counts = collections.Counter(r["action"] for r in kept)
+    med = median_attack(counts, attacks)
+    fwd = [r for r in kept if r["action"] == FORWARD]
+    keep = forward_value_keep([r["id"] for r in fwd], med)
+    return ({r["id"] for r in fwd} - keep,
+            {"median_attack": med, "before": len(fwd), "after": len(keep), "labels_before": _labels(fwd),
+             "labels_after": _labels([r for r in fwd if r["id"] in keep])})
+
+
+def assign(decs: List[Decision], keep: set, drop_value: frozenset = frozenset()
+           ) -> Tuple[Dict[str, List[Dict]], List[Tuple[str, str, bool]]]:
     """Rows per output file and frame jobs (dst, raw, mirrored): kept training games with mirrors, training games past
-    the cap real only in test_extra, test games in test_real_<side>, Chun-Li vs Guile in the hold-out file."""
+    the cap real only in test_extra, test games in test_real_<side>, Chun-Li vs Guile in the hold-out file. A kept
+    training row whose id is in ``drop_value`` keeps its outcome rows but loses its value row and its mirror's."""
     files: Dict[str, List[Dict]] = collections.defaultdict(list)
     jobs = []
     for sub, r, raws in decs:
@@ -243,7 +284,7 @@ def assign(decs: List[Decision], keep: set) -> Tuple[Dict[str, List[Dict]], List
         if r["split"] == "train" and (sub, r["game"]) in keep:
             m = mirror_row(r)
             jobs += [(dst, raw, True) for dst, raw in zip(m["images"], raws)]
-            files["train"] += [r, value_row(r), m, value_row(m)]
+            files["train"] += [r, m] if r["id"] in drop_value else [r, value_row(r), m, value_row(m)]
         elif r["split"] == "train":
             files[EXTRA_FILE] += [r, value_row(r)]
         elif r["split"] == "test":
@@ -336,14 +377,28 @@ def read_new(char: str, new: List[Tuple[str, str, str]]) -> Tuple[List[Decision]
     return decs, problems, counts
 
 
+def _forward_plan(char: str, decs: List[Decision], keep: set, forward_value_cap: Optional[str]
+                  ) -> Tuple[frozenset, Optional[Dict]]:
+    from ..system1.system1 import choices
+    from .vs_defense import BLOCKS
+
+    if forward_value_cap is None:
+        return frozenset(), None
+    kept = [r for sub, r, _ in decs if r["split"] == "train" and (sub, r["game"]) in keep]
+    attacks = [a for a in choices(char) if a not in BLOCKS and a != FORWARD]
+    drop, report = forward_value_plan(kept, attacks)
+    return frozenset(drop), report
+
+
 def _char_build(char: str, test_data: str, out: str, repo: str, logs: Callable[[str], Dict], new: Tuple,
-                cap: Optional[int], min_value_train: int) -> Tuple[Dict, List[str]]:
+                cap: Optional[int], min_value_train: int, no_cap: bool = False,
+                forward_value_cap: Optional[str] = None) -> Tuple[Dict, List[str]]:
     from ..system1.system1 import choices
 
     decs, problems, counts = new
     src, base = os.path.join(test_data, char), os.path.join(out, char)
     rel = os.path.relpath(os.path.abspath(src), os.path.abspath(base))
-    files: Dict[str, List[Dict]] = {n: [] for n in OLD_FILES + (EXTRA_FILE,)}
+    files: Dict[str, List[Dict]] = {n: [] for n in OLD_FILES + (() if no_cap else (EXTRA_FILE,))}
     if char == HELDOUT_CHAR:
         files[HELDOUT_FILE] = []
     for name in OLD_FILES:
@@ -351,27 +406,33 @@ def _char_build(char: str, test_data: str, out: str, repo: str, logs: Callable[[
         files[name] += rows
         problems = problems + p
     games = train_games(decs)
-    keep = keep_games(games, cap) if cap is not None else set()
-    got, jobs = assign(decs, keep)
+    keep = set(games) if no_cap else keep_games(games, cap) if cap is not None else set()
+    drop, fwd_report = _forward_plan(char, decs, keep, forward_value_cap)
+    got, jobs = assign(decs, keep, drop)
     for name, rows in got.items():
         files[name] = files.get(name, []) + rows
     counts = dict(counts, new_train_decisions=sum(games[k] for k in keep),
                   extra_decisions=sum(n for k, n in games.items() if k not in keep))
+    if fwd_report is not None:
+        counts = dict(counts, forward_value_cap=fwd_report)
     files = {k: sorted(v, key=lambda r: r["id"]) for k, v in files.items()}
     problems = problems + write_frames(base, jobs) + row_problems(char, files) + image_problems(base, files)
     if counts["logs"]:
         problems = problems + move_problems(char, files["train"], choices(char), min_value_train)
     for name, rows in files.items():
         write_jsonl(os.path.join(base, name + ".jsonl"), rows)
-    stats = _stats(files, dict(counts, cap=cap))
+    stats = _stats(files, dict(counts, cap=cap, **({"no_cap": True} if no_cap else {})))
     with open(os.path.join(base, "stats.json"), "w") as f:
         json.dump(stats, f, indent=1, sort_keys=True)
     return stats, problems
 
 
 def build(test_data: str = "test_data", lv_root: str = LV_ROOT, out: str = OUT, repo: str = ".",
-          min_value_train: int = MIN_VALUE_TRAIN) -> Dict:
-    """Build every character's dir in ``out`` (which must not exist yet). Returns {"problems", "counts", "cap"}."""
+          min_value_train: int = MIN_VALUE_TRAIN, no_cap: bool = False, forward_value_cap: Optional[str] = None) -> Dict:
+    """Build every character's dir in ``out`` (which must not exist yet). Returns {"problems", "counts", "cap"}
+    (cap None with ``no_cap``). ``no_cap`` and ``forward_value_cap``: see the module doc; both off by default."""
+    if forward_value_cap not in FORWARD_VALUE_CAPS:
+        raise ValueError("forward_value_cap must be one of %s, got %r" % (FORWARD_VALUE_CAPS, forward_value_cap))
     if os.path.exists(out) and os.listdir(out):
         return {"problems": ["%s exists: remove it first (or --overwrite)" % out], "counts": {}, "cap": None}
     from .dataset import dataset_chars
@@ -379,7 +440,7 @@ def build(test_data: str = "test_data", lv_root: str = LV_ROOT, out: str = OUT, 
     found = find_logs(lv_root)
     chars = sorted(set(dataset_chars(test_data)) | {c for _, c, _ in found})
     new = {c: read_new(c, found) for c in chars}
-    cap = cap_of({c: sum(train_games(n[0]).values()) for c, n in new.items()})
+    cap = None if no_cap else cap_of({c: sum(train_games(n[0]).values()) for c, n in new.items()})
     cache: Dict[str, Dict] = {}
 
     def logs(path: str) -> Dict:
@@ -390,7 +451,8 @@ def build(test_data: str = "test_data", lv_root: str = LV_ROOT, out: str = OUT, 
     problems, counts = [], {}
     for char in chars:
         os.makedirs(os.path.join(out, char), exist_ok=True)
-        counts[char], p = _char_build(char, test_data, out, repo, logs, new[char], cap, min_value_train)
+        counts[char], p = _char_build(char, test_data, out, repo, logs, new[char], cap, min_value_train, no_cap,
+                                      forward_value_cap)
         problems += p
     return {"problems": problems, "counts": counts, "cap": cap}
 

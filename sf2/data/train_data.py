@@ -5,6 +5,11 @@ The coverage gate exists because of a real bug: a validation split sampled acros
 Dhalsim with no validation rows at all, and nothing failed. ``coverage_problems`` makes every such gap a hard stop:
 each character must be in train and in validation in equal shares, every (action, range, posture, side) a
 character has must have enough training rows, and so must every block answer to every probe attack on both sides.
+
+With ``--balance sampling`` (opt-in, the value fine-tune's second run) the row-count share check is replaced by
+``sampling_problems``: the trainer samples every dir in equal shares whatever its size, so what must be equal is the
+sampling mix laya will actually use (asked of laya with the arguments train.py passes), and every dir needs enough
+train and validation rows.
 """
 import collections
 import json
@@ -14,6 +19,14 @@ from typing import Dict, List, Sequence, Tuple
 
 MIN_COMBO_ROWS = 5       # training rows per (character, action, range, posture, side)
 MIN_SHARE_RATIO = 0.8    # smallest / largest character, in train rows and in validation rows
+# the sampling arguments scripts/train.py passes to laya.vlm_train.train (its defaults: every dir drawn equally);
+# sampling_problems reads the mix with these same values
+BALANCE_KEY = "dataset"
+MIX_WEIGHTS = None
+MIX_ALPHA = 0.0
+MIN_SAMPLED_TRAIN = 1000  # --balance sampling: train rows per dir
+MIN_SAMPLED_VAL = 100     # --balance sampling: validation rows per dir
+SHARE_TOLERANCE = 1e-9
 
 
 def position(ex: Dict) -> Tuple:
@@ -71,8 +84,37 @@ def _records(dirs: Sequence[str]) -> Dict[Tuple[str, str], Dict]:
     return out
 
 
-def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -> List[str]:
-    """Everything wrong with the representation of each dataset in what is about to be trained on; empty = OK."""
+def sampling_shares(train: List[Dict]) -> Dict[str, float]:
+    """The share of training draws each group gets: laya's own mix (grouped as its ItemStream groups, by
+    BALANCE_KEY) with the weights and alpha train.py passes."""
+    import laya.vlm_train as vt
+
+    groups: Dict[str, List[Dict]] = {}
+    for ex in train:
+        groups.setdefault(ex.get(BALANCE_KEY, "_"), []).append(ex)
+    return vt.mix_probabilities(groups, MIX_WEIGHTS, MIX_ALPHA)
+
+
+def sampling_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str], min_train: int = MIN_SAMPLED_TRAIN,
+                      min_val: int = MIN_SAMPLED_VAL) -> List[str]:
+    """``--balance sampling``: every dir is sampled in the same share, no group that is not a dir, and every dir has
+    at least ``min_train`` train and ``min_val`` validation rows; empty = OK."""
+    names = [os.path.basename(os.path.normpath(d)) for d in dirs]
+    shares = sampling_shares(train)
+    problems = ["%s: sampled group is not a --data dir" % k for k in sorted(set(shares) - set(names))]
+    problems += ["%s is not sampled (no train rows)" % n for n in names if n not in shares]
+    got = [shares[n] for n in names if n in shares]
+    if got and max(got) - min(got) > SHARE_TOLERANCE:
+        problems.append("sampling shares unequal across datasets: %s" % {k: round(v, 4) for k, v in shares.items()})
+    for split, rows_, need in (("train", train, min_train), ("val", val, min_val)):
+        n = collections.Counter(ex.get("dataset") for ex in rows_)
+        problems += ["%s has %d %s rows < %d" % (x, n[x], split, need) for x in names if n[x] < need]
+    return problems
+
+
+def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str], share_check: bool = True) -> List[str]:
+    """Everything wrong with the representation of each dataset in what is about to be trained on; empty = OK.
+    ``share_check`` False (``--balance sampling``) skips only the row-count share check (MIN_SHARE_RATIO)."""
     from .vs_defense import ANSWERS
     from ..vocab import RANGES
     from .vs_sweep import SPECIALS, STAGE1_POSTURES, static_actions
@@ -86,7 +128,7 @@ def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -
             if n[name] == 0:
                 problems.append("%s has no %s rows" % (name, split))
         present = [n[x] for x in names if n[x]]
-        if present and min(present) / max(present) < MIN_SHARE_RATIO:
+        if share_check and present and min(present) / max(present) < MIN_SHARE_RATIO:
             problems.append("%s rows unequal across datasets: %s" % (split, {x: n[x] for x in names}))
     shared = {position(ex) for ex in train} & {position(ex) for ex in val}
     if shared:
