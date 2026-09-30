@@ -30,3 +30,5 @@ memory_seeds/
 .venv-media/
 # Lock copies (sf2.eval.lock): manifest.json is committed, the copied checkpoints / states / play logs are not
 locks/*/artifacts/
+# Value fine-tune dataset (scripts/build_value_data.py): all8 rows in note v2 + value rows + rollouts/lv_value; local only
+test_data_v2/
