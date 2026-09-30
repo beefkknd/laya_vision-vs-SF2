@@ -36,5 +36,7 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 
 | 26 | 09-30 | run 2's offline calibration gate would also reject the lookup table (monotone in 2 of 9 files, spread 3.5-13.2 on 1,000-decision samples) although the table won +81 hp/round in play | a quintile calibration of one noisy net per decision (sd ~16 hp) is not a test of choosing among moves; my gate, found by GPT-6's analysis | S | future value gates use regret on branched states (every move from one frame), docs/reviews/2026-09-30_*finetune_decision.md | - |
 
+| 27 | 09-30 | Qwen's server hung after the book round (0.4 tok/s, then refused connections); my hand restart first left it with no log reader | 12 concurrent lesson loops keep omlx at batch > 1, where MTP is off (~1 tok/s); I restarted with raw `omlx serve` and gave logpipe two arguments instead of using ~/work/omlx/start | H | restarted correctly 18:53 (Jundot--Qwen3.8-27B-oQ4e-mtp, cache on, MTP on); always `~/work/omlx/stop && ~/work/omlx/start` | 2x2 watchdog: server.log silent 20 min while runs are active |
+
 Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
 forward, nothing left) - docs/component_boundaries.md.
