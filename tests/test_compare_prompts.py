@@ -159,3 +159,14 @@ def test_a_short_smoke_run_is_not_paired(tmp_path):
     run(r, "1_ken", "ken", 1, "views", [10] * 2, [0] * 2)                    # a 2-round smoke run
     run(r, "2_ken_character", "ken", 1, "character", [30] * 30, [0] * 30)
     assert cp().pairs([r]) == ({}, [])
+
+
+def test_a_run_with_the_book_is_its_own_prompt(tmp_path):
+    r = str(tmp_path)
+    run(r, "1_ken_character_fgc", "ken", 1, "character_fgc", [10] * 10, [0] * 10)
+    d = run(r, "2_ken_character_fgc_book", "ken", 1, "character_fgc", [40] * 10, [0] * 10)
+    v = json.load(open(os.path.join(d, "verdict.json")))
+    with open(os.path.join(d, "verdict.json"), "w") as f:
+        json.dump(dict(v, book="lessons/book.json"), f)
+    pairs, _ = cp().pairs([r], ("character_fgc", "character_fgc+book"))
+    assert cp().diffs(pairs, ("character_fgc", "character_fgc+book"))["b_minus_a"]["ken"] == [30] * 10
