@@ -12,8 +12,14 @@ data only (refused when a locked file changed); output under rollouts/locked/NAM
 the default "views" is the two-view prompt the lock lesson_loop_v1 ran with (sf2.system2.lesson_prompt).
 Verdict (rollouts/qwen_lessons/<stamp>_<opp>/verdict.json):
     invariant     no registered lesson ever contradicts its own evidence (code-enforced; a violation is a bug)
-    hypotheses    Qwen's valid claims that hold on all the data at the end, vs 500 random valid claims (the same
-                  moves, ranges and situations) judged the same way: does Qwen propose better than chance?
+    hypotheses    Qwen's valid claims that hold on all the data at the end (qwen_hold_rate), vs 500 random claims
+                  judged the same way (random_hold_rate): a random kind on a random POPULATED cell - a move, range
+                  and situation where the move has MIN_TRIES+ tries and the rest MIN_TRIES+ (random_cells of them);
+                  a claim on an empty cell can never hold, so drawing over every cell (random_hold_rate_uniform, the
+                  baseline before 2026-09-29) flatters Qwen. Qwen is shown the verifier's classes, so the verdict
+                  also says how much of its hold rate was on the table already: registered_at_proposal(_share) of
+                  the valid claims were registered the moment they were proposed; refused_duplicate(_share) of all
+                  proposals were refused as "already registered / testing / rejected" (it repeated itself)
     outcome       hit points per round vs the no-advice arm, paired (reported, not a gate)
 """
 import argparse
@@ -39,6 +45,7 @@ from sf2.system2 import lessons as L
 from sf2.system2 import character_prompt, lesson_prompt
 from sf2.system2 import track_record as T
 from sf2.system2.lesson_prompt import streak
+from sf2.system2.move_coach import MIN_TRIES
 from sf2.system2.qwen import chat, json_reply
 from sf2.vocab import RANGES
 
@@ -167,13 +174,43 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     return 0
 
 
+def populated_cells(rows: List[Dict], need_when: bool = False) -> List[Dict]:
+    """Every (move, range, when) cell with a judgeable class: the move MIN_TRIES+ times there, the rest MIN_TRIES+
+    (sf2.system2.lessons.condition_evidence). ``need_when``: only cells that name what he is doing."""
+    moves = sorted({a["action"] for a in rows})
+    whens = tuple(L.WHEN_WORDS) if need_when else (None,) + tuple(L.WHEN_WORDS)
+    out = []
+    for m in moves:
+        for rng in (None,) + RANGES:
+            for w in whens:
+                ev = L.condition_evidence(rows, {"move": m, "range": rng, "when": w})
+                if ev["tries"] >= MIN_TRIES and ev["others"] >= MIN_TRIES:
+                    out.append({"move": m, "range": rng, "when": w})
+    return out
+
+
 def random_claims(rows: List[Dict], n: int, seed: int = 0, need_when: bool = False) -> List[Dict]:
-    """``need_when``: every claim names what he is doing, like a character lesson (a fair chance baseline for it)."""
+    """The chance baseline: ``n`` claims, each a random kind on a random populated cell (``populated_cells``); none
+    when no cell is populated. ``need_when``: every claim names what he is doing, like a character lesson."""
+    r = random.Random(seed)
+    cells = populated_cells(rows, need_when)
+    return [dict(r.choice(cells), kind=r.choice(L.KINDS)) for _ in range(n)] if cells else []
+
+
+def uniform_claims(rows: List[Dict], n: int, seed: int = 0, need_when: bool = False) -> List[Dict]:
+    """The old baseline (before 2026-09-29): uniform over every move x range x when, mostly empty cells."""
     r = random.Random(seed)
     moves = sorted({a["action"] for a in rows})
     whens = tuple(L.WHEN_WORDS) if need_when else (None,) + tuple(L.WHEN_WORDS)
     return [{"kind": r.choice(L.KINDS), "move": r.choice(moves), "range": r.choice((None,) + RANGES),
-             "when": r.choice(whens)} for _ in range(n)]
+             "when": r.choice(whens)} for _ in range(n)] if moves else []
+
+
+DUPLICATE = ("already registered", "already testing", "already rejected")     # sf2.system2.lessons._refusal
+
+
+def _rate(k: int, n: int):
+    return k / n if n else None
 
 
 def holds(c: Dict, rows: List[Dict]) -> bool:
@@ -186,7 +223,14 @@ def verdict(root: str, opp: str, history: bool, lock: str = None, prompt: str = 
     rows = (decisions(opp, lock) if history else []) + acts
     valid = [o["claim"] for r in led for o in r["outcome"] if o["state"] != "refused"]
     views = {v: [c for c in valid if c.get("view") == v] for v in PROMPTS[prompt].VIEWS if v != "what_if"}
-    rand = [c for c in random_claims(rows, BASELINE, need_when=prompt == "character") if L.condition_evidence(rows, c)["tries"] > 0]
+    need_when = prompt.startswith("character")
+    cells = populated_cells(rows, need_when)
+    rand = random_claims(rows, BASELINE, need_when=need_when)
+    uniform = [c for c in uniform_claims(rows, BASELINE, need_when=need_when)
+               if L.condition_evidence(rows, c)["tries"] > 0]
+    outcomes = [o for r in led for o in r["outcome"]]
+    at_proposal = sum(o["state"] == "registered" for o in outcomes)
+    dup = sum(o["state"] == "refused" and str(o.get("why", "")).startswith(DUPLICATE) for o in outcomes)
     loop, none = (read(os.path.join(root, a, "rounds.jsonl"), missing_ok=True) for a in ("loop", "none"))
     d = paired(loop, none) if loop and len(loop) == len(none) else []
     states = {}
@@ -205,6 +249,11 @@ def verdict(root: str, opp: str, history: bool, lock: str = None, prompt: str = 
             "kinds_registered": {k: sum(r["state"] == "registered" and r["claim"]["kind"] == k for r in final)
                                  for k in L.KINDS},
             "random_hold_rate": sum(holds(c, rows) for c in rand) / len(rand) if rand else None,
+            "random_cells": len(cells),
+            "random_hold_rate_uniform": sum(holds(c, rows) for c in uniform) / len(uniform) if uniform else None,
+            "valid": len(valid),
+            "registered_at_proposal": at_proposal, "registered_at_proposal_share": _rate(at_proposal, len(valid)),
+            "refused_duplicate": dup, "refused_duplicate_share": _rate(dup, len(outcomes)),
             "registered_at_end": [r["line"] for r in final if r["state"] == "registered"],
             "retired": [r["line"] for r in final if r["state"] == "retired"],
             "won": {"loop": sum(r["result"] == "win" for r in loop), "none": sum(r["result"] == "win" for r in none)},
