@@ -23,7 +23,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS, RANGES
 from .move_coach import MIN_TRIES
-from .track_record import describe, hurts
 
 KINDS = ("use_more", "always", "avoid")
 RIGHT = {"use_more": "better", "always": "better", "avoid": "worse"}
@@ -149,20 +148,18 @@ def _judge(c: Claim, ev: Dict) -> Tuple[str, str]:
 
 
 def propose(reg: Registry, claims: Sequence, rows: Sequence[Dict], game: int,
-            moves: Optional[Sequence[str]] = None, track: Optional[Dict] = None) -> Tuple[Registry, List[Dict]]:
+            moves: Optional[Sequence[str]] = None) -> Tuple[Registry, List[Dict]]:
     """Take Qwen's claims: each is refused (invalid, known, contradicting) or judged. ``moves``: her whole move set (a
     "use more" / "always" may name a move she never used: it is tried in play); default: the moves in ``rows``.
     A claim opposite to a lesson but for a strictly narrower situation is an exception, judged on its own data (text
-    laya's rule: an applying avoid rules the move out even where a use more applies). ``track``: the opponent's
-    track record (sf2.system2.track_record) - a claim whose line hurts there is refused. Returns a new registry."""
+    laya's rule: an applying avoid rules the move out even where a use more applies). The track record
+    (sf2.system2.track_record) is only shown to Qwen, never a reason to refuse. Returns a new registry."""
     reg = [dict(r) for r in reg]
     tried = {a["action"] for a in rows}
     moves = set(moves) if moves is not None else tried
     out = []
     for c in claims:
         why = _refusal(reg, c, tried, moves)
-        if not why and track and hurts(track, render(c)):
-            why = "its track record hurts: " + describe(render(c), track[render(c)])
         if why:
             out.append({"claim": c, "state": "refused", "why": why})
             continue

@@ -128,13 +128,13 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
             stable = streak(games, changed)
             claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused, stable,
                                         args.prompt, track)
-            reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES, track=track)
+            reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES)
             changed.append({r["line"] for r in reg if r["state"] == "registered"} != before)
             refused = [o for o in outcome if o["state"] == "refused"]
             logs["ledger"].write(json.dumps({"game": game, "prompt": args.prompt, "stable": stable, "claims": claims, "outcome": outcome,
                                              "problems": problems,
                                              "registry": reg, "in_play": L.in_play(reg),
-                                             "violations": L.violations(reg, rows) + T.violations(reg, track or {}),
+                                             "violations": L.violations(reg, rows),
                                              "reply": raw}) + "\n")
             logs["ledger"].flush()
             print("after game %d: %s | in play %s" % (game, ["%s -> %s" % (o.get("line", o["claim"]), o["state"])
@@ -260,8 +260,8 @@ def main() -> int:
     ap.add_argument("--model", default=LAYA_VISION)
     ap.add_argument("--advisor", default=TEXT_LAYA)
     ap.add_argument("--prompt", choices=sorted(PROMPTS), default="views", help="what Qwen is asked after each game")
-    ap.add_argument("--track", help="a track record file (scripts/track_record.py): shown to Qwen, and a lesson that "
-                                    "hurts there is refused")
+    ap.add_argument("--track", help="a track record file (scripts/track_record.py): shown to Qwen (never a reason to "
+                                    "refuse a lesson)")
     ap.add_argument("--lock", help="play from this lock's copies only (sf2.eval.lock)")
     ap.add_argument("--run", type=int, help="with --lock: repeat the lock's run N (its opponent, seed, games)")
     ap.add_argument("--one", nargs=3, metavar=("ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
