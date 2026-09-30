@@ -4,7 +4,8 @@ same seed, same start delays).
 
     python scripts/qwen_lessons.py --opp ken --games 10
 
-After every game: code reviews the registry (claims in test judged, lessons whose evidence stopped holding retired),
+After every game: code reviews the registry (claims in test judged or stopped when her rounds tanked since they
+began, lessons whose evidence stopped holding retired),
 then Qwen proposes at most 2 claims, code judges them. Starts from her play data against him (--no-history: nothing).
 From a lock (sf2.eval.lock): --lock NAME --run N repeats the lock's run N with its checkpoints, savestate and play
 data only (refused when a locked file changed); output under rollouts/locked/NAME/.
@@ -109,6 +110,7 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     played: List[Dict] = []
     refused: List[Dict] = []
     games: List[Dict] = []             # per game: rounds won / lost
+    game_hp: List[float] = []          # per game: her mean hp (dealt - taken) per round, for the early stop
     changed: List[bool] = []           # per update: did the registered lessons change
     os.makedirs(out, exist_ok=True)
     track, digest = load_track(args.track, args.opp)
@@ -124,7 +126,7 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
             nonlocal reg, refused
             rows = base + acts
             before = {r["line"] for r in reg if r["state"] == "registered"}
-            reg = L.review(reg, rows, game)
+            reg = L.review(reg, rows, game, game_hp)
             stable = streak(games, changed)
             claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused, stable,
                                         args.prompt, track)
@@ -160,6 +162,7 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
                                                           rnd.summary["dealt"] - rnd.summary["taken"]), flush=True)
             acts += this
             played += this_rounds
+            game_hp.append(sum(r["dealt"] - r["taken"] for r in this_rounds) / len(this_rounds))
             games.append({"won": sum(r["result"] == "win" for r in this_rounds),
                           "lost": sum(r["result"] != "win" for r in this_rounds)})
             if arm == "loop":

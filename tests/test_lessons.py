@@ -170,3 +170,66 @@ def test_the_loop_offers_only_moves_system1_can_choose():
     got = choices("chunli")
     assert "block_high" in got and "block_low" in got and "forward" in got and "sweep" in got
     assert not {"back", "crouch", "jump_back", "idle", "jump"} & set(got)
+
+
+# Early stop (docs 0f "Open: a test is not stopped early however badly the rounds go"; review 2026-09-29): in the loop
+# the only outcome signal is her own rounds, so a claim in test is stopped when the games since it began went worse
+# than the games before it by more than L.STOP_DROP hp per round, with at least 2 games before it.
+
+def in_test(c=None, since=2):
+    reg, out = L.propose([], [c or claim("use_more", "hp", "close", "jumping")], [], since, moves=MOVES)
+    assert out[0]["state"] == "testing"
+    return reg
+
+
+def test_a_test_is_stopped_when_her_rounds_tank_after_it_began():
+    reg = L.review(in_test(since=2), [], 3, game_hp=[10, -10, 0, -100])            # before 0.0, since -100
+    assert reg[0]["state"] == "rejected" and reg[0]["why"].startswith("stopped: rounds went badly since it began: ")
+    assert "-100.0" in reg[0]["why"] and "+0.0" in reg[0]["why"]
+
+
+def test_it_is_not_stopped_on_a_drop_within_the_threshold():
+    drop = L.STOP_DROP - 1
+    assert L.review(in_test(since=2), [], 3, game_hp=[0, 0, 0, -drop])[0]["state"] == "testing"
+    assert L.review(in_test(since=2), [], 3, game_hp=[0, 0, 0, -L.STOP_DROP - 1])[0]["state"] == "rejected"
+
+
+def test_it_is_not_stopped_with_fewer_than_2_games_before_it():
+    assert L.review(in_test(since=0), [], 1, game_hp=[50, -200])[0]["state"] == "testing"       # 1 game before
+    assert L.review(in_test(since=-1), [], 0, game_hp=[-200])[0]["state"] == "testing"         # from history
+    assert L.review(in_test(since=1), [], 2, game_hp=[50, 50, -200])[0]["state"] == "rejected"  # 2 before: stopped
+
+
+def test_the_games_since_it_began_are_averaged():
+    reg = in_test(since=2)
+    assert L.review(reg, [], 4, game_hp=[0, 0, 0, -130, 20])[0]["state"] == "testing"      # since: -55
+    assert L.review(reg, [], 4, game_hp=[0, 0, 0, -130, -10])[0]["state"] == "rejected"    # since: -70
+
+
+def test_without_game_results_review_is_unchanged():
+    rows = world()
+    reg = in_test(claim("use_more", "c.mk", "close", "attacking"))
+    assert L.review(reg, rows, 3) == L.review(reg, rows, 3, game_hp=None)
+    assert L.review(reg, rows, 3, game_hp=[0, 0, 0, 0]) == L.review(reg, rows, 3)
+
+
+def test_registered_and_retired_lessons_are_not_stopped():
+    rows = world()
+    reg, out = L.propose([], [claim("avoid", "sweep", "close", "attacking")], rows, 2)
+    assert out[0]["state"] == "registered"
+    assert L.review(reg, rows, 3, game_hp=[0, 0, 0, -300])[0]["state"] == "registered"
+
+
+def test_a_stopped_claim_is_not_proposed_again():
+    reg = L.review(in_test(since=2), [], 3, game_hp=[0, 0, 0, -300])
+    _, out = L.propose(reg, [claim("use_more", "hp", "close", "jumping")], [], 3, moves=MOVES)
+    assert out[0]["state"] == "refused" and "stopped" in out[0]["why"]
+
+
+def test_the_stop_overrides_a_claim_that_would_register():
+    """The per-decision yardstick sees no harm where the rounds are lost (Honda, 0f/0h): the rounds decide first."""
+    rows = world()
+    reg = [dict(L._entry(claim("always", "block_low", "close", "attacking"), "testing", "", 2,
+                         L.condition_evidence(rows, claim("always", "block_low", "close", "attacking"))))]
+    assert L.review(reg, rows, 3)[0]["state"] == "registered"
+    assert L.review(reg, rows, 3, game_hp=[0, 0, 0, -300])[0]["state"] == "rejected"
