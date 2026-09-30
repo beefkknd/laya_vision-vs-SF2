@@ -16,6 +16,13 @@ for general play, not one character.
   no text laya, no Qwen. Chun-Li vs all 7 CPU opponents x 120 games (seeds 90001-90007); the other 7 characters vs
   Ryu and vs Dhalsim (Ryu/Dhalsim meet Ken) x 60 games (seeds 91001-91002). Split by game: game % 10 in (2,5,8) test.
   **Chun-Li vs Guile is held out entirely** (never in training).
+- Balance (added before training, 2026-09-30): every character keeps the same number of new live training decisions
+  (the smallest character's count); Chun-Li keeps her earliest games evenly across her 6 opponents, and her other
+  training-split games go to a separate evaluation file (test_extra), never to training. The check that characters
+  have equal training rows stays on: laya stays general.
+- Block rows' opp_attacking: ground probes 1 (he is mid-attack at the decision frame), jump-in 0 (he is still in the
+  jump state; note v2 counts only attack/special states) - inferred from the collector's timing, to be confirmed by a
+  replay when the emulator is free.
 - Dataset `test_data_v2/` = the all8 rows (note v2; no value rows for the still dummy) + the new live rows (outcome and
   value rows). Training: scripts/train.py with the all8 recipe (rank 16, alpha 32, 2 epochs, batch 8, lr head 1e-4,
   backbone 2e-4, eval every 250, patience 3, seed 0), from BASE, one run, no sweeps.
