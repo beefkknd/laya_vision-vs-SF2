@@ -31,6 +31,8 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 | 21 | 09-30 | the Ken expert batch lost (529 broken log lines) | two ab_memory batches launched in the same second shared one rollouts/ab/<stamp> folder and interleaved their writes | H | folder <stamp>_s<seed>, an existing one refused | test_ab_root |
 | 22 | 09-30 | the players' main advice vs Honda (keep away, walk back) cannot be given | System 1 picks only attacks, blocks and forward: no walk back | R (action set) | open - an owner decision | Honda batch |
 | 23 | 09-30 | "avoid spinning_bird_kick" vs Zangief lost 44.7 hp/round (players, Qwen and the verifier all backed it) | ruling out her one non-failing move leaves only "likely fails" moves, so the rule falls back to walking in; the verifier compares within a situation and cannot see the substitute | R / V | open | Zangief batch, boundary trace |
+| 24 | 09-30 | the memory budget said 144 GB, the machine used ~176 GB (footprint incl. GPU buffers) | Qwen's server (74-106 GB, grows with concurrent requests) is outside the ledger; each run starts its own text laya copy in float32 (6.3 GB each, 12-18 copies) | H | open - approved plan: one shared text laya server; count Qwen in the budget | footprint by process type |
+| 25 | 09-30 | 34 GB free when the book round's last wave started next to the value-data collection | I raised the budget to 175 GB for the collection (the ledger over-reserves the book runs) and wave 4's model-loading spike landed on top | H | wave 2 of the collection waits for the book round; watchdog < 30 GB | Monitor |
 
 Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
 forward, nothing left) - docs/component_boundaries.md.
