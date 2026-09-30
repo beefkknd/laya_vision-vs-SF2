@@ -110,7 +110,8 @@ LEDGERS = [
                               _out("avoid", "throw", None, None, "rejected", "too few tries to judge (4)")]},
      {"game": 2, "outcome": [_out("use_more", "throw", "close", None, "refused", "already rejected: x")]}],
     [{"game": -1, "outcome": [_out("avoid", "throw", "far", None, "registered", "clearly worse: y")]}],
-    [{"game": -1, "outcome": [_out("use_more", "lp", "close", None, "registered", "clearly better: z")]}],
+    [{"game": -1, "outcome": [_out("use_more", "lp", "close", None, "registered", "clearly better: z"),
+                              _out("use_more", "throw", "far", None, "testing", "to be tried in play")]}],
 ]
 
 
@@ -121,7 +122,7 @@ def test_qwen_counts_exact_proposals_and_claims_naming_the_move():
     assert q["exact"] == 2 and q["exact_runs"] == 1
     assert q["exact_states"] == {"rejected": 1, "refused": 1}
     assert q["exact_whys"] == {"clearly worse": 1, "already rejected": 1}
-    assert q["naming"] == {"use_more": 2, "avoid": 2}
+    assert q["naming"] == {"use_more": 3, "avoid": 2}            # "use more throw far away" names it, is not L
     assert q["history"]["tries"] == 3 and q["history"]["cls"] == "few"
 
 
@@ -161,9 +162,20 @@ def test_diagnosis_names_the_first_break_in_chain_order():
     assert b.diagnose(les, _stages())["breaks"] == []
 
 
-def test_diagnosis_does_not_blame_qwen_for_a_line_that_does_not_help():
-    d = b.diagnose(b.lesson_of(THROW, MOVES), _stages(verdict="NOT SHOWN", exact=0))
-    assert not any(x.startswith("Qwen") for x in d["breaks"])
+def test_diagnosis_does_not_blame_qwen_for_a_line_not_shown_to_help():
+    for verdict in ("NOT SHOWN", None):
+        d = b.diagnose(b.lesson_of(THROW, MOVES), _stages(verdict=verdict, exact=0))
+        assert not any(x.startswith("Qwen") for x in d["breaks"])
+
+
+def test_diagnosis_flags_an_avoid_line_that_leaves_only_walking():
+    les = b.lesson_of("avoid spinning_bird_kick", MOVES)
+    s = _stages()
+    s["R"] = {"decisions": 100, "says_share": 1.0, "why_not": {}, "rules": {"walk": 70, "vision": 30}}
+    d = b.diagnose(les, s)
+    assert d["breaks"][0].startswith("rule") and "walks in 70%" in d["breaks"][0]
+    s["R"]["rules"] = {"walk": 20, "vision": 80}
+    assert b.diagnose(les, s)["breaks"] == []
 
 
 # ---- the whole trace -------------------------------------------------------------------------------------------

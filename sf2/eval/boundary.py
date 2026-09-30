@@ -36,6 +36,7 @@ DECISIVE = ("registered", "rejected", "retired")
 VISION_MIN = 0.10      # M in laya-vision's top 3 less often than this where L applies: vision rarely offers it
 RULE_MIN = 0.50        # the rule says M (or rules it out, for avoid) less often than this: the rule blocks the line
 TEXT_MIN = 0.80        # text laya follows the rule / picks M when told less often than this
+WALK_MAX = 0.50        # an avoid line after which the rule walks in on more decisions than this leaves nothing
 
 
 def _share(n: int, d: int) -> Optional[float]:
@@ -214,40 +215,71 @@ def _top(why: Dict) -> str:
     return "; mostly %s (%d of %d)" % (k, n, sum(why.values()))
 
 
-def _breaks(les: Lesson, s: Dict) -> List[str]:
-    out = []
-    m, v, r, t, g, q, h = les.move, s["V"], s["R"], s["T"], s["G"], s["Q"], s["H"]
-    share = v.get("offered_share") if m == FORWARD else v.get("top3_share")
-    if v.get("decisions") and share is not None and share < VISION_MIN:
-        out.append("vision: %s in top 3 only %s of %d decisions where the line applies -> %s" % (
-            m, _pct(share), v["decisions"],
-            "avoiding it changes little" if les.polarity == "neg" else "rarely offered without advice"))
-    if r.get("decisions") and r.get("says_share") is not None and r["says_share"] < RULE_MIN:
-        out.append("rule: %s %s only %s%s" % ("rules out" if les.polarity == "neg" else "says", m,
-                                              _pct(r["says_share"]), _top(r.get("why_not", {}))))
-    fol = t.get("follows_share")
-    if t.get("decisions") and ((fol is not None and fol < TEXT_MIN) or
-                               (t.get("rule_says") and (t.get("pick_share") or 0) < TEXT_MIN)):
-        out.append("text laya: follows the rule %s, %s %s %s when the rule says so" % (
-            _pct(t.get("follows_share")), "avoids" if les.polarity == "neg" else "picks", m, _pct(t.get("pick_share"))))
+def _vision_break(les: Lesson, v: Dict) -> Optional[str]:
+    share = v.get("offered_share") if les.move == FORWARD else v.get("top3_share")
+    if not v.get("decisions") or share is None or share >= VISION_MIN:
+        return None
+    return "vision: %s in top 3 only %s of %d decisions where the line applies -> %s" % (
+        les.move, _pct(share), v["decisions"],
+        "avoiding it changes little" if les.polarity == "neg" else "rarely offered without advice")
+
+
+def _rule_break(les: Lesson, r: Dict) -> Optional[str]:
+    n = r.get("decisions")
+    if not n:
+        return None
+    if r.get("says_share") is not None and r["says_share"] < RULE_MIN:
+        return "rule: %s %s only %s%s" % ("rules out" if les.polarity == "neg" else "says", les.move,
+                                          _pct(r["says_share"]), _top(r.get("why_not", {})))
+    walk = (r.get("rules") or {}).get("walk", 0) / n
+    if les.polarity == "neg" and walk > WALK_MAX:
+        return "rule: with %s ruled out nothing else rates above 'likely fails' -> walks in %s" % (
+            les.move, _pct(walk))
+    return None
+
+
+def _text_break(les: Lesson, t: Dict) -> Optional[str]:
+    fol, pick = t.get("follows_share"), t.get("pick_share")
+    if not t.get("decisions") or not ((fol is not None and fol < TEXT_MIN) or
+                                      (t.get("rule_says") and (pick or 0) < TEXT_MIN)):
+        return None
+    return "text laya: follows the rule %s, %s %s %s when the rule says so" % (
+        _pct(fol), "avoids" if les.polarity == "neg" else "picks", les.move, _pct(pick))
+
+
+def _game_break(les: Lesson, g: Dict) -> Optional[str]:
     ab = g.get("ab") or {}
     if ab.get("verdict") == "HURTS":
-        out.append("game: the A/B says it hurts (%+.1f hp per round)" % ab["mean"])
-    elif les.polarity != "neg" and (g.get("arm") or {}).get("cls") == "worse":
-        out.append("game: %s nets worse per try than her other decisions there (%d tries)" % (m, g["arm"]["tries"]))
-    if q.get("exact", 0) == 0 and ab.get("verdict") in (None, "HELPS"):
-        hist = q.get("history") or {}
-        naming = q.get("naming") or {}
-        out.append("Qwen: never proposed it; her history had %d tries (%s)%s%s" % (
-            hist.get("tries", 0), hist.get("cls"),
-            "; with no advice she picks %s %s there" % (m, _pct(v["picked_share"]))
-            if v.get("picked_share") is not None else "",
-            "; claims naming %s: %s" % (m, ", ".join("%s x%d" % kv for kv in sorted(naming.items())))
-            if naming else ""))
-    if h.get("agree") is False:
-        out.append("verifier: judged it %s but the A/B says %s (expected %s)" % (
-            ", ".join("%s x%d" % kv for kv in sorted(h["states"].items())), h.get("ab"), h.get("expected")))
-    return out
+        return "game: the A/B says it hurts (%+.1f hp per round)" % ab["mean"]
+    if les.polarity != "neg" and (g.get("arm") or {}).get("cls") == "worse":
+        return "game: %s nets worse per try than her other decisions there (%d tries)" % (les.move, g["arm"]["tries"])
+    return None
+
+
+def _qwen_break(les: Lesson, q: Dict, v: Dict, g: Dict) -> Optional[str]:
+    """Only for a line the A/B shows helps: not proposing a line of unknown worth is no failure."""
+    if q.get("exact", 0) or (g.get("ab") or {}).get("verdict") != "HELPS":
+        return None
+    hist, naming = q.get("history") or {}, q.get("naming") or {}
+    return "Qwen: never proposed it; her history had %d tries (%s)%s%s" % (
+        hist.get("tries", 0), hist.get("cls"),
+        "; with no advice she picks %s %s there" % (les.move, _pct(v["picked_share"]))
+        if v.get("picked_share") is not None else "",
+        "; claims naming %s: %s" % (les.move, ", ".join("%s x%d" % kv for kv in sorted(naming.items())))
+        if naming else "")
+
+
+def _verifier_break(h: Dict) -> Optional[str]:
+    if h.get("agree") is not False:
+        return None
+    return "verifier: judged it %s but the A/B says %s (expected %s)" % (
+        ", ".join("%s x%d" % kv for kv in sorted(h["states"].items())), h.get("ab"), h.get("expected"))
+
+
+def _breaks(les: Lesson, s: Dict) -> List[str]:
+    found = [_vision_break(les, s["V"]), _rule_break(les, s["R"]), _text_break(les, s["T"]),
+             _game_break(les, s["G"]), _qwen_break(les, s["Q"], s["V"], s["G"]), _verifier_break(s["H"])]
+    return [x for x in found if x]
 
 
 def diagnose(les: Lesson, stages: Dict) -> Dict:
