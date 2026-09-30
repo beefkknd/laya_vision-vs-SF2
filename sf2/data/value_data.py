@@ -6,8 +6,9 @@
   that decision (rollouts/<log>/<char>/actions.jsonl, joined by game + frame from the row id: a row that does not join
   is a problem, never guessed). Their images stay in test_data, by a path relative to test_data_v2/<char>/.
 - the new live rows from the collection logs (rollouts/lv_value/<sub>/<char>/): as scripts/vs_dataset.py import-live
-  and build do it (model frames, mirrored training rows, dx == 0 dropped, game % 10 in TEST_INDEX held out), with
-  no cap. Chun-Li vs Guile goes to test_heldout_guile.jsonl only (real rows), never to train or test_real.
+  and build do it (model frames, mirrored training rows, dx == 0 dropped, game % 10 in TEST_INDEX held out). The
+  live cap: every character trains on the same number of new decisions (the smallest character's count; its earliest
+  games, evenly across its opponents); training games past the cap go, real only, to test_extra.jsonl (evaluation). Chun-Li vs Guile goes to test_heldout_guile.jsonl only (real rows), never to train or test_real.
 - next to every live row (old and new, mirrored too) its value row: the same picture and note, the value question,
   the label value_bucket(dealt - taken). A still dummy never punishes: no value rows for the other rows.
 """
@@ -189,10 +190,13 @@ def mirror_row(r: Dict) -> Dict:
     return dict(m, images=[p.replace("frames/", "frames/mirror_") for p in r["images"]])
 
 
-def new_rows(char: str, sub: str, log_dir: str, entries: List[Dict]) -> Tuple[Dict[str, List[Dict]], List, List, int]:
-    """One log's decisions -> rows per output file, frame jobs (dst, raw source, mirrored), problems, dx==0 drops."""
-    files: Dict[str, List[Dict]] = collections.defaultdict(list)
-    jobs, problems, dropped = [], [], 0
+Decision = Tuple[str, Dict, List[str]]      # (log sub-dir, real laya row, its raw images)
+EXTRA_FILE = "test_extra"
+
+
+def new_decisions(char: str, sub: str, log_dir: str, entries: List[Dict]) -> Tuple[List[Decision], List[str], int]:
+    """One log's decisions as real laya rows (with their raw images), problems, and the dx == 0 drops."""
+    decs, problems, dropped = [], [], 0
     for a in entries:
         if a["gap"] == 0:
             dropped += 1        # the fighters at the same x: no left or right, a mirror would contradict it
@@ -201,18 +205,52 @@ def new_rows(char: str, sub: str, log_dir: str, entries: List[Dict]) -> Tuple[Di
         if problem:
             problems.append(problem)
             continue
-        r = laya_row(new_record(char, sub, a))
-        raws = [os.path.join(log_dir, "images", p) for p in a["images"]]
+        decs.append((sub, laya_row(new_record(char, sub, a)), [os.path.join(log_dir, "images", p) for p in a["images"]]))
+    return decs, problems, dropped
+
+
+def train_games(decs: List[Decision]) -> Dict[Tuple[str, int], int]:
+    """New training decisions per (log, game): what the cap counts."""
+    return dict(collections.Counter((sub, r["game"]) for sub, r, _ in decs if r["split"] == "train"))
+
+
+def cap_of(totals: Dict[str, int]) -> Optional[int]:
+    """The live cap: the smallest positive count of new training decisions over the characters (None: no new data)."""
+    return min([n for n in totals.values() if n > 0], default=None)
+
+
+def keep_games(counts: Dict[Tuple[str, int], int], cap: int) -> set:
+    """A character's earliest training games, evenly across its opponents (logs): game 0 of each, then game 1 of each,
+    ...; whole games only, stopping before the first one that would pass the cap."""
+    per = {sub: sorted(g for s, g in counts if s == sub) for sub in sorted({s for s, _ in counts})}
+    order = [(sub, gs[i]) for i in range(max(map(len, per.values()), default=0)) for sub, gs in per.items()
+             if i < len(gs)]
+    keep, total = set(), 0
+    for key in order:
+        if total + counts[key] > cap:
+            break
+        keep, total = keep | {key}, total + counts[key]
+    return keep
+
+
+def assign(decs: List[Decision], keep: set) -> Tuple[Dict[str, List[Dict]], List[Tuple[str, str, bool]]]:
+    """Rows per output file and frame jobs (dst, raw, mirrored): kept training games with mirrors, training games past
+    the cap real only in test_extra, test games in test_real_<side>, Chun-Li vs Guile in the hold-out file."""
+    files: Dict[str, List[Dict]] = collections.defaultdict(list)
+    jobs = []
+    for sub, r, raws in decs:
         jobs += [(dst, raw, False) for dst, raw in zip(r["images"], raws)]
-        if r["split"] == "train":
+        if r["split"] == "train" and (sub, r["game"]) in keep:
             m = mirror_row(r)
             jobs += [(dst, raw, True) for dst, raw in zip(m["images"], raws)]
             files["train"] += [r, value_row(r), m, value_row(m)]
+        elif r["split"] == "train":
+            files[EXTRA_FILE] += [r, value_row(r)]
         elif r["split"] == "test":
             files["test_real_" + r["side"]] += [r, value_row(r)]
         else:
             files[HELDOUT_FILE] += [r, value_row(r)]
-    return dict(files), jobs, problems, dropped
+    return dict(files), jobs
 
 
 def find_logs(lv_root: str) -> List[Tuple[str, str, str]]:
@@ -286,37 +324,46 @@ def _stats(files: Dict[str, List[Dict]], counts: Dict) -> Dict:
     return dict(counts, files={k: tally(v) for k, v in sorted(files.items())}, value_train=dict(value_labels))
 
 
-def _char_build(char: str, test_data: str, out: str, repo: str, logs: Callable[[str], Dict],
-                new: List[Tuple[str, str, str]], min_value_train: int) -> Tuple[Dict, List[str]]:
+def read_new(char: str, new: List[Tuple[str, str, str]]) -> Tuple[List[Decision], List[str], Dict]:
+    """Every new log of one character: its decisions, problems and counts."""
+    decs, problems, counts = [], [], {"dropped_dx0": 0, "partial_lines": 0, "logs": []}
+    for sub, _, d in (x for x in new if x[1] == char):
+        entries, partial = read_log(os.path.join(d, "actions.jsonl"))
+        got, p, dropped = new_decisions(char, sub, d, entries)
+        decs, problems = decs + got, problems + p
+        counts = dict(counts, dropped_dx0=counts["dropped_dx0"] + dropped,
+                      partial_lines=counts["partial_lines"] + partial, logs=counts["logs"] + [sub])
+    return decs, problems, counts
+
+
+def _char_build(char: str, test_data: str, out: str, repo: str, logs: Callable[[str], Dict], new: Tuple,
+                cap: Optional[int], min_value_train: int) -> Tuple[Dict, List[str]]:
     from ..system1.system1 import choices
 
+    decs, problems, counts = new
     src, base = os.path.join(test_data, char), os.path.join(out, char)
     rel = os.path.relpath(os.path.abspath(src), os.path.abspath(base))
-    files: Dict[str, List[Dict]] = {n: [] for n in OLD_FILES}
+    files: Dict[str, List[Dict]] = {n: [] for n in OLD_FILES + (EXTRA_FILE,)}
     if char == HELDOUT_CHAR:
         files[HELDOUT_FILE] = []
-    problems: List[str] = []
     for name in OLD_FILES:
         rows, p = convert_old(read(os.path.join(src, name + ".jsonl"), missing_ok=True), rel, repo, logs)
         files[name] += rows
-        problems += p
-    jobs, counts = [], {"dropped_dx0": 0, "partial_lines": 0, "logs": []}
-    for sub, _, d in (x for x in new if x[1] == char):
-        entries, partial = read_log(os.path.join(d, "actions.jsonl"))
-        got, j, p, dropped = new_rows(char, sub, d, entries)
-        for name, rows in got.items():
-            files.setdefault(name, [])
-            files[name] += rows
-        jobs, problems = jobs + j, problems + p
-        counts = dict(counts, dropped_dx0=counts["dropped_dx0"] + dropped,
-                      partial_lines=counts["partial_lines"] + partial, logs=counts["logs"] + [sub])
+        problems = problems + p
+    games = train_games(decs)
+    keep = keep_games(games, cap) if cap is not None else set()
+    got, jobs = assign(decs, keep)
+    for name, rows in got.items():
+        files[name] = files.get(name, []) + rows
+    counts = dict(counts, new_train_decisions=sum(games[k] for k in keep),
+                  extra_decisions=sum(n for k, n in games.items() if k not in keep))
     files = {k: sorted(v, key=lambda r: r["id"]) for k, v in files.items()}
-    problems += write_frames(base, jobs) + row_problems(char, files) + image_problems(base, files)
+    problems = problems + write_frames(base, jobs) + row_problems(char, files) + image_problems(base, files)
     if counts["logs"]:
-        problems += move_problems(char, files["train"], choices(char), min_value_train)
+        problems = problems + move_problems(char, files["train"], choices(char), min_value_train)
     for name, rows in files.items():
         write_jsonl(os.path.join(base, name + ".jsonl"), rows)
-    stats = _stats(files, counts)
+    stats = _stats(files, dict(counts, cap=cap))
     with open(os.path.join(base, "stats.json"), "w") as f:
         json.dump(stats, f, indent=1, sort_keys=True)
     return stats, problems
@@ -324,13 +371,15 @@ def _char_build(char: str, test_data: str, out: str, repo: str, logs: Callable[[
 
 def build(test_data: str = "test_data", lv_root: str = LV_ROOT, out: str = OUT, repo: str = ".",
           min_value_train: int = MIN_VALUE_TRAIN) -> Dict:
-    """Build every character's dir in ``out`` (which must not exist yet). Returns {"problems", "counts"}."""
+    """Build every character's dir in ``out`` (which must not exist yet). Returns {"problems", "counts", "cap"}."""
     if os.path.exists(out) and os.listdir(out):
-        return {"problems": ["%s exists: remove it first (or --overwrite)" % out], "counts": {}}
+        return {"problems": ["%s exists: remove it first (or --overwrite)" % out], "counts": {}, "cap": None}
     from .dataset import dataset_chars
 
-    new = find_logs(lv_root)
-    chars = sorted(set(dataset_chars(test_data)) | {c for _, c, _ in new})
+    found = find_logs(lv_root)
+    chars = sorted(set(dataset_chars(test_data)) | {c for _, c, _ in found})
+    new = {c: read_new(c, found) for c in chars}
+    cap = cap_of({c: sum(train_games(n[0]).values()) for c, n in new.items()})
     cache: Dict[str, Dict] = {}
 
     def logs(path: str) -> Dict:
@@ -341,9 +390,9 @@ def build(test_data: str = "test_data", lv_root: str = LV_ROOT, out: str = OUT, 
     problems, counts = [], {}
     for char in chars:
         os.makedirs(os.path.join(out, char), exist_ok=True)
-        counts[char], p = _char_build(char, test_data, out, repo, logs, new, min_value_train)
+        counts[char], p = _char_build(char, test_data, out, repo, logs, new[char], cap, min_value_train)
         problems += p
-    return {"problems": problems, "counts": counts}
+    return {"problems": problems, "counts": counts, "cap": cap}
 
 
 def overwrite(out: str) -> None:

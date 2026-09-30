@@ -25,6 +25,11 @@ def main(argv=None) -> int:
     if args.overwrite:
         V.overwrite(args.out)
     res = V.build(args.test_data, args.lv_root, args.out, args.repo, args.min_value_train)
+    print("live cap: %s new training decisions per character" % res["cap"])
+    for char, c in sorted(res["counts"].items()):
+        if c["logs"]:
+            print("%-8s new training decisions kept %d, past the cap -> test_extra %d" % (
+                char, c["new_train_decisions"], c["extra_decisions"]))
     for char, c in sorted(res["counts"].items()):
         f = c["files"]
         print("%-8s %s | new logs %s, dx0 dropped %d, partial lines %d" % (

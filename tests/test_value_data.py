@@ -402,3 +402,77 @@ def test_script_exits_1_on_a_problem(repo):
             "--out", os.path.join(repo, "v2"), "--min-value-train", "0"]
     p = subprocess.run(args, capture_output=True, text=True)
     assert p.returncode == 1 and "PROBLEM" in p.stdout
+
+
+# --- the live cap (every character the same number of new live training decisions) ---
+
+def test_cap_is_the_smallest_positive_count():
+    assert V.cap_of({"chunli": 10, "ryu": 4, "ken": 0}) == 4
+    assert V.cap_of({"chunli": 10}) == 10                     # one character: its own count, nothing moves
+    assert V.cap_of({}) is None and V.cap_of({"ryu": 0}) is None
+
+
+def test_keep_games_round_robin_whole_games_at_or_under_the_cap():
+    counts = {("ryu", 0): 3, ("ryu", 1): 3, ("ken", 0): 2, ("ken", 1): 2, ("ken", 3): 2}
+    # game 0 of each opponent (ken 2 + ryu 3), then game 1 of each: ken 2 -> 7; ryu's 3 would pass the cap: stop
+    assert V.keep_games(counts, 7) == {("ken", 0), ("ryu", 0), ("ken", 1)}
+    assert V.keep_games(counts, 12) == set(counts)
+    assert V.keep_games(counts, 1) == set()
+
+
+def as_char(rows, char):
+    return [json.loads(json.dumps(r).replace("chunli", char)) for r in rows]
+
+
+def test_a_character_above_the_cap_moves_its_later_games_to_test_extra(repo):
+    # Ryu has 2 new training decisions (games 0 and 1 vs Ken): the cap is 2; Chun-Li keeps game 0 vs Ryu (2) and
+    # game 1 (one more would pass the cap) goes, real only, to test_extra
+    write_log(repo, "p_vs_ryu", "ryu", [entry(0, 0, "hk", opp="ken", me="ryu"), entry(1, 0, "hk", opp="ken", me="ryu")])
+    s = build(repo)
+    assert s["problems"] == []
+    assert s["cap"] == 2
+    assert s["counts"]["chunli"]["new_train_decisions"] == 2 and s["counts"]["chunli"]["extra_decisions"] == 1
+    assert s["counts"]["ryu"]["new_train_decisions"] == 2 and s["counts"]["ryu"]["extra_decisions"] == 0
+    train = by_id(load(repo, "train"))
+    extra = by_id(load(repo, "test_extra"))
+    moved = "chunli-live_lv_ryu_g01_f00000-block_high"
+    assert moved not in train and moved + "-m" not in train
+    assert set(extra) == {moved, moved + "-value"} and not any(r["mirrored"] for r in extra.values())
+    assert "chunli-live_lv_ryu_g00_f00032-throw" in train                    # the kept game, mirrored too
+    assert "chunli-live_lv_ryu_g00_f00032-throw-m" in train
+    assert "chunli-live_lv_ryu_g02_f00000-sweep" in by_id(load(repo, "test_real_left"))     # test games untouched
+    assert len(load(repo, "test_heldout_guile")) == 4                         # the hold-out untouched
+    assert load(repo, "test_extra", char="ryu") == []
+
+
+def test_one_character_with_new_data_keeps_everything(repo):
+    s = build(repo)
+    assert s["cap"] == 3 and s["counts"]["chunli"]["extra_decisions"] == 0
+    assert load(repo, "test_extra") == []
+
+
+def test_balanced_characters_pass_the_training_share_check(tmp_path):
+    from sf2.data.train_data import coverage_problems, load_data
+    repo = str(tmp_path)
+    d = make_old(repo)
+    make_new(repo)
+    for name in ("train", "test_real_left", "test_real_right"):      # Ryu: the same all8 rows as Chun-Li's
+        rows = [json.loads(line) for line in open(os.path.join(d, name + ".jsonl"))]
+        write_jsonl(os.path.join(repo, "test_data/ryu", name + ".jsonl"), as_char(rows, "ryu"))
+        for r in rows:
+            for p in r["images"]:
+                png(os.path.join(repo, "test_data/ryu", p))
+    write_jsonl(os.path.join(repo, "rollouts/live_dhalsim/ryu/actions.jsonl"),
+                as_char([json.loads(line) for line in open(os.path.join(repo, "rollouts/live_dhalsim/chunli/actions.jsonl"))],
+                        "ryu"))
+    # Ryu vs Ken: 2 training decisions over 2 games -> the cap is 2, Chun-Li (3) keeps game 0 (2)
+    write_log(repo, "p_vs_ryu", "ryu", [entry(g, 0, "hk", opp="ken", me="ryu") for g in (0, 1)])
+    s = build(repo)
+    assert s["problems"] == [] and s["cap"] == 2
+    dirs = [os.path.join(repo, "test_data_v2", c) for c in ("chunli", "ryu")]
+    train, val = load_data(dirs)
+    probs = coverage_problems(train, val, dirs)
+    # the train share check (val is a 5% sample of positions of different sizes: too few in a tiny fixture)
+    assert not [p for p in probs if p.startswith("train rows unequal")], probs
+    n = {c: sum(e["dataset"] == c for e in train + val) for c in ("chunli", "ryu")}
+    assert n["chunli"] == n["ryu"]
