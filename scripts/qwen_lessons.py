@@ -14,6 +14,11 @@ the default "views" is the two-view prompt the lock lesson_loop_v1 ran with (sf2
 --book lessons/book.json (scripts/book.py; default: none, the loop as before): the loop arm starts with this opponent's
 verified players' tips in the registry ("verified": never retired, in play first; sf2.system2.lessons.from_book); the
 run file, every ledger row and the verdict name the book and its sha256.
+--oracle lessons/value_oracle_v1.json (default: none, laya-vision's P(hit) as before): System 1 ranks by the lookup
+table (sf2.data.value_oracle; no laya-vision loaded), text laya rates its expected nets on the net scale
+(sf2.system1.advice.rating); the run file and the verdict name the table and its sha256, the run name ends "+table"
+(docs/prereg_2x2.md). --shared-text-laya: both arms ask the one shared text laya server (sf2.system1.shared_laya, which
+reserves its own memory once) and each arm reserves config.RUN_JOB_SHARED_GB instead of MODEL_JOB_GB.
 Since 2026-09-30 claims naming forward are refused and the prompts do not offer it for lessons (text laya was never
 trained on such lessons, docs/component_boundaries.md); --forward-lessons restores both, for a replay of an old run.
 Verdict (rollouts/qwen_lessons/<stamp>_<opp>/verdict.json):
@@ -39,7 +44,8 @@ from types import SimpleNamespace
 from typing import Dict, List
 
 import _path  # noqa: F401
-from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, TEXT_LAYA
+from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, RUN_JOB_SHARED_GB, TEXT_LAYA
+from sf2.data import value_oracle
 from sf2.data.dataset import read
 from sf2.eval import lock as lk
 from sf2.eval.logs import load_actions, mark_run, play_dirs
@@ -119,6 +125,38 @@ def book_meta(args) -> Dict:
     return {"book": args.book, "book_sha256": load_book(args.book, args.opp)[1]}
 
 
+def load_oracle(path):
+    """(the lookup table, sha256 of its file); (None, None) without one (sf2.data.value_oracle)."""
+    if not path:
+        return None, None
+    with open(path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    return value_oracle.load(path), digest
+
+
+def oracle_meta(args) -> Dict:
+    """What the run file and the verdict record about the table ({} without one: laya-vision's P(hit) ranking)."""
+    path = getattr(args, "oracle", None)
+    return {"oracle": path, "oracle_sha256": load_oracle(path)[1]} if path else {}
+
+
+def advisor_options(args) -> Dict:
+    """--shared-text-laya: the one shared server; else nothing (the default, a helper per run)."""
+    return {"shared": True} if getattr(args, "shared_text_laya", False) else {}
+
+
+def job_gb(args) -> float:
+    """Memory each arm reserves: with the shared server only the game (+ laya-vision), the server reserves its own."""
+    return RUN_JOB_SHARED_GB if getattr(args, "shared_text_laya", False) else MODEL_JOB_GB
+
+
+def run_name(args, stamp: str) -> str:
+    """<stamp>_<opp>[_<prompt>][_track][_book][+table]: the ranking is part of the name (the reports pair by it)."""
+    return "%s_%s%s" % (stamp, args.opp, ("" if args.prompt == "views" else "_" + args.prompt)
+                        + ("_track" if args.track else "") + ("_book" if args.book else "")
+                        + ("+table" if getattr(args, "oracle", None) else ""))
+
+
 def start_registry(args, arm: str) -> L.Registry:
     """The registry the arm starts with: the loop arm, the book's verified lines for this opponent; else nothing."""
     if arm != "loop" or not getattr(args, "book", None):
@@ -153,12 +191,15 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     changed: List[bool] = []           # per update: did the registered lessons change
     os.makedirs(out, exist_ok=True)
     track, digest = load_track(args.track, args.opp)
+    table = load_oracle(getattr(args, "oracle", None))[0]
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock,
              prompt=args.prompt, track=args.track, track_sha256=digest, forward_lessons=args.forward_lessons,
-             **book)                                                          # never play data (sf2.eval.logs)
-    with Advisor(args.advisor) as advisor, open_fight(ME, args.opp, port, state=args.state) as (b, state), \
+             **book, **oracle_meta(args))                                     # never play data (sf2.eval.logs)
+    with Advisor(args.advisor, **advisor_options(args)) as advisor, \
+            open_fight(ME, args.opp, port, state=args.state) as (b, state), \
             open_logs(out, ("actions", "rounds", "ledger")) as logs:
-        s1 = System1(args.model, ME, advisor=advisor)
+        # the table ranks without laya-vision: no model is loaded (System 1 refuses a model with an oracle)
+        s1 = System1(None if table is not None else args.model, ME, advisor=advisor, oracle=table)
         s1.advice_on = arm == "loop"
         rng = random.Random(args.seed)
 
@@ -334,6 +375,21 @@ def log_dir(root: str) -> str:
     return os.path.join("logs", "qwen_lessons", os.path.basename(root))
 
 
+def arm_cmds(args, root: str) -> List:
+    """The two arms' command lines (loop, none): the same options, each its own port and folder."""
+    common = (["--opp", args.opp, "--games", str(args.games), "--rounds", str(args.rounds), "--seed", str(args.seed),
+               "--model", args.model, "--advisor", args.advisor] + ([] if args.history else ["--no-history"])
+              + (["--lock", args.lock] if args.lock else []) + ["--prompt", args.prompt]
+              + (["--track", args.track] if args.track else [])
+              + (["--book", args.book] if args.book else [])
+              + (["--oracle", args.oracle] if getattr(args, "oracle", None) else [])
+              + (["--shared-text-laya"] if getattr(args, "shared_text_laya", False) else [])
+              + (["--forward-lessons"] if args.forward_lessons else []))
+    return [((args.opp, arm), [sys.executable, os.path.abspath(__file__)] + common
+             + ["--one", arm, str(args.base_port + i), os.path.join(root, arm)])
+            for i, arm in enumerate(("loop", "none"))]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--opp")
@@ -350,6 +406,10 @@ def main() -> int:
                                     "refuse a lesson)")
     ap.add_argument("--book", help="a book of verified players' tips (scripts/book.py build): the loop starts from "
                                    "this opponent's lines (default: none)")
+    ap.add_argument("--oracle", help="System 1 ranks by this lookup table (sf2.data.value_oracle, e.g. "
+                                     "lessons/value_oracle_v1.json) instead of laya-vision's P(hit)")
+    ap.add_argument("--shared-text-laya", action="store_true",
+                    help="text laya from the one shared server; each arm reserves config.RUN_JOB_SHARED_GB")
     ap.add_argument("--forward-lessons", action="store_true",
                     help="offer and accept lessons naming forward again (the loop before 2026-09-30, for replays)")
     ap.add_argument("--lock", help="play from this lock's copies only (sf2.eval.lock)")
@@ -366,24 +426,14 @@ def main() -> int:
         return play_arm(args, args.one[0], int(args.one[1]), args.one[2])
     args.seed = int(time.time()) % 100000 if args.seed is None else args.seed
     root = os.path.join(os.path.join("rollouts", "locked", args.lock) if args.lock else ROOT,
-                        "%s_%s%s" % (time.strftime("%Y%m%d-%H%M%S"), args.opp,
-                                    ("" if args.prompt == "views" else "_" + args.prompt)
-                                    + ("_track" if args.track else "") + ("_book" if args.book else "")))
-    cmds = [((args.opp, arm), [sys.executable, os.path.abspath(__file__), "--opp", args.opp, "--games",
-                               str(args.games), "--rounds", str(args.rounds), "--seed", str(args.seed), "--model",
-                               args.model, "--advisor", args.advisor] + ([] if args.history else ["--no-history"])
-                              + (["--lock", args.lock] if args.lock else []) + ["--prompt", args.prompt]
-                              + (["--track", args.track] if args.track else [])
-                              + (["--book", args.book] if args.book else [])
-                              + (["--forward-lessons"] if args.forward_lessons else [])
-                              + ["--one", arm, str(args.base_port + i), os.path.join(root, arm)])
-            for i, arm in enumerate(("loop", "none"))]
+                        run_name(args, time.strftime("%Y%m%d-%H%M%S")))
+    cmds = arm_cmds(args, root)
     print("Chun-Li vs %s: %d games x %d rounds, seed %d; %s/" % (
         args.opp, args.games, args.rounds, args.seed, log_dir(root)), flush=True)
-    failed = fan_out(cmds, log_dir(root), job_gb=MODEL_JOB_GB)
+    failed = fan_out(cmds, log_dir(root), job_gb=job_gb(args))
     v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, track=args.track,
              track_sha256=load_track(args.track, args.opp)[1], forward_lessons=args.forward_lessons,
-             failed_jobs=[list(k) for k in failed], **book_meta(args))
+             failed_jobs=[list(k) for k in failed], **book_meta(args), **oracle_meta(args))
     with open(os.path.join(root, "verdict.json"), "w") as f:
         json.dump(v, f, indent=1)
     print(json.dumps(v, indent=1))

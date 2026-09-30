@@ -23,7 +23,14 @@ PROMPTS = ("views", "character")
 
 
 def opponent(name: str) -> str:
-    return name.split("_")[1]
+    return name.split("_")[1].split("+")[0]
+
+
+def label(v: Dict) -> str:
+    """A run's label from its verdict: prompt[+track][+book][+table] (+table: System 1 ranked by the lookup table,
+    qwen_lessons.py --oracle; its runs never pair with runs/all8's under the same prompt)."""
+    return (v.get("prompt", "views") + ("+track" if v.get("track") else "") + ("+book" if v.get("book") else "")
+            + ("+table" if v.get("oracle") else ""))
 
 
 def _runs(roots: Sequence[str]) -> List[Tuple[str, str, int, str]]:
@@ -38,7 +45,7 @@ def _runs(roots: Sequence[str]) -> List[Tuple[str, str, int, str]]:
             with open(path) as f:
                 v = json.load(f)
             out.append((name.split("_")[0], d, opponent(name), v["seed"],
-                        v.get("prompt", "views") + ("+track" if v.get("track") else "") + ("+book" if v.get("book") else "")))
+                        label(v)))
     return [x[1:] for x in sorted(out)]
 
 

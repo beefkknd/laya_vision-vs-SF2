@@ -12,6 +12,11 @@ The run is the unit (rounds of one run share its other lessons and its luck): th
 means, the 95% interval a two-level bootstrap (runs, then rounds within each). Lessons in play together share the
 credit - a record is a warning with an interval, not proof of cause, so each line also names the lessons most often
 in play with it (``with``: the top CO_LINES by rounds together), for Qwen to see the confounding.
+
+One System 1 ranking per record (docs/prereg_2x2.md): a lesson's rounds under the lookup table (a run whose verdict
+names an "oracle") are not evidence about it under laya-vision's P(hit) ranking, nor back; ``build`` keeps the runs of
+``ranking`` and lists the others under "other_ranking" (the key only appears when there are some, so a record of
+runs/all8 runs only is byte for byte as before).
 """
 import json
 import os
@@ -33,15 +38,29 @@ def _read(path: str) -> List[Dict]:
         return [json.loads(x) for x in f if x.strip()]
 
 
-def _runs(roots: Sequence[str]) -> List[Tuple[str, str]]:
-    """(run dir, opponent) of every finished run (verdict.json written), in name order."""
+RANKINGS = ("all8", "table")
+
+
+def ranking_of(verdict: Dict) -> str:
+    """System 1's ranking in a lesson-loop run: "table" when its verdict names a lookup table, else "all8"."""
+    return "table" if verdict.get("oracle") else "all8"
+
+
+def _runs(roots: Sequence[str]) -> List[Tuple[str, str, str]]:
+    """(run dir, opponent, ranking) of every finished run (verdict.json written), in name order."""
     out = []
     for root in roots:
         for name in sorted(os.listdir(root)) if os.path.isdir(root) else []:
             d = os.path.join(root, name)
-            if os.path.exists(os.path.join(d, "verdict.json")):
-                out.append((d, name.split("_")[1]))
+            path = os.path.join(d, "verdict.json")
+            if os.path.exists(path):
+                out.append((d, name.split("_")[1].split("+")[0], ranking_of(_load(path))))
     return out
+
+
+def _load(path: str) -> Dict:
+    with open(path) as f:
+        return json.load(f)
 
 
 def _interval(groups: Sequence[Sequence[float]]) -> Tuple[float, float, float]:
@@ -66,13 +85,19 @@ def record(groups: Sequence[Sequence[float]]) -> Record:
             "verdict": "few" if few else "hurts" if hi < 0 else "helps" if lo > 0 else "unclear"}
 
 
-def build(roots: Sequence[str]) -> Dict:
+def build(roots: Sequence[str], ranking: str = "all8") -> Dict:
     """{"opponents": {opp: {line: record + "with"}}, "sources": [run dirs], "skipped": [run dirs whose arms do not
-    pair]}; "with": [[other line, rounds in play together], ...], the CO_LINES most, ties in name order."""
+    pair]}; "with": [[other line, rounds in play together], ...], the CO_LINES most, ties in name order. Only the runs
+    of ``ranking`` count; the others are listed under "other_ranking" (when there are any)."""
+    if ranking not in RANKINGS:
+        raise ValueError("unknown ranking %r (one of %s)" % (ranking, ", ".join(RANKINGS)))
     by: Dict[str, Dict[str, List[List[float]]]] = {}
     together: Dict[str, Dict[str, Dict[str, int]]] = {}
-    sources, skipped, short = [], [], []
-    for d, opp in _runs(roots):
+    sources, skipped, short, elsewhere = [], [], [], []
+    for d, opp, rk in _runs(roots):
+        if rk != ranking:
+            elsewhere.append(d)
+            continue
         if not full_run(d):
             short.append(d)
             continue
@@ -94,10 +119,11 @@ def build(roots: Sequence[str]) -> Dict:
                         co[other] = co.get(other, 0) + 1
         for line, ds in per_line.items():
             by.setdefault(opp, {}).setdefault(line, []).append(ds)
-    return {"opponents": {opp: {line: dict(record(gs), **{"with": _top(together[opp][line])})
-                                for line, gs in sorted(lines.items())}
-                          for opp, lines in sorted(by.items())},
-            "sources": sources, "skipped": skipped, "short": short}
+    out = {"opponents": {opp: {line: dict(record(gs), **{"with": _top(together[opp][line])})
+                               for line, gs in sorted(lines.items())}
+                         for opp, lines in sorted(by.items())},
+           "sources": sources, "skipped": skipped, "short": short}
+    return dict(out, other_ranking=elsewhere) if elsewhere else out
 
 
 def _top(co: Dict[str, int]) -> List[List]:

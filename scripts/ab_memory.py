@@ -18,10 +18,15 @@ PRE-REGISTERED TEST (decided before running; the script prints the verdict):
         proof 2 (the playbook helps):     code_playbook helps (incl. opponents never met: guile, blanka)
         proof 3 (Qwen, static part):      qwen helps, and qwen - code_short is not below 0
 
+--oracle lessons/value_oracle_v1.json: System 1 ranks by the lookup table (sf2.data.value_oracle; no laya-vision),
+text laya rates its expected nets on the net scale; run.json names the table and its sha256 and the folder ends
+"+table" (docs/prereg_2x2.md).
+
 Output: rollouts/ab/<stamp>/<opp>_<arm>/{actions,rounds}.jsonl, memory_<opp>_<arm>.json, summary.json;
 process logs in logs/ab/<opp>_<arm>.log.
 """
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -31,6 +36,7 @@ from typing import Dict, List, Optional
 
 import _path  # noqa: F401
 from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, TEXT_LAYA
+from sf2.data import value_oracle
 from sf2.system2 import code_coach
 from sf2.system1.advisor import Advisor
 from sf2.eval import stats
@@ -71,9 +77,10 @@ def arm_memory(me: str, opp: str, arm: str, rows: List[Dict], fixed: Optional[Di
 def play_arm(args, opp: str, arm: str, port: int, out: str) -> int:
     me = args.char
     mem_path = os.path.join(os.path.dirname(out), "memory_%s_%s.json" % (opp, arm))
+    table = value_oracle.load(args.oracle) if getattr(args, "oracle", None) else None
     with Advisor(args.advisor) as advisor, open_fight(me, opp, port) as (b, state), \
             open_logs(out, ("actions", "rounds")) as logs:
-        s1 = System1(args.model, me, advisor=advisor)
+        s1 = System1(None if table is not None else args.model, me, advisor=advisor, oracle=table)
         s1.short = json.load(open(mem_path)) if os.path.exists(mem_path) else None
         s1.advice_on = arm != "none"
         rng = random.Random(args.seed)            # the same seed in every arm: the same start delays, round by round
@@ -108,10 +115,21 @@ def report(s: Dict) -> None:
             print("POOLED %-22s %s  (%s)" % (arm, v["verdict"], v.get("why", "")))
 
 
-def run_root(seed: int, base: str = os.path.join("rollouts", "ab"), stamp: Optional[str] = None) -> str:
-    """This batch's own folder, <stamp>_s<seed>; an existing one is refused, never shared (harness ledger #21: two
-    batches launched in the same second wrote into one folder and interleaved their logs)."""
-    root = os.path.join(base, "%s_s%d" % (stamp or time.strftime("%Y%m%d-%H%M%S"), seed))
+def run_meta(args) -> Dict:
+    """What run.json records about System 1's ranking: laya-vision's checkpoint, or (--oracle) no model and the table
+    with its sha256."""
+    path = getattr(args, "oracle", None)
+    if not path:
+        return {"model": args.model}
+    with open(path, "rb") as f:
+        return {"model": None, "oracle": path, "oracle_sha256": hashlib.sha256(f.read()).hexdigest()}
+
+
+def run_root(seed: int, base: str = os.path.join("rollouts", "ab"), stamp: Optional[str] = None,
+             table: bool = False) -> str:
+    """This batch's own folder, <stamp>_s<seed>[+table]; an existing one is refused, never shared (harness ledger #21:
+    two batches launched in the same second wrote into one folder and interleaved their logs)."""
+    root = os.path.join(base, "%s_s%d%s" % (stamp or time.strftime("%Y%m%d-%H%M%S"), seed, "+table" if table else ""))
     try:
         os.makedirs(root)
     except FileExistsError:
@@ -129,6 +147,7 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=30, help="rounds per arm per opponent")
     ap.add_argument("--model", default=LAYA_VISION)
     ap.add_argument("--advisor", default=TEXT_LAYA)
+    ap.add_argument("--oracle", help="System 1 ranks by this lookup table (sf2.data.value_oracle) instead of laya-vision")
     ap.add_argument("--seed", type=int, default=None,
                     help="start delays for every arm (default: a new one per run, so no earlier run replays the test)")
     ap.add_argument("--base-port", type=int, default=PORTS["ab"][0])
@@ -148,7 +167,7 @@ def main() -> int:
     if "none" not in arms:
         raise SystemExit("the control arm 'none' is required")
     seed = int(time.time()) % 100000 if args.seed is None else args.seed
-    root = run_root(seed)
+    root = run_root(seed, table=bool(args.oracle))
     rows = code_coach.attacks(me)                  # play data only: A/B, notebook and --fresh runs are excluded
     runs = []
     for opp in opps:                               # freeze what is tested, before anything plays
@@ -162,11 +181,12 @@ def main() -> int:
                     json.dump(mem, f, indent=1)
             runs.append((opp, arm))
     with open(os.path.join(root, "run.json"), "w") as f:
-        json.dump({"seed": seed, "rounds": args.rounds, "arms": arms, "opps": opps, "model": args.model,
-                   "advisor": args.advisor, "coach_logs": sources(rows)}, f, indent=1)
+        json.dump(dict({"seed": seed, "rounds": args.rounds, "arms": arms, "opps": opps}, **run_meta(args),
+                       advisor=args.advisor, coach_logs=sources(rows)), f, indent=1)
     cmds = [((opp, arm), [sys.executable, os.path.abspath(__file__), "--one", opp, arm, str(args.base_port + i),
                           os.path.join(root, "%s_%s" % (opp, arm)), "--char", me, "--rounds", str(args.rounds),
-                          "--model", args.model, "--advisor", args.advisor, "--seed", str(seed)])
+                          "--model", args.model, "--advisor", args.advisor, "--seed", str(seed)]
+             + (["--oracle", args.oracle] if args.oracle else []))
             for i, (opp, arm) in enumerate(runs)]
     print("%d headless runs, %d rounds each, seed %d; logs/ab/" % (len(cmds), args.rounds, seed), flush=True)
     failed = fan_out(cmds, os.path.join("logs", "ab"), job_gb=MODEL_JOB_GB)

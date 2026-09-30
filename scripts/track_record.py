@@ -18,13 +18,16 @@ ROOTS = [os.path.join("rollouts", "qwen_lessons"), os.path.join("rollouts", "loc
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=os.path.join("lessons", "track_record.json"))
+    ap.add_argument("--ranking", choices=T.RANKINGS, default="all8",
+                    help="System 1's ranking whose runs count (table: runs made with qwen_lessons.py --oracle)")
     ap.add_argument("roots", nargs="*")
     args = ap.parse_args()
-    t = T.build(args.roots or ROOTS)
+    t = T.build(args.roots or ROOTS, args.ranking)
     with open(args.out + ".tmp", "w") as f:
         json.dump(t, f, indent=1)
     os.replace(args.out + ".tmp", args.out)
-    print("%d runs (%d skipped: %s) -> %s" % (len(t["sources"]), len(t["skipped"]), t["skipped"], args.out))
+    print("%d runs (%d skipped: %s; %d of another ranking left out) -> %s" % (
+        len(t["sources"]), len(t["skipped"]), t["skipped"], len(t.get("other_ranking", [])), args.out))
     for opp, track in t["opponents"].items():
         clear = T.prompt_lines({k: v for k, v in track.items() if v["verdict"] in ("hurts", "helps")})
         print("%s: %d lines, %d clear" % (opp, len(track), len(clear)))
