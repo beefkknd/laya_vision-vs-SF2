@@ -26,7 +26,8 @@ for general play, not one character.
   54/54 ground-probe takes and 0x04 in 18/18 jump-ins (his kick starts 5-9 frames later).
 - Dataset `test_data_v2/` = the all8 rows (note v2; no value rows for the still dummy) + the new live rows (outcome and
   value rows). Training: scripts/train.py with the all8 recipe (rank 16, alpha 32, 2 epochs, batch 8, lr head 1e-4,
-  backbone 2e-4, eval every 250, patience 3, seed 0), from BASE, one run, no sweeps.
+  backbone 2e-4, eval every 250, patience 3, seed 0), from BASE, one run, no sweeps. `--val-limit 8000` (the
+  guard against a random cut of validation; the larger dataset has ~5-7k validation rows at 5% of positions).
 
 ## Offline gates (held-out games; decided before training)
 
