@@ -132,3 +132,18 @@ def coverage_table(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -> s
     nv = collections.Counter(ex.get("dataset") for ex in val)
     pv = collections.Counter(d for d, _ in {position(ex) for ex in val})
     return "\n".join("  %-8s train %5d  val %4d rows (%d positions)" % (n, nt[n], nv[n], pv[n]) for n in names)
+
+
+def checkpoint_tags(examples: List[Dict]) -> Dict:
+    """What the data teaches, for the checkpoint's config (sf2.data.value.note_version, System 1's value mode): the
+    note version (v2 carries opp_attacking; every row must agree) and whether it has value (score) questions."""
+    if not examples:
+        raise ValueError("no training examples")
+    versions = {2 if " opp_attacking=" in (e["state"].get("context") or "") else 1 for e in examples}
+    if len(versions) != 1:
+        raise ValueError("training rows mix note versions %s" % sorted(versions))
+    version = versions.pop()
+    value = any(e["q"]["t"] == "score" for e in examples)
+    if value and version < 2:
+        raise ValueError("value questions need note v2 rows")
+    return {"note_version": version, "value_questions": value}

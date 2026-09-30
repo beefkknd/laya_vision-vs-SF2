@@ -20,7 +20,7 @@ import time
 import _path  # noqa: F401
 from sf2.data import lora
 from sf2.config import BASE_MODEL, IMAGE_CFG
-from sf2.data.train_data import coverage_problems, coverage_table, load_data
+from sf2.data.train_data import checkpoint_tags, coverage_problems, coverage_table, load_data
 
 
 class EarlyStop(Exception):
@@ -55,10 +55,14 @@ def main():
     if problems:
         raise SystemExit("coverage check failed (%d):\n  %s" % (len(problems), "\n  ".join(problems[:40])))
 
+    tags = checkpoint_tags(train + val)      # the note and the questions play must use (sf2.system1.system1)
+    print("checkpoint tags: %s" % tags, flush=True)
+
     import laya
     import laya.vlm_train as vt
 
     agent = laya.load_vlm(BASE_MODEL, device=args.device, **IMAGE_CFG)
+    agent.cfg = dict(agent.cfg, **tags)      # saved in <out>/best/vlm_agent_config.json
     prep = agent.model.prep
     got = (prep.image_size, prep.backend, prep.interpolation,
            agent.processor.image_processor.max_image_size.get("longest_edge"))
@@ -120,7 +124,7 @@ def main():
     except EarlyStop:
         print("early stop: no val gain in %d evals" % args.patience)
     with open(os.path.join(args.out, "train_log.json"), "w") as f:
-        json.dump({"args": vars(args), "base": BASE_MODEL, "best": best, "evals": hist}, f, indent=2)
+        json.dump({"args": vars(args), "base": BASE_MODEL, "tags": tags, "best": best, "evals": hist}, f, indent=2)
     print("best val accuracy %.3f at step %s -> %s/best" % (best["acc"], best["step"], args.out))
 
 
