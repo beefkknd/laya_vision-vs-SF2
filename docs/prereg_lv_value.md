@@ -21,8 +21,9 @@ for general play, not one character.
   training-split games go to a separate evaluation file (test_extra), never to training. The check that characters
   have equal training rows stays on: laya stays general.
 - Block rows' opp_attacking: ground probes 1 (he is mid-attack at the decision frame), jump-in 0 (he is still in the
-  jump state; note v2 counts only attack/special states) - inferred from the collector's timing, to be confirmed by a
-  replay when the emulator is free.
+  jump state; note v2 counts only attack/special states). Confirmed by replay (2026-09-30): 72 takes (3 characters x
+  close/far x 3 gaps x 4 probes, left side) matched the stored rows; at the decision frame the attacker was 0x0A in
+  54/54 ground-probe takes and 0x04 in 18/18 jump-ins (his kick starts 5-9 frames later).
 - Dataset `test_data_v2/` = the all8 rows (note v2; no value rows for the still dummy) + the new live rows (outcome and
   value rows). Training: scripts/train.py with the all8 recipe (rank 16, alpha 32, 2 epochs, batch 8, lr head 1e-4,
   backbone 2e-4, eval every 250, patience 3, seed 0), from BASE, one run, no sweeps.
