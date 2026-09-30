@@ -92,7 +92,7 @@ def test_the_prompt_shows_the_record_worst_first(tmp_path):
                     "avoid sweep up close": T.record([[30, 31, 29]] * 5)})                              # helps
     text = T.prompt_lines(track)
     assert text[0].startswith("- " + BAD) and "hurts" in text[0] and "4 runs" in text[0]
-    assert [x.split(":")[-1].strip() for x in text] == ["hurts", "helps", "helps", "unclear"]
+    assert [x.split(": ")[-1].split(" - ")[0] for x in text] == ["hurts", "helps", "helps", "unclear"]
     assert text[1].startswith("- " + GOOD)                                  # helps: the lower mean first
 
 
@@ -127,3 +127,20 @@ def test_the_loop_reads_a_track_file_for_its_opponent(tmp_path):
     assert track[BAD]["verdict"] == "hurts" and len(digest) == 64
     assert q.load_track(path, "ken") == ({}, digest)
     assert q.load_track(None, "honda") == (None, None)
+
+
+def test_qwen_copying_the_words_of_a_lesson_line_still_parses():
+    """Round 4: 16 claims came back with "when": "jumps" (the track record shows lines in text laya's words)."""
+    from sf2.system2 import character_prompt as C, lesson_prompt as P
+    for mod, view in ((C, "answer"), (P, "attack")):
+        for verb, when in (("jumps", "jumping"), ("he attacks", "attacking"), ("when he crouches", "crouching"),
+                           ("stands", "standing"), ("is stunned", "stunned")):
+            claims, problems = mod.parse_claims({view: {"kind": "use_more", "move": "c.mk", "range": "mid",
+                                                        "when": verb}})
+            assert claims[0]["when"] == when and not problems
+
+
+def test_a_line_that_hurts_says_do_not_propose_it(tmp_path):
+    world(str(tmp_path))
+    text = T.prompt_lines(T.build([str(tmp_path)])["opponents"]["honda"])
+    assert text[0].endswith("hurts - do not propose it") and not any("do not" in x for x in text[1:])

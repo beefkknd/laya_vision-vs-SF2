@@ -98,7 +98,8 @@ def prompt_lines(track: Dict[str, Record]) -> List[str]:
     """The record for Qwen: clear verdicts first (hurts, then helps), worst first; at most SHOWN lines."""
     order = {"hurts": 0, "helps": 1, "unclear": 2, "few": 3}
     ranked = sorted(track.items(), key=lambda kv: (order[kv[1]["verdict"]], kv[1]["mean"]))
-    return ["- " + describe(line, r) for line, r in ranked if r["verdict"] != "few"][:SHOWN]
+    return ["- " + describe(line, r) + (" - do not propose it" if r["verdict"] == "hurts" else "")
+            for line, r in ranked if r["verdict"] != "few"][:SHOWN]
 
 
 PROMPT_HEAD = ("TRACK RECORD against %s in earlier sessions - the rounds each lesson was in play, against the same "

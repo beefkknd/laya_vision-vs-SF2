@@ -390,8 +390,26 @@ Caution in the data itself: "avoid spinning_bird_kick at mid range when he stand
 20 runs) - against Honda it was in play next to the walk-in lessons and shares their blame. A record says which rounds
 went badly with a lesson, not that the lesson caused it.
 
-Round 4 (running): character_fgc with and without --track, seeds 31001-31004 x 3 opponents, two waves of 12 runs (a
-30-minute budget queue timeout killed two runs in round 3).
+### Round 4: character_fgc with and without --track (seeds 31001-31004, 12 pairs, 120 rounds per opponent)
+
+| hp per round vs no advice | without | with the track record | difference |
+|---|---|---|---|
+| Ken | +56.1 [+39.2, +73.0] | +47.8 [+31.4, +64.2] | -8.3 [-21.6, +5.0] |
+| Ryu | +0.4 [-17.5, +18.4] | -0.2 [-18.1, +17.7] | -0.6 |
+| Honda | +0.6 [-9.1, +10.4] | +1.1 [-6.1, +8.2] | +0.4 |
+| pooled | +19.1 not shown | +16.2 not shown | -2.8 [-11.5, +5.0] not shown |
+
+- No effect. The mechanism worked (vs Honda 30 claims refused for their record; the walk-in lessons were never in play),
+  but the harm it prevents did not show on these seeds: without the record, Honda came out even (+0.6) with "use more
+  forward at mid range when he jumps" in play 102 rounds. Round 3's Honda -14 was partly seed luck; between-seed
+  variance is large (Ryu character_fgc: +33.5 in round 3, +0.4 here).
+- Two Qwen-side defects, fixed after the round: Qwen copied a line's words into its JSON ("when": "jumps", 16 claims
+  refused as malformed) - `parse_claims` now reads "jumps" / "he jumps" / "when he jumps"; and it re-proposed lessons
+  refused for their record up to 5 times in a run (each wasting one of its two proposals) - the record now says "hurts -
+  do not propose it".
+- Rebuilt with round 4 (91 runs): the record corrects itself as evidence accumulates. Vs Honda only the walk-in lessons
+  still hurt ("...when he jumps" -11.7 [-20.6, -2.5] over 14 runs); the two blamed by association ("avoid
+  spinning_bird_kick / sweep at mid range") are now unclear. Several weak Ryu "helps" became unclear.
 
 ## 1. What is proven
 

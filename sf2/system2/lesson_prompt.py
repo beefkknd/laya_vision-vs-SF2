@@ -195,6 +195,16 @@ def _cond(v):
     return None if v in (None, "", "null", "none", "None", "anywhere", "any") else v
 
 
+def _when(v):
+    """A "when" as the grammar key; Qwen sometimes copies a lesson line's words ("jumps", "when he attacks"), round 4."""
+    v = _cond(v)
+    if isinstance(v, str):
+        for key, words in L.WHEN_WORDS.items():                  # "when he jumps" / "he jumps" / "jumps"
+            if v.strip().lower() in (words, words[5:], words.split(" ", 2)[2]):
+                return key
+    return v
+
+
 def parse_claims(reply) -> Tuple[List[Dict], List[str]]:
     if not isinstance(reply, dict) or not any(v in reply for v in VIEWS):
         return [], ["reply is not {\"attack\": ..., \"defense\": ...}: %.80r" % (reply,)]
@@ -207,5 +217,5 @@ def parse_claims(reply) -> Tuple[List[Dict], List[str]]:
             problems.append("%s: not a claim: %.60r" % (view, it))
             continue
         claims.append({"view": view, "kind": it.get("kind"), "move": it.get("move"), "range": _cond(it.get("range")),
-                       "when": _cond(it.get("when")), "why": it.get("why", "")})
+                       "when": _when(it.get("when")), "why": it.get("why", "")})
     return claims, problems

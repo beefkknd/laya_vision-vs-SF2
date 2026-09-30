@@ -20,7 +20,7 @@ from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS
 from . import lessons as L
 from . import track_record as T
-from .lesson_prompt import STREAK, WHAT_IF, _registry, _renderable, record
+from .lesson_prompt import STREAK, WHAT_IF, _registry, _renderable, _when, record
 
 VIEWS = ("answer", "stop", "what_if")
 MIN_SITUATION = 10     # decisions in a situation of his before it is shown
@@ -217,7 +217,7 @@ def parse_claims(reply) -> Tuple[List[Dict], List[str]]:
         if not isinstance(it, dict):
             problems.append("%s: not a claim: %.60r" % (view, it))
             continue
-        when = _cond(it.get("when"))
+        when = _when(it.get("when"))
         if when is None:
             problems.append("%s: a character lesson names what he is doing (when): %.60r" % (view, it))
             continue
