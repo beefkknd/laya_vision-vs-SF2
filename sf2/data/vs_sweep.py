@@ -149,14 +149,18 @@ def outcome_question(action: str) -> Dict:
             "criteria": dict(OUTCOME_CRITERIA)}
 
 
-def note(me: str, opp: str, r: Dict[str, int], side: str) -> str:
+def note(me: str, opp: str, r: Dict[str, int], side: str, version: int = 1) -> str:
     """The RAM note laya reads (``r``: a_ = me, d_ = the opponent). General and opponent-agnostic: no opponent name
     (knowledge of an opponent is System 2's short memory), the health bars as general levels, no constant fields.
-    ``opp`` is accepted for the callers' sake and deliberately not written."""
+    ``opp`` is accepted for the callers' sake and deliberately not written. ``version`` 2 (sf2.data.value) adds
+    opp_attacking: he is in an attack or a special now (a general state, never which move)."""
+    if version not in (1, 2):
+        raise ValueError("unknown note version %r" % (version,))
     dx = r["d_x"] - r["a_x"]
-    return ("me=%s dist=%s side=%s dx=%+d my_bar=%s opp_bar=%s opp_airborne=%d opp_crouch=%d" % (
+    text = ("me=%s dist=%s side=%s dx=%+d my_bar=%s opp_bar=%s opp_airborne=%d opp_crouch=%d" % (
         me, range_of(abs(dx)), side, dx, bar(r.get("a_life", FULL_LIFE)), bar(r.get("d_life", FULL_LIFE)),
         int(r.get("d_y", GROUND_Y) != GROUND_Y), int(r["d_state"] == 0x02)))
+    return text + (" opp_attacking=%d" % int(r["d_state"] in (0x0A, 0x0C)) if version == 2 else "")
 
 
 def current_note(rec: Dict) -> str:
