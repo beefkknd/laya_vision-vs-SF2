@@ -38,6 +38,7 @@ import hashlib
 import json
 import os
 import random
+import subprocess
 import sys
 import time
 from types import SimpleNamespace
@@ -150,6 +151,22 @@ def job_gb(args) -> float:
     return RUN_JOB_SHARED_GB if getattr(args, "shared_text_laya", False) else MODEL_JOB_GB
 
 
+def code_commit() -> str:
+    """The commit the run's code is at ("" outside git): recorded so a report pairs only runs of the same code."""
+    try:
+        r = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                           cwd=os.path.dirname(os.path.abspath(__file__)))
+    except OSError:
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def play_settings(args, table) -> Dict:
+    """What the run file records about how the arm played (scripts/factorial_report.py refuses pairs that differ)."""
+    return {"games": args.games, "rounds": args.rounds, "advisor": args.advisor,
+            "model": None if table is not None else args.model, "commit": code_commit()}
+
+
 def run_name(args, stamp: str) -> str:
     """<stamp>_<opp>[_<prompt>][_track][_book][+table]: the ranking is part of the name (the reports pair by it)."""
     return "%s_%s%s" % (stamp, args.opp, ("" if args.prompt == "views" else "_" + args.prompt)
@@ -194,7 +211,7 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     table = load_oracle(getattr(args, "oracle", None))[0]
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock,
              prompt=args.prompt, track=args.track, track_sha256=digest, forward_lessons=args.forward_lessons,
-             **book, **oracle_meta(args))                                     # never play data (sf2.eval.logs)
+             **book, **oracle_meta(args), **play_settings(args, table))      # never play data (sf2.eval.logs)
     with Advisor(args.advisor, **advisor_options(args)) as advisor, \
             open_fight(ME, args.opp, port, state=args.state) as (b, state), \
             open_logs(out, ("actions", "rounds", "ledger")) as logs:

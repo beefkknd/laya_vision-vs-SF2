@@ -100,6 +100,8 @@ def test_a_table_arm_plays_without_laya_vision_and_records_the_table(tmp_path, m
     assert advisors == [{"shared": True}]
     run = json.load(open(os.path.join(out, "run.json")))
     assert run["oracle"] == path and run["oracle_sha256"] == digest
+    assert (run["games"], run["rounds"], run["advisor"], run["model"]) == (1, 1, "a", None)
+    assert len(run["commit"]) == 40                  # the code the run played (factorial_report pairs only equals)
 
 
 def test_an_all8_arm_plays_as_before(tmp_path, monkeypatch):
@@ -107,7 +109,8 @@ def test_an_all8_arm_plays_as_before(tmp_path, monkeypatch):
     out = str(tmp_path / "loop")
     made, advisors = play_loop_arm(q, monkeypatch, loop_args(tmp_path), out)
     assert made == [("runs/all8/best", None)] and advisors == [{}]
-    assert "oracle" not in json.load(open(os.path.join(out, "run.json")))
+    run = json.load(open(os.path.join(out, "run.json")))
+    assert "oracle" not in run and run["model"] == "runs/all8/best" and run["games"] == 1
 
 
 # ---- ab_memory ----
