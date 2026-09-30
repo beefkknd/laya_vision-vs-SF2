@@ -44,3 +44,23 @@ opponent's CI entirely below 0; throws per close decision reported. The lookup t
 
 ## Load
 Build, training, eval and games strictly one after the other; free memory checked before each.
+
+## Result (2026-09-30): fails gates 2 and 3 - stops before the in-play test
+
+Training: best validation NLL 0.672 at step 3000 (run 1: 0.738), early-stopped at 8000 as NLL rose; value
+cross-entropy below its prior for 7 of 8 characters at the kept step (Chun-Li 0.888 vs 0.976, Guile 0.855 vs 1.002).
+Offline, `eval_value.py --gates v2 --sample 1000` (runs/lv_value2/best/eval_value_v2.json):
+
+| file, character | outcome acc (all8) | explored calibration spread (table's) | throw top-3 where it pays (table's) |
+|---|---|---|---|
+| test_real Chun-Li | 0.672 (0.607) | -2.4, not monotone (6.8) | 0.00 (1.00) |
+| held-out Guile, Chun-Li | 0.658 (0.631) | -1.9, not monotone (8.7) | 0.00 (1.00) |
+| test_real others | 0.571-0.757 (0.559-0.708) | -3.4..+5.5, none monotone (3.5-13.2) | 0.00-0.51 |
+
+- Gate 1 passes (outcome accuracy up 0.01-0.10 everywhere). Gate 2 fails in all 9 files (no character's predicted
+  net orders the real net of explored moves). Gate 3 fails (the throw is never in the top 3 where it pays).
+- Reading: the value head fits validation positions from the training games (neighbouring frames) but its per-move
+  value does not carry to new games; it ranks moves no better than chance, while a 96-cell table over the note's
+  general fields ranks them well (docs/prereg_value_oracle.md: +81.4 hp/round in play). The per-decision net is noisy
+  (8% of its variance between those cells) and each character has 2.4k-18.7k live decisions: too little signal for
+  the model to learn which MOVE pays, as opposed to how the moment is going.
