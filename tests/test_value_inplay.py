@@ -57,3 +57,14 @@ def test_unpaired_seed_refused(tmp_path):
     write(root, "new", "ken", 2, [0] * 10)
     with pytest.raises(ValueError):
         vi.report(root, "new", "old")
+
+
+def test_commands_have_string_keys_distinct_ports_and_the_oracle(monkeypatch, tmp_path):
+    # 2026-09-30: an int seed in the job key crashed fan_out before any game
+    monkeypatch.setattr(vi, "ROOT", str(tmp_path))
+    cmds = vi.commands("oracle", "none", "t.json")
+    assert len(cmds) == len(vi.OPPS) * len(vi.SEEDS)
+    assert all(isinstance(k, str) for key, _ in cmds for k in key)
+    ports = [argv[argv.index("--one") + 2] for _, argv in cmds]
+    assert len(set(ports)) == len(ports)
+    assert all(argv[-2:] == ["--oracle", "t.json"] for _, argv in cmds)

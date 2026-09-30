@@ -59,18 +59,24 @@ def report(root: str, new: str, old: str) -> Dict:
     return {"per_opp": per_opp, "pooled": pool, "throw_close": throws, "success": ok}
 
 
-def play(args) -> int:
+def commands(arm: str, model: str, oracle=None) -> List:
+    """One play_system1 job per (opponent, seed): (key of strings, argv)."""
     cmds = []
     for i, (opp, seed) in enumerate((o, s) for o in OPPS for s in SEEDS):
-        out = os.path.join(ROOT, args.arm, "%s_s%d" % (opp, seed))
+        out = os.path.join(ROOT, arm, "%s_s%d" % (opp, seed))
         if os.path.exists(out):
             raise SystemExit("%s exists: refusing to mix runs" % out)
         # play_system1's one-character mode: this fan-out reserves the job's memory once (its own fan-out would
         # reserve it a second time)
-        cmds.append(((opp, seed), [sys.executable, os.path.join("scripts", "play_system1.py"), "--one", "chunli",
-                                   str(PORTS["ab"][0] + i), "--model", args.model, "--opp", opp, "--games", str(GAMES),
-                                   "--memory", "none", "--seed", str(seed), "--out", out]
-                    + (["--oracle", args.oracle] if args.oracle else [])))
+        cmds.append(((opp, str(seed)), [sys.executable, os.path.join("scripts", "play_system1.py"), "--one", "chunli",
+                                        str(PORTS["ab"][0] + i), "--model", model, "--opp", opp, "--games",
+                                        str(GAMES), "--memory", "none", "--seed", str(seed), "--out", out]
+                    + (["--oracle", oracle] if oracle else [])))
+    return cmds
+
+
+def play(args) -> int:
+    cmds = commands(args.arm, args.model, args.oracle)
     failed = fan_out(cmds, os.path.join("logs", "lv_inplay", args.arm), job_gb=VISION_JOB_GB)
     for f in failed:
         print("FAILED", f)
