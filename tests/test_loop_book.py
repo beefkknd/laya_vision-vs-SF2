@@ -53,3 +53,38 @@ def test_the_verdict_counts_verified_lines_and_never_as_violations(tmp_path):
                                                            "registry": reg, "in_play": [], "violations": []}) + "\n")
     v = q.verdict(str(root), "ken", False)
     assert v["verified_at_end"] == [THROW["line"], HP["line"]] and v["violations"] == 0
+
+
+def test_a_headless_loop_arm_plays_with_the_book_and_logs_it(tmp_path, monkeypatch):
+    """play_arm with the game, the models and Qwen stubbed: the verified lines are in play from game 0, every ledger
+    row keeps them verified and names the book; Qwen being down changes nothing."""
+    import contextlib
+    q = qwen_lessons()
+    path, digest = book_file(tmp_path)
+    seen = []
+
+    class S1:
+        def __init__(self, *a, **k):
+            self.short = None
+
+    def play_round(b, s1, opp, state, rng, _, i):
+        seen.append([x["text"] for x in s1.short["lessons"]])
+        return SimpleNamespace(log=[], result="win", summary={"result": "win", "dealt": 10, "taken": 0})
+
+    def qwen_down(*a):
+        raise RuntimeError("qwen down")
+
+    monkeypatch.setattr(q, "Advisor", lambda *a: contextlib.nullcontext())
+    monkeypatch.setattr(q, "open_fight", lambda *a, **k: contextlib.nullcontext((None, None)))
+    monkeypatch.setattr(q, "System1", S1)
+    monkeypatch.setattr(q, "play_round", play_round)
+    monkeypatch.setattr(q, "chat", qwen_down)
+    args = SimpleNamespace(opp="ken", seed=1, lock=None, prompt="character_fgc", track=None, book=path,
+                           forward_lessons=False, history=False, games=2, rounds=1, advisor="a", model="m", state=None)
+    out = tmp_path / "loop"
+    assert q.play_arm(args, "loop", 0, str(out)) == 0
+    assert seen == [[THROW["line"], HP["line"]]] * 2
+    rows = [json.loads(x) for x in (out / "ledger.jsonl").read_text().splitlines()]
+    assert len(rows) == 2 and all(r["book"] == path and r["book_sha256"] == digest for r in rows)
+    assert all([x["state"] for x in r["registry"]] == ["verified", "verified"] for r in rows)
+    assert json.loads((out / "run.json").read_text())["book_sha256"] == digest
