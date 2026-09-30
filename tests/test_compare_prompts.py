@@ -112,3 +112,42 @@ def test_a_run_with_a_track_record_is_its_own_prompt(tmp_path):
         json.dump(dict(v, track="lessons/track_record.json"), f)
     pairs, _ = cp().pairs([r], ("character", "character+track"))
     assert cp().diffs(pairs, ("character", "character+track"))["b_minus_a"]["ken"] == [30] * 10
+
+
+# --- the run (seed) as the unit per opponent (2026-09-29 review, finding 1) ---
+
+def test_run_diffs_keep_each_run_apart(tmp_path):
+    r = str(tmp_path)
+    for i, seed in enumerate((1, 2)):
+        run(r, "%d_ken" % i, "ken", seed, "views", [10 * (i + 1)] * 3, [0] * 3)
+        run(r, "%d_ken_character" % (i + 5), "ken", seed, "character", [40] * 3, [0] * 3)
+    pairs, _ = cp().pairs([r])
+    rd = cp().run_diffs(pairs)
+    assert rd["views"]["ken"] == [[10] * 3, [20] * 3]
+    assert rd["b_minus_a"]["ken"] == [[30] * 3, [20] * 3]
+    assert cp().diffs(pairs)["views"]["ken"] == [10] * 3 + [20] * 3       # the flat view is unchanged
+
+
+def test_per_opponent_verdict_uses_runs_and_needs_three():
+    report = cp().report({"ken": [[10, 12, 11]] * 2, "ryu": [[5, 6], [7, 8], [6, 6]]})
+    ken, ryu = report["per_opp"]["ken"], report["per_opp"]["ryu"]
+    assert ken["verdict"] == "TOO FEW" and (ken["runs"], ken["rounds"]) == (2, 6)
+    assert ryu["verdict"] == "HELPS" and (ryu["runs"], ryu["rounds"]) == (3, 6)
+    assert report["pooled"]["opponents"] == 2                             # pooled: the opponent as the unit
+
+
+def test_many_tight_rounds_from_disagreeing_runs_are_not_shown():
+    runs = [[m + (i % 3) - 1 for i in range(30)] for m in (-10, 0, 10, 20, 30, 5)]
+    assert cp().report({"ken": runs})["per_opp"]["ken"]["verdict"] == "NOT SHOWN"
+
+
+def test_each_prompt_against_its_own_no_advice_arm(tmp_path):
+    r = str(tmp_path)
+    run(r, "1_ken", "ken", 1, "views", [10] * 3, [0] * 3)
+    run(r, "2_ken", "ken", 1, "views", [20] * 3, [0] * 3)                  # a repeat of a seed is another run here
+    run(r, "3_ryu_character", "ryu", 2, "character", [5] * 3, [1] * 3)
+    run(r, "4_ryu_character", "ryu", 3, "character", [5] * 2, [1] * 3)    # cut short: refused, not truncated
+    each, problems = cp().each_prompt([r])
+    assert each["views"]["ken"] == [[10] * 3, [20] * 3]
+    assert each["character"]["ryu"] == [[4] * 3]
+    assert len(problems) == 1 and "4_ryu_character" in problems[0]

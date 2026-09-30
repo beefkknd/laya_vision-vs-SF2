@@ -95,3 +95,38 @@ def test_runs_pool_by_appending_each_runs_pairs(tmp_path):
     write(b, "ken", "code_short", [9])
     with pytest.raises(ValueError, match="ken code_short"):
         load_runs([a, b], ["ryu", "ken"], ["none", "code_short"])
+
+
+# --- the run as the unit (2026-09-29 review, finding 1): every round of a run shares its lessons ---
+
+from sf2.eval.stats import MIN_RUNS, run_level  # noqa: E402
+
+
+def test_run_level_mean_is_the_mean_of_run_means():
+    r = run_level([[10, 10], [0, 0, 0, 0], [20]])
+    assert r["mean"] == 10.0 and (r["runs"], r["rounds"]) == (3, 7)
+
+
+def test_runs_that_disagree_widen_the_interval_rounds_as_unit_would_hide():
+    # 6 runs x 30 rounds: each run's rounds sit tightly around its own mean, the runs disagree (-10 .. +30).
+    runs = [noisy(m, 30, i) for i, m in enumerate([-10, 0, 10, 20, 30, 5])]
+    flat = ci([x for r in runs for x in r])
+    assert flat[1] > 0                                             # rounds as unit: "HELPS"
+    r = run_level(runs)
+    assert r["ci95"][0] < 0 < r["ci95"][1] and r["verdict"] == "NOT SHOWN"
+
+
+def test_consistent_runs_help():
+    r = run_level([noisy(20, 30, i) for i in range(5)])
+    assert r["verdict"] == "HELPS" and r["ci95"][0] > 10
+
+
+def test_fewer_than_min_runs_is_too_few():
+    r = run_level([noisy(50, 30, i) for i in range(MIN_RUNS - 1)])
+    assert r["verdict"] == "TOO FEW" and "runs" in r["why"] and r["runs"] == MIN_RUNS - 1
+
+
+def test_run_level_ignores_empty_runs_and_handles_none():
+    assert run_level([])["verdict"] == "NO VERDICT"
+    r = run_level([[], [1], [2], [3]])
+    assert r["runs"] == 3 and r["mean"] == 2.0
