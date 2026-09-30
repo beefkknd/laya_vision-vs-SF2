@@ -1,0 +1,2069 @@
+{
+ "commit": "ddadec2ca363dfbd9e00e7cf39483338ba4a2d60",
+ "extra": {
+  "hf_bases": {
+   "aac6fef/laya-mlx": "20aed815fc6acde75733882e7ec0e3f28aeb9717",
+   "thaitea/laya-vision-smolvlm-256m": "f2fe3c12cb6d04c59d8a190250bf3fb40fc828dc"
+  },
+  "note": "round 5, pre-registered (docs/prereg_round5.md), tag lesson-loop-v2, character_fgc, 8 seeds x ken/ryu/honda",
+  "qwen": {
+   "model": "Jundot--Qwen3.8-27B-oQ4e-mtp",
+   "temperature": 0.0
+  },
+  "rom": {
+   "path": "roms/Street Fighter II (USA).sfc",
+   "sha256": "2b34161e96ef3f0f48cecd67e531a9bb94310652d8686f301bac426e4ab97e77"
+  }
+ },
+ "files": {
+  "advisor/adapter.json": "64fe66d73069e6c1cfcb7301d8f97ce129a46a08b945b27484bff70ea51f901f",
+  "advisor/adapter.safetensors": "cb2a522ecc74ccb44820fef3a18271ca031d953fbf77f450d30d622073a6387e",
+  "advisor/test.json": "82558e14d94af858e8ab19a281cb26e0b93250f39557233bf270311483e4240a",
+  "model/backbone/config.json": "865861b8d4e8ee99826ff58a72b84e376dddbe191265abb3dfed68aef40c226d",
+  "model/eval_outcome.json": "9f5a6e6c6232f67719d5770e1a0a88ee6ffd877cd97514a2e769ecc19adb933b",
+  "model/model.safetensors": "4fcfbb97ed9e02fd608846e7efd05ae4f08953ba333900dcd41ab5b593ab408c",
+  "model/processor/chat_template.jinja": "830005085ddd94cec605b6e21b885b28ffad6e3f82ee6a212c523533e8f04f01",
+  "model/processor/processor_config.json": "aa2f2e29588f8e140b356b4cf03026f320ea16200db45f7fa3d2bbe73d79b03b",
+  "model/processor/tokenizer.json": "2500f374cdc89040032a7d8437b6ed0fe745667b1194c17914d062ee31701605",
+  "model/processor/tokenizer_config.json": "e3dbc4d0735aa794532520ec36b6ab46bc075a306f18a8fa725a8aad6c39caa1",
+  "model/vlm_agent_config.json": "74866a32ff1b30843832c2f940fafe4625f3a13191e5fff0376625f206d10254",
+  "play/blocks_v1/chunli/actions.jsonl": "b890bf2e4eddc4b3126ffd624cd5577dc413808023366223dfd1b85382c80366",
+  "play/blocks_v1/chunli/games.jsonl": "733dfb8320a27650004fe1d75fd386989246df1fac1f10cbc98f4b208b99e39b",
+  "play/games_v1/chunli/actions.jsonl": "983d344099842a1ef2a733d768ec259f7dc9004cca2ba8c8c3e2c37988a612c0",
+  "play/games_v1/chunli/games.jsonl": "0a3db54ef57de1209bf448a60a78c4a58df1de19f70e0dd0cd32bd75dc8f1c93",
+  "play/games_v2/chunli/actions.jsonl": "d3d7e9b1348e4ab7bd1eff915c312bebd7c67a661b0395b7cffbf7e7bda72d8f",
+  "play/games_v2/chunli/games.jsonl": "8fd11e54ff0995ac4a1f02c47e33e0e5caab8bc10b40a0ba3f36ccf657590575",
+  "play/learn/chunli/20260927-194458/actions.jsonl": "d6ddbb763aececcfbcb9c059ad066e919ea5f4e7ed77c8481925c6184e06538e",
+  "play/learn/chunli/20260927-194458/games.jsonl": "8857503fd77765cdaf2d11c80afd1bbdbcbdc9eda4f17269c61604892e5b8bd6",
+  "play/learn/chunli/20260927-195522/actions.jsonl": "2b28c3fe05bc58d6ca51c13836c640398778455c56fcc01268311bc026b42f92",
+  "play/learn/chunli/20260927-195522/games.jsonl": "a27234d386011c3851b2ba4d243233a15073540d4dfe69815c4f42714d7fddd3",
+  "play/learn/chunli/20260927-195522/rounds.jsonl": "49216dc2056f313465049db37ae0ceb7551b21dac41f8ebfdb3681bf5f87f4ee",
+  "play/learn/chunli/20260927-203134/actions.jsonl": "815f8a55d40de4bf42ee3edcc213f922defd7044f71ecbd5109784955a3920d2",
+  "play/learn/chunli/20260927-203134/games.jsonl": "69aadc59d75114402cbe7e681d306c40e91577be8ae74cce1ebfb697670dc745",
+  "play/learn/chunli/20260927-203134/rounds.jsonl": "f634c68e8a06c673dec518903abfe2042335348cb06da302f7f3705a6ff40f98",
+  "play/learn/chunli/20260928-060236/actions.jsonl": "6a5610211f10c98270c3829cc88b7fdab85d8782af52367f769ff441d7d35196",
+  "play/learn/chunli/20260928-060236/games.jsonl": "ed0cb202cc44cb970aa4b250d6e5235f6b154a0a175f8413d372bffe8b09a303",
+  "play/learn/chunli/20260928-060236/rounds.jsonl": "1b5fac21a3062b8058d6b9b4064e1d6ef55c1770b1dd078c8e7c85840a42dc20",
+  "play/learn/chunli/20260928-062237/actions.jsonl": "bde47327f7fe513bb19a40f10d07439c88e56a280cbd6b9c79c4c8ea9b3f465e",
+  "play/learn/chunli/20260928-062237/games.jsonl": "d8466a77f17bf5d0bee5fd0015abc28a489d1c7c1a4ad1a5aef9b4c32df2a71a",
+  "play/learn/chunli/20260928-062237/rounds.jsonl": "b57c1f388781085da36a2f92a708d0983225b2031e20eac9af09d807346f430c",
+  "play/learn/chunli/20260928-074358/actions.jsonl": "6f9ccd541a975b19a9bce373c5522a234c2ac34a1e89d1248ea88da22f97758b",
+  "play/learn/chunli/20260928-074358/games.jsonl": "5fce51848cf55fbfcda1fea6f618a0733a4e001400c90d881ad512eda209907a",
+  "play/learn/chunli/20260928-074358/rounds.jsonl": "b13b233b135a75c043c0e630189db0070fa3a752ca72c840221aa2cb02b7f906",
+  "states/p1_chunli_vs_honda.state": "606529db54f4e1e4170efa802dc86b0fc537bbe370889a8094538f539c0afe75",
+  "states/p1_chunli_vs_ken.state": "f9540ec60413d8e3c0c30a76afb37302eb2ab38b853ba315b5a94c60b4eef74d",
+  "states/p1_chunli_vs_ryu.state": "92cfc01222ee59af9b3abb9de7078f8ca14875563bfc88ea2295178f74fba3fb"
+ },
+ "made": "2026-09-29 23:23:48",
+ "name": "lesson_loop_v2",
+ "runs": [
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 21001,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221318_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     15.466666666666667,
+     -12.58740780018344,
+     43.52074113351677
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 3
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 4,
+     "registered": 6,
+     "rejected": 8,
+     "testing": 4
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.3888888888888889,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.5714285714285714,
+      7
+     ],
+     "stop": [
+      0.2727272727272727,
+      11
+     ]
+    },
+    "random_cells": 38,
+    "random_hold_rate": 0.294,
+    "random_hold_rate_uniform": 0.10266159695817491,
+    "refused_duplicate": 4,
+    "refused_duplicate_share": 0.18181818181818182,
+    "registered_at_end": [
+     "avoid sweep at mid range when he jumps",
+     "use more forward at mid range when he jumps",
+     "avoid sweep at mid range when he stands",
+     "use more c.mk at mid range when he stands",
+     "use more c.mk at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he stands"
+    ],
+    "registered_at_proposal": 6,
+    "registered_at_proposal_share": 0.3333333333333333,
+    "retired": [
+     "use more c.hp at mid range when he attacks",
+     "use more block_low at mid range when he attacks"
+    ],
+    "seed": 21001,
+    "taken_vs_none": [
+     10.466666666666667,
+     0.23733157144070915,
+     20.696001761892624
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 18,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 6,
+     "none": 0
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 21003,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221322_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -9.166666666666666,
+     -30.92504795224447,
+     12.591714618911139
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 4,
+     "registered": 10,
+     "rejected": 7,
+     "testing": 1
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.8333333333333334,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.875,
+      8
+     ],
+     "stop": [
+      0.8,
+      10
+     ]
+    },
+    "random_cells": 39,
+    "random_hold_rate": 0.414,
+    "random_hold_rate_uniform": 0.13953488372093023,
+    "refused_duplicate": 4,
+    "refused_duplicate_share": 0.18181818181818182,
+    "registered_at_end": [
+     "avoid sweep at mid range when he jumps",
+     "use more forward at mid range when he jumps",
+     "avoid sweep at mid range when he stands",
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more block_high at mid range when he attacks",
+     "use more c.hp at mid range when he attacks",
+     "avoid sweep up close when he jumps"
+    ],
+    "registered_at_proposal": 10,
+    "registered_at_proposal_share": 0.5555555555555556,
+    "retired": [
+     "use more c.hp at mid range when he attacks",
+     "use more c.hp at mid range when he attacks",
+     "use more c.hp at mid range when he attacks"
+    ],
+    "seed": 21003,
+    "taken_vs_none": [
+     2.3,
+     -1.8722591912081272,
+     6.472259191208127
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 18,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 2,
+     "none": 1
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 21004,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221324_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -13.9,
+     -44.512623365751146,
+     16.71262336575115
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 3
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 4,
+     "registered": 8,
+     "rejected": 8,
+     "testing": 2
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.5555555555555556,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.7142857142857143,
+      7
+     ],
+     "stop": [
+      0.45454545454545453,
+      11
+     ]
+    },
+    "random_cells": 37,
+    "random_hold_rate": 0.35,
+    "random_hold_rate_uniform": 0.11023622047244094,
+    "refused_duplicate": 4,
+    "refused_duplicate_share": 0.18181818181818182,
+    "registered_at_end": [
+     "avoid sweep at mid range when he jumps",
+     "avoid sweep at mid range when he stands",
+     "use more forward at mid range when he jumps",
+     "use more c.hp at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more c.mk at mid range when he stands",
+     "avoid forward at mid range when he attacks"
+    ],
+    "registered_at_proposal": 8,
+    "registered_at_proposal_share": 0.4444444444444444,
+    "retired": [
+     "use more c.hp at mid range when he attacks",
+     "always block_high at mid range when he attacks"
+    ],
+    "seed": 21004,
+    "taken_vs_none": [
+     -3.8333333333333335,
+     -12.821611387303346,
+     5.154944720636678
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 18,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 0,
+     "none": 3
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 21002,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221320_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -34.13333333333333,
+     -60.60834545052346,
+     -7.658321216143204
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 2
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 4,
+     "registered": 7,
+     "rejected": 7,
+     "testing": 4
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.3333333333333333,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.25,
+      8
+     ],
+     "stop": [
+      0.4,
+      10
+     ]
+    },
+    "random_cells": 38,
+    "random_hold_rate": 0.382,
+    "random_hold_rate_uniform": 0.1183206106870229,
+    "refused_duplicate": 4,
+    "refused_duplicate_share": 0.18181818181818182,
+    "registered_at_end": [
+     "avoid sweep at mid range when he stands",
+     "use more forward at mid range when he jumps",
+     "avoid sweep at mid range when he jumps",
+     "use more block_high at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he stands"
+    ],
+    "registered_at_proposal": 7,
+    "registered_at_proposal_share": 0.3888888888888889,
+    "retired": [
+     "use more c.hp at mid range when he attacks",
+     "use more c.hp at mid range when he attacks"
+    ],
+    "seed": 21002,
+    "taken_vs_none": [
+     2.8,
+     -5.149846559641203,
+     10.749846559641203
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 18,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 1,
+     "none": 2
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 31001,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224800_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     17.066666666666666,
+     -7.613653600510208,
+     41.746986933843544
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 2
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 5,
+     "registered": 7,
+     "rejected": 7,
+     "testing": 5
+    },
+    "prompt": "character_fgc",
+    "proposed": 24,
+    "qwen_hold_rate": 0.631578947368421,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.3333333333333333,
+      6
+     ],
+     "stop": [
+      0.9090909090909091,
+      11
+     ]
+    },
+    "random_cells": 39,
+    "random_hold_rate": 0.198,
+    "random_hold_rate_uniform": 0.08527131782945736,
+    "refused_duplicate": 5,
+    "refused_duplicate_share": 0.20833333333333334,
+    "registered_at_end": [
+     "avoid sweep at mid range when he jumps",
+     "use more forward at mid range when he jumps",
+     "use more forward at mid range when he stands",
+     "avoid sweep at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he attacks"
+    ],
+    "registered_at_proposal": 7,
+    "registered_at_proposal_share": 0.3684210526315789,
+    "retired": [
+     "use more c.hp at mid range when he attacks",
+     "avoid forward at mid range when he attacks"
+    ],
+    "seed": 31001,
+    "taken_vs_none": [
+     1.6333333333333333,
+     -10.187891837366973,
+     13.454558504033638
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 19,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_low up close when he attacks",
+      "testing"
+     ],
+     [
+      "always block_high up close when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 2,
+    "won": {
+     "loop": 7,
+     "none": 3
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 31003,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224804_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -17.4,
+     -42.91110532847332,
+     8.111105328473322
+    ],
+    "kinds_registered": {
+     "always": 1,
+     "avoid": 3,
+     "use_more": 3
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 5,
+     "registered": 6,
+     "rejected": 9,
+     "testing": 5
+    },
+    "prompt": "character_fgc",
+    "proposed": 25,
+    "qwen_hold_rate": 0.4,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.42857142857142855,
+      7
+     ],
+     "stop": [
+      0.36363636363636365,
+      11
+     ]
+    },
+    "random_cells": 32,
+    "random_hold_rate": 0.286,
+    "random_hold_rate_uniform": 0.11693548387096774,
+    "refused_duplicate": 5,
+    "refused_duplicate_share": 0.2,
+    "registered_at_end": [
+     "use more c.hp at mid range when he attacks",
+     "avoid sweep at mid range when he jumps",
+     "use more forward at mid range when he jumps",
+     "use more forward at mid range when he stands",
+     "avoid sweep at mid range when he stands",
+     "always block_low up close when he attacks",
+     "avoid sweep up close when he attacks"
+    ],
+    "registered_at_proposal": 6,
+    "registered_at_proposal_share": 0.3,
+    "retired": [],
+    "seed": 31003,
+    "taken_vs_none": [
+     -3.4,
+     -10.011446597753212,
+     3.2114465977532123
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 20,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_low at mid range when he attacks",
+      "testing"
+     ],
+     [
+      "always block_low up close when he attacks",
+      "testing"
+     ],
+     [
+      {
+       "kind": "always",
+       "move": "block_low",
+       "range": "close",
+       "view": "what_if",
+       "when": "attacking",
+       "why": "Blocking low up close is the only move with positive net damage when he attacks, preventing the heavy hits she currently takes."
+      },
+      "refused"
+     ]
+    ],
+    "what_if_asked": 3,
+    "won": {
+     "loop": 1,
+     "none": 6
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 31004,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224806_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -27.633333333333333,
+     -54.94615085291994,
+     -0.3205158137467201
+    ],
+    "kinds_registered": {
+     "always": 1,
+     "avoid": 4,
+     "use_more": 5
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 6,
+     "registered": 9,
+     "rejected": 5,
+     "testing": 2
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.875,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.8571428571428571,
+      7
+     ],
+     "stop": [
+      0.8888888888888888,
+      9
+     ]
+    },
+    "random_cells": 39,
+    "random_hold_rate": 0.43,
+    "random_hold_rate_uniform": 0.13909774436090225,
+    "refused_duplicate": 6,
+    "refused_duplicate_share": 0.2727272727272727,
+    "registered_at_end": [
+     "use more c.hp at mid range when he attacks",
+     "avoid sweep at mid range when he jumps",
+     "use more forward at mid range when he jumps",
+     "avoid sweep at mid range when he stands",
+     "use more forward at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more c.mk at mid range when he stands",
+     "avoid sweep up close when he jumps",
+     "always block_low at mid range when he attacks",
+     "use more c.mk up close when he jumps"
+    ],
+    "registered_at_proposal": 9,
+    "registered_at_proposal_share": 0.5625,
+    "retired": [],
+    "seed": 31004,
+    "taken_vs_none": [
+     -4.2,
+     -10.775819557330836,
+     2.3758195573308356
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 16,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 2,
+     "none": 4
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "honda",
+   "rounds": 3,
+   "seed": 31002,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224802_honda_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     9.2,
+     -6.5408222659807524,
+     24.94082226598075
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 2
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 5,
+     "registered": 8,
+     "rejected": 6,
+     "testing": 3
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.7058823529411765,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.5714285714285714,
+      7
+     ],
+     "stop": [
+      0.8,
+      10
+     ]
+    },
+    "random_cells": 41,
+    "random_hold_rate": 0.242,
+    "random_hold_rate_uniform": 0.10894941634241245,
+    "refused_duplicate": 5,
+    "refused_duplicate_share": 0.22727272727272727,
+    "registered_at_end": [
+     "avoid sweep at mid range when he jumps",
+     "use more forward at mid range when he jumps",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "avoid sweep at mid range when he stands",
+     "use more c.hp at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks"
+    ],
+    "registered_at_proposal": 8,
+    "registered_at_proposal_share": 0.47058823529411764,
+    "retired": [
+     "use more c.hp at mid range when he attacks",
+     "use more c.hp at mid range when he attacks",
+     "avoid sweep up close when he jumps"
+    ],
+    "seed": 31002,
+    "taken_vs_none": [
+     2.6,
+     -1.6284486326642846,
+     6.828448632664285
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 17,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 2,
+     "none": 1
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 21001,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221302_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     38.4,
+     9.310038127437728,
+     67.48996187256228
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 2
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 9,
+     "registered": 5,
+     "rejected": 4,
+     "testing": 4
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.38461538461538464,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.3333333333333333,
+      6
+     ],
+     "stop": [
+      0.42857142857142855,
+      7
+     ]
+    },
+    "random_cells": 41,
+    "random_hold_rate": 0.154,
+    "random_hold_rate_uniform": 0.07058823529411765,
+    "refused_duplicate": 9,
+    "refused_duplicate_share": 0.4090909090909091,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps",
+     "avoid c.hp up close when he jumps",
+     "use more forward at mid range when he stands",
+     "avoid sweep at mid range when he stands"
+    ],
+    "registered_at_proposal": 5,
+    "registered_at_proposal_share": 0.38461538461538464,
+    "retired": [],
+    "seed": 21001,
+    "taken_vs_none": [
+     11.566666666666666,
+     1.5811266507255315,
+     21.552206682607803
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 8,
+     "none": 2
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 21003,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221306_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     28.0,
+     -3.9805809468988436,
+     59.98058094689884
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 2,
+     "use_more": 1
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 11,
+     "registered": 3,
+     "rejected": 3,
+     "testing": 7
+    },
+    "prompt": "character_fgc",
+    "proposed": 24,
+    "qwen_hold_rate": 0.23076923076923078,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.16666666666666666,
+      6
+     ],
+     "stop": [
+      0.4,
+      5
+     ]
+    },
+    "random_cells": 42,
+    "random_hold_rate": 0.144,
+    "random_hold_rate_uniform": 0.0728744939271255,
+    "refused_duplicate": 11,
+    "refused_duplicate_share": 0.4583333333333333,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps",
+     "avoid sweep at mid range when he stands"
+    ],
+    "registered_at_proposal": 3,
+    "registered_at_proposal_share": 0.23076923076923078,
+    "retired": [],
+    "seed": 21003,
+    "taken_vs_none": [
+     3.1,
+     -6.094823801228177,
+     12.294823801228176
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_high at mid range when he attacks",
+      "testing"
+     ],
+     [
+      "use more block_high far away when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 2,
+    "won": {
+     "loop": 6,
+     "none": 3
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 21004,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221308_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     35.4,
+     -3.3881058958607255,
+     74.18810589586073
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 3
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 9,
+     "registered": 7,
+     "rejected": 3,
+     "testing": 5
+    },
+    "prompt": "character_fgc",
+    "proposed": 24,
+    "qwen_hold_rate": 0.5333333333333333,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.5,
+      6
+     ],
+     "stop": [
+      0.7142857142857143,
+      7
+     ]
+    },
+    "random_cells": 50,
+    "random_hold_rate": 0.15,
+    "random_hold_rate_uniform": 0.07251908396946564,
+    "refused_duplicate": 9,
+    "refused_duplicate_share": 0.375,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps",
+     "avoid spinning_bird_kick at mid range when he jumps",
+     "avoid c.hp up close when he jumps",
+     "use more forward far away when he attacks",
+     "use more forward at mid range when he stands",
+     "avoid sweep at mid range when he stands"
+    ],
+    "registered_at_proposal": 7,
+    "registered_at_proposal_share": 0.4666666666666667,
+    "retired": [],
+    "seed": 21004,
+    "taken_vs_none": [
+     15.166666666666666,
+     2.2035638618015465,
+     28.129769471531787
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 15,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_high at mid range when he attacks",
+      "testing"
+     ],
+     [
+      "always block_high far away when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 2,
+    "won": {
+     "loop": 8,
+     "none": 2
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 21002,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221304_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     54.03333333333333,
+     19.36204389000811,
+     88.70462277665855
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 2,
+     "use_more": 2
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 10,
+     "registered": 5,
+     "rejected": 3,
+     "testing": 5
+    },
+    "prompt": "character_fgc",
+    "proposed": 23,
+    "qwen_hold_rate": 0.38461538461538464,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.3333333333333333,
+      6
+     ],
+     "stop": [
+      0.5,
+      6
+     ]
+    },
+    "random_cells": 41,
+    "random_hold_rate": 0.11,
+    "random_hold_rate_uniform": 0.06299212598425197,
+    "refused_duplicate": 10,
+    "refused_duplicate_share": 0.43478260869565216,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps",
+     "use more forward at mid range when he stands",
+     "avoid sweep at mid range when he stands"
+    ],
+    "registered_at_proposal": 5,
+    "registered_at_proposal_share": 0.38461538461538464,
+    "retired": [
+     "avoid c.hp up close when he jumps"
+    ],
+    "seed": 21002,
+    "taken_vs_none": [
+     17.066666666666666,
+     4.769269288216018,
+     29.364064045117317
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_high far away when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 1,
+    "won": {
+     "loop": 6,
+     "none": 2
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 31001,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224744_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     9.633333333333333,
+     -25.837455217225667,
+     45.10412188389233
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 1,
+     "use_more": 1
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 15,
+     "registered": 2,
+     "rejected": 5,
+     "testing": 6
+    },
+    "prompt": "character_fgc",
+    "proposed": 28,
+    "qwen_hold_rate": 0.15384615384615385,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.25,
+      4
+     ],
+     "stop": [
+      0.16666666666666666,
+      6
+     ]
+    },
+    "random_cells": 46,
+    "random_hold_rate": 0.186,
+    "random_hold_rate_uniform": 0.08366533864541832,
+    "refused_duplicate": 14,
+    "refused_duplicate_share": 0.5,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps"
+    ],
+    "registered_at_proposal": 2,
+    "registered_at_proposal_share": 0.15384615384615385,
+    "retired": [],
+    "seed": 31001,
+    "taken_vs_none": [
+     6.3,
+     -2.855746068396912,
+     15.455746068396913
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_low far away when he attacks",
+      "testing"
+     ],
+     [
+      {
+       "kind": "always",
+       "move": "block_low",
+       "range": "far",
+       "view": "what_if",
+       "when": "attacking",
+       "why": "Always blocking low against his far-range fireballs prevents chip damage and avoids the high-risk spinning bird kick that currently loses."
+      },
+      "refused"
+     ],
+     [
+      "always block_high at mid range when he attacks",
+      "testing"
+     ],
+     [
+      "use more block_high far away when he attacks",
+      "testing"
+     ],
+     [
+      {
+       "kind": "always",
+       "move": "block_low",
+       "range": "mid",
+       "view": "what_if",
+       "when": "attacking",
+       "why": "Blocking low is the safest default against his mid-range attacks to stop the damage while waiting for a punish."
+      },
+      "refused"
+     ],
+     [
+      {
+       "kind": "always",
+       "move": "block_high",
+       "range": "mid",
+       "view": "what_if",
+       "when": "attacking",
+       "why": "Blocking high is the safest default against his mid-range attacks to stop the damage while she learns to punish."
+      },
+      "refused"
+     ]
+    ],
+    "what_if_asked": 6,
+    "won": {
+     "loop": 4,
+     "none": 5
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 31003,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224748_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     35.733333333333334,
+     0.846025233947735,
+     70.62064143271894
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 2
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 12,
+     "registered": 5,
+     "rejected": 2,
+     "testing": 3
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.6,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.5,
+      4
+     ],
+     "stop": [
+      0.6666666666666666,
+      6
+     ]
+    },
+    "random_cells": 43,
+    "random_hold_rate": 0.204,
+    "random_hold_rate_uniform": 0.10245901639344263,
+    "refused_duplicate": 12,
+    "refused_duplicate_share": 0.5454545454545454,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps",
+     "use more c.mk at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he jumps",
+     "avoid c.hp up close when he jumps",
+     "avoid spinning_bird_kick at mid range when he stands"
+    ],
+    "registered_at_proposal": 5,
+    "registered_at_proposal_share": 0.5,
+    "retired": [],
+    "seed": 31003,
+    "taken_vs_none": [
+     11.766666666666667,
+     0.6713961102400905,
+     22.861937223093243
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 10,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 10,
+     "none": 1
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 31004,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224750_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     31.866666666666667,
+     -4.1631730601943815,
+     67.89650639352772
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 1,
+     "use_more": 1
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 13,
+     "registered": 2,
+     "rejected": 6,
+     "testing": 8
+    },
+    "prompt": "character_fgc",
+    "proposed": 29,
+    "qwen_hold_rate": 0.1875,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.25,
+      4
+     ],
+     "stop": [
+      0.2857142857142857,
+      7
+     ]
+    },
+    "random_cells": 46,
+    "random_hold_rate": 0.196,
+    "random_hold_rate_uniform": 0.0888030888030888,
+    "refused_duplicate": 12,
+    "refused_duplicate_share": 0.41379310344827586,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps"
+    ],
+    "registered_at_proposal": 2,
+    "registered_at_proposal_share": 0.125,
+    "retired": [],
+    "seed": 31004,
+    "taken_vs_none": [
+     5.1,
+     -2.051569261116872,
+     12.25156926111687
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 16,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_high far away when he attacks",
+      "testing"
+     ],
+     [
+      "always block_low at mid range when he attacks",
+      "testing"
+     ],
+     [
+      {
+       "kind": "always",
+       "move": "block_low",
+       "range": "far",
+       "view": "what_if",
+       "when": "attacking",
+       "why": "Blocking low is the only safe way to handle his far-range fireballs without taking chip damage."
+      },
+      "refused"
+     ],
+     [
+      "always block_low far away when he attacks",
+      "testing"
+     ],
+     [
+      "always block_low at mid range when he attacks",
+      "testing"
+     ],
+     [
+      {
+       "kind": "always",
+       "move": "block_low",
+       "range": "mid",
+       "view": "what_if",
+       "when": "attacking",
+       "why": "Blocking low is the safest default against his mid-range attacks to stop the damage while waiting for a punish."
+      },
+      "refused"
+     ],
+     [
+      "use more mk at mid range when he stands",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 7,
+    "won": {
+     "loop": 6,
+     "none": 3
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ken",
+   "rounds": 3,
+   "seed": 31002,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224746_ken_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     16.466666666666665,
+     -21.97508715284977,
+     54.908420486183104
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 1,
+     "use_more": 2
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 11,
+     "registered": 3,
+     "rejected": 6,
+     "testing": 5
+    },
+    "prompt": "character_fgc",
+    "proposed": 25,
+    "qwen_hold_rate": 0.21428571428571427,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.4,
+      5
+     ],
+     "stop": [
+      0.14285714285714285,
+      7
+     ]
+    },
+    "random_cells": 41,
+    "random_hold_rate": 0.202,
+    "random_hold_rate_uniform": 0.08870967741935484,
+    "refused_duplicate": 11,
+    "refused_duplicate_share": 0.44,
+    "registered_at_end": [
+     "use more hp up close when he jumps",
+     "avoid sweep up close when he jumps",
+     "use more forward at mid range when he jumps"
+    ],
+    "registered_at_proposal": 3,
+    "registered_at_proposal_share": 0.21428571428571427,
+    "retired": [],
+    "seed": 31002,
+    "taken_vs_none": [
+     8.033333333333333,
+     1.4246367339050447,
+     14.642029932761622
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 14,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_high far away when he attacks",
+      "testing"
+     ],
+     [
+      "always block_low at mid range when he attacks",
+      "testing"
+     ],
+     [
+      {
+       "kind": "always",
+       "move": "block_low",
+       "range": "mid",
+       "view": "what_if",
+       "when": "attacking",
+       "why": "Always blocking low when he attacks at mid range prevents damage from his Hadoken and low normals, breaking the cycle of getting hit."
+      },
+      "refused"
+     ]
+    ],
+    "what_if_asked": 3,
+    "won": {
+     "loop": 7,
+     "none": 2
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 21001,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221310_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -26.833333333333332,
+     -63.57845428659367,
+     9.911787619927
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 7,
+     "registered": 8,
+     "rejected": 2,
+     "testing": 3
+    },
+    "prompt": "character_fgc",
+    "proposed": 20,
+    "qwen_hold_rate": 0.6153846153846154,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.7142857142857143,
+      7
+     ],
+     "stop": [
+      0.6,
+      5
+     ]
+    },
+    "random_cells": 48,
+    "random_hold_rate": 0.242,
+    "random_hold_rate_uniform": 0.10830324909747292,
+    "refused_duplicate": 7,
+    "refused_duplicate_share": 0.35,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more sweep at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "use more lp up close when he jumps"
+    ],
+    "registered_at_proposal": 8,
+    "registered_at_proposal_share": 0.6153846153846154,
+    "retired": [
+     "use more c.mk at mid range when he jumps"
+    ],
+    "seed": 21001,
+    "taken_vs_none": [
+     -30.2,
+     -55.58579437311393,
+     -4.814205626886068
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_low far away when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 1,
+    "won": {
+     "loop": 8,
+     "none": 13
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 21003,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221314_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     18.566666666666666,
+     -11.014310363405208,
+     48.14764369673854
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 8,
+     "registered": 8,
+     "rejected": 4,
+     "testing": 2
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.5714285714285714,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.7142857142857143,
+      7
+     ],
+     "stop": [
+      0.42857142857142855,
+      7
+     ]
+    },
+    "random_cells": 50,
+    "random_hold_rate": 0.226,
+    "random_hold_rate_uniform": 0.11235955056179775,
+    "refused_duplicate": 8,
+    "refused_duplicate_share": 0.36363636363636365,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more sweep at mid range when he attacks",
+     "use more c.lk up close when he jumps"
+    ],
+    "registered_at_proposal": 8,
+    "registered_at_proposal_share": 0.5714285714285714,
+    "retired": [
+     "use more c.lk up close when he jumps"
+    ],
+    "seed": 21003,
+    "taken_vs_none": [
+     5.4,
+     -12.625191118281512,
+     23.42519111828151
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 14,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 11,
+     "none": 8
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 21004,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221316_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     -0.4666666666666667,
+     -28.20352374165747,
+     27.27019040832414
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 5
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 9,
+     "registered": 8,
+     "rejected": 2,
+     "testing": 2
+    },
+    "prompt": "character_fgc",
+    "proposed": 21,
+    "qwen_hold_rate": 0.6666666666666666,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.8333333333333334,
+      6
+     ],
+     "stop": [
+      0.6,
+      5
+     ]
+    },
+    "random_cells": 47,
+    "random_hold_rate": 0.282,
+    "random_hold_rate_uniform": 0.11636363636363636,
+    "refused_duplicate": 9,
+    "refused_duplicate_share": 0.42857142857142855,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "use more lp up close when he jumps",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more sweep at mid range when he attacks",
+     "use more c.mk at mid range when he jumps"
+    ],
+    "registered_at_proposal": 8,
+    "registered_at_proposal_share": 0.6666666666666666,
+    "retired": [],
+    "seed": 21004,
+    "taken_vs_none": [
+     -11.033333333333333,
+     -25.553424335021923,
+     3.486757668355258
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 12,
+    "violations": 0,
+    "what_if": [
+     [
+      "always block_low far away when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 1,
+    "won": {
+     "loop": 10,
+     "none": 11
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 21002,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-221312_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     13.1,
+     -20.19127673392404,
+     46.391276733924045
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 9,
+     "registered": 8,
+     "rejected": 2,
+     "testing": 3
+    },
+    "prompt": "character_fgc",
+    "proposed": 22,
+    "qwen_hold_rate": 0.6153846153846154,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.5714285714285714,
+      7
+     ],
+     "stop": [
+      0.6666666666666666,
+      6
+     ]
+    },
+    "random_cells": 49,
+    "random_hold_rate": 0.282,
+    "random_hold_rate_uniform": 0.10431654676258993,
+    "refused_duplicate": 9,
+    "refused_duplicate_share": 0.4090909090909091,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more sweep at mid range when he attacks",
+     "use more lp up close when he jumps",
+     "avoid sweep up close when he jumps"
+    ],
+    "registered_at_proposal": 8,
+    "registered_at_proposal_share": 0.6153846153846154,
+    "retired": [],
+    "seed": 21002,
+    "taken_vs_none": [
+     1.9,
+     -17.904251381499105,
+     21.704251381499102
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 9,
+     "none": 8
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 31001,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224752_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     39.333333333333336,
+     0.6847348120048409,
+     77.98193185466184
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 8,
+     "registered": 7,
+     "rejected": 2,
+     "testing": 4
+    },
+    "prompt": "character_fgc",
+    "proposed": 21,
+    "qwen_hold_rate": 0.5384615384615384,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.42857142857142855,
+      7
+     ],
+     "stop": [
+      0.6,
+      5
+     ]
+    },
+    "random_cells": 46,
+    "random_hold_rate": 0.254,
+    "random_hold_rate_uniform": 0.08540925266903915,
+    "refused_duplicate": 7,
+    "refused_duplicate_share": 0.3333333333333333,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more sweep at mid range when he attacks",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "use more sweep at mid range when he stands"
+    ],
+    "registered_at_proposal": 7,
+    "registered_at_proposal_share": 0.5384615384615384,
+    "retired": [],
+    "seed": 31001,
+    "taken_vs_none": [
+     12.6,
+     -10.542543644656428,
+     35.74254364465643
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [
+     [
+      "use more sweep at mid range when he stands",
+      "registered"
+     ]
+    ],
+    "what_if_asked": 1,
+    "won": {
+     "loop": 18,
+     "none": 10
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 31003,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224756_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     23.266666666666666,
+     -10.013411468372759,
+     56.54674480170609
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 4,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 9,
+     "registered": 9,
+     "rejected": 3
+    },
+    "prompt": "character_fgc",
+    "proposed": 21,
+    "qwen_hold_rate": 0.6666666666666666,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.8,
+      5
+     ],
+     "stop": [
+      0.5714285714285714,
+      7
+     ]
+    },
+    "random_cells": 48,
+    "random_hold_rate": 0.234,
+    "random_hold_rate_uniform": 0.08812260536398467,
+    "refused_duplicate": 9,
+    "refused_duplicate_share": 0.42857142857142855,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more sweep at mid range when he attacks",
+     "use more c.lk up close when he jumps",
+     "avoid sweep up close when he jumps"
+    ],
+    "registered_at_proposal": 9,
+    "registered_at_proposal_share": 0.75,
+    "retired": [
+     "use more c.mk at mid range when he jumps"
+    ],
+    "seed": 31003,
+    "taken_vs_none": [
+     -6.6,
+     -26.967313240672617,
+     13.767313240672616
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 12,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 11,
+     "none": 8
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 31004,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224758_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     27.633333333333333,
+     -1.9005554645358735,
+     57.167222131202536
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 11,
+     "registered": 7,
+     "rejected": 2,
+     "testing": 4
+    },
+    "prompt": "character_fgc",
+    "proposed": 24,
+    "qwen_hold_rate": 0.5384615384615384,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      0.6666666666666666,
+      6
+     ],
+     "stop": [
+      0.6,
+      5
+     ]
+    },
+    "random_cells": 45,
+    "random_hold_rate": 0.254,
+    "random_hold_rate_uniform": 0.07984790874524715,
+    "refused_duplicate": 11,
+    "refused_duplicate_share": 0.4583333333333333,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more sweep at mid range when he attacks",
+     "avoid spinning_bird_kick at mid range when he attacks",
+     "use more c.mk at mid range when he jumps"
+    ],
+    "registered_at_proposal": 7,
+    "registered_at_proposal_share": 0.5384615384615384,
+    "retired": [],
+    "seed": 31004,
+    "taken_vs_none": [
+     2.033333333333333,
+     -11.725709199959098,
+     15.792375866625765
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 13,
+    "violations": 0,
+    "what_if": [
+     [
+      "use more block_high at mid range when he attacks",
+      "testing"
+     ],
+     [
+      "always block_low far away when he attacks",
+      "testing"
+     ]
+    ],
+    "what_if_asked": 2,
+    "won": {
+     "loop": 8,
+     "none": 4
+    }
+   }
+  },
+  {
+   "games": 10,
+   "history": true,
+   "opp": "ryu",
+   "rounds": 3,
+   "seed": 31002,
+   "source": "rollouts/locked/lesson_loop_v1/20260929-224754_ryu_character_fgc",
+   "verdict": {
+    "failed_jobs": [],
+    "hp_vs_none": [
+     18.033333333333335,
+     -14.655244191978962,
+     50.72191085864563
+    ],
+    "kinds_registered": {
+     "always": 0,
+     "avoid": 3,
+     "use_more": 4
+    },
+    "lock": "lesson_loop_v1",
+    "outcomes": {
+     "refused": 9,
+     "registered": 7,
+     "rejected": 1
+    },
+    "prompt": "character_fgc",
+    "proposed": 17,
+    "qwen_hold_rate": 0.875,
+    "qwen_hold_rate_by_view": {
+     "answer": [
+      1.0,
+      4
+     ],
+     "stop": [
+      0.75,
+      4
+     ]
+    },
+    "random_cells": 47,
+    "random_hold_rate": 0.27,
+    "random_hold_rate_uniform": 0.11355311355311355,
+    "refused_duplicate": 9,
+    "refused_duplicate_share": 0.5294117647058824,
+    "registered_at_end": [
+     "use more c.mk at mid range when he stands",
+     "avoid spinning_bird_kick at mid range when he stands",
+     "use more forward far away when he attacks",
+     "avoid spinning_bird_kick far away when he attacks",
+     "use more sweep at mid range when he attacks",
+     "use more lp up close when he jumps",
+     "avoid spinning_bird_kick at mid range when he attacks"
+    ],
+    "registered_at_proposal": 7,
+    "registered_at_proposal_share": 0.875,
+    "retired": [],
+    "seed": 31002,
+    "taken_vs_none": [
+     4.633333333333334,
+     -16.834405240604237,
+     26.101071907270903
+    ],
+    "track": null,
+    "track_sha256": null,
+    "updates": 11,
+    "valid": 8,
+    "violations": 0,
+    "what_if": [],
+    "what_if_asked": 0,
+    "won": {
+     "loop": 11,
+     "none": 9
+    }
+   }
+  }
+ ],
+ "sources": {
+  "advisor": "runs/text_laya/advice_v1",
+  "model": "runs/all8/best",
+  "play": [
+   "rollouts/blocks_v1/chunli",
+   "rollouts/games_v1/chunli",
+   "rollouts/games_v2/chunli",
+   "rollouts/learn/chunli/20260927-194458",
+   "rollouts/learn/chunli/20260927-195522",
+   "rollouts/learn/chunli/20260927-203134",
+   "rollouts/learn/chunli/20260928-060236",
+   "rollouts/learn/chunli/20260928-062237",
+   "rollouts/learn/chunli/20260928-074358"
+  ],
+  "states": [
+   "states/p1_chunli_vs_honda.state",
+   "states/p1_chunli_vs_ken.state",
+   "states/p1_chunli_vs_ryu.state"
+  ]
+ }
+}

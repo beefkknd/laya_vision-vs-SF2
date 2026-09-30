@@ -428,6 +428,33 @@ went badly with a lesson, not that the lesson caused it.
   an uppercut up close", ... plus one note on saying them in the grammar's words; older data keeps the coarse wording,
   byte-identical (golden: `tests/fixtures/system2/character_prompt_golden.json`, and sha256 on the lock's play data).
 
+## 0j. Round 5 (2026-09-29), pre-registered: `docs/prereg_round5.md`, tag `lesson-loop-v2`, lock `lesson_loop_v2`
+
+After the independent review (docs/reviews/2026-09-29_dr_fable.md) and its owner-approved fixes: run-level intervals,
+table-aware chance, track record shown not refused, early stop of a test (60 hp/round drop), his moves in the threats
+view, System 1 block scale and avoid-aware shortlist. character_fgc frozen, no track; 8 seeds x Ken/Ryu/Honda (the
+seeds of rounds 3-4); 24/24 runs finished, none re-run. `scripts/round5_report.py`. Run as the unit, 95% intervals.
+
+| hp per round | Ken | Ryu | Honda | pooled (opponent as unit) |
+|---|---|---|---|---|
+| **primary: loop vs its no-advice arm** | **+31.2 [+16.5, +46.1] helps** | +14.1 [-4.5, +30.4] | -7.6 [-23.2, +7.3] | +12.6 [-6.3, +30.9] not shown |
+| System 1 change alone: new vs old no-advice arm, same seed | **+14.8 [+0.6, +29.0] helps** | -8.6 [-25.3, +9.0] | +4.0 [-9.9, +17.9] | +3.4 [-9.2, +16.0] |
+| total: new loop vs old character_fgc loop, same seed | -9.9 [-22.2, +2.5] | -11.5 [-27.3, +3.5] | +2.9 [-10.9, +16.5] | -6.2 [-15.1, +3.6] |
+| learning in a run: games 5-9 minus 0-4 (loop - none) | **+24.6 [+12.1, +35.6] helps** | -13.8 [-30.5, +2.0] | +5.0 [-7.9, +17.8] | |
+
+- Ken: the loop helps and she improves within a run (the only opponent where both hold, as in the review).
+- The block scale changed how she plays without advice: blocks 0 -> 566 (Ken), 218 (Ryu), 2,030 (Honda) in the
+  no-advice arms. It helps vs Ken on its own (+14.8); not shown vs Ryu / Honda. Honda's rounds last longer (7,654
+  decisions vs 4,784 in the same seeds' old arms) without scoring better.
+- Qwen: claims that hold 0.34 / 0.64 / 0.59 (Ken / Ryu / Honda) vs table-aware chance 0.17 / 0.26 / 0.33 - about 2x;
+  registered at proposal 31-65%; refused as duplicates 20-45%.
+- Early stop fired 27 times vs Ryu (6 Ken, 1 Honda): Ryu's rounds swing more than the 4.4% false-alarm rate assumed
+  (it was set on no-advice arms of all opponents together) - a candidate cause of Ryu's -13.8 late-vs-early. Open.
+- nothing_left: 485 -> 18 (Honda loop arm), not the 0 expected: forward itself avoided while every shortlisted move is
+  avoided too. follows_rule 99.1% (Honda), 99.99% (Ken), 99.0% (Ryu) in the loop arms, 100% without advice.
+- The laya fine-tune question stays "no case": text laya follows its rule; the one general laya-vision defect found
+  (block scale) was fixed in code.
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced
