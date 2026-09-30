@@ -5,6 +5,10 @@ per-opponent means, its 95% interval a two-level bootstrap (resample opponents, 
 
 A verdict needs every pair to line up and every job to have finished ("NO VERDICT" otherwise), and at least MIN_OPPS
 opponents with MIN_ROUNDS paired rounds each ("TOO FEW" otherwise: a smoke run is not evidence).
+
+Within one opponent, the rounds of one lesson-loop run share its lessons (and Qwen's luck), so they are not independent
+either: ``run_level`` treats the RUN (seed) as the unit - the mean of per-run means, its 95% interval a two-level
+bootstrap (resample runs, then rounds within each); a verdict needs MIN_RUNS runs ("TOO FEW" otherwise).
 """
 import os
 import random
@@ -14,6 +18,7 @@ REPS = 4000
 BOOT_SEED = 0
 MIN_OPPS = 2
 MIN_ROUNDS = 10
+MIN_RUNS = 3
 
 
 def hp(r: Dict) -> int:
@@ -51,18 +56,37 @@ def verdict(lo: float, hi: float) -> str:
     return "HELPS" if lo > 0 else "HURTS" if hi < 0 else "NOT SHOWN"
 
 
+def _boot2(groups: Sequence[Sequence[float]], reps: int, seed: int) -> Tuple[float, float]:
+    """95% interval of the mean of group means: resample groups, then values within each."""
+    rng, boot = random.Random(seed), []
+    for _ in range(reps):
+        pick = [rng.choice(groups) for _ in groups]
+        boot.append(sum(sum(rng.choice(d) for _ in d) / len(d) for d in pick) / len(pick))
+    boot.sort()
+    return boot[int(0.025 * reps)], boot[int(0.975 * reps) - 1]
+
+
+def run_level(runs: Sequence[Sequence[float]], reps: int = REPS, seed: int = BOOT_SEED) -> Dict:
+    """One opponent's paired differences, one list per run: the run as the unit (see the module doc)."""
+    runs = [list(r) for r in runs if r]
+    if not runs:
+        return {"runs": 0, "rounds": 0, "verdict": "NO VERDICT", "why": "no paired rounds"}
+    means = [sum(r) / len(r) for r in runs]
+    lo, hi = _boot2(runs, reps, seed)
+    out = {"runs": len(runs), "rounds": sum(map(len, runs)), "mean": sum(means) / len(means), "ci95": [lo, hi],
+           "verdict": verdict(lo, hi)}
+    if len(runs) < MIN_RUNS:
+        out.update(verdict="TOO FEW", why="a verdict needs %d+ runs" % MIN_RUNS)
+    return out
+
+
 def pooled(by_opp: Dict[str, Sequence[float]], reps: int = REPS, seed: int = BOOT_SEED) -> Dict:
     """Pooled over opponents, the opponent as the unit (see the module doc)."""
     opps = [o for o, d in sorted(by_opp.items()) if d]
     means = [sum(by_opp[o]) / len(by_opp[o]) for o in opps]
     if not opps:
         return {"opponents": 0, "paired_rounds": 0, "verdict": "NO VERDICT", "why": "no paired rounds"}
-    rng, boot = random.Random(seed), []
-    for _ in range(reps):
-        pick = [by_opp[rng.choice(opps)] for _ in opps]
-        boot.append(sum(sum(rng.choice(d) for _ in d) / len(d) for d in pick) / len(pick))
-    boot.sort()
-    lo, hi = boot[int(0.025 * reps)], boot[int(0.975 * reps) - 1]
+    lo, hi = _boot2([by_opp[o] for o in opps], reps, seed)
     out = {"opponents": len(opps), "paired_rounds": sum(len(by_opp[o]) for o in opps),
            "mean": sum(means) / len(means), "ci95": [lo, hi], "verdict": verdict(lo, hi)}
     if len(opps) < MIN_OPPS or min(len(by_opp[o]) for o in opps) < MIN_ROUNDS:
