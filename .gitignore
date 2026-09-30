@@ -32,3 +32,4 @@ memory_seeds/
 locks/*/artifacts/
 # Value fine-tune dataset (scripts/build_value_data.py): all8 rows in note v2 + value rows + rollouts/lv_value; local only
 test_data_v2/
+test_data_v3/
