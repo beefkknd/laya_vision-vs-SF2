@@ -12,9 +12,19 @@ is shown lessons by: range and what he is doing):
     top3                      share where laya-vision had the named move in its top 3; compliance_in_top3 /
                               compliance_out_top3 split compliance by it ("text laya ignored it" vs "rated out")
     shortlist                 share where the named move was on text laya's shortlist (rows that log one)
+    by_rating                 {word: n, followed}: the decisions split by laya-vision's rating of the named move there,
+                              from the logged shortlist: "likely works" / "may work" / "likely fails", "off shortlist"
+                              (not offered), "walk in" (forward), "not logged" (a row without a shortlist). A soft
+                              lesson is dropped by the label rule where its move "likely fails" (sf2.system1.advice)
 Pooled (decision-weighted) by polarity, by the named move's kind (attack / block / forward) and by prompt
 (loop/run.json ``prompt``; missing = views). Unfinished runs (no verdict.json) are listed as skipped; a run that
 cannot be read is listed in ``failures``, never dropped silently.
+
+follows_rule: per arm (loop, none), by rule (soft / hard / vision / walk / nothing_left), by opponent and by opponent x
+rule: the share of decisions where text laya picked an answer of its own label rule (logged per decision as
+``follows_rule`` with ``rule``, sf2.system1.advisor.choose) - the direct measure of text laya, where compliance above
+also counts laya-vision's ratings; rows that do not log it are counted in ``not_logged``. ``nothing_left``: decisions
+per arm and opponent where the avoid lessons ruled out every move on the shortlist and forward.
 
 From loop/ledger.jsonl: Qwen claims mentioning an opponent move the lesson grammar cannot name (fireball, dragon
 punch, ...), per word per opponent, with example ``why`` texts; and the number of ``problems`` entries.
@@ -108,7 +118,30 @@ def lesson_evidence(line: str, loop: List[Dict], none: List[Dict]) -> Dict:
             "n_out_top3": len(rated_out),
             "followed_out_top3": sum(follows(les.polarity, les.move, a) for a in rated_out),
             "shortlist_n": sum(les.move in a["shortlist"] for a in with_sl), "shortlist_rows": len(with_sl),
-            "shortlist": share(sum(les.move in a["shortlist"] for a in with_sl), len(with_sl))}
+            "shortlist": share(sum(les.move in a["shortlist"] for a in with_sl), len(with_sl)),
+            "by_rating": by_rating(les.polarity, les.move, mine)}
+
+
+NOT_LOGGED, OFF, WALK = "not logged", "off shortlist", "walk in"
+
+
+def rated(move: str, row: Dict) -> str:
+    """laya-vision's rating word for ``move`` at this decision, from the logged shortlist."""
+    sl = row.get("shortlist")
+    if not sl:
+        return NOT_LOGGED
+    if move == FORWARD:
+        return WALK
+    return sl[move] if sl.get(move) else OFF
+
+
+def by_rating(polarity: str, move: str, rows: List[Dict]) -> Dict[str, Dict[str, int]]:
+    out: Dict[str, Dict[str, int]] = {}
+    for a in rows:
+        c = out.setdefault(rated(move, a), {"n": 0, "followed": 0})
+        c["n"] += 1
+        c["followed"] += follows(polarity, move, a)
+    return out
 
 
 def situation_mismatch(acts: List[Dict]) -> int:
@@ -133,7 +166,10 @@ def run_evidence(run: str) -> Dict:
         loop = [a for a in arms["loop"]["actions"] if a["round"] in rounds]
         none = [a for a in arms["none"]["actions"] if a["round"] in rounds]
         lessons.append(dict(lesson_evidence(line, loop, none), rounds=len(rounds)))
+    rules = {arm: [[a["rule"], bool(a["follows_rule"])] if "follows_rule" in a and "rule" in a else None
+                   for a in arms[arm]["actions"]] for arm in ARMS}
     return {"run": run, "opp": opp, "prompt": prompt, "decisions": {a: len(arms[a]["actions"]) for a in ARMS},
+            "rules": rules,
             "situation_mismatch": situation_mismatch(arms["loop"]["actions"]),
             "lessons": lessons, "no_move_lines": no_move}
 
@@ -144,7 +180,15 @@ def pool(lessons: Sequence[Dict]) -> Dict:
     t3 = sum(x["top3_n"] for x in lessons)
     sn, sk = sum(x["shortlist_rows"] for x in lessons), sum(x["shortlist_n"] for x in lessons)
     comp, base = share(k, n), share(bk, bn)
-    return {"lessons": len(lessons), "applied_lessons": sum(x["n"] > 0 for x in lessons), "n": n, "followed": k,
+    words: Dict[str, Dict[str, int]] = {}
+    for x in lessons:
+        for w, c in x.get("by_rating", {}).items():
+            got = words.setdefault(w, {"n": 0, "followed": 0})
+            got["n"] += c["n"]
+            got["followed"] += c["followed"]
+    return {"compliance_by_rating": {w: dict(c, compliance=share(c["followed"], c["n"]))
+                                     for w, c in sorted(words.items())},
+            "lessons": len(lessons), "applied_lessons": sum(x["n"] > 0 for x in lessons), "n": n, "followed": k,
             "compliance": comp, "base_n": bn, "base_followed": bk, "base": base,
             "effect": comp - base if comp is not None and base is not None else None,
             "top3": share(t3, n), "shortlist": share(sk, sn),
@@ -159,6 +203,27 @@ def group(runs: List[Dict], key) -> Dict[str, Dict]:
         for x in r["lessons"]:
             out.setdefault(key(r, x), []).append(x)
     return {k: pool(v) for k, v in sorted(out.items())}
+
+
+def _rate(rows: List[List]) -> Dict:
+    k = sum(f for _, f in rows)
+    return {"n": len(rows), "followed": k, "rate": share(k, len(rows))}
+
+
+def follows_rule(runs: List[Dict]) -> Dict:
+    """Text laya against its own label rule, per arm: by rule, by opponent, by opponent x rule (see the module doc)."""
+    out: Dict = {"not_logged": {}, "nothing_left": {}}
+    opps = sorted({r["opp"] for r in runs})
+    for arm in ARMS:
+        logged = [(r["opp"], x) for r in runs for x in r["rules"][arm] if x is not None]
+        out["not_logged"][arm] = sum(x is None for r in runs for x in r["rules"][arm])
+        rules = sorted({x[0] for _, x in logged})
+        out[arm] = {"by_rule": {k: _rate([x for _, x in logged if x[0] == k]) for k in rules},
+                    "by_opp": {o: _rate([x for p, x in logged if p == o]) for o in opps},
+                    "by_opp_rule": {o: {k: _rate([x for p, x in logged if p == o and x[0] == k]) for k in rules
+                                        if any(p == o and x[0] == k for p, x in logged)} for o in opps}}
+        out["nothing_left"][arm] = {o: sum(p == o and x[0] == "nothing_left" for p, x in logged) for o in opps}
+    return out
 
 
 def mentions(ledgers: Dict[str, List[Dict]]) -> Dict:
@@ -216,8 +281,10 @@ def collect(roots: Sequence[str] = ROOTS) -> Dict:
             "by_prompt_polarity": group(runs, lambda r, x: "%s/%s" % (r["prompt"], x["polarity"])),
             "by_opp": group(runs, lambda r, x: r["opp"]),
             "situation_mismatch": sum(r["situation_mismatch"] for r in runs),
+            "follows_rule": follows_rule(runs),
             "opponent_moves": mentions(ledgers), "ledger_problems": problems(ledgers),
-            "failures": failures, "skipped_unfinished": skipped, "runs": runs}
+            "failures": failures, "skipped_unfinished": skipped,
+            "runs": [{k: v for k, v in r.items() if k != "rules"} for r in runs]}      # per-decision rules: summed
 
 
 def main(argv: Optional[List[str]] = None) -> int:

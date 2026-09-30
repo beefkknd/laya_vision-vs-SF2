@@ -173,3 +173,48 @@ def test_main_writes_json(tmp_path):
     out = os.path.join(str(tmp_path), "o", "ev.json")
     assert E.main(["--root", str(tmp_path), "--out", out]) == 0
     assert json.load(open(out))["all"]["n"] == 1
+
+
+# --- 2026-09-29 review, finding 7: follows_rule (text laya vs its label rule), the rating word, nothing_left ---
+
+def ruled(row, rule, follows, shortlist=None):
+    return dict(row, rule=rule, follows_rule=follows, **({"shortlist": shortlist} if shortlist is not None else {}))
+
+
+def test_follows_rule_per_rule_and_opponent_both_arms(tmp_path):
+    loop = [ruled(act("hp"), "soft", True), ruled(act("hp"), "soft", False), ruled(act("mp"), "vision", True),
+            ruled(act("forward"), "nothing_left", False), act("lp")]                       # the last: not logged
+    none = [ruled(act("mp"), "vision", True), ruled(act("mp"), "walk", True)]
+    make_run(tmp_path, "a_honda", loop, none, ["use more hp up close"], opp="honda")
+    make_run(tmp_path, "b_ken", [ruled(act("hp"), "hard", True)], [ruled(act("mp"), "vision", False)],
+             ["always hp up close"], opp="ken")
+    f = E.collect([str(tmp_path)])["follows_rule"]
+    assert f["loop"]["by_rule"]["soft"] == {"n": 2, "followed": 1, "rate": 0.5}
+    assert f["loop"]["by_rule"]["nothing_left"] == {"n": 1, "followed": 0, "rate": 0.0}
+    assert f["loop"]["by_opp"]["honda"] == {"n": 4, "followed": 2, "rate": 0.5}
+    assert f["loop"]["by_opp"]["ken"]["rate"] == 1.0
+    assert f["none"]["by_opp"]["ken"] == {"n": 1, "followed": 0, "rate": 0.0}
+    assert f["loop"]["by_opp_rule"]["honda"]["vision"]["n"] == 1
+    assert f["not_logged"] == {"loop": 1, "none": 0}
+    assert f["nothing_left"] == {"loop": {"honda": 1, "ken": 0}, "none": {"honda": 0, "ken": 0}}
+
+
+def test_compliance_split_by_the_rating_word_of_the_named_move(tmp_path):
+    line = "use more hp up close"
+    sl = lambda word: {"hp": word, "mp": "may work", "forward": None}          # noqa: E731
+    loop = [ruled(act("hp"), "soft", True, sl("likely works")), ruled(act("hp"), "soft", True, sl("likely works")),
+            ruled(act("mp"), "vision", True, sl("likely fails")), ruled(act("hp"), "vision", False, sl("likely fails")),
+            ruled(act("mp"), "vision", True, {"mp": "may work", "forward": None}), act("hp")]
+    x = lesson(E.run_evidence(make_run(tmp_path, "r_ken", loop, [act("mp")], [line])), line)
+    assert x["by_rating"] == {"likely works": {"n": 2, "followed": 2}, "likely fails": {"n": 2, "followed": 1},
+                              "off shortlist": {"n": 1, "followed": 0}, "not logged": {"n": 1, "followed": 1}}
+    p = E.pool([x])["compliance_by_rating"]
+    assert p["likely works"] == {"n": 2, "followed": 2, "compliance": 1.0}
+    assert p["likely fails"]["compliance"] == 0.5
+
+
+def test_a_lesson_naming_forward_is_rated_walk_in(tmp_path):
+    line = "use more forward up close"
+    loop = [ruled(act("forward"), "soft", True, {"hp": "likely fails", "forward": None})]
+    x = lesson(E.run_evidence(make_run(tmp_path, "r_ken", loop, [act("mp")], [line])), line)
+    assert x["by_rating"] == {"walk in": {"n": 1, "followed": 1}}
