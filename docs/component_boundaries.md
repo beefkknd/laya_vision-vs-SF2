@@ -81,11 +81,28 @@ verifier registered almost nothing; the gain came from lessons on test.
   set is the worked example.
 - 22 harness / analysis defects found and fixed or opened (docs/harness_ledger.md); none changes a result above.
 
+## Offline replay of "rank by expected damage" (2026-09-30, before any decision)
+
+No-advice games with every laya-vision score logged (logs/ab/scores_none: 6 opponents x 4 seeds x 15 rounds, 12,246
+decisions; play byte-identical to before the logging change). Damage when a move hits, over all logs: Bird Kick 46,
+Lightning Legs 36, throw 35.5, hp 28.6, sweep 24.7 ... lp 18.3.
+
+- laya-vision sees the throw correctly: its throw score averages 0.56 up close (throws done up close hit 51%, net
+  +10.2 per try), 0.14 at mid range, 0.02 far away. It is hidden only by the ranking.
+- Ranked by P(hit) x damage, the throw enters the top 3 up close in 74-98% of decisions (today 0-33%), against every
+  opponent. But the same ranking pushes the Bird Kick from 82% to 97% of decisions (already in the top 3 most of the
+  time, and slow and punishable per every source; avoiding it vs Zangief hurt only because she then walks in), and
+  gives blocks no value (54% -> 0%).
+- So the defect is laya-vision's target, not its eyes: it predicts a hit, while the choice needs the net outcome
+  (damage dealt minus taken, including being punished). Expected damage is a crude code patch that ignores risk and
+  blocks; predicting value (net per decision) is a change to what laya-vision learns - a fine-tune, general across
+  opponents, which is the owner's criterion for one.
+
 ## What this says about the decisions ahead
 
-1. laya-vision's ranking (P(hit), not value) is the root of the biggest miss, and it is general. Two ways to act: in
-   code (rank the shortlist by expected damage, like the block-scale fix), or a laya-vision fine-tune that predicts
-   value. The owner decides.
+1. laya-vision's ranking (P(hit), not value) is the root of the biggest miss, and it is general. The replay above shows
+   a code patch (expected damage) is crude; a laya-vision fine-tune that predicts value (net per decision) is the
+   principled fix. The owner decides.
 2. Text laya's two untrained cases (lessons naming forward; nothing left) are general. Cheapest: the verifier refuses
    lessons naming forward (System 1 cannot follow them reliably) and the rule never ends with nothing to pick; or a
    text-laya fine-tune with those cases in its data. The owner decides.
