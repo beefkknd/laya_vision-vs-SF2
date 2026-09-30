@@ -69,7 +69,8 @@ def play(args) -> int:
         # reserve it a second time)
         cmds.append(((opp, seed), [sys.executable, os.path.join("scripts", "play_system1.py"), "--one", "chunli",
                                    str(PORTS["ab"][0] + i), "--model", args.model, "--opp", opp, "--games", str(GAMES),
-                                   "--memory", "none", "--seed", str(seed), "--out", out]))
+                                   "--memory", "none", "--seed", str(seed), "--out", out]
+                    + (["--oracle", args.oracle] if args.oracle else [])))
     failed = fan_out(cmds, os.path.join("logs", "lv_inplay", args.arm), job_gb=VISION_JOB_GB)
     for f in failed:
         print("FAILED", f)
@@ -82,6 +83,7 @@ def main() -> int:
     p = sub.add_parser("play")
     p.add_argument("--arm", required=True)
     p.add_argument("--model", required=True)
+    p.add_argument("--oracle", default=None, help="a lookup-table ranking (with --model none)")
     r = sub.add_parser("report")
     r.add_argument("--new", default="new")
     r.add_argument("--old", default="old")

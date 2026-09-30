@@ -25,6 +25,7 @@ from sf2.system2.memory import load, short_path
 from sf2.system1.system1 import System1, play_round
 from sf2.vocab import FIGHTERS
 from sf2.data.vs_sweep import actions
+from sf2.data import value_oracle
 
 
 
@@ -39,8 +40,9 @@ def play_one(args, me: str, port: int) -> int:
     out = os.path.join(args.out, me)
     img_dir = os.path.join(out, "images")
     os.makedirs(img_dir, exist_ok=True)
-    s1 = System1(None if args.model == "random" else args.model, me, args.threshold, args.device, args.seed,
-                 explore=args.explore)
+    oracle = value_oracle.load(args.oracle) if args.oracle else None
+    s1 = System1(None if args.model in ("random", "none") else args.model, me, args.threshold, args.device, args.seed,
+                 explore=args.explore, oracle=oracle)
     if args.memory != "none":     # the short memory vs THIS opponent: a new opponent has its own (or no) file
         s1.short = load(short_path(me, opp, args.memory), list(actions(me)))
     print("%s vs %s: short memory %s" % (me, opp, "%d lessons" % len(s1.short["lessons"]) if s1.short else "empty"),
@@ -99,6 +101,8 @@ def main() -> int:
     ap.add_argument("--explore", type=float, default=0.0,
                     help="value data (docs/plan_laya_vision_value.md): play a random move of System 1's choices with "
                          "this probability, else laya-vision's pick")
+    ap.add_argument("--oracle", default=None,
+                    help="a lookup-table value ranking (sf2.data.value_oracle json); play it with --model none")
     ap.add_argument("--log-dir", default=os.path.join("logs", "system1"),
                     help="process logs <dir>/<char>.log (one dir per parallel invocation, or their logs collide)")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
@@ -110,7 +114,7 @@ def main() -> int:
     cmds = [((c,), [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model",
                     args.model, "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
                     "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp,
-                    "--explore", str(args.explore)]
+                    "--explore", str(args.explore)] + (["--oracle", args.oracle] if args.oracle else [])
              + (["--rom", args.rom] if args.rom else [])) for i, c in enumerate(chars)]
     print("%d characters playing (%s/<char>.log)" % (len(cmds), args.log_dir), flush=True)
     failed = [c for (c,) in fan_out(cmds, args.log_dir, job_gb=VISION_JOB_GB)]

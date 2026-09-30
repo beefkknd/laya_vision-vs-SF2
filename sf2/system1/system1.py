@@ -40,6 +40,7 @@ from ..emu.vs import GROUND_Y, NAMES, physical, view
 from ..vocab import bar, range_of
 from ..data.vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
 from ..data.value import expected_net, note_version, value_probs, value_question
+from ..data.value_oracle import rank as oracle_rank
 
 VALUE_KEY = "value:"          # a value checkpoint's question key per move
 
@@ -65,13 +66,19 @@ def choices(me: str) -> List[str]:
 
 class System1:
     def __init__(self, model: Optional[str], me: str, threshold: float = 0.5, device: Optional[str] = None,
-                 seed: int = 0, advisor=None, explore: float = 0.0):
+                 seed: int = 0, advisor=None, explore: float = 0.0, oracle=None):
         """``model`` None: the explorer, a uniformly random move of all the character's actions every decision (for
         live data: every move gets real tries, labelled from RAM)."""
         if not 0.0 <= explore <= 1.0:
             raise ValueError("explore must be in [0, 1], got %r" % explore)
         self.agent, self.rng = None, random.Random(seed)
         self.note_version, self.value = 1, False
+        # the lookup-table value ranking (sf2.data.value_oracle): no model, the table's best move over choices(me)
+        self.oracle = oracle
+        if oracle is not None:
+            if model:
+                raise ValueError("an oracle plays without a model")
+            self.note_version = 2
         # the value-data collector (docs/plan_laya_vision_value.md): with this probability a uniformly random move of
         # choices(me), else laya-vision's pick; its scores are logged either way
         self.explore = explore
@@ -111,6 +118,11 @@ class System1:
 
     def decide(self, prev: np.ndarray, cur: np.ndarray, text: str, situation: Optional[Tuple] = None) -> Dict:
         """``situation`` (range, what he is doing, my bar, his bar) is needed with an advisor."""
+        if self.oracle is not None:
+            values = oracle_rank(self.oracle, text, choices(self.me))
+            action = max(values, key=values.get)
+            return {"action": action, "best": action, "p_hit": None, "predicted": "none", "probs": {},
+                    "values": values}
         if self.agent is None:        # the explorer: any of the character's moves, uniformly (data, not play)
             a = self.rng.choice(list(actions(self.me)))
             return {"action": a, "best": a, "p_hit": None, "predicted": "none", "probs": {}}
