@@ -9,9 +9,10 @@
 Qwen answers {"answer": claim, "stop": claim} (+ "what_if" when stuck); every claim names what he is doing ("when").
 Code verifies exactly as in the two-view prompt (sf2.system2.lessons).
 
-The gap (docs/qwen_learning.md): the logs cannot name his move - the CPU's specials are logged as a plain attack, the
-fireball is not logged - and text laya reads only "when he jumps / crouches / attacks / stands / is stunned" (not
-retrained, owner 2026-09-29). Qwen is told how to say his moves in those words instead.
+The gap (docs/qwen_learning.md): text laya reads only "when he jumps / crouches / attacks / stands / is stunned" (not
+retrained, owner 2026-09-29), so Qwen is told how to say his moves in those words. New runs log his move per decision
+(``opp_move``, sf2/system1/opp_moves.py): "his threats" name it then (a fireball, an uppercut, ...); older play data
+lacks it and keeps the coarse wording (jumps in / attacks on the ground / hits her from afar), byte for byte.
 """
 import collections
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -59,10 +60,22 @@ WHAT_IF_JSON = (',\n "what_if": {"kind": "use_more|always", "move": "...", "rang
                 '"when": "jumping|crouching|attacking|standing|stunned", "why": "one short sentence"}')
 
 
+# His move as the threat, when the log names it (opp_move); "normal" and "none" keep the coarse wording.
+MOVE_THREATS = {"fireball": "hits with a fireball", "uppercut": "hits with an uppercut",
+                "hurricane": "hits with a hurricane kick", "slap": "hits with the hundred hand slap",
+                "throw": "throws her", "jump_attack": "jumps in"}
+MOVE_NOTE = ("(His moves are named from the game's memory. A lesson still says them in its own words, by what he is "
+             "doing when she decides and the range: a fireball is \"when he attacks\" far away or at mid range; an "
+             "uppercut, a hurricane kick or a throw is \"when he attacks\" or \"when he jumps\" up close.)")
+
+
 def threat(a: Dict) -> Optional[str]:
-    """What of his hurt her after this decision of hers (None when she took nothing)."""
+    """What of his hurt her after this decision of hers (None when she took nothing): his move when it is logged
+    (``opp_move``), else what he was doing (jumps in, attacks on the ground, hits her from afar)."""
     if not a.get("taken"):
         return None
+    if a.get("opp_move") in MOVE_THREATS:
+        return MOVE_THREATS[a["opp_move"]]
     reaction = a.get("opp_reaction") or []
     if a.get("opp_air") or "jump" in reaction:
         return "jumps in"
@@ -148,7 +161,8 @@ def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Seq
     parts = [
         record(all_rounds, last_rounds),
         "What she knows about %s so far:\n%s" % (opp, _registry(reg)),
-        "HIS THREATS - what he did that hurt her, all games:\n%s" % ("\n".join(threats(rows)) or "(none)"),
+        "HIS THREATS - what he did that hurt her, all games:\n%s" % ("\n".join(threats(rows)) or "(none)")
+        + ("\n" + MOVE_NOTE if any(a.get("opp_move") in MOVE_THREATS for a in list(rows) + list(last)) else ""),
         "HIS THREATS - the last game:\n%s" % ("\n".join(threats(last)) or "(none)"),
         "IF YOU SEE - her answers in each of his situations, all games (the most damage to her first):\n\n%s" % (
             "\n\n".join(if_you_see(rows, moves, terms=fgc)) or "(not enough yet)")]
