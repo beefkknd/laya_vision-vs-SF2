@@ -108,6 +108,17 @@ def report(s: Dict) -> None:
             print("POOLED %-22s %s  (%s)" % (arm, v["verdict"], v.get("why", "")))
 
 
+def run_root(seed: int, base: str = os.path.join("rollouts", "ab"), stamp: Optional[str] = None) -> str:
+    """This batch's own folder, <stamp>_s<seed>; an existing one is refused, never shared (harness ledger #21: two
+    batches launched in the same second wrote into one folder and interleaved their logs)."""
+    root = os.path.join(base, "%s_s%d" % (stamp or time.strftime("%Y%m%d-%H%M%S"), seed))
+    try:
+        os.makedirs(root)
+    except FileExistsError:
+        raise SystemExit("%s exists: another batch with this seed started in the same second" % root)
+    return root
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--char", default="chunli")
@@ -137,8 +148,7 @@ def main() -> int:
     if "none" not in arms:
         raise SystemExit("the control arm 'none' is required")
     seed = int(time.time()) % 100000 if args.seed is None else args.seed
-    root = os.path.join("rollouts", "ab", time.strftime("%Y%m%d-%H%M%S"))
-    os.makedirs(root, exist_ok=True)
+    root = run_root(seed)
     rows = code_coach.attacks(me)                  # play data only: A/B, notebook and --fresh runs are excluded
     runs = []
     for opp in opps:                               # freeze what is tested, before anything plays

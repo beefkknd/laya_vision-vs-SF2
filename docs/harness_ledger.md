@@ -27,6 +27,8 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 | 17 | 09-29 | 485 "nothing_left" decisions vs Honda | avoid lessons ruled out the whole shortlist | R | shortlist skips avoided moves (7d85eb7); 18 left (forward avoided too) | test_block_scale |
 | 18 | 09-30 | "use more block_low far away when he attacks" changed nothing | a soft lesson cannot override "likely fails" (by design) | R | none needed: "always" is the hard form | Ryu batch |
 | 19 | 09-30 | Qwen never found "use more throw up close" vs Ryu (+42 hp/round when tested) | she threw 13 times in 2,259 decisions (laya-vision rarely rates it high), so the data Qwen reads never showed it; the what-if never tried it | LV (exploration) -> Q | players' tips, verified by A/B (docs/prereg_ryu_expert.md) | fixed_arms_report |
+| 21 | 09-30 | the Ken expert batch lost (529 broken log lines) | two ab_memory batches launched in the same second shared one rollouts/ab/<stamp> folder and interleaved their writes | H | folder <stamp>_s<seed>, an existing one refused | test_ab_root |
+| 22 | 09-30 | the players' main advice vs Honda (keep away, walk back) cannot be given | System 1 picks only attacks, blocks and forward: no walk back | R (action set) | open - an owner decision | Honda batch |
 | 20 | 09-29 | a laya fine-tune looked needed (soft lessons "followed 48%") | the metric mixed text laya with laya-vision's ratings; text laya follows its rule 98-100% | S | follows_rule reported (dbe6eec) | test_laya_evidence |
 
 Text laya (TL): no defect found. It follows its label rule 98-100% per rule and per opponent; its limit is the grammar
