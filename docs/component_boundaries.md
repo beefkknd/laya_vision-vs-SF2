@@ -15,6 +15,33 @@ with `scripts/boundary.py` (per-line traces: docs/boundary/*.json), plus the har
 | players' set - Qwen's set | +13.5 (not shown) | **+44.1** | **+46.8** |
 | rounds won of 120: none / throw | 32 / 54 | 13 / 50 | 10 / 26 |
 
+## Six opponents (2026-09-30): the three new ones (docs/prereg_new_opponents.md)
+
+| hp per round vs no advice (seed as unit) | Ryu | Ken | Honda | Zangief | Guile | Dhalsim |
+|---|---|---|---|---|---|---|
+| use more throw up close | **+42.4** | **+64.0** | **+49.5** | **+19.9** | **+59.8** | **+37.5** |
+| always throw up close | - | - | - | +19.9 (same decisions) | +59.8 (same) | **+46.7** (+9.2 over "use more") |
+| rounds won of 120: none -> throw | 32 -> 54 | 13 -> 50 | 10 -> 26 | 25 -> 45 | 41 -> 72 | 25 -> 58 |
+| players' set | +37.9 | +57.9 | +17.0 | **-27.3 hurts** | +29.7 | +8.2 |
+| Qwen's loop (character_fgc, own runs) | +14.1 (8) | +31.2 (8) | -7.6 (8) | -5.8 (4) | **+14.6 (4)** | -22.1 (4) |
+
+The throw helps against all six, including Zangief and Dhalsim whose throws outreach hers: the claim that laya-vision's
+P(hit) ranking hides a high-value move is general. Up close the throw is in laya-vision's top 3 in 0-19% of decisions
+against every opponent; named by a lesson it is rarely vetoed ("use more" and "always" played the same decisions vs
+Zangief and Guile).
+
+New boundary - substitution: "avoid spinning_bird_kick" alone vs Zangief -44.7 [-64.8, -25.5] (0 of 120 rounds won).
+Without advice she uses it in 36% of decisions and it nets better than her other options there; ruled out, every
+other option reads "likely fails", so the rule falls back to walking in (2,646 walks) - into Zangief. The players'
+advice (arcade) was wrong for this bot for that reason; Qwen proposed the same "avoid" 29 times vs Zangief, and the
+verifier's per-situation yardstick agreed (history: Bird Kick worse than her other moves there). What replaces a
+ruled-out move is decided by laya-vision's ratings and the rule's walk fallback, which neither Qwen nor the verifier
+sees.
+
+Qwen vs the new opponents: never proposed the throw vs Zangief or Guile; proposed it twice vs Dhalsim (still on test at
+the end). Registered "use more forward" (walking in) in every Zangief and Dhalsim run. Against Guile (no history) the
+verifier registered almost nothing; the gain came from lessons on test.
+
 ## laya-vision (LV): it ranks by chance to hit, so it hides high-value moves - general
 
 - The throw: up close it is in laya-vision's top 3 in 0% (Ken), 2% (Honda), 19% (Ryu) of decisions, yet when a lesson

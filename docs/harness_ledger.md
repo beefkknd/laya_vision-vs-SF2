@@ -30,6 +30,7 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 | 20 | 09-29 | a laya fine-tune looked needed (soft lessons "followed 48%") | the metric mixed text laya with laya-vision's ratings; text laya follows its rule 98-100% | S | follows_rule reported (dbe6eec) | test_laya_evidence |
 | 21 | 09-30 | the Ken expert batch lost (529 broken log lines) | two ab_memory batches launched in the same second shared one rollouts/ab/<stamp> folder and interleaved their writes | H | folder <stamp>_s<seed>, an existing one refused | test_ab_root |
 | 22 | 09-30 | the players' main advice vs Honda (keep away, walk back) cannot be given | System 1 picks only attacks, blocks and forward: no walk back | R (action set) | open - an owner decision | Honda batch |
+| 23 | 09-30 | "avoid spinning_bird_kick" vs Zangief lost 44.7 hp/round (players, Qwen and the verifier all backed it) | ruling out her one non-failing move leaves only "likely fails" moves, so the rule falls back to walking in; the verifier compares within a situation and cannot see the substitute | R / V | open | Zangief batch, boundary trace |
 
 Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
 forward, nothing left) - docs/component_boundaries.md.

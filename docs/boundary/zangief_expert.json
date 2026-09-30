@@ -1,0 +1,829 @@
+[
+ {
+  "line": "use more mk at mid range when he jumps",
+  "move": "mk",
+  "polarity": "soft",
+  "where": "mid",
+  "when": "jumping",
+  "arm": "antiair",
+  "arms_with_line": [
+   "antiair",
+   "expert"
+  ],
+  "V": {
+   "decisions": 283,
+   "top3": 0,
+   "top3_share": 0.0,
+   "offered": 0,
+   "offered_share": 0.0,
+   "ratings": {},
+   "vision_best": 0,
+   "vision_best_share": 0.0,
+   "picked": 0,
+   "picked_share": 0.0
+  },
+  "R": {
+   "decisions": 336,
+   "offered": 336,
+   "says": 29,
+   "says_share": 0.08630952380952381,
+   "why_not": {
+    "likely fails": 307
+   },
+   "rules": {
+    "vision": 171,
+    "soft": 29,
+    "walk": 136
+   },
+   "ratings": {
+    "likely fails": 307,
+    "may work": 29
+   },
+   "logged": 336,
+   "logged_mismatch": 0
+  },
+  "T": {
+   "decisions": 336,
+   "follows": 336,
+   "follows_share": 1.0,
+   "rule_says": 29,
+   "picked": 29,
+   "pick_share": 1.0
+  },
+  "G": {
+   "arm": {
+    "tries": 29,
+    "others": 307,
+    "net": -17.103448275862068,
+    "base": 2.804560260586319,
+    "diff": -19.908008536448385,
+    "lo": -25.27661047769732,
+    "hi": -14.539406595199448,
+    "cls": "worse"
+   },
+   "none": {
+    "tries": 0,
+    "others": 283,
+    "net": 0.0,
+    "base": 2.646643109540636,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "use_arm": 0.08630952380952381,
+   "use_none": 0.0,
+   "ab": {
+    "runs": 8,
+    "rounds": 120,
+    "mean": 7.6,
+    "ci95": [
+     -4.825,
+     18.916666666666668
+    ],
+    "verdict": "NOT SHOWN"
+   }
+  },
+  "Q": {
+   "ledgers": 4,
+   "exact": 2,
+   "exact_runs": 2,
+   "exact_states": {
+    "testing": 1,
+    "refused": 1
+   },
+   "exact_whys": {
+    "to be tried in play": 1,
+    "already 3 claims in test": 1
+   },
+   "final_states": {
+    "testing": 1
+   },
+   "naming": {
+    "use_more": 4
+   },
+   "history": {
+    "tries": 0,
+    "others": 489,
+    "net": 0.0,
+    "base": -1.0838445807770962,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   }
+  },
+  "H": {
+   "ab": "NOT SHOWN",
+   "expected": null,
+   "states": {},
+   "agree": null
+  },
+  "breaks": [
+   "vision: mk in top 3 only 0% of 283 decisions where the line applies -> rarely offered without advice",
+   "rule: says mk only 9%; mostly likely fails (307 of 307)",
+   "game: mk nets worse per try than her other decisions there (29 tries)"
+  ],
+  "diagnosis": "vision: mk in top 3 only 0% of 283 decisions where the line applies -> rarely offered without advice"
+ },
+ {
+  "line": "avoid spinning_bird_kick",
+  "move": "spinning_bird_kick",
+  "polarity": "neg",
+  "where": null,
+  "when": null,
+  "arm": "avoidsbk",
+  "arms_with_line": [
+   "avoidsbk",
+   "expert"
+  ],
+  "V": {
+   "decisions": 2123,
+   "top3": 1778,
+   "top3_share": 0.8374941121055111,
+   "offered": 1778,
+   "offered_share": 0.8374941121055111,
+   "ratings": {
+    "likely works": 313,
+    "likely fails": 702,
+    "may work": 763
+   },
+   "vision_best": 871,
+   "vision_best_share": 0.41026848798869525,
+   "picked": 761,
+   "picked_share": 0.35845501648610456
+  },
+  "R": {
+   "decisions": 5830,
+   "offered": 0,
+   "says": 5830,
+   "says_share": 1.0,
+   "why_not": {},
+   "rules": {
+    "vision": 3184,
+    "walk": 2646
+   },
+   "ratings": {},
+   "logged": 5830,
+   "logged_mismatch": 0
+  },
+  "T": {
+   "decisions": 5830,
+   "follows": 5830,
+   "follows_share": 1.0,
+   "rule_says": 5830,
+   "picked": 5830,
+   "pick_share": 1.0
+  },
+  "G": {
+   "arm": {
+    "tries": 0,
+    "others": 5830,
+    "net": 0.0,
+    "base": -1.8902229845626073,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "none": {
+    "tries": 761,
+    "others": 1362,
+    "net": 0.8370565045992115,
+    "base": -4.622613803230544,
+    "diff": 5.4596703078297555,
+    "lo": 3.118956276581349,
+    "hi": 7.800384339078162,
+    "cls": "better"
+   },
+   "use_arm": 0.0,
+   "use_none": 0.35845501648610456,
+   "ab": {
+    "runs": 8,
+    "rounds": 120,
+    "mean": -44.675,
+    "ci95": [
+     -64.84166666666667,
+     -25.46666666666667
+    ],
+    "verdict": "HURTS"
+   }
+  },
+  "Q": {
+   "ledgers": 4,
+   "exact": 0,
+   "exact_runs": 0,
+   "exact_states": {},
+   "exact_whys": {},
+   "final_states": {},
+   "naming": {
+    "avoid": 29
+   },
+   "history": {
+    "tries": 20,
+    "others": 1950,
+    "net": -11.75,
+    "base": -1.0866666666666667,
+    "diff": -10.663333333333334,
+    "lo": -19.148962259024543,
+    "hi": -2.177704407642123,
+    "cls": "worse"
+   }
+  },
+  "H": {
+   "ab": "HURTS",
+   "expected": "rejected",
+   "states": {},
+   "agree": null
+  },
+  "breaks": [
+   "game: the A/B says it hurts (-44.7 hp per round)"
+  ],
+  "diagnosis": "game: the A/B says it hurts (-44.7 hp per round)"
+ },
+ {
+  "line": "use more c.mk at mid range when he stands",
+  "move": "c.mk",
+  "polarity": "soft",
+  "where": "mid",
+  "when": "standing",
+  "arm": "cmk",
+  "arms_with_line": [
+   "cmk",
+   "expert"
+  ],
+  "V": {
+   "decisions": 1035,
+   "top3": 317,
+   "top3_share": 0.30628019323671496,
+   "offered": 317,
+   "offered_share": 0.30628019323671496,
+   "ratings": {
+    "likely works": 172,
+    "may work": 86,
+    "likely fails": 59
+   },
+   "vision_best": 207,
+   "vision_best_share": 0.2,
+   "picked": 37,
+   "picked_share": 0.035748792270531404
+  },
+  "R": {
+   "decisions": 1053,
+   "offered": 1053,
+   "says": 388,
+   "says_share": 0.3684710351377018,
+   "why_not": {
+    "likely fails": 665
+   },
+   "rules": {
+    "soft": 388,
+    "vision": 433,
+    "walk": 232
+   },
+   "ratings": {
+    "likely works": 193,
+    "likely fails": 665,
+    "may work": 195
+   },
+   "logged": 1053,
+   "logged_mismatch": 0
+  },
+  "T": {
+   "decisions": 1053,
+   "follows": 1053,
+   "follows_share": 1.0,
+   "rule_says": 388,
+   "picked": 388,
+   "pick_share": 1.0
+  },
+  "G": {
+   "arm": {
+    "tries": 388,
+    "others": 665,
+    "net": 3.8118556701030926,
+    "base": -3.4511278195488724,
+    "diff": 7.262983489651965,
+    "lo": 5.002263854426403,
+    "hi": 9.523703124877528,
+    "cls": "better"
+   },
+   "none": {
+    "tries": 37,
+    "others": 998,
+    "net": 2.4594594594594597,
+    "base": -6.186372745490982,
+    "diff": 8.645832204950441,
+    "lo": 2.9640024737115613,
+    "hi": 14.32766193618932,
+    "cls": "better"
+   },
+   "use_arm": 0.3684710351377018,
+   "use_none": 0.035748792270531404,
+   "ab": {
+    "runs": 8,
+    "rounds": 120,
+    "mean": 9.491666666666667,
+    "ci95": [
+     -8.875,
+     27.76666666666667
+    ],
+    "verdict": "NOT SHOWN"
+   }
+  },
+  "Q": {
+   "ledgers": 4,
+   "exact": 4,
+   "exact_runs": 3,
+   "exact_states": {
+    "testing": 2,
+    "refused": 2
+   },
+   "exact_whys": {
+    "to be tried in play": 2,
+    "already 2 claims in test": 1,
+    "already testing": 1
+   },
+   "final_states": {
+    "testing": 2
+   },
+   "naming": {
+    "use_more": 9
+   },
+   "history": {
+    "tries": 88,
+    "others": 579,
+    "net": -3.840909090909091,
+    "base": -0.9965457685664939,
+    "diff": -2.844363322342597,
+    "lo": -6.5826858350491655,
+    "hi": 0.893959190363971,
+    "cls": "unclear"
+   }
+  },
+  "H": {
+   "ab": "NOT SHOWN",
+   "expected": null,
+   "states": {},
+   "agree": null
+  },
+  "breaks": [
+   "rule: says c.mk only 37%; mostly likely fails (665 of 665)"
+  ],
+  "diagnosis": "rule: says c.mk only 37%; mostly likely fails (665 of 665)"
+ },
+ {
+  "line": "use more sweep when he attacks",
+  "move": "sweep",
+  "polarity": "soft",
+  "where": null,
+  "when": "attacking",
+  "arm": "sweepatt",
+  "arms_with_line": [
+   "expert",
+   "sweepatt"
+  ],
+  "V": {
+   "decisions": 283,
+   "top3": 233,
+   "top3_share": 0.823321554770318,
+   "offered": 233,
+   "offered_share": 0.823321554770318,
+   "ratings": {
+    "may work": 50,
+    "likely fails": 58,
+    "likely works": 125
+   },
+   "vision_best": 164,
+   "vision_best_share": 0.5795053003533569,
+   "picked": 106,
+   "picked_share": 0.3745583038869258
+  },
+  "R": {
+   "decisions": 325,
+   "offered": 325,
+   "says": 223,
+   "says_share": 0.6861538461538461,
+   "why_not": {
+    "likely fails": 102
+   },
+   "rules": {
+    "walk": 37,
+    "soft": 223,
+    "vision": 65
+   },
+   "ratings": {
+    "likely fails": 102,
+    "may work": 64,
+    "likely works": 159
+   },
+   "logged": 325,
+   "logged_mismatch": 0
+  },
+  "T": {
+   "decisions": 325,
+   "follows": 325,
+   "follows_share": 1.0,
+   "rule_says": 223,
+   "picked": 223,
+   "pick_share": 1.0
+  },
+  "G": {
+   "arm": {
+    "tries": 223,
+    "others": 102,
+    "net": -5.2959641255605385,
+    "base": 9.323529411764707,
+    "diff": -14.619493537325244,
+    "lo": -20.10168993255914,
+    "hi": -9.137297142091347,
+    "cls": "worse"
+   },
+   "none": {
+    "tries": 106,
+    "others": 177,
+    "net": -5.39622641509434,
+    "base": 1.615819209039548,
+    "diff": -7.012045624133888,
+    "lo": -13.269664627550434,
+    "hi": -0.7544266207173438,
+    "cls": "worse"
+   },
+   "use_arm": 0.6861538461538461,
+   "use_none": 0.3745583038869258,
+   "ab": {
+    "runs": 8,
+    "rounds": 120,
+    "mean": -3.2416666666666667,
+    "ci95": [
+     -17.766666666666666,
+     7.791666666666667
+    ],
+    "verdict": "NOT SHOWN"
+   }
+  },
+  "Q": {
+   "ledgers": 4,
+   "exact": 0,
+   "exact_runs": 0,
+   "exact_states": {},
+   "exact_whys": {},
+   "final_states": {},
+   "naming": {
+    "use_more": 12,
+    "avoid": 8
+   },
+   "history": {
+    "tries": 58,
+    "others": 138,
+    "net": 6.620689655172414,
+    "base": -2.4855072463768115,
+    "diff": 9.106196901549225,
+    "lo": 3.7672078408843133,
+    "hi": 14.445185962214136,
+    "cls": "better"
+   }
+  },
+  "H": {
+   "ab": "NOT SHOWN",
+   "expected": null,
+   "states": {},
+   "agree": null
+  },
+  "breaks": [
+   "game: sweep nets worse per try than her other decisions there (223 tries)"
+  ],
+  "diagnosis": "game: sweep nets worse per try than her other decisions there (223 tries)"
+ },
+ {
+  "line": "use more c.mk far away when he jumps",
+  "move": "c.mk",
+  "polarity": "soft",
+  "where": "far",
+  "when": "jumping",
+  "arm": "expert",
+  "arms_with_line": [
+   "expert"
+  ],
+  "V": {
+   "decisions": 16,
+   "top3": 0,
+   "top3_share": 0.0,
+   "offered": 0,
+   "offered_share": 0.0,
+   "ratings": {},
+   "vision_best": 0,
+   "vision_best_share": 0.0,
+   "picked": 0,
+   "picked_share": 0.0
+  },
+  "R": {
+   "decisions": 130,
+   "offered": 130,
+   "says": 0,
+   "says_share": 0.0,
+   "why_not": {
+    "likely fails": 130
+   },
+   "rules": {
+    "walk": 130
+   },
+   "ratings": {
+    "likely fails": 130
+   },
+   "logged": 130,
+   "logged_mismatch": 0
+  },
+  "T": {
+   "decisions": 130,
+   "follows": 130,
+   "follows_share": 1.0,
+   "rule_says": 0,
+   "picked": 0,
+   "pick_share": null
+  },
+  "G": {
+   "arm": {
+    "tries": 0,
+    "others": 130,
+    "net": 0.0,
+    "base": 0.0,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "none": {
+    "tries": 0,
+    "others": 16,
+    "net": 0.0,
+    "base": 6.4375,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "use_arm": 0.0,
+   "use_none": 0.0,
+   "ab": null
+  },
+  "Q": {
+   "ledgers": 4,
+   "exact": 0,
+   "exact_runs": 0,
+   "exact_states": {},
+   "exact_whys": {},
+   "final_states": {},
+   "naming": {
+    "use_more": 9
+   },
+   "history": {
+    "tries": 0,
+    "others": 33,
+    "net": 0.0,
+    "base": 0.0,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   }
+  },
+  "H": {
+   "ab": null,
+   "expected": null,
+   "states": {},
+   "agree": null
+  },
+  "breaks": [
+   "vision: c.mk in top 3 only 0% of 16 decisions where the line applies -> rarely offered without advice",
+   "rule: says c.mk only 0%; mostly likely fails (130 of 130)"
+  ],
+  "diagnosis": "vision: c.mk in top 3 only 0% of 16 decisions where the line applies -> rarely offered without advice"
+ },
+ {
+  "line": "use more throw up close",
+  "move": "throw",
+  "polarity": "soft",
+  "where": "close",
+  "when": null,
+  "arm": "throw",
+  "arms_with_line": [
+   "throw"
+  ],
+  "V": {
+   "decisions": 169,
+   "top3": 21,
+   "top3_share": 0.1242603550295858,
+   "offered": 21,
+   "offered_share": 0.1242603550295858,
+   "ratings": {
+    "may work": 3,
+    "likely works": 18
+   },
+   "vision_best": 18,
+   "vision_best_share": 0.10650887573964497,
+   "picked": 13,
+   "picked_share": 0.07692307692307693
+  },
+  "R": {
+   "decisions": 164,
+   "offered": 164,
+   "says": 164,
+   "says_share": 1.0,
+   "why_not": {},
+   "rules": {
+    "soft": 164
+   },
+   "ratings": {
+    "may work": 22,
+    "likely works": 142
+   },
+   "logged": 164,
+   "logged_mismatch": 0
+  },
+  "T": {
+   "decisions": 164,
+   "follows": 164,
+   "follows_share": 1.0,
+   "rule_says": 164,
+   "picked": 164,
+   "pick_share": 1.0
+  },
+  "G": {
+   "arm": {
+    "tries": 164,
+    "others": 0,
+    "net": 3.6646341463414633,
+    "base": 0.0,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "none": {
+    "tries": 13,
+    "others": 156,
+    "net": -4.6923076923076925,
+    "base": -14.384615384615385,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "use_arm": 1.0,
+   "use_none": 0.07692307692307693,
+   "ab": {
+    "runs": 8,
+    "rounds": 120,
+    "mean": 19.866666666666667,
+    "ci95": [
+     4.875,
+     35.15
+    ],
+    "verdict": "HELPS"
+   }
+  },
+  "Q": {
+   "ledgers": 4,
+   "exact": 0,
+   "exact_runs": 0,
+   "exact_states": {},
+   "exact_whys": {},
+   "final_states": {},
+   "naming": {},
+   "history": {
+    "tries": 3,
+    "others": 47,
+    "net": 16.333333333333332,
+    "base": -10.042553191489361,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   }
+  },
+  "H": {
+   "ab": "HELPS",
+   "expected": "registered",
+   "states": {},
+   "agree": null
+  },
+  "breaks": [
+   "Qwen: never proposed it; her history had 3 tries (few); with no advice she picks throw 8% there"
+  ],
+  "diagnosis": "Qwen: never proposed it; her history had 3 tries (few); with no advice she picks throw 8% there"
+ },
+ {
+  "line": "always throw up close",
+  "move": "throw",
+  "polarity": "hard",
+  "where": "close",
+  "when": null,
+  "arm": "throwhard",
+  "arms_with_line": [
+   "throwhard"
+  ],
+  "V": {
+   "decisions": 169,
+   "top3": 21,
+   "top3_share": 0.1242603550295858,
+   "offered": 21,
+   "offered_share": 0.1242603550295858,
+   "ratings": {
+    "may work": 3,
+    "likely works": 18
+   },
+   "vision_best": 18,
+   "vision_best_share": 0.10650887573964497,
+   "picked": 13,
+   "picked_share": 0.07692307692307693
+  },
+  "R": {
+   "decisions": 164,
+   "offered": 164,
+   "says": 164,
+   "says_share": 1.0,
+   "why_not": {},
+   "rules": {
+    "hard": 164
+   },
+   "ratings": {
+    "may work": 22,
+    "likely works": 142
+   },
+   "logged": 164,
+   "logged_mismatch": 0
+  },
+  "T": {
+   "decisions": 164,
+   "follows": 164,
+   "follows_share": 1.0,
+   "rule_says": 164,
+   "picked": 164,
+   "pick_share": 1.0
+  },
+  "G": {
+   "arm": {
+    "tries": 164,
+    "others": 0,
+    "net": 3.6646341463414633,
+    "base": 0.0,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "none": {
+    "tries": 13,
+    "others": 156,
+    "net": -4.6923076923076925,
+    "base": -14.384615384615385,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   },
+   "use_arm": 1.0,
+   "use_none": 0.07692307692307693,
+   "ab": {
+    "runs": 8,
+    "rounds": 120,
+    "mean": 19.866666666666667,
+    "ci95": [
+     4.875,
+     35.15
+    ],
+    "verdict": "HELPS"
+   }
+  },
+  "Q": {
+   "ledgers": 4,
+   "exact": 0,
+   "exact_runs": 0,
+   "exact_states": {},
+   "exact_whys": {},
+   "final_states": {},
+   "naming": {},
+   "history": {
+    "tries": 3,
+    "others": 47,
+    "net": 16.333333333333332,
+    "base": -10.042553191489361,
+    "diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "cls": "few"
+   }
+  },
+  "H": {
+   "ab": "HELPS",
+   "expected": "registered",
+   "states": {},
+   "agree": null
+  },
+  "breaks": [
+   "Qwen: never proposed it; her history had 3 tries (few); with no advice she picks throw 8% there"
+  ],
+  "diagnosis": "Qwen: never proposed it; her history had 3 tries (few); with no advice she picks throw 8% there"
+ }
+]
