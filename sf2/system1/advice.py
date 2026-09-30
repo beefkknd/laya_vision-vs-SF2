@@ -36,14 +36,26 @@ WORKS_AT, MAY_AT = 0.5, 0.3          # laya-vision's score for an attack, P(hit)
 # a block was never rated above "likely fails" (independent review, docs/reviews/2026-09-29_dr_fable.md).
 BLOCK_WORKS_AT, BLOCK_MAY_AT = 0.2, 0.1
 BLOCK_MOVES = ("block_high", "block_low")
+# The lookup table's scale (sf2.data.value_oracle, docs/prereg_2x2.md): a move's expected net (hp dealt - taken until
+# the next decision) -> words. Chosen so the word mix of the table's top 3 matches runs/all8's shortlist mix on 78,024
+# Chun-Li no-advice decisions: 16.1% likely works / 18.3% may work / 65.6% likely fails. Blocks use the same net scale
+# (a net is a net: no separate block scale).
+NET_WORKS_AT, NET_MAY_AT = 3.0, 1.8
+SCALES = ("p_hit", "net")
 
 INSTRUCTIONS = "Which move do I do now? Follow the advice when it fits this moment."
 
 
-def rating(score: float, move: Optional[str] = None) -> str:
-    """laya-vision's score in words; a block (``move``) on its own scale. Without ``move`` the attack scale (what
-    scripts/build_advice_data.py built text laya's training data with)."""
-    works, may = (BLOCK_WORKS_AT, BLOCK_MAY_AT) if move in BLOCK_MOVES else (WORKS_AT, MAY_AT)
+def rating(score: float, move: Optional[str] = None, scale: str = "p_hit") -> str:
+    """A move's score in words. ``scale`` "p_hit": laya-vision's score, a block (``move``) on its own scale; without
+    ``move`` the attack scale (what scripts/build_advice_data.py built text laya's training data with). "net": the
+    lookup table's expected net in hp, every move (blocks too) on one scale."""
+    if scale not in SCALES:
+        raise ValueError("unknown rating scale %r (one of %s)" % (scale, ", ".join(SCALES)))
+    if scale == "net":
+        works, may = NET_WORKS_AT, NET_MAY_AT
+    else:
+        works, may = (BLOCK_WORKS_AT, BLOCK_MAY_AT) if move in BLOCK_MOVES else (WORKS_AT, MAY_AT)
     return WORKS if score >= works else MAY if score >= may else FAILS
 
 

@@ -82,19 +82,20 @@ class Advisor:
 
 
 def shortlist(scores: Dict[str, float], lessons: Sequence[str], moves: Sequence[str],
-              situation: Tuple[str, str]) -> Dict[str, Optional[str]]:
+              situation: Tuple[str, str], scale: str = "p_hit") -> Dict[str, Optional[str]]:
     """move -> laya-vision's rating in words: the best-rated moves, the moves a "use more" / "always" lesson names
     where that lesson applies (``situation``: range, what he is doing), and forward. A named move is not added where
     its lesson does not apply: laya-vision may rate it well there, and text laya then leans to the named move
     (2026-09-29: "use more c.mk at mid range" made her play c.mk up close 10 -> 134 times). The best-rated moves skip
     those an applying avoid lesson rules out (review 2026-09-29: 485 decisions vs Honda had nothing left to pick);
-    a block is rated on its own scale (``advice.rating``)."""
+    a block is rated on its own scale (``advice.rating``). ``scale`` "net": ``scores`` are the lookup table's expected
+    nets (hp), rated on the net scale."""
     rng, doing = situation
     live = [les for les in (read(t, list(moves) + [FORWARD]) for t in lessons) if les.applies(rng, doing)]
     out_ruled = {les.move for les in live if les.polarity == "neg"}
     best = sorted((m for m in scores if m not in out_ruled), key=scores.get, reverse=True)[:SHORTLIST]
     named = [les.move for les in live if les.move in scores and les.move not in best and les.polarity in ("soft", "hard")]
-    out = {m: rating(scores[m], m) for m in best + sorted(set(named))}
+    out = {m: rating(scores[m], m, scale) for m in best + sorted(set(named))}
     out[FORWARD] = None
     return out
 
@@ -113,11 +114,11 @@ def applicable(lessons: Sequence[str], moves: Sequence[str], situation: Tuple[st
 
 
 def choose(advisor: Advisor, situation: Tuple[str, str, str, str], scores: Dict[str, float],
-           lessons: Sequence[str], moves: Sequence[str]) -> Dict:
+           lessons: Sequence[str], moves: Sequence[str], scale: str = "p_hit") -> Dict:
     """Text laya's pick, with what it saw and what the label rule says (logged, so every game checks it). It reads
-    only the lessons that apply now (``applicable``)."""
+    only the lessons that apply now (``applicable``); ``scale``: what ``scores`` are (``shortlist``)."""
     lessons = applicable(lessons, moves, situation[:2])
-    options = shortlist(scores, lessons, moves, situation[:2])
+    options = shortlist(scores, lessons, moves, situation[:2], scale)
     text = prompt(situation_text(*situation), lessons)
     probs = advisor.ask(text, question(options))
     pick = max(probs, key=probs.get)

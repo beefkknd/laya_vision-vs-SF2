@@ -119,10 +119,7 @@ class System1:
     def decide(self, prev: np.ndarray, cur: np.ndarray, text: str, situation: Optional[Tuple] = None) -> Dict:
         """``situation`` (range, what he is doing, my bar, his bar) is needed with an advisor."""
         if self.oracle is not None:
-            values = oracle_rank(self.oracle, text, choices(self.me))
-            action = max(values, key=values.get)
-            return {"action": action, "best": action, "p_hit": None, "predicted": "none", "probs": {},
-                    "values": values}
+            return self._by_table(text, situation)
         if self.agent is None:        # the explorer: any of the character's moves, uniformly (data, not play)
             a = self.rng.choice(list(actions(self.me)))
             return {"action": a, "best": a, "p_hit": None, "predicted": "none", "probs": {}}
@@ -145,6 +142,20 @@ class System1:
                "predicted": max(probs[best], key=probs[best].get) if action != "forward" else "none",
                "probs": score}
         return self._explore(out, probs, score)
+
+    def _by_table(self, text: str, situation: Optional[Tuple]) -> Dict:
+        """The lookup table's ranking: without an advisor its best move over choices(me), forward included; with one,
+        its expected nets of the attacks and blocks are the scores text laya's shortlist is built from (rated on the
+        net scale, ``advice.rating``), exactly as laya-vision's P(hit) are on the other path. No model: no P(hit),
+        so "probs" (the log's scores / top3) stay empty."""
+        values = oracle_rank(self.oracle, text, choices(self.me))
+        best = max(values, key=values.get)
+        out = {"best": best, "p_hit": None, "predicted": "none", "probs": {}, "values": values}
+        if self.advisor is None:
+            return {"action": best, **out}
+        scores = {m: values[m] for m in self.attacks + self.blocks}
+        c = choose(self.advisor, situation, scores, self.lessons(), self.attacks + self.blocks, scale="net")
+        return dict(c, **out)
 
     def _by_value(self, ans: Dict, probs: Dict, score: Dict) -> Dict:
         """The best expected net (life points dealt - taken until my next decision) over every choice, forward
