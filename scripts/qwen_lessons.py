@@ -11,6 +11,11 @@ From a lock (sf2.eval.lock): --lock NAME --run N repeats the lock's run N with i
 data only (refused when a locked file changed); output under rollouts/locked/NAME/.
 --prompt character: Qwen studies this one opponent - his threats and "if you see X" (sf2.system2.character_prompt);
 the default "views" is the two-view prompt the lock lesson_loop_v1 ran with (sf2.system2.lesson_prompt).
+--book lessons/book.json (scripts/book.py; default: none, the loop as before): the loop arm starts with this opponent's
+verified players' tips in the registry ("verified": never retired, in play first; sf2.system2.lessons.from_book); the
+run file, every ledger row and the verdict name the book and its sha256.
+Since 2026-09-30 claims naming forward are refused and the prompts do not offer it for lessons (text laya was never
+trained on such lessons, docs/component_boundaries.md); --forward-lessons restores both, for a replay of an old run.
 Verdict (rollouts/qwen_lessons/<stamp>_<opp>/verdict.json):
     invariant     no registered lesson ever contradicts its own evidence (code-enforced; a violation is a bug)
     hypotheses    Qwen's valid claims that hold on all the data at the end (qwen_hold_rate), vs 500 random claims
@@ -98,11 +103,36 @@ def load_track(path, opp: str):
     return json.loads(raw)["opponents"].get(opp, {}), hashlib.sha256(raw).hexdigest()
 
 
+def load_book(path, opp: str):
+    """(this opponent's verified lines, sha256 of the book file); ([], None) without a book (scripts/book.py)."""
+    if not path:
+        return [], None
+    with open(path, "rb") as f:
+        raw = f.read()
+    return json.loads(raw)["opponents"].get(opp, {}).get("lines", []), hashlib.sha256(raw).hexdigest()
+
+
+def book_meta(args) -> Dict:
+    """What the run file, the ledger rows and the verdict record about the book ({} without one)."""
+    if not getattr(args, "book", None):
+        return {}
+    return {"book": args.book, "book_sha256": load_book(args.book, args.opp)[1]}
+
+
+def start_registry(args, arm: str) -> L.Registry:
+    """The registry the arm starts with: the loop arm, the book's verified lines for this opponent; else nothing."""
+    if arm != "loop" or not getattr(args, "book", None):
+        return []
+    return L.from_book(load_book(args.book, args.opp)[0], args.book)
+
+
 def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_rounds: List[Dict],
-        last_rounds: List[Dict], refused: List[Dict], stable=None, prompt: str = "views", track=None):
+        last_rounds: List[Dict], refused: List[Dict], stable=None, prompt: str = "views", track=None,
+        forward_lessons: bool = False):
     p = PROMPTS[prompt]
     try:
-        raw = chat(p.messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused, stable, track=track),
+        raw = chat(p.messages(ME, opp, reg, rows, last, all_rounds, last_rounds, MOVES, refused, stable, track=track,
+                              forward_lessons=forward_lessons),
                    "lessons_%s" % opp)
         claims, problems = p.parse_claims(json_reply(raw))
     except Exception as e:                   # Qwen down, cut off or not JSON: no claims this game
@@ -112,7 +142,9 @@ def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_round
 
 def play_arm(args, arm: str, port: int, out: str) -> int:
     base = decisions(args.opp, args.lock) if args.history else []
-    reg: L.Registry = []
+    reg: L.Registry = start_registry(args, arm)
+    book = book_meta(args)
+    unfollowable = () if args.forward_lessons else L.UNFOLLOWABLE
     acts: List[Dict] = []
     played: List[Dict] = []
     refused: List[Dict] = []
@@ -122,7 +154,8 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     os.makedirs(out, exist_ok=True)
     track, digest = load_track(args.track, args.opp)
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock,
-             prompt=args.prompt, track=args.track, track_sha256=digest)       # never play data (sf2.eval.logs)
+             prompt=args.prompt, track=args.track, track_sha256=digest, forward_lessons=args.forward_lessons,
+             **book)                                                          # never play data (sf2.eval.logs)
     with Advisor(args.advisor) as advisor, open_fight(ME, args.opp, port, state=args.state) as (b, state), \
             open_logs(out, ("actions", "rounds", "ledger")) as logs:
         s1 = System1(args.model, ME, advisor=advisor)
@@ -136,15 +169,15 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
             reg = L.review(reg, rows, game, game_hp)
             stable = streak(games, changed)
             claims, problems, raw = ask(args.opp, reg, rows, last, played, last_rounds, refused, stable,
-                                        args.prompt, track)
-            reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES)
+                                        args.prompt, track, args.forward_lessons)
+            reg, outcome = L.propose(reg, claims, rows, game, moves=MOVES, unfollowable=unfollowable)
             changed.append({r["line"] for r in reg if r["state"] == "registered"} != before)
             refused = [o for o in outcome if o["state"] == "refused"]
             logs["ledger"].write(json.dumps({"game": game, "prompt": args.prompt, "stable": stable, "claims": claims, "outcome": outcome,
                                              "problems": problems,
                                              "registry": reg, "in_play": L.in_play(reg),
                                              "violations": L.violations(reg, rows),
-                                             "reply": raw}) + "\n")
+                                             "reply": raw, **book}) + "\n")
             logs["ledger"].flush()
             print("after game %d: %s | in play %s" % (game, ["%s -> %s" % (o.get("line", o["claim"]), o["state"])
                                                             for o in outcome], L.in_play(reg)), flush=True)
@@ -258,6 +291,7 @@ def verdict(root: str, opp: str, history: bool, lock: str = None, prompt: str = 
             "registered_at_proposal": at_proposal, "registered_at_proposal_share": _rate(at_proposal, len(valid)),
             "refused_duplicate": dup, "refused_duplicate_share": _rate(dup, len(outcomes)),
             "registered_at_end": [r["line"] for r in final if r["state"] == "registered"],
+            "verified_at_end": [r["line"] for r in final if r["state"] == "verified"],
             "retired": [r["line"] for r in final if r["state"] == "retired"],
             "won": {"loop": sum(r["result"] == "win" for r in loop), "none": sum(r["result"] == "win" for r in none)},
             "hp_vs_none": ci(d) if d else None,
@@ -314,6 +348,10 @@ def main() -> int:
     ap.add_argument("--prompt", choices=sorted(PROMPTS), default="views", help="what Qwen is asked after each game")
     ap.add_argument("--track", help="a track record file (scripts/track_record.py): shown to Qwen (never a reason to "
                                     "refuse a lesson)")
+    ap.add_argument("--book", help="a book of verified players' tips (scripts/book.py build): the loop starts from "
+                                   "this opponent's lines (default: none)")
+    ap.add_argument("--forward-lessons", action="store_true",
+                    help="offer and accept lessons naming forward again (the loop before 2026-09-30, for replays)")
     ap.add_argument("--lock", help="play from this lock's copies only (sf2.eval.lock)")
     ap.add_argument("--run", type=int, help="with --lock: repeat the lock's run N (its opponent, seed, games)")
     ap.add_argument("--one", nargs=3, metavar=("ARM", "PORT", "OUT"), help=argparse.SUPPRESS)
@@ -330,19 +368,22 @@ def main() -> int:
     root = os.path.join(os.path.join("rollouts", "locked", args.lock) if args.lock else ROOT,
                         "%s_%s%s" % (time.strftime("%Y%m%d-%H%M%S"), args.opp,
                                     ("" if args.prompt == "views" else "_" + args.prompt)
-                                    + ("_track" if args.track else "")))
+                                    + ("_track" if args.track else "") + ("_book" if args.book else "")))
     cmds = [((args.opp, arm), [sys.executable, os.path.abspath(__file__), "--opp", args.opp, "--games",
                                str(args.games), "--rounds", str(args.rounds), "--seed", str(args.seed), "--model",
                                args.model, "--advisor", args.advisor] + ([] if args.history else ["--no-history"])
                               + (["--lock", args.lock] if args.lock else []) + ["--prompt", args.prompt]
                               + (["--track", args.track] if args.track else [])
+                              + (["--book", args.book] if args.book else [])
+                              + (["--forward-lessons"] if args.forward_lessons else [])
                               + ["--one", arm, str(args.base_port + i), os.path.join(root, arm)])
             for i, arm in enumerate(("loop", "none"))]
     print("Chun-Li vs %s: %d games x %d rounds, seed %d; %s/" % (
         args.opp, args.games, args.rounds, args.seed, log_dir(root)), flush=True)
     failed = fan_out(cmds, log_dir(root), job_gb=MODEL_JOB_GB)
     v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, track=args.track,
-             track_sha256=load_track(args.track, args.opp)[1], failed_jobs=[list(k) for k in failed])
+             track_sha256=load_track(args.track, args.opp)[1], forward_lessons=args.forward_lessons,
+             failed_jobs=[list(k) for k in failed], **book_meta(args))
     with open(os.path.join(root, "verdict.json"), "w") as f:
         json.dump(v, f, indent=1)
     print(json.dumps(v, indent=1))

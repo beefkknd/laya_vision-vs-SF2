@@ -17,13 +17,22 @@ while her average when he attacks is about -10: it is better than what she does.
                    round of the games since it began below that of the games before it by more than STOP_DROP, with at
                    least STOP_BEFORE games before it) - the per-decision yardstick cannot see harm to the round (0f)
 
-``in_play``: the lines text laya reads, at most MAX_LINES: the tests first (at most MAX_TESTS), then the registered
-lessons worth the most (``strength``: the difference per decision x decisions). ``cause`` names where damage came
+    verified       a players' tip whose single-line fixed-advice arm helped vs no advice (lessons/book.json,
+                   scripts/book.py; ``from_book``): in the registry from the start, never retired by ``review`` (her
+                   history has too few tries to judge it), and a claim repeating, covered by or contradicting it is
+                   refused like any other
+
+A claim naming a move in UNFOLLOWABLE (forward) is refused: text laya was never trained on lessons naming it
+(docs/component_boundaries.md), so System 1 cannot follow them.
+
+``in_play``: the lines text laya reads, at most MAX_LINES: the verified first, then the tests (at most MAX_TESTS, and
+only as many as the verified leave room for), then the registered lessons worth the most (``strength``: the
+difference per decision x decisions). ``cause`` names where damage came
 from, for the defense view. Nothing here calls Qwen.
 """
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..system1.advice import opp_doing
+from ..system1.advice import FORWARD, opp_doing
 from ..vocab import RANGE_WORDS, RANGES
 from .move_coach import MIN_TRIES
 
@@ -40,6 +49,12 @@ TEST_GAMES = 3         # games a "use more" claim is tried before it is judged
 # the checks a test would get; 60 in 4.4% (per 3-game test 8.3%). tests/test_early_stop.py holds it under 5%.
 STOP_DROP = 60.0       # hp per round
 STOP_BEFORE = 2        # games before the claim began, at least
+
+UNFOLLOWABLE = (FORWARD,)
+UNFOLLOWABLE_WHY = "System 1 cannot follow lessons naming %s (text laya untrained, docs/component_boundaries.md)"
+LIVE = ("verified", "testing", "registered")      # the states a new claim must not repeat or contradict
+VERIFIED_NOTE = ("(A verified lesson is a players' tip proven in play against him, vs no advice: it stays in play. "
+                 "Do not repeat or contradict it.)")
 
 Claim = Dict
 Registry = List[Dict]
@@ -108,25 +123,27 @@ def cause(a: Dict) -> Optional[str]:
     return {"hit": "traded", "whiff": "punished", "blocked": "punished"}.get(a.get("actual"), "stuffed")
 
 
-def _refusal(reg: Registry, c, tried: set, moves: set) -> Optional[str]:
+def _refusal(reg: Registry, c, tried: set, moves: set, unfollowable: Sequence[str] = UNFOLLOWABLE) -> Optional[str]:
     if not isinstance(c, dict) or c.get("kind") not in KINDS or not isinstance(c.get("move"), str):
         return "not a claim: %.80r" % (c,)
     if c.get("range") not in (None,) + RANGES or c.get("when") not in (None,) + tuple(WHEN_WORDS):
         return "range must be close / mid / far or none, when one of %s or none" % ", ".join(WHEN_WORDS)
     if c["move"] not in moves:
         return "%s is not one of her moves" % c["move"]
+    if c["move"] in unfollowable:
+        return UNFOLLOWABLE_WHY % c["move"]
     if c["move"] not in tried and c["kind"] == "avoid":
         return "she never used %s: nothing to avoid" % c["move"]
     for r in reg:
-        if key(r["claim"]) == key(c) and r["state"] in ("testing", "registered"):
+        if key(r["claim"]) == key(c) and r["state"] in LIVE:
             return "already %s" % r["state"]
         if key(r["claim"]) == key(c) and r["state"] == "rejected" and not r["why"].startswith("too few"):
             return "already rejected: %s" % r["why"]
         same = RIGHT[r["claim"]["kind"]] == RIGHT[c["kind"]]
-        if r["state"] in ("testing", "registered") and same and _covers(r["claim"], c):
+        if r["state"] in LIVE and same and _covers(r["claim"], c):
             return "covered by the %s lesson %r" % (r["state"], r["line"])
         exception = _covers(r["claim"], c) and key(r["claim"])[2:] != key(c)[2:]     # strictly narrower: allowed
-        if r["state"] in ("testing", "registered") and not same and _overlap(r["claim"], c) and not exception:
+        if r["state"] in LIVE and not same and _overlap(r["claim"], c) and not exception:
             return "contradicts the %s lesson %r" % (r["state"], r["line"])
     return None
 
@@ -156,26 +173,35 @@ def _judge(c: Claim, ev: Dict) -> Tuple[str, str]:
 
 
 def propose(reg: Registry, claims: Sequence, rows: Sequence[Dict], game: int,
-            moves: Optional[Sequence[str]] = None) -> Tuple[Registry, List[Dict]]:
+            moves: Optional[Sequence[str]] = None,
+            unfollowable: Sequence[str] = UNFOLLOWABLE) -> Tuple[Registry, List[Dict]]:
     """Take Qwen's claims: each is refused (invalid, known, contradicting) or judged. ``moves``: her whole move set (a
     "use more" / "always" may name a move she never used: it is tried in play); default: the moves in ``rows``.
     A claim opposite to a lesson but for a strictly narrower situation is an exception, judged on its own data (text
     laya's rule: an applying avoid rules the move out even where a use more applies). The track record
-    (sf2.system2.track_record) is only shown to Qwen, never a reason to refuse. Returns a new registry."""
+    (sf2.system2.track_record) is only shown to Qwen, never a reason to refuse. A claim naming a move in
+    ``unfollowable`` is refused (() = the loop before 2026-09-30). A test is taken only while it can be in play
+    (MAX_LINES minus the verified lines). Returns a new registry."""
     reg = [dict(r) for r in reg]
     tried = {a["action"] for a in rows}
     moves = set(moves) if moves is not None else tried
     out = []
     for c in claims:
-        why = _refusal(reg, c, tried, moves)
+        why = _refusal(reg, c, tried, moves, unfollowable)
         if why:
             out.append({"claim": c, "state": "refused", "why": why})
             continue
         ev = condition_evidence(rows, c)
         state, why = _judge(c, ev)
         limit = MAX_TESTS + (c.get("view") == "what_if")       # a what-if gets its own slot
-        if state == "testing" and sum(r["state"] == "testing" for r in reg) >= limit:
+        testing = sum(r["state"] == "testing" for r in reg)
+        if state == "testing" and testing >= limit:
             out.append({"claim": c, "state": "refused", "why": "already %d claims in test" % limit})
+            continue
+        room = MAX_LINES - sum(r["state"] == "verified" for r in reg)
+        if state == "testing" and testing >= room:
+            out.append({"claim": c, "state": "refused", "why": "already %d claims in test: the other %d lines in play "
+                        "are verified" % (testing, MAX_LINES - room)})
             continue
         entry = _entry(c, state, why, game, ev, c.get("why", ""))
         reg.append(entry)
@@ -219,18 +245,47 @@ def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Seq
             r.update(state="retired", why="no longer clearly %s: %s" % (right, _vs(ev)), evidence=ev)
         elif r["state"] == "registered":
             r["evidence"] = ev
+        # verified: kept as it is - its evidence is the A/B in play, which her per-situation history cannot judge
         out.append(r)
     return out
 
 
 def in_play(reg: Registry) -> List[str]:
+    verified = [r["line"] for r in reg if r["state"] == "verified"]
     tests = [r["line"] for r in reg if r["state"] == "testing"][:MAX_TESTS + 1]
     lessons = sorted((r for r in reg if r["state"] == "registered"), key=lambda r: -strength(r))
-    return tests + [r["line"] for r in lessons][:MAX_LINES - len(tests)]
+    return (verified + tests + [r["line"] for r in lessons])[:MAX_LINES]
 
 
 def violations(reg: Registry, rows: Sequence[Dict]) -> List[str]:
-    """Registered lessons their own evidence does not support (must always be empty after ``review``)."""
+    """Registered lessons their own evidence does not support (must always be empty after ``review``). Verified
+    lessons are not judged here: their evidence is the A/B in play (``from_book``)."""
     return [r["line"] for r in reg if r["state"] == "registered"
             and condition_evidence(rows, r["claim"])["cls"] != RIGHT[r["claim"]["kind"]]]
 
+
+
+ORDER = {"use_more": 0, "always": 1, "avoid": 2}     # on a tie in the book, the softer line (the owner-named one)
+
+
+def _tip_why(t: Dict) -> str:
+    return "players' tip, verified in play: %+.0f hp/round vs no advice (95%% %+.0f to %+.0f, %d seeds, %s)" % (
+        t["mean"], t["ci95"][0], t["ci95"][1], t["runs"], t["batch"])
+
+
+def from_book(tips: Sequence[Dict], book: str, game: int = -1) -> Registry:
+    """One opponent's verified lines (lessons/book.json, scripts/book.py) as registry entries, the best A/B mean
+    first. A line covered by one already taken in the same direction (the same move and conditions, "use more" or
+    "always"; or a narrower one) is left out: it would only take a slot. A line whose claim does not render to it
+    stops the loop (ValueError)."""
+    reg: Registry = []
+    for t in sorted(tips, key=lambda t: (-t["mean"], ORDER[t["claim"]["kind"]], t["line"])):
+        c = dict(t["claim"], view="book")
+        if render(c) != t["line"]:
+            raise ValueError("book line %r does not render from its claim (%r)" % (t["line"], render(c)))
+        if any(RIGHT[r["claim"]["kind"]] == RIGHT[c["kind"]] and _covers(r["claim"], c) for r in reg):
+            continue
+        ev = {"source": "players' tip", "book": book, "arm": t["arm"], "mean": t["mean"], "ci95": list(t["ci95"]),
+              "runs": t["runs"], "seeds": list(t["seeds"]), "batch": t["batch"]}
+        reg.append(_entry(c, "verified", _tip_why(t), game, ev))
+    return reg

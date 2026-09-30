@@ -76,7 +76,7 @@ def test_the_verifier_does_not_refuse_on_the_record(tmp_path):
     assert track[BAD]["verdict"] == "hurts"
     claim = {"kind": "use_more", "move": "forward", "range": "mid", "when": "jumping"}
     assert "track" not in inspect.signature(L.propose).parameters
-    _, out = L.propose([], [claim], [], 0, moves=["forward"])
+    _, out = L.propose([], [claim], [], 0, moves=["forward"], unfollowable=())          # forward: refused since 2026-09-30
     assert out[0]["state"] == "testing"
     assert not hasattr(T, "violations") and not hasattr(T, "hurts")          # nothing left that could refuse
 

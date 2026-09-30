@@ -7,7 +7,8 @@
     record         rounds won and lost, damage per round (sf2.system2.lesson_prompt.record)
 
 Qwen answers {"answer": claim, "stop": claim} (+ "what_if" when stuck); every claim names what he is doing ("when").
-Code verifies exactly as in the two-view prompt (sf2.system2.lessons).
+Code verifies exactly as in the two-view prompt (sf2.system2.lessons). Her moves for lessons (the list and "never
+tried there") leave out forward, which the verifier refuses (2026-09-30); ``forward_lessons=True``: the old prompt.
 
 The gap (docs/qwen_learning.md): text laya reads only "when he jumps / crouches / attacks / stands / is stunned" (not
 retrained, owner 2026-09-29), so Qwen is told how to say his moves in those words. New runs log his move per decision
@@ -21,7 +22,7 @@ from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS
 from . import lessons as L
 from . import track_record as T
-from .lesson_prompt import STREAK, WHAT_IF, _registry, _renderable, _when, record
+from .lesson_prompt import STREAK, WHAT_IF, _registry, _renderable, _when, lesson_moves, record
 
 VIEWS = ("answer", "stop", "what_if")
 MIN_SITUATION = 10     # decisions in a situation of his before it is shown
@@ -154,10 +155,11 @@ def if_you_see(rows: Sequence[Dict], moves: Sequence[str] = (), terms: bool = Fa
 def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
              all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], moves: Sequence[str] = (),
              refused: Sequence[Dict] = (), stable: Optional[str] = None,
-             track: Optional[Dict] = None, fgc: bool = False) -> List[Dict]:
+             track: Optional[Dict] = None, fgc: bool = False, forward_lessons: bool = False) -> List[Dict]:
     """Same signature as sf2.system2.lesson_prompt.messages; ``rows`` = all her decisions against him so far.
-    ``fgc``: situations named the way players do, and a primer on the game and this opponent (``messages_fgc``)."""
-    moves = list(moves) or sorted({a["action"] for a in rows})
+    ``fgc``: situations named the way players do, and a primer on the game and this opponent (``messages_fgc``).
+    ``forward_lessons``: forward still offered for lessons (the prompt before 2026-09-30)."""
+    moves = lesson_moves(list(moves) or sorted({a["action"] for a in rows}), forward_lessons)
     parts = [
         record(all_rounds, last_rounds),
         "What she knows about %s so far:\n%s" % (opp, _registry(reg)),

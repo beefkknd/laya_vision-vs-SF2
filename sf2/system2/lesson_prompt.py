@@ -7,6 +7,9 @@
     record         the last game and all games so far: rounds won and lost, damage dealt and taken per round
 
 Qwen answers {"attack": claim or null, "defense": claim or null}; code verifies (sf2.system2.lessons).
+
+Her moves for lessons leave out those the verifier refuses (sf2.system2.lessons.UNFOLLOWABLE: forward, 2026-09-30);
+the views still show what she did. ``forward_lessons=True``: the prompt before that, byte for byte.
 """
 import collections
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -156,14 +159,22 @@ def overall(rows: Sequence[Dict]) -> List[str]:
 
 
 def _registry(reg: L.Registry) -> str:
-    return "\n".join("- %s: %s (%s)" % (r["state"], r["line"], r["why"]) for r in reg) if reg else "(nothing yet)"
+    if not reg:
+        return "(nothing yet)"
+    note = ["", L.VERIFIED_NOTE] if any(r["state"] == "verified" for r in reg) else []
+    return "\n".join(["- %s: %s (%s)" % (r["state"], r["line"], r["why"]) for r in reg] + note)
+
+
+def lesson_moves(moves: Sequence[str], forward_lessons: bool = False) -> List[str]:
+    """The moves offered for lessons: without those System 1 cannot follow (``forward_lessons``: the old list)."""
+    return list(moves) if forward_lessons else [m for m in moves if m not in L.UNFOLLOWABLE]
 
 
 def messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
              all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], moves: Sequence[str] = (),
              refused: Sequence[Dict] = (), stable: Optional[str] = None,
-             track: Optional[Dict] = None) -> List[Dict]:
-    moves = list(moves) or sorted({a["action"] for a in rows})
+             track: Optional[Dict] = None, forward_lessons: bool = False) -> List[Dict]:
+    moves = lesson_moves(list(moves) or sorted({a["action"] for a in rows}), forward_lessons)
     parts = [
         record(all_rounds, last_rounds),
         "What she knows about %s so far:\n%s" % (opp, _registry(reg)),
