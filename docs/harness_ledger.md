@@ -34,5 +34,7 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 | 24 | 09-30 | the memory budget said 144 GB, the machine used ~176 GB (footprint incl. GPU buffers) | Qwen's server (74-106 GB, grows with concurrent requests) is outside the ledger; each run starts its own text laya copy in float32 (6.3 GB each, 12-18 copies) | H | open - approved plan: one shared text laya server; count Qwen in the budget | footprint by process type |
 | 25 | 09-30 | 34 GB free when the book round's last wave started next to the value-data collection | I raised the budget to 175 GB for the collection (the ledger over-reserves the book runs) and wave 4's model-loading spike landed on top | H | wave 2 of the collection waits for the book round; watchdog < 30 GB | Monitor |
 
+| 26 | 09-30 | run 2's offline calibration gate would also reject the lookup table (monotone in 2 of 9 files, spread 3.5-13.2 on 1,000-decision samples) although the table won +81 hp/round in play | a quintile calibration of one noisy net per decision (sd ~16 hp) is not a test of choosing among moves; my gate, found by GPT-6's analysis | S | future value gates use regret on branched states (every move from one frame), docs/reviews/2026-09-30_*finetune_decision.md | - |
+
 Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
 forward, nothing left) - docs/component_boundaries.md.
