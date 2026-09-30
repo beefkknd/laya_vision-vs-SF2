@@ -39,6 +39,9 @@ from .policy import make_state
 from ..emu.vs import GROUND_Y, NAMES, physical, view
 from ..vocab import bar, range_of
 from ..data.vs_sweep import MOVEMENT, actions, note, outcome, outcome_question
+from ..data.value import expected_net, note_version, value_probs, value_question
+
+VALUE_KEY = "value:"          # a value checkpoint's question key per move
 
 WAIT = 4              # idle frames per step while the fighter cannot act (the 4-frame prev/now gap)
 MAX_RECOVER = 90      # frames to wait after an attack for the fighter to be able to act again
@@ -68,14 +71,15 @@ class System1:
         if not 0.0 <= explore <= 1.0:
             raise ValueError("explore must be in [0, 1], got %r" % explore)
         self.agent, self.rng = None, random.Random(seed)
+        self.note_version, self.value = 1, False
         # the value-data collector (docs/plan_laya_vision_value.md): with this probability a uniformly random move of
         # choices(me), else laya-vision's pick; its scores are logged either way
         self.explore = explore
         if model:
             import laya
 
-            self.agent = laya.load_vlm(model, device=device)
-            size = self.agent.model.prep.image_size
+            agent = laya.load_vlm(model, device=device)
+            size = agent.model.prep.image_size
             if size != 256:
                 raise SystemExit("%s sees %d px images; the stage-1 data is 256x256" % (model, size))
         self.me, self.threshold = me, threshold
@@ -85,6 +89,20 @@ class System1:
         self.attacks = [a for a in actions(me) if a not in MOVEMENT and a not in BLOCKS]
         self.blocks = list(BLOCKS)
         self.questions = {a: outcome_question(a) for a in self.attacks + self.blocks}
+        if model:
+            self._use(agent)
+
+    def _use(self, agent) -> None:
+        """Play with ``agent``: its checkpoint config says which note it reads (sf2.data.value.note_version) and
+        whether it answers the value questions (a value checkpoint: the move is the best expected net)."""
+        cfg = getattr(agent, "cfg", None) or {}
+        self.agent, self.note_version, self.value = agent, note_version(cfg), bool(cfg.get("value_questions"))
+        if self.value and self.note_version < 2:
+            raise ValueError("a value checkpoint reads note v2 (its config says note_version %d)" % self.note_version)
+        if self.value and self.advisor is not None:
+            raise ValueError("a value checkpoint with an advisor is not wired yet (ratings on the net scale)")
+        if self.value:
+            self.questions = dict(self.questions, **{VALUE_KEY + m: value_question(m) for m in choices(self.me)})
 
     def lessons(self) -> List[str]:
         if not self.advice_on:
@@ -102,6 +120,8 @@ class System1:
         score = {a: probs[a]["hit"] for a in self.attacks}
         score.update({b: probs[b].get("blocked", 0.0) for b in self.blocks})
         best = max(score, key=score.get)
+        if self.value:
+            return self._explore(self._by_value(ans, probs, score), probs, score)
         if self.advisor is not None:
             c = choose(self.advisor, situation, score, self.lessons(), self.attacks + self.blocks)
             action = c["action"]
@@ -112,6 +132,19 @@ class System1:
         out = {"action": action, "best": best, "p_hit": score[best],
                "predicted": max(probs[best], key=probs[best].get) if action != "forward" else "none",
                "probs": score}
+        return self._explore(out, probs, score)
+
+    def _by_value(self, ans: Dict, probs: Dict, score: Dict) -> Dict:
+        """The best expected net (life points dealt - taken until my next decision) over every choice, forward
+        included; the outcome scores are kept for the log."""
+        values = {m: round(expected_net(value_probs(ans[VALUE_KEY + m]["probabilities"])), 2) for m in choices(self.me)}
+        action = max(values, key=values.get)
+        return {"action": action, "best": action, "p_hit": score.get(action),
+                "predicted": max(probs[action], key=probs[action].get) if action in probs else "none",
+                "probs": score, "values": values}
+
+    def _explore(self, out: Dict, probs: Dict, score: Dict) -> Dict:
+        """The value-data collector: with probability ``explore`` a uniformly random move of choices(me) instead."""
         if self.explore > 0:
             out = dict(out, explored=self.rng.random() < self.explore)
             if out["explored"]:
@@ -207,7 +240,7 @@ def _decide(s1: System1, opp: str, r: Dict[str, int], prev, cur) -> Tuple[Dict, 
     """(decision, the note laya-vision read). Without an advisor the short memory goes into laya-vision's note (the
     old path); with one, laya-vision reads the note only (as trained) and the memory goes to text laya."""
     side = "left" if r["p1_x"] < r["p2_x"] else "right"
-    text = note(s1.me, opp, view(r, 1), side)
+    text = note(s1.me, opp, view(r, 1), side, version=s1.note_version)
     if s1.advisor is None:
         text = prompt_text(text, s1.short)
         return s1.decide(prev, cur, text), text
@@ -272,6 +305,8 @@ def _close(game: int, me: str, opp: str, pending) -> Dict:
     for k in ADVICE_KEYS:                         # with an advisor: what text laya read, and what it picked
         if k in d:
             entry[k] = d[k]
+    if "values" in d:                             # a value checkpoint: expected net per move
+        entry["values"] = d["values"]
     if "explored" in d:                           # the value-data collector: a random move, not laya-vision's pick
         entry["explored"] = d["explored"]
     if images:

@@ -34,9 +34,19 @@ def value_bucket(net: int) -> str:
 
 def value_question(action: str) -> Dict:
     """The laya-vision score question for one move. Byte-identical at train and play time: ask it through this
-    function only. The label is list(VALUE_BUCKETS).index(bucket)."""
+    function only. The label is list(VALUE_BUCKETS).index(bucket). laya renders a score option as "level i: <item>"
+    of a list (a dict would show only its keys), so each item carries the bucket's name and words; its answers come
+    back keyed "0".."4" (``value_probs``)."""
     return {"type": "score", "instructions": "If you do %s now, how does the exchange end for me?" % action,
-            "criteria": dict(VALUE_BUCKETS)}
+            "criteria": ["%s: %s" % kv for kv in VALUE_BUCKETS.items()]}
+
+
+def value_probs(answer_probs: Mapping[str, float]) -> Dict[str, float]:
+    """laya's answer to ``value_question`` ({"0": p, ..., "4": p}) -> {bucket: p}."""
+    names = list(VALUE_BUCKETS)
+    if sorted(answer_probs) != [str(i) for i in range(len(names))]:
+        raise ValueError("not a value answer: %r" % sorted(answer_probs))
+    return {names[int(k)]: float(p) for k, p in answer_probs.items()}
 
 
 def expected_net(probs: Mapping[str, float]) -> float:

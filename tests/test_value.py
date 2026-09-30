@@ -2,7 +2,7 @@
 import pytest
 
 from sf2.data.value import (NOTE_VERSIONS, VALUE_BUCKETS, expected_net, note_version, value_bucket,
-                            value_question)
+                            value_probs, value_question)
 from sf2.data.vs_sweep import note
 
 R = {"a_x": 100, "d_x": 165, "a_y": 192, "d_y": 192, "a_life": 176, "d_life": 176, "d_state": 0x00}
@@ -22,7 +22,9 @@ def test_bucket_refuses_non_int():
 def test_value_question_is_an_ordered_score_over_the_buckets():
     q = value_question("throw")
     assert q["type"] == "score" and "throw" in q["instructions"]
-    assert list(q["criteria"]) == list(VALUE_BUCKETS)
+    # a list, in bucket order, each item naming its bucket and its words (laya shows "level i: <item>")
+    assert [c.split(":")[0] for c in q["criteria"]] == list(VALUE_BUCKETS)
+    assert all(VALUE_BUCKETS[c.split(":")[0]] in c for c in q["criteria"])
     assert value_question("throw") == q
 
 
@@ -55,3 +57,10 @@ def test_expected_net_weights_bucket_midpoints():
     assert expected_net({"big_gain": 0.5, "big_loss": 0.5}) == pytest.approx(0.5 * 47.0 - 0.5 * 41.1)
     assert expected_net({"gain": 1.0}) > 0 > expected_net({"loss": 1.0})
     assert expected_net({"big_gain": 1.0}) > expected_net({"gain": 1.0})
+
+
+def test_value_probs_maps_levels_to_buckets():
+    assert value_probs({"0": 0.1, "1": 0.2, "2": 0.4, "3": 0.2, "4": 0.1}) == {
+        "big_loss": 0.1, "loss": 0.2, "even": 0.4, "gain": 0.2, "big_gain": 0.1}
+    with pytest.raises(ValueError):
+        value_probs({"hit": 1.0})
