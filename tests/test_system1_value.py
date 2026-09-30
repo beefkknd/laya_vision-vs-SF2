@@ -84,3 +84,17 @@ def test_bad_note_version_refused():
 def test_value_questions_need_note_v2():
     with pytest.raises(ValueError):
         s1({"value_questions": True})
+
+
+def test_value_checkpoint_refuses_a_short_memory_in_the_note():
+    # review 2026-09-30: play_system1 defaults to --memory memory; the memory line would go into a note v2 the value
+    # checkpoint never saw in training - refused, not silently off-distribution
+    from sf2.system1.system1 import _decide
+    s = s1({"note_version": 2, "value_questions": True})
+    s.short = {"lessons": [{"text": "use more throw up close"}]}
+    r = {"p1_x": 100, "p2_x": 160, "p1_y": 192, "p2_y": 192, "p1_state": 0, "p2_state": 0, "p1_life": 176,
+         "p2_life": 176, "p1_react": 0, "p2_react": 0, "timer": 0x99}
+    with pytest.raises(ValueError):
+        _decide(s, "ryu", r, IMG, IMG)
+    s.short = {"lessons": []}
+    assert _decide(s, "ryu", r, IMG, IMG)[1].endswith("opp_attacking=0")

@@ -33,3 +33,4 @@ def test_value_rows_on_v1_refused():
 def test_empty_refused():
     with pytest.raises(ValueError):
         checkpoint_tags([])
+

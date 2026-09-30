@@ -242,6 +242,8 @@ def _decide(s1: System1, opp: str, r: Dict[str, int], prev, cur) -> Tuple[Dict, 
     side = "left" if r["p1_x"] < r["p2_x"] else "right"
     text = note(s1.me, opp, view(r, 1), side, version=s1.note_version)
     if s1.advisor is None:
+        if s1.value and (s1.short or {}).get("lessons"):
+            raise ValueError("a value checkpoint reads the bare note; play it with --memory none")
         text = prompt_text(text, s1.short)
         return s1.decide(prev, cur, text), text
     return s1.decide(prev, cur, text, situation(r)), text
