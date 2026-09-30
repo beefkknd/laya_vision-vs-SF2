@@ -15,13 +15,15 @@ from sf2.data.dataset import read
 from sf2.eval.stats import paired, run_level
 
 
-def roots(log_dir: str) -> List[str]:
+def roots(log_dir: str, base: str = "") -> List[str]:
+    """The run each seed's log saved (its last "saved" line), under ``base`` (the saved paths are relative to the
+    checkout the batch ran in)."""
     out = []
-    for f in sorted(glob.glob(os.path.join(log_dir, "*.log"))):
+    for f in sorted(glob.glob(os.path.join(base, log_dir, "*.log"))):
         saved = [x.split()[1] for x in open(f) if x.startswith("saved ")]
         if not saved:
             raise SystemExit("%s: no run saved" % f)
-        out.append(saved[-1])
+        out.append(os.path.join(base, saved[-1]))
     return out
 
 
@@ -31,8 +33,8 @@ def arms(root: str, opp: str) -> List[str]:
                   and os.path.isdir(os.path.join(root, n)))
 
 
-def report(log_dir: str, opp: str, vs: List[str]) -> Dict:
-    rs = roots(log_dir)
+def report(log_dir: str, opp: str, vs: List[str], base: str = "") -> Dict:
+    rs = roots(log_dir, base)
     names = arms(rs[0], opp)
     diff: Dict[str, List[List[int]]] = {a: [] for a in names}
     taken: Dict[str, List[List[int]]] = {a: [] for a in names}

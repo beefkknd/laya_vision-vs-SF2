@@ -195,12 +195,14 @@ def test_the_prompt_says_how_to_put_a_named_move_into_a_lesson_only_when_moves_a
 
 
 def test_golden_the_plain_character_prompt_is_byte_identical_without_opp_move():
-    """Pinned at 235d470 on 400 of the lock lesson_loop_v1's decisions per opponent (fields the prompt reads)."""
+    """Pinned at 235d470 on 400 of the lock lesson_loop_v1's decisions per opponent (fields the prompt reads). Since
+    2026-09-30 forward is not offered for lessons (the default); the old prompt is forward_lessons=True, and
+    tests/test_forward_prompts.py pins that only the move lists differ."""
     with open(GOLDEN) as f:
         g = json.load(f)
     for opp, rows in g["rows"].items():
         assert "opp_move" not in rows[0]
-        user = C.messages("chunli", opp, [], rows, rows[-60:], [], [], GOLDEN_MOVES)[1]["content"]
+        user = C.messages("chunli", opp, [], rows, rows[-60:], [], [], GOLDEN_MOVES, forward_lessons=True)[1]["content"]
         assert user == g["text"][opp], opp
 
 
@@ -218,5 +220,5 @@ def test_golden_on_the_whole_locked_play_data(monkeypatch):
     for opp in ("ken", "ryu", "honda"):
         rows = lk.play_rows("lesson_loop_v1", "chunli", opp)
         for fgc in (False, True):
-            m = C.messages("chunli", opp, [], rows, rows[-300:], [], [], GOLDEN_MOVES, fgc=fgc)
+            m = C.messages("chunli", opp, [], rows, rows[-300:], [], [], GOLDEN_MOVES, fgc=fgc, forward_lessons=True)
             assert [len(rows), hashlib.sha256(json.dumps(m).encode()).hexdigest()] == full["%s_%s" % (opp, fgc)]
