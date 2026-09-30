@@ -9,20 +9,35 @@ import os
 import subprocess
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from . import shared_laya
 from .advice import FORWARD, answers, prompt, question, rating, read, situation_text
-from ..config import HF_HOME, MLX_PYTHON, REPO
+from ..config import (HF_HOME, MLX_PYTHON, REPO, TEXT_LAYA_CACHE, TEXT_LAYA_IDLE_S, TEXT_LAYA_SERVER_GB,
+                      TEXT_LAYA_SHARED)
 
 SHORTLIST = 3
 ROOT = REPO
+SERVER = os.path.join(ROOT, "scripts", "text_laya_server.py")
 
 
 class Advisor:
-    def __init__(self, checkpoint: str, python: str = MLX_PYTHON):
+    """Text laya for one run: its own helper process (the default), or with ``shared`` (default
+    config.TEXT_LAYA_SHARED) a client of the one server for this checkpoint (sf2.system1.shared_laya), started if
+    none is running. Both give the same answers; closing a shared client leaves the server to its idle exit."""
+
+    def __init__(self, checkpoint: str, python: str = MLX_PYTHON, shared: Optional[bool] = None,
+                 server: str = SERVER, cache: str = TEXT_LAYA_CACHE, budget_gb: float = TEXT_LAYA_SERVER_GB):
         if checkpoint != "none" and not os.path.exists(os.path.join(checkpoint, "adapter.safetensors")):
             raise SystemExit("no text laya checkpoint at %s" % checkpoint)
         env = dict(os.environ, HF_HOME=HF_HOME, HF_HUB_OFFLINE="1")
         self.checkpoint = checkpoint
-        self.proc = subprocess.Popen([python, os.path.join(ROOT, "scripts", "text_laya_server.py"), checkpoint],
+        self.proc, self.client = None, None
+        if TEXT_LAYA_SHARED if shared is None else shared:
+            sock = shared_laya.socket_path(checkpoint, cache)
+            cmd = [python, server, checkpoint, "--shared", sock, "--idle", str(TEXT_LAYA_IDLE_S),
+                   "--budget-gb", str(budget_gb)]
+            self.client = shared_laya.connect(sock, cmd, env=env, cwd=ROOT)
+            return
+        self.proc = subprocess.Popen([python, server, checkpoint],
                                      cwd=ROOT, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         ready = self._read()
         if "ready" not in ready:
@@ -35,9 +50,12 @@ class Advisor:
         return json.loads(line)
 
     def ask(self, text: str, q: Dict) -> Dict[str, float]:
-        self.proc.stdin.write(json.dumps({"text": text, "question": q}) + "\n")
-        self.proc.stdin.flush()
-        reply = self._read()
+        if self.client is not None:
+            reply = self.client.ask(text, q)
+        else:
+            self.proc.stdin.write(json.dumps({"text": text, "question": q}) + "\n")
+            self.proc.stdin.flush()
+            reply = self._read()
         if "error" in reply:
             raise RuntimeError("text laya: %s" % reply["error"])
         return reply["probabilities"]
@@ -49,8 +67,11 @@ class Advisor:
         self.close()
 
     def close(self) -> None:
-        """Stop the helper; kill it if it does not exit in time (never leaves it running)."""
-        if self.proc.poll() is None:
+        """Stop the helper; kill it if it does not exit in time (never leaves it running). A shared client only
+        disconnects."""
+        if self.client is not None:
+            self.client.close()
+        elif self.proc.poll() is None:
             try:
                 self.proc.stdin.close()
                 self.proc.terminate()

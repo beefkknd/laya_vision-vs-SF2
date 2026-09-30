@@ -77,3 +77,18 @@ JOBS_WAIT_S = 1800.0     # waiting longer than this for room (with none of our o
 MODEL_JOB_GB = 6.0       # laya-vision + text laya (ab_memory, notebook_run)
 VISION_JOB_GB = 3.0      # laya-vision only (play_system1)
 MESEN_JOB_GB = 0.5       # emulator only (vs_dataset collect, verify_replay)
+
+# One shared text laya per checkpoint (sf2.system1.shared_laya): every run's Advisor asks the same server process
+# over a unix socket in TEXT_LAYA_CACHE instead of starting its own ~6.3 GB copy (12-24 copies of the same weights
+# per batch). Off by default (SF2_TEXT_LAYA_SHARED=1 or Advisor(shared=True) turns it on), so the per-run subprocess
+# path that existing locks and results come from stays what runs. The server exits after TEXT_LAYA_IDLE_S with no
+# client, and reserves TEXT_LAYA_SERVER_GB once in the jobs ledger.
+TEXT_LAYA_SHARED = _env("SF2_TEXT_LAYA_SHARED", "0").lower() in ("1", "true", "yes", "on")
+TEXT_LAYA_CACHE = _env("SF2_TEXT_LAYA_CACHE", "~/.cache/sf2")
+TEXT_LAYA_IDLE_S = 300.0      # a shared server with no client for this long exits
+TEXT_LAYA_TIMEOUT_S = 120.0   # one request with no reply for this long is an error (a dead or stuck server)
+TEXT_LAYA_START_S = JOBS_WAIT_S + 600.0   # starting a server: its budget wait + loading the model
+TEXT_LAYA_SERVER_GB = 6.5     # one float32 text laya with its GPU buffers (~6.3 GB measured per helper)
+# A game run whose text laya is the shared server: laya-vision ~1.9 GB + emulator ~0.2 GB (footprint measurements),
+# rounded up. Not yet any runner's default: MODEL_JOB_GB stays until the owner switches.
+RUN_JOB_SHARED_GB = 2.5
