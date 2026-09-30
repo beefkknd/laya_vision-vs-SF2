@@ -108,3 +108,22 @@ Lightning Legs 36, throw 35.5, hp 28.6, sweep 24.7 ... lp 18.3.
    text-laya fine-tune with those cases in its data. The owner decides.
 3. Qwen needs exploration it cannot get from her history: verified players' tips as a starting book (a verified-tip
    status judged by its round record), or a what-if that tries moves laya-vision never ranks.
+
+## The verified-tip book in Qwen's loop (2026-09-30, docs/prereg_book.md)
+
+48 runs (6 opponents x seeds 71001-71004, loop with vs without `--book lessons/book.json`, the same no-advice arm per
+seed); all finished; nothing re-run. hp per round, the run as the unit, 95%:
+
+| | Ryu | Ken | Honda | Zangief | Guile | Dhalsim | pooled (opponents) |
+|---|---|---|---|---|---|---|---|
+| loop without the book vs no advice | +18.0 | **+31.0** | **-16.1 hurts** | +6.4 | **+14.0** | -13.6 | +6.6 [-8.3, +21.4] not shown |
+| loop with the book vs no advice | **+56.1** | **+69.3** | **+34.0** | **+33.8** | **+67.7** | +21.6 | **+47.1 [+30.4, +64.0]** |
+| **book - no book (primary)** | **+38.1** | **+38.3** | **+50.1** | **+27.4** | **+53.7** | **+35.2** | **+40.5 [+30.4, +50.7] helps** |
+
+- The book helps against every opponent on its own, including Honda, where Qwen's loop alone hurts.
+- Most of it is taking less damage as well as dealing more: damage taken falls by 14.9 per round pooled [+5.9, +24.4]
+  with the book, 0.5 without.
+- Qwen's lessons hold more often with the book in play (e.g. Ken 0.29-0.31 -> 0.44-0.62 per run; chance ~0.2), i.e.
+  Qwen keeps learning on top of the verified tips rather than being replaced by them.
+- Boundary reading: the Qwen-side compensation (verified human knowledge as a starting book) works with today's
+  laya-vision; it is the baseline the laya-vision value fine-tune is measured against next.
