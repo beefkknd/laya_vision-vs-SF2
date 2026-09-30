@@ -34,3 +34,9 @@ def test_gates_fail_on_hidden_throw_and_flat_calibration():
 def test_test_extra_calibration_is_reported_not_gated():
     ds = [dict(dec(i, throw_best=True), net=0) for i in range(50)]
     assert ev.gates({"test_extra": {"chunli": ev.summarize(ds, "chunli", value=True)}}) == []
+
+
+def test_calibration_skips_moves_system1_never_picks():
+    ds = [dec(i, throw_best=True) for i in range(-20, 30)] + [dict(dec(0, True), action="back", pred_net=None)] * 5
+    s = ev.summarize(ds, "chunli", value=True)
+    assert s["calibration_n"] == 50 and s["n"] == 55

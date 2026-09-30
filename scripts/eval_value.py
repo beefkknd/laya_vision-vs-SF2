@@ -56,7 +56,8 @@ def ask(agent, root: str, char: str, r: Dict, value: bool, version: int) -> Dict
     taken = r["action"]
     pred = max(ans[taken]["probabilities"], key=ans[taken]["probabilities"].get) if taken in ans else None
     return {"values": rank, "range": r["range"], "opp_state": r.get("opp_state"), "action": taken,
-            "outcome": r["outcome"], "pred_outcome": pred, "net": r["dealt"] - r["taken"],
+            "outcome": r["outcome"], "pred_outcome": pred, "net": r["damage"] - r["damage_taken"],     # every live row: old ones have no dealt/taken
+           
             "pred_net": rank.get(taken) if value else None}
 
 
@@ -69,9 +70,12 @@ def summarize(ds: List[Dict], char: str, value: bool) -> Dict:
            "block_top3_not_attacking": {b: top3_share(ds, b, lambda d: not att(d)) for b in BLOCKS}}
     if "throw" in choices(char):
         out["throw_top3_close"] = top3_share(ds, "throw", lambda d: d["range"] == "close")
-    if value and len(ds) >= 25:
-        cal = calibration([(d["pred_net"], d["net"]) for d in ds], k=5)
+    # calibration over the decisions whose move System 1 can pick (old live rows also hold back / jump / idle ...)
+    pairs = [(d["pred_net"], d["net"]) for d in ds if d["pred_net"] is not None]
+    if value and len(pairs) >= 25:
+        cal = calibration(pairs, k=5)
         out["calibration"], out["calibration_gate"] = cal, calibration_gate(cal, MIN_SPREAD)
+        out["calibration_n"] = len(pairs)
     return out
 
 
