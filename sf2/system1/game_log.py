@@ -9,6 +9,7 @@ actions.jsonl, per action:
     result:        actual (hit / whiff / blocked / none), dealt
     reaction:      opp_reaction (the opponent's states in order), opp_attacked, opp_blocked, i_was_hit, taken
     after:         gap_after, my_life_after, opp_life_after, frames (to the next decision), images
+    scores:        laya-vision's score for every move (P(hit), P(blocked) for a block); top3 is its first three
     his move:      opp_move (fireball / uppercut / hurricane / slap / throw / jump_attack / normal / none: his attack
                    episode overlapping this window, sf2.system1.opp_moves), opp_shot (his projectile out at the decision)
 games.jsonl, per game: result, frames, clock_end, lives at the end, dealt, taken, action counts, outcome counts.
@@ -72,6 +73,7 @@ def action_entry(game: int, frame: int, me: str, opp: str, before: Dict, rows: L
         "i_was_hit": bool(hit_me), "taken": _drops([before] + rows, "p1_life"),
         "gap_after": abs(after["p2_x"] - after["p1_x"]), "my_life_after": _life(after["p1_life"]),
         "opp_life_after": _life(after["p2_life"]), "frames": len(rows),
+        "scores": dict(decision["probs"]),
     }
 
 

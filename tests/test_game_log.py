@@ -18,3 +18,16 @@ def test_game_log_puts_the_opponents_reaction_on_the_action_that_caused_it():
     assert e["i_was_hit"] and e["taken"] == 26 and e["opp_attacked"] and not e["opp_blocked"]
     assert e["opp_reaction"] == ["stand", "attack", "stand"] and e["my_life_after"] == 150
     assert clock(0x99) == 99 and e["top3"][0] == ["hp", 0.9]
+
+
+def test_the_log_keeps_every_score_laya_vision_gave():
+    """2026-09-30: only the top 3 were logged, so "rank by expected damage" (docs/component_boundaries.md) could not be
+    replayed offline - the throw is outside the top 3 in 81-100% of close decisions."""
+    from sf2.system1.game_log import action_entry
+    before = row()
+    rows = [row(), row()]
+    probs = {"hp": 0.9, "lp": 0.2, "throw": 0.61, "sweep": 0.3, "block_low": 0.12}
+    e = action_entry(0, 0, "chunli", "ken", before, rows, {"action": "hp", "p_hit": 0.9, "predicted": "hit",
+                                                           "probs": probs}, "hit")
+    assert e["scores"] == probs and list(e)[-1] == "scores"               # appended: the old keys keep their order
+    assert e["top3"] == [["hp", 0.9], ["throw", 0.61], ["sweep", 0.3]]

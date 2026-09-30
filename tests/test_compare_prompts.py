@@ -89,7 +89,8 @@ def lines(*extra):
 def test_no_advice_arms_that_differ_only_in_logging_only_fields_still_pair(tmp_path):
     """2026-09-29: two runs re-ran after opp_move / opp_shot were added to the log (logging only, play unchanged)."""
     r = str(tmp_path)
-    run(r, "1_ken", "ken", 1, "views", [10] * 10, [0] * 10, none_bytes=lines({"opp_move": "normal", "opp_shot": False}))
+    run(r, "1_ken", "ken", 1, "views", [10] * 10, [0] * 10,
+        none_bytes=lines({"opp_move": "normal", "opp_shot": False, "scores": {"hp": 0.9}}))
     run(r, "2_ken_character", "ken", 1, "character", [30] * 10, [0] * 10, none_bytes=lines({}))
     pairs, problems = cp().pairs([r])
     assert list(pairs) == [("ken", 1)] and not problems

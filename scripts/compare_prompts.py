@@ -42,7 +42,7 @@ def _runs(roots: Sequence[str]) -> List[Tuple[str, str, int, str]]:
     return [x[1:] for x in sorted(out)]
 
 
-LOG_ONLY = ("opp_move", "opp_shot")      # added to the log 2026-09-29 (sf2/system1/opp_moves.py); play is unchanged
+LOG_ONLY = ("opp_move", "opp_shot", "scores")   # added to the log 2026-09-29/30 (opp_moves.py, game_log.py); play unchanged
 
 
 def _none(d: str):
