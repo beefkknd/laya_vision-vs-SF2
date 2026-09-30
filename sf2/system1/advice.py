@@ -37,23 +37,26 @@ WORKS_AT, MAY_AT = 0.5, 0.3          # laya-vision's score for an attack, P(hit)
 BLOCK_WORKS_AT, BLOCK_MAY_AT = 0.2, 0.1
 BLOCK_MOVES = ("block_high", "block_low")
 # The lookup table's scale (sf2.data.value_oracle, docs/prereg_2x2.md): a move's expected net (hp dealt - taken until
-# the next decision) -> words. Chosen so the word mix of the table's top 3 matches runs/all8's shortlist mix on 78,024
-# Chun-Li no-advice decisions: 16.1% likely works / 18.3% may work / 65.6% likely fails. Blocks use the same net scale
-# (a net is a net: no separate block scale).
-NET_WORKS_AT, NET_MAY_AT = 3.0, 1.8
+# the next decision), rated RELATIVE TO WALKING IN (forward's value in the same table row): at or below it "likely
+# fails", above it "may work", NET_WORKS_MARGIN or more above it "likely works". Text laya's rule walks in when nothing
+# rates above "likely fails", which then means exactly "nothing beats walking in". (An absolute scale, >= 3.0 / >= 1.8,
+# matched to runs/all8's word mix, made text laya walk in on 67 of 97 decisions vs Ryu in the 2026-09-30 smoke although
+# forward was never the table's best there.) Blocks use the same scale (a net is a net).
+NET_WORKS_MARGIN = 3.0
 SCALES = ("p_hit", "net")
 
 INSTRUCTIONS = "Which move do I do now? Follow the advice when it fits this moment."
 
 
-def rating(score: float, move: Optional[str] = None, scale: str = "p_hit") -> str:
+def rating(score: float, move: Optional[str] = None, scale: str = "p_hit", walk: float = 0.0) -> str:
     """A move's score in words. ``scale`` "p_hit": laya-vision's score, a block (``move``) on its own scale; without
     ``move`` the attack scale (what scripts/build_advice_data.py built text laya's training data with). "net": the
-    lookup table's expected net in hp, every move (blocks too) on one scale."""
+    lookup table's expected net in hp, every move (blocks too) on one scale, relative to ``walk`` (forward's value in
+    the same situation)."""
     if scale not in SCALES:
         raise ValueError("unknown rating scale %r (one of %s)" % (scale, ", ".join(SCALES)))
     if scale == "net":
-        works, may = NET_WORKS_AT, NET_MAY_AT
+        return WORKS if score >= walk + NET_WORKS_MARGIN else MAY if score > walk else FAILS
     else:
         works, may = (BLOCK_WORKS_AT, BLOCK_MAY_AT) if move in BLOCK_MOVES else (WORKS_AT, MAY_AT)
     return WORKS if score >= works else MAY if score >= may else FAILS

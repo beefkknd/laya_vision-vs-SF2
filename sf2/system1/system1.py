@@ -146,15 +146,16 @@ class System1:
     def _by_table(self, text: str, situation: Optional[Tuple]) -> Dict:
         """The lookup table's ranking: without an advisor its best move over choices(me), forward included; with one,
         its expected nets of the attacks and blocks are the scores text laya's shortlist is built from (rated on the
-        net scale, ``advice.rating``), exactly as laya-vision's P(hit) are on the other path. No model: no P(hit),
-        so "probs" (the log's scores / top3) stay empty."""
+        net scale relative to forward's value, ``advice.rating``), exactly as laya-vision's P(hit) are on the other
+        path. No model: no P(hit), so "probs" (the log's scores / top3) stay empty."""
         values = oracle_rank(self.oracle, text, choices(self.me))
         best = max(values, key=values.get)
         out = {"best": best, "p_hit": None, "predicted": "none", "probs": {}, "values": values}
         if self.advisor is None:
             return {"action": best, **out}
         scores = {m: values[m] for m in self.attacks + self.blocks}
-        c = choose(self.advisor, situation, scores, self.lessons(), self.attacks + self.blocks, scale="net")
+        c = choose(self.advisor, situation, scores, self.lessons(), self.attacks + self.blocks, scale="net",
+                   walk=values.get(FORWARD, 0.0))
         return dict(c, **out)
 
     def _by_value(self, ans: Dict, probs: Dict, score: Dict) -> Dict:
