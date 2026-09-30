@@ -26,3 +26,20 @@ Otherwise the second training run goes ahead as reviewed.
 
 ## Load
 Arms run one after the other (the table arm is light: emulators only); memory checked before each.
+
+## Result (2026-09-30; 96 runs, all finished)
+
+hp per round, lookup table minus runs/all8, paired by seed (8 per opponent), the seed as the unit, 95%:
+
+| Ryu | Ken | Honda | Zangief | Guile (held out) | Dhalsim | pooled (opponents) |
+|---|---|---|---|---|---|---|
+| +25.4 [-4.9, +53.7] | **+118.5** | **+20.9** | **+56.4** | **+146.8** | **+120.6** | **+81.4 [+42.7, +121.9] helps** |
+
+- Rounds won of 720: table 369, runs/all8 70. Damage per round: dealt 128 vs 85, taken 126 vs 164.
+- Throws per close-range decision: table 0.28-0.89 by opponent, runs/all8 0.00-0.04.
+- Held-out quintile spread (offline, explored decisions): 9.6 hp on test games, 11.2 on held-out Guile, monotone.
+- **Drop rule not triggered**: value ranking helps, strongly, on every opponent but Ryu (not shown), including the
+  held-out one. The second training run goes ahead (docs/prereg_lv_value_run2.md).
+- Boundary reading: a 96-cell table over the note's general fields, with no model, beats laya-vision's P(hit) ranking
+  by 81 hp/round. The defect was the ranking target, as the component study said; the frames must now add timing on
+  top of this table to be worth a model (the table is run 2's reference).
