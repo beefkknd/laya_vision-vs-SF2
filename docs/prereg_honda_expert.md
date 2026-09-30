@@ -18,3 +18,5 @@ core advice is only approximate here ("avoid forward at mid range"). His throw o
 
 Primary: each arm vs no advice. Secondary: expert - qwenset. No arm changes after the first game; a failed job is re-run
 once with its seed.
+
+## Result (2026-09-30): see docs/component_boundaries.md (table) and docs/boundary/honda_expert.json (per-line trace).

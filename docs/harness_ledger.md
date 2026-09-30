@@ -31,5 +31,5 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 | 21 | 09-30 | the Ken expert batch lost (529 broken log lines) | two ab_memory batches launched in the same second shared one rollouts/ab/<stamp> folder and interleaved their writes | H | folder <stamp>_s<seed>, an existing one refused | test_ab_root |
 | 22 | 09-30 | the players' main advice vs Honda (keep away, walk back) cannot be given | System 1 picks only attacks, blocks and forward: no walk back | R (action set) | open - an owner decision | Honda batch |
 
-Text laya (TL): no defect found. It follows its label rule 98-100% per rule and per opponent; its limit is the grammar
-it was trained on (docs/qwen_learning.md 0g).
+Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
+forward, nothing left) - docs/component_boundaries.md.
