@@ -411,6 +411,23 @@ went badly with a lesson, not that the lesson caused it.
   still hurt ("...when he jumps" -11.7 [-20.6, -2.5] over 14 runs); the two blamed by association ("avoid
   spinning_bird_kick / sweep at mid range") are now unclear. Several weak Ryu "helps" became unclear.
 
+### After the review (2026-09-29): show, stop early, name his moves
+
+- **The record is shown, never a refusal** (review finding 4). `propose` no longer takes the record; the ledger has no
+  track violations; the prompt no longer says "will be refused / do not propose it". Each line names the lessons most
+  often in play with it, "(in play with: X, Y, Z)" (`track_record.build` records the top 3 by rounds together), so Qwen
+  sees the confounding. `lessons/track_record.json` rebuilt from the same 91 runs: records unchanged apart from `with`.
+- **Early stop** (0f's open item). `lessons.stop`: a claim in test is rejected ("stopped: rounds went badly since it
+  began") when her mean hp per round in the games since it began is below the games before it by more than
+  `STOP_DROP` = 60, with at least 2 games before (checked before the per-decision judge). Calibrated on the 91
+  no-advice arms: game-to-game SD ~36 hp/round, 40 would fire by chance in 10% of checks, 60 in 4.4% (8.3% per 3-game
+  test). Replay on the real loop ledgers: 11 of 336 claims in test would have stopped (3.3%), all 11 were rejected
+  anyway. It does not catch 0f's Honda seed 11703 case: that loss was against the no-advice arm, while her absolute
+  rounds there were bad from game 0. `tests/test_early_stop.py` (real data via `SF2_DATA`).
+- **His moves in "his threats"**: with `opp_move` logged (new runs), "he hits with a fireball far away", "he hits with
+  an uppercut up close", ... plus one note on saying them in the grammar's words; older data keeps the coarse wording,
+  byte-identical (golden: `tests/fixtures/system2/character_prompt_golden.json`, and sha256 on the lock's play data).
+
 ## 1. What is proven
 
 ### Clean re-run (2026-09-29): proofs 1–2 are NOT reproduced

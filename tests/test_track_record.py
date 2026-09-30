@@ -3,6 +3,7 @@ round without advice, over earlier runs (the run is the unit). Round 3, 2026-09-
 he jumps" passed the per-situation check in every Honda run while its rounds lost 16 hp to no advice; only the round
 outcome, pooled across runs, shows it. Qwen sees the record; the verifier refuses a lesson that clearly hurts."""
 import importlib.util
+import inspect
 import json
 import os
 import sys
@@ -67,22 +68,17 @@ def test_the_build_is_deterministic(tmp_path):
     assert json.dumps(T.build([str(tmp_path)])) == json.dumps(T.build([str(tmp_path)]))
 
 
-def test_the_verifier_refuses_a_lesson_that_hurts_and_only_with_a_track(tmp_path):
+def test_the_verifier_does_not_refuse_on_the_record(tmp_path):
+    """Review 2026-09-29 (finding 4): refusing on the record switched the loop off against Honda, and the blamed lesson
+    was never in play alone. The record is shown to Qwen; the verifier ignores it."""
     world(str(tmp_path))
     track = T.build([str(tmp_path)])["opponents"]["honda"]
+    assert track[BAD]["verdict"] == "hurts"
     claim = {"kind": "use_more", "move": "forward", "range": "mid", "when": "jumping"}
-    _, out = L.propose([], [claim], [], 0, moves=["forward"], track=track)
-    assert out[0]["state"] == "refused" and "track record" in out[0]["why"] and "hurts" in out[0]["why"]
+    assert "track" not in inspect.signature(L.propose).parameters
     _, out = L.propose([], [claim], [], 0, moves=["forward"])
-    assert out[0]["state"] == "testing"                                         # no track: as before
-
-
-def test_invariant_no_registered_lesson_has_a_record_that_hurts(tmp_path):
-    world(str(tmp_path))
-    track = T.build([str(tmp_path)])["opponents"]["honda"]
-    reg = [{"line": BAD, "state": "registered", "claim": {"kind": "use_more", "move": "forward", "range": "mid",
-                                                          "when": "jumping"}}]
-    assert T.violations(reg, track) == [BAD] and T.violations(reg, {}) == []
+    assert out[0]["state"] == "testing"
+    assert not hasattr(T, "violations") and not hasattr(T, "hurts")          # nothing left that could refuse
 
 
 def test_the_prompt_shows_the_record_worst_first(tmp_path):
@@ -140,7 +136,47 @@ def test_qwen_copying_the_words_of_a_lesson_line_still_parses():
             assert claims[0]["when"] == when and not problems
 
 
-def test_a_line_that_hurts_says_do_not_propose_it(tmp_path):
+def test_the_record_does_not_forbid_anything(tmp_path):
     world(str(tmp_path))
+    part = T.prompt_part("honda", T.build([str(tmp_path)])["opponents"]["honda"])
+    assert "do not propose" not in part and "refused" not in part and BAD in part
+
+
+def crowd(root, runs=4):
+    """Each run: BAD in play 6 rounds with X, 4 of them also with Y, 2 with Z, 1 with W; GOOD 6 rounds alone."""
+    for i in range(runs):
+        loop = ([rnd(-20 + (i + k) % 5, [BAD, X] + ([Y] if k < 4 else []) + ([Z] if k < 2 else [])
+                     + ([W] if k < 1 else [])) for k in range(6)]
+                + [rnd(15 + (i * k) % 4, [GOOD]) for k in range(6)])
+        a_run(root, "2026092%d-000000_honda" % i, loop, [rnd(0, []) for _ in loop])
+
+
+X, Y, Z, W = ("avoid sweep at mid range when he jumps", "always block_low at mid range when he attacks",
+              "avoid c.mk up close", "use more throw up close")
+
+
+def test_the_build_records_the_lessons_most_often_in_play_with_each_line(tmp_path):
+    crowd(str(tmp_path))
+    rec = T.build([str(tmp_path)])["opponents"]["honda"]
+    assert rec[BAD]["with"] == [[X, 24], [Y, 16], [Z, 8]]                    # top 3 by rounds together, W left out
+    assert rec[X]["with"][0] == [BAD, 24] and rec[GOOD]["with"] == []          # GOOD was always in play alone
+    assert rec[Z]["with"] == [[Y, 8], [X, 8], [BAD, 8]]                       # ties: in name order
+
+
+def test_the_prompt_shows_what_each_line_was_in_play_with(tmp_path):
+    crowd(str(tmp_path))
     text = T.prompt_lines(T.build([str(tmp_path)])["opponents"]["honda"])
-    assert text[0].endswith("hurts - do not propose it") and not any("do not" in x for x in text[1:])
+    bad = [x for x in text if x.startswith("- " + BAD + ":")][0]
+    assert bad.endswith("(in play with: %s, %s, %s)" % (X, Y, Z))
+    assert [x for x in text if x.startswith("- " + GOOD + ":")][0].endswith("helps")       # alone: nothing added
+
+
+def test_the_build_with_co_lines_is_deterministic(tmp_path):
+    crowd(str(tmp_path))
+    assert json.dumps(T.build([str(tmp_path)])) == json.dumps(T.build([str(tmp_path)]))
+
+
+def test_a_record_file_without_co_lines_still_shows(tmp_path):
+    """Files built before the co-lines were recorded (lessons/track_record.json at 235d470) still read."""
+    r = T.record([[-20, -21, -19, -22]] * 4)
+    assert T.prompt_lines({BAD: r})[0].endswith("hurts")

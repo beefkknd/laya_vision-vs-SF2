@@ -140,3 +140,83 @@ def test_the_fgc_primer_carries_only_this_opponents_notes():
 def test_the_loop_knows_the_fgc_prompt():
     q = qwen_lessons()
     assert q.PROMPTS["character_fgc"].messages is C.messages_fgc and q.PROMPTS["character_fgc"].VIEWS == C.VIEWS
+
+
+# His moves (sf2/system1/opp_moves.py): new runs log opp_move per decision; the threats name it when known and keep the
+# old wording when not. The lesson grammar does not change.
+GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "system2", "character_prompt_golden.json")
+GOLDEN_MOVES = ["c.mk", "sweep", "c.hp", "c.lk", "forward", "back", "hp", "mp", "block_high", "block_low",
+                "spinning_bird_kick", "throw"]
+
+
+def moved(a, move):
+    return dict(a, opp_move=move, opp_shot=0)
+
+
+def test_his_threat_names_his_move_when_it_is_known():
+    far = act("back", "far", taken=10, reaction=("stand",))
+    assert C.threat(moved(far, "fireball")) == "hits with a fireball"
+    assert C.threat(moved(act("sweep", "close", taken=9, reaction=("attack",)), "uppercut")) == "hits with an uppercut"
+    assert C.threat(moved(act("sweep", "close", taken=9, reaction=("attack",)), "hurricane")) == \
+        "hits with a hurricane kick"
+    assert C.threat(moved(act("sweep", "mid", taken=9, reaction=("attack",)), "slap")) == \
+        "hits with the hundred hand slap"
+    assert C.threat(moved(act("sweep", "close", taken=9, reaction=("attack",)), "throw")) == "throws her"
+    assert C.threat(moved(act("sweep", "close", taken=9, air=True), "jump_attack")) == "jumps in"
+    assert C.threat(moved(far, "fireball")) != C.threat(far)
+    assert C.threat(moved(act("sweep", "close", taken=0), "fireball")) is None             # took nothing
+
+
+def test_a_normal_or_no_move_or_a_missing_field_keeps_the_old_wording():
+    for a in (act("sweep", "close", taken=5, reaction=("stand", "attack")), act("back", "far", taken=5),
+              act("sweep", "close", taken=5, air=True, reaction=("jump",))):
+        for move in ("normal", "none", None, "", "bogus"):
+            b = dict(a, opp_move=move) if move is not None else a
+            assert C.threat(b) == C.threat(a)
+
+
+def test_the_threats_list_says_his_moves_at_their_range():
+    rows = ([moved(act("back", "far", taken=15), "fireball") for _ in range(4)]
+            + [moved(act("sweep", "close", taken=20, reaction=("attack",)), "uppercut") for _ in range(2)]
+            + [act("hp", "mid", taken=8, state="attack", reaction=("attack",))])
+    lines = C.threats(rows)
+    assert lines[0].startswith("- he hits with a fireball far away: 4 times, 60 damage")
+    assert lines[1].startswith("- he hits with an uppercut up close: 2 times, 40 damage")
+    assert lines[2].startswith("- he attacks on the ground at mid range: 1 times")
+
+
+def test_the_prompt_says_how_to_put_a_named_move_into_a_lesson_only_when_moves_are_named():
+    rows = [moved(act("back", "far", taken=15), "fireball") for _ in range(12)]
+    user = C.messages("chunli", "ryu", [], rows, rows, [], [], MOVES)[1]["content"]
+    assert "he hits with a fireball far away" in user and C.MOVE_NOTE in user
+    plain = [act("back", "far", taken=15) for _ in range(12)]
+    assert C.MOVE_NOTE not in C.messages("chunli", "ryu", [], plain, plain, [], [], MOVES)[1]["content"]
+    assert "when he attacks" in C.MOVE_NOTE                          # the grammar words, not a new word
+
+
+def test_golden_the_plain_character_prompt_is_byte_identical_without_opp_move():
+    """Pinned at 235d470 on 400 of the lock lesson_loop_v1's decisions per opponent (fields the prompt reads)."""
+    with open(GOLDEN) as f:
+        g = json.load(f)
+    for opp, rows in g["rows"].items():
+        assert "opp_move" not in rows[0]
+        user = C.messages("chunli", opp, [], rows, rows[-60:], [], [], GOLDEN_MOVES)[1]["content"]
+        assert user == g["text"][opp], opp
+
+
+def test_golden_on_the_whole_locked_play_data(monkeypatch):
+    """Both plain and fgc, on every locked decision per opponent (sha256 pinned at 235d470); skipped without the lock."""
+    import hashlib
+    import pytest
+    from sf2.eval import lock as lk
+    data = os.environ.get("SF2_DATA", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if not os.path.isdir(os.path.join(data, "locks", "lesson_loop_v1", "artifacts")):
+        pytest.skip("no lock lesson_loop_v1 under %s" % data)
+    monkeypatch.setattr(lk, "ROOT", os.path.join(data, "locks"))
+    with open(GOLDEN) as f:
+        full = json.load(f)["full"]
+    for opp in ("ken", "ryu", "honda"):
+        rows = lk.play_rows("lesson_loop_v1", "chunli", opp)
+        for fgc in (False, True):
+            m = C.messages("chunli", opp, [], rows, rows[-300:], [], [], GOLDEN_MOVES, fgc=fgc)
+            assert [len(rows), hashlib.sha256(json.dumps(m).encode()).hexdigest()] == full["%s_%s" % (opp, fgc)]

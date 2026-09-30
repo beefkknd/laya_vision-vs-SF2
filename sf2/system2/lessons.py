@@ -13,6 +13,9 @@ while her average when he attacks is about -10: it is better than what she does.
     use more /     clearly better -> registered, clearly worse -> rejected, else testing: in play for up to TEST_GAMES
     always         games, then registered if it became clearly better, rejected if not ("too few" if thin)
     registered -> retired when its evidence stops holding
+    stopped        a claim in test is rejected at once when her rounds tank after it began (``stop``: the mean hp per
+                   round of the games since it began below that of the games before it by more than STOP_DROP, with at
+                   least STOP_BEFORE games before it) - the per-decision yardstick cannot see harm to the round (0f)
 
 ``in_play``: the lines text laya reads, at most MAX_LINES: the tests first (at most MAX_TESTS), then the registered
 lessons worth the most (``strength``: the difference per decision x decisions). ``cause`` names where damage came
@@ -23,7 +26,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS, RANGES
 from .move_coach import MIN_TRIES
-from .track_record import describe, hurts
 
 KINDS = ("use_more", "always", "avoid")
 RIGHT = {"use_more": "better", "always": "better", "avoid": "worse"}
@@ -33,6 +35,11 @@ WHEN_WORDS = {"jumping": "when he jumps", "crouching": "when he crouches", "atta
 MAX_LINES = 5          # text laya reads at most 5 advice lines
 MAX_TESTS = 2          # claims being tried at once (+1 for a "what if" when she is stuck in a streak)
 TEST_GAMES = 3         # games a "use more" claim is tried before it is judged
+# Early stop. Calibrated on the 89 finished no-advice arms (lock lesson_loop_v1 + rollouts/qwen_lessons, 2026-09-29):
+# a game's mean hp per round varies by SD ~36 between games of one arm, so a 40 drop is crossed by chance in 10% of
+# the checks a test would get; 60 in 4.4% (per 3-game test 8.3%). tests/test_early_stop.py holds it under 5%.
+STOP_DROP = 60.0       # hp per round
+STOP_BEFORE = 2        # games before the claim began, at least
 
 Claim = Dict
 Registry = List[Dict]
@@ -149,20 +156,18 @@ def _judge(c: Claim, ev: Dict) -> Tuple[str, str]:
 
 
 def propose(reg: Registry, claims: Sequence, rows: Sequence[Dict], game: int,
-            moves: Optional[Sequence[str]] = None, track: Optional[Dict] = None) -> Tuple[Registry, List[Dict]]:
+            moves: Optional[Sequence[str]] = None) -> Tuple[Registry, List[Dict]]:
     """Take Qwen's claims: each is refused (invalid, known, contradicting) or judged. ``moves``: her whole move set (a
     "use more" / "always" may name a move she never used: it is tried in play); default: the moves in ``rows``.
     A claim opposite to a lesson but for a strictly narrower situation is an exception, judged on its own data (text
-    laya's rule: an applying avoid rules the move out even where a use more applies). ``track``: the opponent's
-    track record (sf2.system2.track_record) - a claim whose line hurts there is refused. Returns a new registry."""
+    laya's rule: an applying avoid rules the move out even where a use more applies). The track record
+    (sf2.system2.track_record) is only shown to Qwen, never a reason to refuse. Returns a new registry."""
     reg = [dict(r) for r in reg]
     tried = {a["action"] for a in rows}
     moves = set(moves) if moves is not None else tried
     out = []
     for c in claims:
         why = _refusal(reg, c, tried, moves)
-        if not why and track and hurts(track, render(c)):
-            why = "its track record hurts: " + describe(render(c), track[render(c)])
         if why:
             out.append({"claim": c, "state": "refused", "why": why})
             continue
@@ -178,14 +183,32 @@ def propose(reg: Registry, claims: Sequence, rows: Sequence[Dict], game: int,
     return reg, out
 
 
-def review(reg: Registry, rows: Sequence[Dict], game: int) -> Registry:
-    """After a game: judge the claims in test, retire registered lessons whose evidence stopped holding."""
+def stop(game_hp: Sequence[float], since: int, game: int) -> Optional[str]:
+    """Why a claim proposed after game ``since`` is stopped after game ``game``, or None. ``game_hp``: her mean hp
+    (dealt - taken) per round in each game of this run, by game number; only games up to ``game`` count."""
+    before, after = list(game_hp[:since + 1]), list(game_hp[since + 1:game + 1])
+    if len(before) < STOP_BEFORE or not after:
+        return None
+    b, a = sum(before) / len(before), sum(after) / len(after)
+    if b - a <= STOP_DROP:
+        return None
+    return "stopped: rounds went badly since it began: %+.1f hp per round in %d games vs %+.1f in the %d before" % (
+        a, len(after), b, len(before))
+
+
+def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Sequence[float]] = None) -> Registry:
+    """After a game: judge the claims in test, retire registered lessons whose evidence stopped holding. ``game_hp``
+    (her mean hp per round per game of this run, see ``stop``): a claim in test is stopped first when its rounds
+    tanked; without it, no claim is stopped."""
     out = []
     for r in reg:
         r = dict(r)
         ev = condition_evidence(rows, r["claim"])
         right = RIGHT[r["claim"]["kind"]]
-        if r["state"] == "testing":
+        halt = stop(game_hp, r["since"], game) if game_hp and r["state"] == "testing" else None
+        if halt:
+            r.update(state="rejected", why=halt, evidence=ev)
+        elif r["state"] == "testing":
             state, why = _judge(r["claim"], ev)
             if state == "testing" and game - r["since"] >= TEST_GAMES:
                 state, why = "rejected", (
