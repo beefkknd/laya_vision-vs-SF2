@@ -18,6 +18,7 @@ import os
 import random
 from typing import Dict, List, Sequence, Tuple
 
+from ..eval.logs import full_run
 from ..eval.stats import BOOT_SEED, REPS, paired
 
 MIN_RUNS = 3           # a record needs this many runs with the lesson in play
@@ -70,8 +71,11 @@ def build(roots: Sequence[str]) -> Dict:
     pair]}; "with": [[other line, rounds in play together], ...], the CO_LINES most, ties in name order."""
     by: Dict[str, Dict[str, List[List[float]]]] = {}
     together: Dict[str, Dict[str, Dict[str, int]]] = {}
-    sources, skipped = [], []
+    sources, skipped, short = [], [], []
     for d, opp in _runs(roots):
+        if not full_run(d):
+            short.append(d)
+            continue
         try:
             loop, none = _read(os.path.join(d, "loop", "rounds.jsonl")), _read(os.path.join(d, "none", "rounds.jsonl"))
             diffs = paired(loop, none)
@@ -93,7 +97,7 @@ def build(roots: Sequence[str]) -> Dict:
     return {"opponents": {opp: {line: dict(record(gs), **{"with": _top(together[opp][line])})
                                 for line, gs in sorted(lines.items())}
                           for opp, lines in sorted(by.items())},
-            "sources": sources, "skipped": skipped}
+            "sources": sources, "skipped": skipped, "short": short}
 
 
 def _top(co: Dict[str, int]) -> List[List]:

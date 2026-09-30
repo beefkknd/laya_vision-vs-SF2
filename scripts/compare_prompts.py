@@ -15,6 +15,7 @@ from typing import Dict, List, Sequence, Tuple
 
 import _path  # noqa: F401
 from sf2.data.dataset import read
+from sf2.eval.logs import full_run
 from sf2.eval.stats import paired, pooled, run_level
 
 ROOTS = [os.path.join("rollouts", "qwen_lessons"), os.path.join("rollouts", "locked", "lesson_loop_v1")]
@@ -32,7 +33,7 @@ def _runs(roots: Sequence[str]) -> List[Tuple[str, str, int, str]]:
         for name in sorted(os.listdir(root)) if os.path.isdir(root) else []:
             d = os.path.join(root, name)
             path = os.path.join(d, "verdict.json")
-            if not os.path.exists(path):
+            if not os.path.exists(path) or not full_run(d):
                 continue
             with open(path) as f:
                 v = json.load(f)

@@ -56,7 +56,7 @@ def test_one_run_is_too_few_however_many_rounds(tmp_path):
 
 def test_unfinished_runs_and_unequal_arms_are_left_out_and_listed(tmp_path):
     world(str(tmp_path), runs=3)
-    a_run(str(tmp_path), "20260929-000009_honda", [rnd(-50, [BAD])] * 3, [rnd(0, [])] * 2)       # unequal
+    a_run(str(tmp_path), "20260929-000009_honda", [rnd(-50, [BAD])] * 10, [rnd(0, [])] * 9)       # unequal
     os.makedirs(os.path.join(str(tmp_path), "20260929-000010_honda", "loop"))                   # no verdict
     t = T.build([str(tmp_path)])
     assert t["opponents"]["honda"][BAD]["runs"] == 3
@@ -180,3 +180,12 @@ def test_a_record_file_without_co_lines_still_shows(tmp_path):
     """Files built before the co-lines were recorded (lessons/track_record.json at 235d470) still read."""
     r = T.record([[-20, -21, -19, -22]] * 4)
     assert T.prompt_lines({BAD: r})[0].endswith("hurts")
+
+
+def test_a_short_smoke_run_is_not_evidence(tmp_path):
+    """Harness ledger 2026-09-30: two 2-round smoke runs (20260929-134810_ken, -145756_ken) were counted as runs."""
+    world(str(tmp_path), runs=3)
+    a_run(str(tmp_path), "20260929-000009_honda", [rnd(-90, [BAD])] * 2, [rnd(0, [])] * 2)
+    t = T.build([str(tmp_path)])
+    assert t["opponents"]["honda"][BAD]["runs"] == 3
+    assert [os.path.basename(s) for s in t["short"]] == ["20260929-000009_honda"]

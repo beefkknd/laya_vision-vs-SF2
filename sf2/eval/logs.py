@@ -20,6 +20,7 @@ from ..data.dataset import read
 ROOT = "rollouts"
 TEST_DIRS = ("ab", "notebook", "qwen_moves", "qwen_lessons", "locked")
 RUN_FILE = "run.json"
+MIN_RUN_ROUNDS = 9     # a lesson-loop run with fewer loop rounds (under 3 games) is a smoke run, not evidence
 
 
 def mark_run(out: str, **meta) -> None:
@@ -28,6 +29,16 @@ def mark_run(out: str, **meta) -> None:
     with open(path + ".tmp", "w") as f:
         json.dump(meta, f)
     os.replace(path + ".tmp", path)
+
+
+def full_run(d: str) -> bool:
+    """A finished lesson-loop run long enough to count (harness ledger 2026-09-30: two 2-round smoke runs had been
+    counted as runs in the track record and the prompt comparisons)."""
+    try:
+        with open(os.path.join(d, "loop", "rounds.jsonl")) as f:
+            return sum(1 for x in f if x.strip()) >= MIN_RUN_ROUNDS
+    except OSError:
+        return False
 
 
 def is_test(d: str, root: str = ROOT) -> bool:
