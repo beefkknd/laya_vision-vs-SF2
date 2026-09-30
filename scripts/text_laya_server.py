@@ -12,7 +12,9 @@ with no client.
 """
 import argparse
 import json
+import signal
 import sys
+import threading
 
 import _path  # noqa: E402,F401
 from sf2.config import JOBS_WAIT_S, TEXT_LAYA_IDLE_S  # noqa: E402
@@ -47,6 +49,8 @@ def main(argv=None, load=text_laya.load, budget=Budget) -> None:
     if not args.shared:
         per_run(load(adapter), label)
         return
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))   # kill = a clean exit: socket and reservation go
     ledger = budget() if args.budget_gb > 0 else None
     rid = ledger.reserve(args.budget_gb, timeout=JOBS_WAIT_S) if ledger else None
     try:

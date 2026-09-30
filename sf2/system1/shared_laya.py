@@ -153,6 +153,11 @@ def serve(predict: Predict, sock: str, label: str, idle_s: float = TEXT_LAYA_IDL
         st.closing = True
         acceptor.join(POLL * 5)
         listener.close()
+        try:
+            if os.stat(sock).st_ino == inode:   # killed or failed: take our socket along (not a successor's)
+                os.unlink(sock)
+        except FileNotFoundError:
+            pass
 
 
 # ---- client ----

@@ -29,6 +29,8 @@ FAULTS = [
     ("every waiting run repeats a failed start", "sf2/system1/shared_laya.py",
      "        if os.path.exists(failed) and os.stat(failed).st_mtime >= asked:",
      "        if False:"),
+    ("a terminated server leaves its socket behind", "scripts/text_laya_server.py",
+     "        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))", "        pass"),
     ("the Advisor is shared by default", "sf2/system1/advisor.py",
      "        if TEXT_LAYA_SHARED if shared is None else shared:", "        if True if shared is None else shared:"),
     ("the shared server does not release its ledger reservation", "scripts/text_laya_server.py",

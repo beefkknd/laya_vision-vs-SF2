@@ -330,3 +330,10 @@ def test_runs_waiting_on_a_failed_start_fail_fast(short):
     took = sorted(float(o.split()[0]) for o in outs)
     assert all("exited" in o or "failed" in o for o in outs), outs
     assert took[-1] < 4.0, took                   # not 4 starts x 2 s one after another
+
+
+def test_a_terminated_server_removes_its_socket(short, servers):
+    """kill (SIGTERM) is a clean exit: the socket goes and the ledger reservation is released on the way out."""
+    c = _connect(short, servers)
+    os.kill(c.server_pid, signal.SIGTERM)
+    assert _wait(lambda: not _alive(c.server_pid) and not os.path.exists(c.sock))
