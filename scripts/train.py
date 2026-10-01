@@ -52,10 +52,42 @@ def parse_args(argv=None):
     ap.add_argument("--resume-guard", action=argparse.BooleanOptionalAction, default=True,
                     help="refuse to start if --out exists (default on)")
     ap.add_argument("--val-limit", type=int, default=4000, help="stop if validation is larger (it is not cut at random)")
+    ap.add_argument("--init", default=None,
+                    help="continue from this checkpoint (saved by this script) instead of BASE (docs/prereg_u_round2.md)")
     ap.add_argument("--max-minutes", type=float, default=None)
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
     return ap.parse_args(argv)
+
+
+def init_source(args):
+    """(what to load, load kwargs): BASE with the stage-1 image settings, or a checkpoint as saved (its own config
+    carries its image settings, checked against IMAGE_CFG after loading)."""
+    return (args.init, {}) if args.init else (BASE_MODEL, IMAGE_CFG)
+
+
+def check_init(path: str, tags) -> None:
+    """A checkpoint to continue from must be one this script saved, taught the same note and questions as the data."""
+    cfg_path = os.path.join(path, "vlm_agent_config.json")
+    if not os.path.exists(cfg_path):
+        raise SystemExit("--init %s: no vlm_agent_config.json (not a checkpoint saved by train.py)" % path)
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    mismatched = {k: (cfg.get(k), v) for k, v in tags.items() if cfg.get(k, False if k != "note_version" else 1) != v}
+    if mismatched:
+        raise SystemExit("--init %s was trained on other data: %s (checkpoint, data)" % (path, mismatched))
+
+
+def init_record(path):
+    """Where a run started: the checkpoint and its weights' sha256 (None for BASE)."""
+    if not path:
+        return None
+    import hashlib
+    h = hashlib.sha256()
+    with open(os.path.join(path, "model.safetensors"), "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return {"path": path, "weights_sha256": h.hexdigest()}
 
 
 def data_problems(train, val, args):
@@ -92,16 +124,22 @@ def main():
     import laya
     import laya.vlm_train as vt
 
-    agent = laya.load_vlm(BASE_MODEL, device=args.device, **IMAGE_CFG)
+    if args.init:
+        check_init(args.init, tags)
+    source, load_kwargs = init_source(args)
+    init = init_record(args.init)
+    agent = laya.load_vlm(source, device=args.device, **load_kwargs)
     agent.cfg = dict(agent.cfg, **tags)      # saved in <out>/best/vlm_agent_config.json
+    if init:
+        agent.cfg["init_from"] = init
     prep = agent.model.prep
     got = (prep.image_size, prep.backend, prep.interpolation,
            agent.processor.image_processor.max_image_size.get("longest_edge"))
     want = (IMAGE_CFG["image_size"], IMAGE_CFG["preprocess"], IMAGE_CFG["image_interpolation"], IMAGE_CFG["image_size"])
     if got != want:
         raise SystemExit("image prep is %s, expected %s (sf2.config.IMAGE_CFG)" % (got, want))
-    print("base %s | images %s | train %d rows from %d dirs, val %d rows" % (
-        BASE_MODEL, IMAGE_CFG, len(train), len(args.data), len(val)))
+    print("%s %s | images %s | train %d rows from %d dirs, val %d rows" % (
+        "init" if init else "base", source, IMAGE_CFG, len(train), len(args.data), len(val)))
 
     n = lora.inject(agent.model.encoder, rank=args.rank, alpha=args.alpha)
     print("LoRA r=%d on %d projections" % (args.rank, n))
@@ -153,7 +191,7 @@ def main():
         print("early stop: no val gain in %d evals" % args.patience)
     best = eval_fn.best
     with open(os.path.join(args.out, "train_log.json"), "w") as f:
-        json.dump({"args": vars(args), "base": BASE_MODEL, "tags": tags, "best": best, "evals": eval_fn.hist}, f,
+        json.dump({"args": vars(args), "base": BASE_MODEL, "init": init, "tags": tags, "best": best, "evals": eval_fn.hist}, f,
                   indent=2)
     print("best val %s %.3f at step %s -> %s/best" % (args.select, best[args.select], best["step"], args.out))
 
