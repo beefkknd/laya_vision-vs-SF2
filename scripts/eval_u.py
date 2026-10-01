@@ -186,7 +186,8 @@ def main(argv=None) -> int:
     failures = gate_failures(splits, floors)
     out = {"model": args.model, "data": args.data, "table": args.table, "floors": floors, "gate2_min": GATE2,
            "splits": splits, "seconds_per_decision": timing, "failures": failures,
-           "gate1": "checked" if floors else "report-only (no floors file)"}
+           "gate1": "checked" if floors else "report-only (no floors file)",
+           "decisions_limit": args.decisions or None}     # a subset (--decisions) is indicative, not the gate
     with open(os.path.join(args.model, "eval_u.json"), "w") as f:
         json.dump(out, f, indent=1)
     for name, m in splits.items():
@@ -198,6 +199,8 @@ def main(argv=None) -> int:
             print("   %-14s %s" % (q, a))
     for x in failures:
         print("GATE FAILED:", x)
+    if args.decisions:
+        print("SUBSET: %d decisions per character and file; the gates above are indicative only" % args.decisions)
     print("wrote", os.path.join(args.model, "eval_u.json"))
     return 1 if failures else 0
 
