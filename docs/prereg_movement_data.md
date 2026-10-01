@@ -54,3 +54,13 @@ pass and the owner has looked at the data.
   position in the episode; "unknown" breaks episodes. Seeds per (seed, opponent, game).
 - Gate 3: every row's label re-derived by an independent implementation; alignment by the HUD clock (lag 1 >= 95% of
   400 random pairs, and >= 90% and best on pairs where lags 0/1/2 disagree). Smoke: 0.98 at lag 1 (0.915 lag 0).
+
+## Owner change during the collection (2026-10-01, before the build and gate)
+Owner: "walking away for hundreds of games? Doesn't sound right, we want to capture the opponent's movements and that's
+it ... once it is in action then we have it, and we move on" / "We want to 'see' the action, once".
+- Collection stopped at 60-87 games per opponent (about 12% of the cap); nothing more is collected. Fewest pairs of
+  any (opponent, answer): Ken walking away 183, Ken blocking 245, Ryu walking away 223, Dhalsim walking away 225.
+- The quota (1,100 train pairs) is dropped as a target. Gate 1 becomes: every (opponent, answer) is SEEN - at least 50
+  training pairs and 20 test pairs (enough to measure). Gates 2-3, disk and the contact sheets unchanged.
+- Known limit: the RAM fields we read (state, sub, special) do not name his specific move (Ken shows 3 attack codes),
+  so "every distinct attack seen" cannot be checked from them; it is shown by the contact sheets, not gated.
