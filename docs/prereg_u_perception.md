@@ -93,3 +93,24 @@ Gate 1's per-question floors were to be fixed before training from a label-noise
 Gate 1 is therefore REPORTED, not gated, for this run. Gate 2 (the table's best move in the top 3 >= 90% on held-out
 games and on held-out Guile) was fixed before training and decides, with gate 3 (softness) reported.
 Training: 36,000 steps, best validation NLL 0.610 at step 35,994 (still improving at the end of the budget).
+
+## Result (2026-10-01): gate 2 fails - stops before the in-play test (runs/u_eye/best/eval_u.json)
+
+| question (answers) | test_real (18,729 decisions) | held-out Guile (4,300) |
+|---|---|---|
+| **gate 2: table's best move in the top 3** | **0.742** (13,496 / 18,195) | **0.710** (3,055 / 4,300) |
+| can I act (4) | 0.968 | 0.973 |
+| projectile (3) | 0.961 | 0.905 |
+| his air state (4) | 0.852 | 0.836 |
+| corner (3) | 0.837 | 0.783 |
+| can he act (4) | 0.823 | 0.847 |
+| range band (4) | 0.697 | 0.626 |
+| his phase (5) | 0.548 | 0.666 |
+| trend (3) | 0.499 | 0.430 |
+| my bar / his bar (4) | 0.456 / 0.469 | 0.336 / 0.357 |
+| Q8 word (3; 77% of labels are "likely fails") | 0.790 | 0.774 |
+
+- Training was budget-limited: validation NLL still falling at step 36,000 (0.32 epoch; each question ~1/25 of rows).
+- The health bars are visible (HUD unblanked, checked on frames) and correctly labelled (checked), yet read near chance:
+  under-training, or the bar's few pixels at 256x256 - not yet known.
+- Q8 barely beats always answering "likely fails"; its ranking misses the table's best move in ~26% of decisions.
