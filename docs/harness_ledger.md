@@ -42,5 +42,7 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 
 | 29 | 10-01 | the U training started with thresholds whose right wall was x = 65369, so "right corner" could never be labelled | one glitch frame (Blanka vs Dhalsim, game 24) with a wrapped x (-167 read as unsigned 16-bit); the wall calibration took the outermost x without a plausibility check | H | training stopped minutes in (only the step-0 checkpoint existed); impossible x -> unknown in labels; walls only from piled-up modes with >= 20 frames, impossible walls refused (5f97590, 3029b79); dataset rebuilt, training restarted | fixture of the real record, 4 seeded faults |
 
+| 30 | 10-01 | round 2's training on threebody died silently ~1 min after launch (log stops after "LoRA r=16", no exit line) | Windows OpenSSH kills every process of a session when the session closes; Start-Process from an ssh command stays in that session | H | launch through WMI (Invoke-CimMethod Win32_Process Create), outside the ssh session; the empty output folder removed; the dead log kept as train_u_eye2_killed_by_ssh.log | check from a SEPARATE ssh session that the process is alive and steps advance |
+
 Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
 forward, nothing left) - docs/component_boundaries.md.
