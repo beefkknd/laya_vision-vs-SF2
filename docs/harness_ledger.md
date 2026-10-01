@@ -38,5 +38,7 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 
 | 27 | 09-30 | Qwen's server hung after the book round (0.4 tok/s, then refused connections); my hand restart first left it with no log reader | 12 concurrent lesson loops keep omlx at batch > 1, where MTP is off (~1 tok/s); I restarted with raw `omlx serve` and gave logpipe two arguments instead of using ~/work/omlx/start | H | restarted correctly 18:53 (Jundot--Qwen3.8-27B-oQ4e-mtp, cache on, MTP on); always `~/work/omlx/stop && ~/work/omlx/start` | 2x2 watchdog: server.log silent 20 min while runs are active |
 
+| 28 | 10-01 | tests/test_early_stop.py fails on real data: the stop rule false-alarms in 5.5% of no-advice checks (271 arms) vs < 5% | the 2x2's no-advice arms (table and runs/all8, new seeds) joined the data; STOP_DROP = 60 was set on earlier arms (see #13) | V | open - re-tune per arm type or per opponent, an owner decision | the test (data-dependent) |
+
 Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
 forward, nothing left) - docs/component_boundaries.md.

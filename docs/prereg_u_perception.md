@@ -53,3 +53,23 @@ instead of reading RAM) and clearly above A.
 ## Load
 Collection (~2.5 h), dataset build, training (alone), eval, games: one at a time; memory watchdog; Qwen via
 ~/work/omlx/start only.
+
+
+## Amendments before collection and training (2026-10-01; implementation: sf2/data/perception.py, lessons/perception_*_v1.json)
+- RAM-to-frame alignment measured: the display lags RAM by 1 frame; labels are read at frame t = n-1 (HUD clock
+  98.9% agreement at lag 1 vs 86.0% at lag 0 over 12,166 image pairs; projectile on screen 7/7 one frame after spawn).
+- His projectile = the shot2 slot (RAM owner byte and probe agree).
+- Q1 bands from data (a decision stump on connects, no free threshold): throw band gap <= 43 (Guile 44), poke band per
+  character (Chun-Li 64 ... Zangief 82, pooled 72); mid/far at 120 (the table's own cut, kept for consistency); trend:
+  +-2 px per 4 frames.
+- Q2 "recovering after a miss" (tightened, so it does not include long startups): he is attacking at t, the whole
+  attack episode is inside the stored rows (60 back, 60 ahead), t lies in its second half, and I never enter hit/block
+  stun, a throw, or lose life during it; contact seen -> "attacking"; episode not fully observed -> "unknown".
+- Q4 near/far at 120 px (the table's mid/far cut). Q6 corner: within 11 px of the observed walls (to be re-measured on
+  the new collection: 4 characters' stages unseen so far). k (lookahead for landing / still attacking) recomputed from the
+  collection before training (provisional 8).
+- Q7 bars: the DRAWN bar (hp, which drains after a hit), not life: what a human sees.
+- Q8 targets: 1,440 (cell, move) soft targets, resampled by opponent then decision (808 confident, 632 spread).
+  Gate 2 (table's best move in top 3) is computed over decisions where the table's best move is not walking in
+  (walking in is always offered to text laya); decisions where it is are reported separately.
+- "unknown" labels are not trained on (masked) and not counted in accuracy.
