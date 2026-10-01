@@ -125,3 +125,20 @@ round of training on top of this checkpoint is needed. Health bar is not that im
   2 seeds per opponent: below the 3-run minimum for a verdict.
 - Health bars: deprioritised by the owner.
 - A further training round continuing from this checkpoint (not from BASE) is an owner option for later.
+
+## Exploratory in-play look (2026-10-01; 12 runs, all saved; logs/u_look_report.{txt,json}) - 2 seeds, below a verdict
+hp per round on the same seeds (73001-73002, 6 opponents, 360 rounds per cell):
+
+| cell | hp/round | taken | rounds won of 360 |
+|---|---|---|---|
+| A0 runs/all8, no advice (locked) | -53.5 | 152.3 | 84 |
+| **U0 the eye, no advice** | **-47.8** | 153.6 | **77** |
+| T0 table on RAM, no advice (locked) | +40.3 | 108.3 | 227 |
+| A1 runs/all8 + Qwen + book (locked, local Qwen) | -10.1 | 137.9 | 146 |
+| **U1 the eye + Qwen + book (NEW Qwen server)** | **-34.4** | 151.8 | **93** |
+| T1 table + Qwen + book (locked, local Qwen) | +46.2 | 101.0 | 241 |
+
+U0 - A0 +5.7 [-14.2, +25.2]; U0 - T0 -88.1 [-150.3, -43.2]. The eye plays like the old laya-vision, not like the
+table. Inside U0's 15,115 decisions: walks in 40% (6,080), picks the table's best move 19%, the table's best in its
+top 3 62%, throws per close decision 0.00 (231 throws, none at close range by RAM: its range reading is off, 0.70 offline).
+Shortlist words: 1,002 "likely works", 18,898 "may work", 25,445 "likely fails".
