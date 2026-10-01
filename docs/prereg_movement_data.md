@@ -83,3 +83,17 @@ names no opponent and no move.
 - Step 2: re-collect the same way (Chun-Li vs 7, 60-90 games each, stop when every action seen; ~15 min) logging that
   byte for both fighters; build; gate (labels re-derived 100%, alignment, every (actor, action) seen; counts per
   action reported, rare ones listed, not padded).
+
+## Owner decisions on the label (2026-10-01, after the action-ID probe 2819b09)
+Owner: "Same action fine but also need know where as a different question. 2nd ok, but also need a distance question.
+If mix them in one fine tune will have more messed up result."
+- Action (both fighters): "<actor> act<NN> stg<1-3>". NN = first non-zero move ID (0x0C3E / 0x0E3E) of the state
+  episode; a jump with an attack gets the attack's ID; close and far buttons stay separate IDs. No-ID attacks:
+  reserved codes (throw, fireball, special named by 0x0C49); other states: reserved codes 70+ (stand, walk toward, walk
+  away, crouch, jump, block, hit, thrown). Attacks cut before any ID: unknown, dropped. Mapping for Chun-Li:
+  lessons/chunli_action_ids.json.
+- Where (separate question): is he on the ground or in the air (from y).
+- Distance (separate question): the gap bands already calibrated (lessons/perception_thresholds_v2.json: throw /
+  poke / mid / far).
+- Three separate datasets from the same collection and, later, three separate fine-tunes - never one mixed run.
+  Training is registered separately.
