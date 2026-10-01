@@ -44,3 +44,5 @@ test_data_where/
 test_data_dist/
 # CPU Chun-Li act set (scripts/build_action_data_cpu.py): her rows from rollouts/mv4, frames symlinked; local only
 test_data_act_cpu/
+test_data_act_common/
+test_data_act_cpu_common/

@@ -148,3 +148,14 @@ Owner: "Ok but keep in mind how the data is collected."
   sheet test_data_act_cpu/contact/contact_chunli.png). No train rows: act11 (hk close, 2 episodes), act58 (3).
   In mv3 but not here: act44, 49, 50, 52, 89, 92.
 - Tests: tests/test_cpu_chunli.py; seeded faults tests/faults/cpu_chunli_faults.py 37 of 37; mv3 set still 51 of 51.
+
+## Owner: "I don't want rare move" (2026-10-01) - rare actions dropped
+- Rare = an (actor, code) seen in fewer than 10 episodes in its collection (gate coverage table). Its act and stage
+  rows go and its option leaves that actor's act question (labels re-indexed); nothing else changes
+  (sf2/data/action_common.py, scripts/filter_rare_actions.py; new dirs, sources untouched; the gate reads
+  <data>/filter.json and requires dropped actions to be ABSENT - a rare row put back turns it red).
+- test_data_act -> test_data_act_common: 46 of 217 (actor, code) dropped (incl. Chun-Li 44, 49, 52), rows
+  142,892 -> 141,388 (train 93,320 / val 15,452 / test 32,616). Gate PASS (labels 71,856 checks, 0 mismatches).
+- test_data_act_cpu -> test_data_act_cpu_common: 3 dropped (Chun-Li 01, 11, 58), rows 32,074 -> 32,002. Gate PASS
+  (labels, digit-mask alignment 0.995 at lag 1, provenance 32,002 rows).
+- mv4 stopped early by the owner (dhalsim/honda/ryu/zangief before their stop rule): rare moves are not wanted.

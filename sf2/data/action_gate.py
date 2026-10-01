@@ -159,7 +159,10 @@ def _is_cpu(meta: Dict) -> bool:
     return meta.get("layout") == CPU_LAYOUT
 
 
-def label_check(meta: Dict, files: Dict[str, Dict[str, List[Dict]]], th: Dict) -> Dict:
+def label_check(meta: Dict, files: Dict[str, Dict[str, List[Dict]]], th: Dict, dropped: frozenset = frozenset()
+                ) -> Dict:
+    """dropped: {"<actor> act<NN>"} removed on purpose (scripts/filter_rare_actions.py, <data>/filter.json): a
+    pair whose RAM label is one of them must have NO rows for that fighter."""
     ds = meta["dataset"]
     players = (2,) if _is_cpu(meta) else (1, 2)
     checked, bad, missing, examples = 0, 0, set(), []
@@ -196,9 +199,9 @@ def label_check(meta: Dict, files: Dict[str, Dict[str, List[Dict]]], th: Dict) -
                         mine = [r for r in group if r["player"] == p]
                         want = labs[p].get(t)
                         checked += 1
-                        if want is None:
+                        if want is None or "%s act%02d" % (chars[p], want[0]) in dropped:
                             if mine:
-                                fail(mine[0], None)
+                                fail(mine[0], None if want is None else "dropped " + str(list(want)))
                             continue
                         keys = sorted(r["key"] for r in mine)
                         answers = {r["key"]: r["answer"] for r in mine}
@@ -315,6 +318,12 @@ def trainable(data: str, opps: Sequence[str], val_limit: int = VAL_LIMIT) -> Dic
     return out
 
 
+def dropped_actions(data: str) -> frozenset:
+    """The (actor, code) a rare-action filter removed on purpose (<data>/filter.json), else none."""
+    path = os.path.join(data, "filter.json")
+    return frozenset(json.load(open(path))["dropped"]) if os.path.exists(path) else frozenset()
+
+
 def run_gates(data: str, thresholds: str, max_gb: float = MAX_GB, sample: int = SAMPLE, seed: int = 0,
               val_limit: int = VAL_LIMIT, check_train: bool = True) -> Dict:
     meta, files = load(data)
@@ -322,7 +331,7 @@ def run_gates(data: str, thresholds: str, max_gb: float = MAX_GB, sample: int = 
     pairs = one_per_pair(files)
     blue = alignment_check(data, meta, pairs, sample, MIN_DISC, MIN_AGREE, MIN_AGREE_DISC, seed)
     gates = {
-        "labels": label_check(meta, files, th),
+        "labels": label_check(meta, files, th, dropped_actions(data)),
         "alignment": blue,
         "disk": disk_check(data, meta["opps"], max_gb),
         "trainable": trainable(data, meta["opps"], val_limit) if check_train else {"pass": True, "skipped": True},
