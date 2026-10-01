@@ -30,6 +30,7 @@ from ..data.dataset import save_png
 from .game_log import action_entry, game_entry, ram_entry
 from .advice import FORWARD, opp_doing
 from .advisor import choose
+from .eye import Eye
 from .game_log import name as state_name
 from .opp_moves import OppMoveTracker
 from ..system2.memory import MAX_PROMPT_LESSONS, prompt_text
@@ -75,6 +76,7 @@ class System1:
         if not 0.0 <= explore <= 1.0:
             raise ValueError("explore must be in [0, 1], got %r" % explore)
         self.agent, self.rng = None, random.Random(seed)
+        self.eye = None            # sf2.system1.eye: a perception checkpoint decides from the frames alone (the U arm)
         self.note_version, self.value = 1, False
         # the lookup-table value ranking (sf2.data.value_oracle): no model, the table's best move over choices(me)
         self.oracle = oracle
@@ -106,6 +108,11 @@ class System1:
         """Play with ``agent``: its checkpoint config says which note it reads (sf2.data.value.note_version) and
         whether it answers the value questions (a value checkpoint: the move is the best expected net)."""
         cfg = getattr(agent, "cfg", None) or {}
+        if cfg.get("perception"):                  # the U arm: frames + "me=<char>" only (sf2.system1.eye)
+            if self.explore > 0:
+                raise ValueError("the eye does not explore (a perception checkpoint plays, it collects no data)")
+            self.agent, self.eye, self.note_version = agent, Eye(agent, self.me), 3
+            return
         self.agent, self.note_version, self.value = agent, note_version(cfg), bool(cfg.get("value_questions"))
         if self.value and self.note_version < 2:
             raise ValueError("a value checkpoint reads note v2 (its config says note_version %d)" % self.note_version)
@@ -120,7 +127,10 @@ class System1:
         return [les["text"] for les in (self.short or {}).get("lessons", [])[:MAX_PROMPT_LESSONS]]
 
     def decide(self, prev: np.ndarray, cur: np.ndarray, text: str, situation: Optional[Tuple] = None) -> Dict:
-        """``situation`` (range, what he is doing, my bar, his bar) is needed with an advisor."""
+        """``situation`` (range, what he is doing, my bar, his bar) is needed with an advisor. The eye (a perception
+        checkpoint) reads neither ``text`` nor ``situation``: only the two frames."""
+        if self.eye is not None:
+            return self.eye.decide(prev, cur, self.advisor, self.lessons())
         if self.oracle is not None:
             return self._by_table(text, situation)
         if self.agent is None:        # the explorer: any of the character's moves, uniformly (data, not play)
@@ -277,7 +287,12 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
 
 def _decide(s1: System1, opp: str, r: Dict[str, int], prev, cur) -> Tuple[Dict, str]:
     """(decision, the note laya-vision read). Without an advisor the short memory goes into laya-vision's note (the
-    old path); with one, laya-vision reads the note only (as trained) and the memory goes to text laya."""
+    old path); with one, laya-vision reads the note only (as trained) and the memory goes to text laya. The eye reads
+    no RAM: nothing of ``r`` is touched on that path (its note is "me=<char>", its situation its own answers)."""
+    if s1.eye is not None:
+        if s1.advisor is None and (s1.short or {}).get("lessons"):
+            raise ValueError("the eye without an advisor has no place for a short memory; play it with --memory none")
+        return s1.decide(prev, cur, s1.eye.note), s1.eye.note
     side = "left" if r["p1_x"] < r["p2_x"] else "right"
     text = note(s1.me, opp, view(r, 1), side, version=s1.note_version)
     if s1.advisor is None:
@@ -329,6 +344,7 @@ def _act(bridge, me: str, r: Dict[str, int], d: Dict):
     return live, prev, cur, actual
 
 
+EYE_KEYS = ("eye", "rank", "eye_situation", "eye_ms")
 ADVICE_KEYS = ("advice_text", "shortlist", "advice_probs", "rule_answers", "rule", "follows_rule")
 
 
@@ -348,6 +364,9 @@ def _close(game: int, me: str, opp: str, pending) -> Dict:
             entry[k] = d[k]
     if "values" in d:                             # a value checkpoint: expected net per move
         entry["values"] = d["values"]
+    for k in EYE_KEYS:                            # the eye: every answer, the rank scores, the situation it told text laya
+        if k in d:
+            entry[k] = d[k]
     if "explored" in d:                           # the value-data collector: a random move, not laya-vision's pick
         entry["explored"] = d["explored"]
     if images:
