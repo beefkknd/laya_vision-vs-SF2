@@ -36,3 +36,8 @@ then use CPU player against our laya-text": player 1 = our system, with text lay
 character's full set of attacks and defence (not runs/all8's own picks), player 2 = CPU; each ordered pair still
 played both ways (AB and BA), so every character is seen as the CPU and as our directed player. Rows record which
 side was directed and which was CPU.
+
+## Owner simplification (2026-10-01): brute force
+"Play 1 game is fast, you can just hardcode: play one action of A and push through, then the next action. Brute
+force." Player 1 = a hardcoded list of the character's actions sent straight to the controller, one after another,
+each executed in full, repeated until the game ends. No text laya, no model. Player 2 = CPU.
