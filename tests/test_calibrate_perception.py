@@ -220,3 +220,20 @@ def test_main_reads_a_collection_root_for_k_and_walls(tmp_path, monkeypatch):
     th = json.loads(out.read_text())
     assert th["k"] == 6 and "k" not in th["undecided"]
     assert th["walls"] == [100, 140] and th["sources"]["ram_root"]["path"] == str(root)
+
+
+def test_walls_ignore_impossible_x_and_lone_transients():
+    """v2 bug: one frame of Blanka at x 65369 (-167 wrapped) made the right wall 65369."""
+    c = cal()
+    rows = (frames([53] * 300 + [200] * 300, [459] * 300 + [300] * 300) +
+            frames([65369] + [200] * 50, [300] * 51, p1_char=2) +              # Blanka: the wrapped frame
+            frames([468] * 2 + [200] * 50, [300] * 52, p1_char=2))             # and a 2-frame transient at 468
+    w = c.walls(rows)
+    assert w["walls"] == [53, 459] and w["corner_d"] == 0
+    assert "hi" not in w["by_char"]["blanka"]
+
+
+def test_walls_refuse_an_impossible_wall():
+    c = cal()
+    with pytest.raises(SystemExit):
+        c.walls(frames([300] * 10, [310] * 10))          # no pile-up anywhere: no wall

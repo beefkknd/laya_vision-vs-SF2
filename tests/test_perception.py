@@ -333,3 +333,37 @@ def test_gate_uses_the_shipped_table_like_the_t_arm():
         moves = choices(cell[0])
         vals = {m: round(float(row.get(m, 0.0)), 3) for m in moves}
         assert P.table_best(table, cell) == max(vals, key=vals.get)
+
+
+# ---- impossible positions (a wrapped x: -167 read as 65369, Blanka vs Dhalsim, one frame in 2.28M) ----
+
+def wrapped_window():
+    rec = json.loads((Path(__file__).parent / "fixtures" / "perception" / "blanka_wrapped_x.json").read_text())
+    rows, _ = P.decode(rec)
+    return rows, 106                          # the row holding p1_x 65369
+
+
+def test_a_wrapped_x_at_t_makes_every_x_label_unknown_and_leaves_the_rest():
+    rows, bad = wrapped_window()
+    lab = P.labels(rows, bad + 1, TH)          # t = bad
+    for q in ("range", "trend", "corner"):
+        assert lab[q] == P.UNKNOWN, q
+    assert lab["phase"] != P.UNKNOWN and lab["my_bar"] != P.UNKNOWN and lab["projectile"] == "none"
+
+
+def test_a_wrapped_x_four_frames_back_makes_the_trend_unknown_only():
+    rows, bad = wrapped_window()
+    lab = P.labels(rows, bad + 5, TH)          # t - 4 = bad
+    assert lab["trend"] == P.UNKNOWN and lab["range"] != P.UNKNOWN and lab["corner"] != P.UNKNOWN
+
+
+def test_impossible_positions_in_air_and_projectile_are_unknown():
+    jump = mk(60, lambda i: ({"x": 100}, {"x": 200 - 2 * i, "y": 150, "state": 4}, {}))
+    jump[15]["p2_x"] = 65369                                   # t - 4 for n = 20
+    assert at(jump, 20)["air"] == P.UNKNOWN
+    shot = mk(40, lambda i: ({"x": 100}, {"x": 400}, {"shot2": 1, "shot2_x": 230 - 3 * i}))
+    shot[8]["shot2_x"] = 65369
+    assert at(shot, 9)["projectile"] == P.UNKNOWN
+    shot[8]["shot2_x"] = 206
+    shot[7]["shot2_x"] = 70000 - 65536 + 65536                 # 70000: beyond 16 bits too, still impossible
+    assert at(shot, 9)["projectile"] == P.UNKNOWN

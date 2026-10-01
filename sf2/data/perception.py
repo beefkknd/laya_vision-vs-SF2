@@ -34,6 +34,10 @@ Exact rules (thresholds ``th``: lessons/perception_thresholds_v1.json, scripts/c
            without sub 0x04. An episode running past the rows without a sub 0x04 seen: unknown.
  6 corner  me (or him) if x is within corner_d (<=) of a wall (walls: the x the fighters pile up at, observed); me
            when both are.
+ x         a position outside 0..STAGE_X (a negative x read as unsigned 16 bit, e.g. -167 -> 65369: one frame of
+           Blanka in 2.28M collected, mid-attack in the corner) is impossible: every label that reads it (range,
+           trend, air, projectile, corner) is unknown for that decision; the others stand. The RAM is recorded as
+           read (unsigned), unchanged.
  7 bars    sf2.vocab.bar of hp at t: the DRAWN bar, which drains to life after a hit (prereg amendment 2026-10-01).
 """
 from typing import Dict, List, Optional, Tuple
@@ -61,6 +65,11 @@ GUARD, HIT, THROWN = 0x08, 0x0E, 0x14
 STUN = (HIT, THROWN)
 BLOCK_REACTS = (0x06, 0x08)
 KNOCKDOWN_SUB, DIZZY_SUB = 0x04, 0x08
+STAGE_X = 512             # world x: walls at 53 / 459 (symmetric about 256); projectiles seen 13-498
+
+
+def _x_ok(r: Optional[Dict[str, int]], *keys: str) -> bool:
+    return r is not None and all(0 <= r[k] <= STAGE_X for k in keys)
 
 
 def decode(rec: Dict) -> Tuple[Rows, int]:
@@ -100,6 +109,8 @@ def _run(rows: Rows, t: int, pred) -> Tuple[Optional[int], Optional[int]]:
 # ---- 1 ----------------------------------------------------------------------------------------------------------
 
 def range_band(rows: Rows, t: int, th: Dict) -> str:
+    if not _x_ok(rows[t], "p1_x", "p2_x"):
+        return UNKNOWN
     me = CHARACTERS.get(rows[t]["p1_char"], "?")
     g = _gap(rows[t])
     if g <= _per_char(th, "throw_max", me):
@@ -111,7 +122,7 @@ def range_band(rows: Rows, t: int, th: Dict) -> str:
 
 def trend(rows: Rows, t: int, th: Dict) -> str:
     p = _row(rows, t - 4)
-    if p is None:
+    if not (_x_ok(p, "p1_x", "p2_x") and _x_ok(rows[t], "p1_x", "p2_x")):
         return UNKNOWN
     d = _gap(rows[t]) - _gap(p)
     return "closing" if d < -th["trend_eps"] else "opening" if d > th["trend_eps"] else "steady"
@@ -160,7 +171,7 @@ def air(rows: Rows, t: int, th: Dict) -> str:
     if any(r["p2_y"] == GROUND_Y for r in rows[t + 1:t + k + 1]):
         return "landing"
     p = _row(rows, t - 4)
-    if _row(rows, t + k) is None or p is None:
+    if _row(rows, t + k) is None or not (_x_ok(p, "p2_x") and _x_ok(rows[t], "p1_x", "p2_x")):
         return UNKNOWN
     return "jumping at me" if _toward(rows[t], rows[t]["p2_x"] - p["p2_x"]) else "jumping away or straight up"
 
@@ -172,6 +183,8 @@ def projectile(rows: Rows, t: int, th: Dict) -> str:
     if not r["shot2"]:
         return "none"
     p = _row(rows, t - 1)
+    if not _x_ok(r, "p1_x", "p2_x", "shot2_x") or (p is not None and p["shot2"] and not _x_ok(p, "shot2_x")):
+        return UNKNOWN
     if p is not None and p["shot2"]:
         coming = (r["shot2_x"] - p["shot2_x"]) * (r["p1_x"] - r["shot2_x"]) >= 0     # held still on impact
     else:                                       # just out: it leaves his side, toward me
@@ -203,6 +216,8 @@ def can_act(rows: Rows, t: int, who: int) -> str:
 
 def corner(rows: Rows, t: int, th: Dict) -> str:
     lo, hi = th["walls"]
+    if not _x_ok(rows[t], "p1_x", "p2_x"):
+        return UNKNOWN
     dist = {p: min(rows[t]["p%d_x" % p] - lo, hi - rows[t]["p%d_x" % p]) for p in (1, 2)}
     if dist[1] <= th["corner_d"]:
         return "me"

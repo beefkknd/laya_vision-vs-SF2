@@ -43,12 +43,13 @@ import sys
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence
 
 import _path  # noqa: F401
-from sf2.data.perception import LAG, Q8_ANSWERS, STUN, decode, q8_targets
+from sf2.data.perception import LAG, Q8_ANSWERS, STAGE_X, STUN, decode, q8_targets
 from sf2.vocab import CHARACTERS, MID
 
 NORMALS = ("lp", "mp", "hp", "lk", "mk", "hk", "c.lk", "c.mk", "sweep", "c.hp")
 MIN_POSITIVES = 10       # a character's own band needs this many connects, else it uses the pooled one
 MIN_CONTACTS = 5         # a move's frames-to-contact median needs this many contacts
+MIN_PILE = 20            # frames at one x for it to be a character's wall (a pile-up, not a transient)
 EDGE = 20                # px from the outermost x seen where a character's wall pile-up is looked for
 DEFAULT_LOGS = ("rollouts/lv_value/*/*/actions.jsonl", "rollouts/live_dhalsim/*/actions.jsonl")
 
@@ -100,11 +101,19 @@ def poke_band(entries: Iterable[Dict]) -> Dict:
 # ---- walls, corner, trend ---------------------------------------------------------------------------------------
 
 def walls(rows: Iterable[Dict]) -> Dict:
-    """Streams ``rows`` once, keeping only x counts per character (a whole collection fits)."""
+    """Streams ``rows`` once, keeping only x counts per character (a whole collection fits). Impossible x (outside
+    0..STAGE_X: a wrapped negative) are dropped; a character's wall is the most frequent x within EDGE of the
+    outermost x seen, and only with >= MIN_PILE frames there (a pile-up, not a transient). No wall on a side, or an
+    impossible one: SystemExit."""
     xs: Dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    dropped = 0
     for r in rows:
         for p in (1, 2):
-            xs[CHARACTERS.get(r["p%d_char" % p], str(r["p%d_char" % p]))][r["p%d_x" % p]] += 1
+            x = r["p%d_x" % p]
+            if not 0 <= x <= STAGE_X:
+                dropped += 1
+                continue
+            xs[CHARACTERS.get(r["p%d_char" % p], str(r["p%d_char" % p]))][x] += 1
     lo_seen = min(x for v in xs.values() for x in v)
     hi_seen = max(x for v in xs.values() for x in v)
     by_char: Dict[str, Dict[str, int]] = {}
@@ -112,13 +121,19 @@ def walls(rows: Iterable[Dict]) -> Dict:
         w = {}
         for side, near in (("lo", [x for x in sorted(v) if x <= lo_seen + EDGE]),
                            ("hi", [x for x in sorted(v) if x >= hi_seen - EDGE])):
-            if near:
-                w[side] = max(near, key=lambda x: v[x])          # the pile-up: the most frequent x near the edge
+            mode = max(near, key=lambda x: v[x]) if near else None      # the most frequent x near the edge
+            if mode is not None and v[mode] >= MIN_PILE:
+                w[side] = mode
         by_char[c] = w
+    if not any("lo" in w for w in by_char.values()) or not any("hi" in w for w in by_char.values()):
+        raise SystemExit("no wall pile-up (>= %d frames) on both sides: %s" % (MIN_PILE, by_char))
     lo = min(w["lo"] for w in by_char.values() if "lo" in w)
     hi = max(w["hi"] for w in by_char.values() if "hi" in w)
     d = max([w["lo"] - lo for w in by_char.values() if "lo" in w] + [hi - w["hi"] for w in by_char.values() if "hi" in w])
-    return {"walls": [lo, hi], "corner_d": d, "by_char": by_char, "x_seen": [lo_seen, hi_seen]}
+    if not 0 <= lo < hi <= STAGE_X:
+        raise SystemExit("impossible walls %s" % [lo, hi])
+    return {"walls": [lo, hi], "corner_d": d, "by_char": by_char, "x_seen": [lo_seen, hi_seen],
+            "dropped_impossible_x": dropped}
 
 
 def trend_eps(rows: Sequence[Dict]) -> Optional[Dict]:
