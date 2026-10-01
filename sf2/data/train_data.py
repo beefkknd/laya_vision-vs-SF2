@@ -15,6 +15,7 @@ import collections
 import json
 import os
 import random
+import re
 from typing import Dict, List, Sequence, Tuple
 
 MIN_COMBO_ROWS = 5       # training rows per (character, action, range, posture, side)
@@ -27,6 +28,7 @@ MIX_ALPHA = 0.0
 MIN_SAMPLED_TRAIN = 1000  # --balance sampling: train rows per dir
 MIN_SAMPLED_VAL = 100     # --balance sampling: validation rows per dir
 SHARE_TOLERANCE = 1e-9
+V3_NOTE = re.compile(r"^me=[a-z]+$")    # the U arm's note (sf2.data.u_data.eye_note): the character only
 
 
 def position(ex: Dict) -> Tuple:
@@ -134,6 +136,7 @@ def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str], s
     if shared:
         problems.append("%d validation positions also in train, e.g. %s" % (len(shared), sorted(shared)[:2]))
     recs = _records(dirs)
+    perception = {name for (name, _), r in recs.items() if r.get("perception")}     # the U arm's dirs (u_data)
     combos = collections.Counter()
     labels = collections.defaultdict(set)
     blocks = collections.Counter()
@@ -146,7 +149,7 @@ def coverage_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str], s
                 combos[(ex["dataset"], r["action"], r["range"], r["posture"], r["side"])] += 1
             labels[ex["dataset"]].add(r["outcome"])
     for name in names:
-        if name not in SPECIALS:
+        if name not in SPECIALS or name in perception:
             continue                      # not a stage-1 character dir: only the share checks above apply
         for answer in ANSWERS:          # blocks: every answer to every probe attack, on both sides
             for probe in ("s.hk", "c.mk", "sweep", "jump_in"):
@@ -178,14 +181,23 @@ def coverage_table(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -> s
 
 def checkpoint_tags(examples: List[Dict]) -> Dict:
     """What the data teaches, for the checkpoint's config (sf2.data.value.note_version, System 1's value mode): the
-    note version (v2 carries opp_attacking; every row must agree) and whether it has value (score) questions."""
+    note version (v2 carries opp_attacking; v3, the U arm's "me=<char>" only, also tags "perception": true; every row
+    must agree) and whether it has value (score) questions."""
     if not examples:
         raise ValueError("no training examples")
-    versions = {2 if " opp_attacking=" in (e["state"].get("context") or "") else 1 for e in examples}
+    versions = {_version(e["state"].get("context") or "") for e in examples}
     if len(versions) != 1:
         raise ValueError("training rows mix note versions %s" % sorted(versions))
     version = versions.pop()
     value = any(e["q"]["t"] == "score" for e in examples)
-    if value and version < 2:
+    if value and version != 2:
         raise ValueError("value questions need note v2 rows")
+    if version == 3:
+        return {"note_version": 3, "value_questions": False, "perception": True}
     return {"note_version": version, "value_questions": value}
+
+
+def _version(context: str) -> int:
+    if V3_NOTE.match(context):
+        return 3
+    return 2 if " opp_attacking=" in context else 1
