@@ -289,3 +289,13 @@ def test_contact_seen_decides_attacking_even_when_the_episode_runs_past_the_rows
 def test_an_attack_ending_before_t_plus_k_is_attacking_even_if_it_started_before_the_rows():
     rows = attack_rows(0, 8)              # t = 3, ends at 7 < 3 + 6
     assert P.labels(rows, 4, TH)["phase"] == "attacking"
+
+
+def test_the_default_and_the_shipped_lag_is_one_frame():
+    """Measured: the image at frame n shows the RAM of frame n - 1 (perception.LAG's docstring)."""
+    rows = still(p1={"x": 100}, p2={"x": 130})
+    rows[9] = row({"x": 100, "char": CHUNLI}, {"x": 300})
+    th = {k: v for k, v in TH.items() if k != "lag"}
+    assert P.labels(rows, 9, th)["range"] == "throw"
+    shipped = json.loads((Path(__file__).parent.parent / "lessons" / "perception_thresholds_v1.json").read_text())
+    assert shipped["lag"] == P.LAG == 1

@@ -38,6 +38,7 @@ def test_stump_is_the_cut_that_classifies_most_entries_right():
 
 def test_stump_takes_the_smallest_of_equally_good_cuts():
     assert cal().stump([10, 20], [50, 60]) == 20
+    assert cal().stump([10, 20, 40], [30, 50]) == 20          # 20 and 40 both classify 4 of 5 right
 
 
 def test_stump_without_positives_is_none():
@@ -73,13 +74,13 @@ def frames(p1_xs, p2_xs, p1_char=5, p2_char=0):
 
 def test_walls_are_the_modes_at_the_stage_edges_and_d_the_widest_character_offset():
     c = cal()
-    rows = (frames([53] * 300 + [55] * 40 + [200] * 300, [300] * 640) +
+    rows = (frames([44] * 4 + [53] * 300 + [55] * 40 + [200] * 296, [300] * 640) +    # 44: a transient (probe)
             frames([200] * 300, [459] * 200 + [400] * 100) +
             frames([200] * 300, [448] * 150 + [300] * 150, p2_char=1))      # Honda pinned 11 px short of 459
     w = c.walls(rows)
     assert w["walls"] == [53, 459]
     assert w["corner_d"] == 11
-    assert w["by_char"]["honda"]["hi"] == 448
+    assert w["by_char"]["honda"]["hi"] == 448 and w["x_seen"] == [44, 459]
 
 
 # ---- k: my fastest connecting attack's frames from the decision to contact ----

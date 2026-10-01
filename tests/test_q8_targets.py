@@ -49,7 +49,7 @@ def test_pooling_decisions_alone_would_have_been_confident_here():
 def test_probabilities_sum_to_one_and_are_in_answer_order():
     es = many("ryu", "lp", 3, 10) + many("ryu", "forward", 1, 10)
     p = target(es, "lp")["p"]
-    assert list(p) == list(Q8_ANSWERS) and abs(sum(p.values()) - 1) < 1e-9
+    assert list(p) == list(Q8_ANSWERS) and abs(sum(p.values()) - 1) < 1e-9 and all(0 <= v <= 1 for v in p.values())
 
 
 def test_the_filter_is_the_tables():
@@ -72,6 +72,7 @@ def test_a_move_never_tried_in_the_cell_is_reported_with_n_0():
     es = many("ryu", "forward", -2, 30)
     t = target(es, "lp", moves={"chunli": ["lp", "forward"]})
     assert t["n"] == 0 and t["p"]["may work"] == 1.0        # the table's 0 beats walking in at -2 (shrunk), by < 3
+    assert t["p"]["likely works"] == 0.0 and all(0 <= v <= 1 for v in t["p"].values())
 
 
 def test_forward_has_no_target_of_its_own():
