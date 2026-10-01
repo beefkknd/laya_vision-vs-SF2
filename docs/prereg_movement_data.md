@@ -113,3 +113,15 @@ If mix them in one fine tune will have more messed up result."
 - Gate (scripts/gate_action_data.py): all three PASS (labels 100% by an independent implementation, alignment lag 1
   0.978 / 0.973 on discriminating pairs, disk 1.8 GB, train.py's checks with --balance sampling). The act set needs
   train.py --val-limit >= 15,642. Coverage: 217 (actor, code), 21 without train or test rows (test_data_act/gate.json).
+
+## Addition (2026-10-01): CPU Chun-Li games, for her moves our policy never makes
+Owner: "Ok but keep in mind how the data is collected."
+- Gap: Chun-Li's action rows all come from runs/all8 as player 1, which never jump-attacks (IDs 23-27, 32 absent).
+- Collection rollouts/mv4: each of the 7 other characters as player 1 (runs/all8, explore 0.5, note "me=<char>")
+  vs CPU Chun-Li as player 2; same sampler, caps and stop rule as mv3 (min 40, stop after 15 games with no new
+  Chun-Li (code, split), hard cap 150). Move byte read at 0x0E3E (slot-independent IDs, 111/112 pressed moves agree).
+- Kept: Chun-Li's action rows only, in a separate dataset dir (test_data_act_cpu). Every row records its provenance:
+  collection, Chun-Li's slot (P2), controller (cpu), the player-1 character, and "me" in the note.
+  Never merged silently with test_data_act; any training using it reports results per source.
+- Gates as for test_data_act (labels re-derived 100%, alignment, coverage listed) plus: the provenance fields present
+  on every row and equal to the run's settings.
