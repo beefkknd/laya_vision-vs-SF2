@@ -46,7 +46,7 @@ FAULTS = [
      "out: Dict[str, Optional[str]] = {m: words[m] for m in", "out: Dict[str, Optional[str]] = {m: WORKS for m in"),
     ("eye: avoided moves stay in the top 3", EYE, "best = sorted((m for m in rank if m not in out_ruled)",
      "best = sorted((m for m in rank)"),
-    ("eye: poke mapped to mid", EYE, '"poke": "close"', '"poke": "mid"'),
+    ("eye: poke mapped to close", EYE, '"poke": "mid"', '"poke": "close"'),
     ("eye: blocking mapped to stunned", EYE, 'if phase == "being hit" or him in NOT_FREE:',
      'if phase in ("being hit", "blocking") or him in NOT_FREE:'),
     ("eye: air not first", EYE, '    if air != "grounded":\n        return "jumping"\n',

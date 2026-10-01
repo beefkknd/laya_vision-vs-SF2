@@ -220,7 +220,7 @@ def test_a_non_perception_checkpoint_plays_as_before():
 
 # ---- text laya's situation from laya-vision's own answers ------------------------------------------------------------
 
-@pytest.mark.parametrize("band,want", [("throw", "close"), ("poke", "close"), ("mid", "mid"), ("far", "far")])
+@pytest.mark.parametrize("band,want", [("throw", "close"), ("poke", "mid"), ("mid", "mid"), ("far", "far")])
 def test_range_mapping(band, want):
     assert E.range_word(band) == want and want in RANGES
 
@@ -271,7 +271,7 @@ def test_shortlist_equals_the_advisors_when_words_are_its_ratings():
 
 def test_with_advisor_shortlist_words_come_straight_from_q8_and_the_situation_from_the_answers():
     adv = FakeAdvisor()
-    ans = answers(range="poke", phase="attacking", my_bar="high", his_bar="half",
+    ans = answers(range="throw", phase="attacking", my_bar="high", his_bar="half",
                   q8={"lk": {WORKS: 0.6, MAY: 0.3, FAILS: 0.1}, "mp": {WORKS: 0.1, MAY: 0.5, FAILS: 0.4},
                       "throw": {WORKS: 0.3, MAY: 0.3, FAILS: 0.4}, "hp": {WORKS: 0.0, MAY: 0.2, FAILS: 0.8}})
     s = s1(ans, advisor=adv)

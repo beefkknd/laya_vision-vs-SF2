@@ -11,7 +11,11 @@ to the first of perception.Q8_ANSWERS). Walking in is not asked: it is the basel
 - With an advisor: text laya's shortlist is built as advisor.shortlist builds it (the top 3 by rank score, skipping
   moves an applying avoid lesson rules out; the moves an applying lesson names; walking in), but every word is
   question 8's own (no score scale). Text laya's situation is laya-vision's own answers in text laya's words:
-  range  Q1 band: throw / poke -> "close", mid -> "mid", far -> "far" (``range_word``)
+  range  Q1 band: throw -> "close", poke / mid -> "mid", far -> "far" (``range_word``). Text laya's words (and the
+         table's cells) cut at sf2.vocab CLOSE = 55 px; the throw band (<= 43) lies wholly below it, the poke band
+         straddles it (Chun-Li 44-64; others up to 82): on Chun-Li's 1,473 poke-band training decisions of the U
+         collection RAM's word was "mid" in 59% (867) and "close" in 41%, so poke -> "mid" (the eye's range word then
+         agrees with RAM's on 95.2% of her decisions vs 93.5% with poke -> "close").
   doing  in opp_doing's order: Q3 airborne (jumping at me / away / landing) -> "jumping"; Q2 attacking or
          recovering after a miss -> "attacking" (both are his attack states, which opp_doing calls attacking);
          Q2 being hit or Q5 him stunned / knocked down / dizzy -> "stunned"; else (neutral, blocking) "standing"
@@ -33,7 +37,7 @@ from .advice import FAILS, FORWARD, MAY, RATING, WORKS, answers, prompt, questio
 from .advisor import SHORTLIST, applicable
 
 CHECKPOINT_FILES = ("model.safetensors", "vlm_agent_config.json")
-RANGE_WORD = {"throw": "close", "poke": "close", "mid": "mid", "far": "far"}
+RANGE_WORD = {"throw": "close", "poke": "mid", "mid": "mid", "far": "far"}
 NOT_FREE = ("stunned", "knocked down", "dizzy")
 MAY_WEIGHT = 0.5
 
