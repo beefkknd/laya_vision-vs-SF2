@@ -39,6 +39,7 @@ from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, TEXT_LAYA
 from sf2.data import value_oracle
 from sf2.system2 import code_coach
 from sf2.system1.advisor import Advisor
+from sf2.system1.eye import checkpoint_sha256
 from sf2.eval import stats
 from sf2.eval.logs import sources
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
@@ -80,7 +81,12 @@ def play_arm(args, opp: str, arm: str, port: int, out: str) -> int:
     table = value_oracle.load(args.oracle) if getattr(args, "oracle", None) else None
     with Advisor(args.advisor) as advisor, open_fight(me, opp, port) as (b, state), \
             open_logs(out, ("actions", "rounds")) as logs:
-        s1 = System1(None if table is not None else args.model, me, advisor=advisor, oracle=table)
+        eye = getattr(args, "eye", None)
+        if eye and table is not None:
+            raise SystemExit("--eye and --oracle are two rankings: pick one")
+        s1 = System1(eye or (None if table is not None else args.model), me, advisor=advisor, oracle=table)
+        if bool(eye) != (getattr(s1, "eye", None) is not None):
+            raise SystemExit("--eye needs a perception checkpoint, and a perception checkpoint needs --eye")
         s1.short = json.load(open(mem_path)) if os.path.exists(mem_path) else None
         s1.advice_on = arm != "none"
         rng = random.Random(args.seed)            # the same seed in every arm: the same start delays, round by round
@@ -118,6 +124,9 @@ def report(s: Dict) -> None:
 def run_meta(args) -> Dict:
     """What run.json records about System 1's ranking: laya-vision's checkpoint, or (--oracle) no model and the table
     with its sha256."""
+    eye = getattr(args, "eye", None)
+    if eye:
+        return {"model": eye, "eye": eye, "eye_sha256": checkpoint_sha256(eye)}
     path = getattr(args, "oracle", None)
     if not path:
         return {"model": args.model}
@@ -126,10 +135,11 @@ def run_meta(args) -> Dict:
 
 
 def run_root(seed: int, base: str = os.path.join("rollouts", "ab"), stamp: Optional[str] = None,
-             table: bool = False) -> str:
+             table: bool = False, eye: bool = False) -> str:
     """This batch's own folder, <stamp>_s<seed>[+table]; an existing one is refused, never shared (harness ledger #21:
     two batches launched in the same second wrote into one folder and interleaved their logs)."""
-    root = os.path.join(base, "%s_s%d%s" % (stamp or time.strftime("%Y%m%d-%H%M%S"), seed, "+table" if table else ""))
+    root = os.path.join(base, "%s_s%d%s%s" % (stamp or time.strftime("%Y%m%d-%H%M%S"), seed, "+table" if table else "",
+                                              "+eye" if eye else ""))
     try:
         os.makedirs(root)
     except FileExistsError:
@@ -148,6 +158,7 @@ def main() -> int:
     ap.add_argument("--model", default=LAYA_VISION)
     ap.add_argument("--advisor", default=TEXT_LAYA)
     ap.add_argument("--oracle", help="System 1 ranks by this lookup table (sf2.data.value_oracle) instead of laya-vision")
+    ap.add_argument("--eye", help="System 1 is this perception checkpoint (the U arm, sf2.system1.eye); folder ends '+eye'")
     ap.add_argument("--seed", type=int, default=None,
                     help="start delays for every arm (default: a new one per run, so no earlier run replays the test)")
     ap.add_argument("--base-port", type=int, default=PORTS["ab"][0])
@@ -167,7 +178,7 @@ def main() -> int:
     if "none" not in arms:
         raise SystemExit("the control arm 'none' is required")
     seed = int(time.time()) % 100000 if args.seed is None else args.seed
-    root = run_root(seed, table=bool(args.oracle))
+    root = run_root(seed, table=bool(args.oracle), eye=bool(args.eye))
     rows = code_coach.attacks(me)                  # play data only: A/B, notebook and --fresh runs are excluded
     runs = []
     for opp in opps:                               # freeze what is tested, before anything plays
@@ -186,7 +197,7 @@ def main() -> int:
     cmds = [((opp, arm), [sys.executable, os.path.abspath(__file__), "--one", opp, arm, str(args.base_port + i),
                           os.path.join(root, "%s_%s" % (opp, arm)), "--char", me, "--rounds", str(args.rounds),
                           "--model", args.model, "--advisor", args.advisor, "--seed", str(seed)]
-             + (["--oracle", args.oracle] if args.oracle else []))
+             + (["--oracle", args.oracle] if args.oracle else []) + (["--eye", args.eye] if args.eye else []))
             for i, (opp, arm) in enumerate(runs)]
     print("%d headless runs, %d rounds each, seed %d; logs/ab/" % (len(cmds), args.rounds, seed), flush=True)
     failed = fan_out(cmds, os.path.join("logs", "ab"), job_gb=MODEL_JOB_GB)

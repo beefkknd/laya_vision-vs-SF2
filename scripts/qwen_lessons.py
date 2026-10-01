@@ -53,6 +53,7 @@ from sf2.eval.logs import load_actions, mark_run, play_dirs
 from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, open_logs
 from sf2.eval.stats import ci, paired
 from sf2.system1.advisor import Advisor
+from sf2.system1.eye import checkpoint_sha256
 from sf2.system1.system1 import System1, choices, play_round
 from sf2.system2 import lessons as L
 from sf2.system2 import character_prompt, lesson_prompt
@@ -141,6 +142,32 @@ def oracle_meta(args) -> Dict:
     return {"oracle": path, "oracle_sha256": load_oracle(path)[1]} if path else {}
 
 
+def eye_meta(args) -> Dict:
+    """What the run file and the verdict record about the eye ({} without one): the perception checkpoint (the U arm,
+    docs/prereg_u_perception.md) and its sha256."""
+    path = getattr(args, "eye", None)
+    return {"eye": path, "eye_sha256": checkpoint_sha256(path)} if path else {}
+
+
+def system1_model(args, table):
+    """The checkpoint System 1 loads: the eye's, none with a table, else --model."""
+    if getattr(args, "eye", None):
+        if table is not None or getattr(args, "oracle", None):
+            raise SystemExit("--eye and --oracle are two rankings: pick one")
+        return args.eye
+    return None if table is not None else args.model
+
+
+def check_eye(args, s1) -> None:
+    """--eye must load a perception checkpoint, and a perception checkpoint must come as --eye (the run name and the
+    reports tell the U arm apart by it)."""
+    eye = getattr(s1, "eye", None)
+    if getattr(args, "eye", None) and eye is None:
+        raise SystemExit("--eye %s is not a perception checkpoint (its config has no perception tag)" % args.eye)
+    if not getattr(args, "eye", None) and eye is not None:
+        raise SystemExit("%s is a perception checkpoint: play it with --eye" % args.model)
+
+
 def advisor_options(args) -> Dict:
     """--shared-text-laya: the one shared server; else nothing (the default, a helper per run)."""
     return {"shared": True} if getattr(args, "shared_text_laya", False) else {}
@@ -164,14 +191,16 @@ def code_commit() -> str:
 def play_settings(args, table) -> Dict:
     """What the run file records about how the arm played (scripts/factorial_report.py refuses pairs that differ)."""
     return {"games": args.games, "rounds": args.rounds, "advisor": args.advisor,
-            "model": None if table is not None else args.model, "commit": code_commit()}
+            "model": system1_model(args, table), "commit": code_commit()}
 
 
 def run_name(args, stamp: str) -> str:
-    """<stamp>_<opp>[_<prompt>][_track][_book][+table]: the ranking is part of the name (the reports pair by it)."""
+    """<stamp>_<opp>[_<prompt>][_track][_book][+table|+eye]: the ranking is part of the name (the reports pair by
+    it)."""
     return "%s_%s%s" % (stamp, args.opp, ("" if args.prompt == "views" else "_" + args.prompt)
                         + ("_track" if args.track else "") + ("_book" if args.book else "")
-                        + ("+table" if getattr(args, "oracle", None) else ""))
+                        + ("+table" if getattr(args, "oracle", None) else "")
+                        + ("+eye" if getattr(args, "eye", None) else ""))
 
 
 def start_registry(args, arm: str) -> L.Registry:
@@ -196,6 +225,7 @@ def ask(opp: str, reg: L.Registry, rows: List[Dict], last: List[Dict], all_round
 
 
 def play_arm(args, arm: str, port: int, out: str) -> int:
+    system1_model(args, None)                  # --eye with --oracle: refused before anything loads
     base = decisions(args.opp, args.lock) if args.history else []
     reg: L.Registry = start_registry(args, arm)
     book = book_meta(args)
@@ -211,12 +241,13 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     table = load_oracle(getattr(args, "oracle", None))[0]
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock,
              prompt=args.prompt, track=args.track, track_sha256=digest, forward_lessons=args.forward_lessons,
-             **book, **oracle_meta(args), **play_settings(args, table))      # never play data (sf2.eval.logs)
+             **book, **oracle_meta(args), **eye_meta(args), **play_settings(args, table))      # never play data (sf2.eval.logs)
     with Advisor(args.advisor, **advisor_options(args)) as advisor, \
             open_fight(ME, args.opp, port, state=args.state) as (b, state), \
             open_logs(out, ("actions", "rounds", "ledger")) as logs:
         # the table ranks without laya-vision: no model is loaded (System 1 refuses a model with an oracle)
-        s1 = System1(None if table is not None else args.model, ME, advisor=advisor, oracle=table)
+        s1 = System1(system1_model(args, table), ME, advisor=advisor, oracle=table)
+        check_eye(args, s1)
         s1.advice_on = arm == "loop"
         rng = random.Random(args.seed)
 
@@ -400,6 +431,7 @@ def arm_cmds(args, root: str) -> List:
               + (["--track", args.track] if args.track else [])
               + (["--book", args.book] if args.book else [])
               + (["--oracle", args.oracle] if getattr(args, "oracle", None) else [])
+              + (["--eye", args.eye] if getattr(args, "eye", None) else [])
               + (["--shared-text-laya"] if getattr(args, "shared_text_laya", False) else [])
               + (["--forward-lessons"] if args.forward_lessons else []))
     return [((args.opp, arm), [sys.executable, os.path.abspath(__file__)] + common
@@ -425,6 +457,8 @@ def main() -> int:
                                    "this opponent's lines (default: none)")
     ap.add_argument("--oracle", help="System 1 ranks by this lookup table (sf2.data.value_oracle, e.g. "
                                      "lessons/value_oracle_v1.json) instead of laya-vision's P(hit)")
+    ap.add_argument("--eye", help="System 1 is this perception checkpoint (the U arm, sf2.system1.eye): it sees only "
+                                  "the frames and 'me=<char>'; the run name ends '+eye'")
     ap.add_argument("--shared-text-laya", action="store_true",
                     help="text laya from the one shared server; each arm reserves config.RUN_JOB_SHARED_GB")
     ap.add_argument("--forward-lessons", action="store_true",
@@ -450,7 +484,7 @@ def main() -> int:
     failed = fan_out(cmds, log_dir(root), job_gb=job_gb(args))
     v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, track=args.track,
              track_sha256=load_track(args.track, args.opp)[1], forward_lessons=args.forward_lessons,
-             failed_jobs=[list(k) for k in failed], **book_meta(args), **oracle_meta(args))
+             failed_jobs=[list(k) for k in failed], **book_meta(args), **oracle_meta(args), **eye_meta(args))
     with open(os.path.join(root, "verdict.json"), "w") as f:
         json.dump(v, f, indent=1)
     print(json.dumps(v, indent=1))
