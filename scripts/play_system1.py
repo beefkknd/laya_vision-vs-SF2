@@ -7,7 +7,8 @@ what really happened.
 
 Opponent: states/p1_<char>_vs_ryu.state (Ryu: p1_ryu_vs_ken.state), round 1 against the CPU.
 Writes the game log for System 2 (sf2/system1/game_log.py): rollouts/<run>/<char>/{actions.jsonl, games.jsonl, images/}
-and rollouts/<run>/summary.json; process logs in logs/system1/<char>.log.
+and rollouts/<run>/summary.json; process logs in logs/system1/<char>.log. With --ram-log also <char>/ram.jsonl: the RAM
+rows around every decision (sf2/system1/game_log.py ram_entry; docs/prereg_u_perception.md).
 """
 import argparse
 import collections
@@ -48,11 +49,14 @@ def play_one(args, me: str, port: int) -> int:
     print("%s vs %s: short memory %s" % (me, opp, "%d lessons" % len(s1.short["lessons"]) if s1.short else "empty"),
           flush=True)
     t0 = time.time()
-    with open_fight(me, opp, port, args.rom) as (b, state), open_logs(out, ("actions", "games")) as logs:
+    names = ("actions", "games") + (("ram",) if args.ram_log else ())
+    with open_fight(me, opp, port, args.rom) as (b, state), open_logs(out, names) as logs:
         rng = random.Random(args.seed)
         for i in range(args.games):
-            rnd = play_round(b, s1, opp, state, rng, img_dir, i)
+            rnd = play_round(b, s1, opp, state, rng, img_dir, i, ram_log=args.ram_log)
             logs["actions"].write("".join(json.dumps(e) + "\n" for e in rnd.log))
+            if args.ram_log:
+                logs["ram"].write("".join(json.dumps(e, separators=(",", ":")) + "\n" for e in rnd.ram))
             logs["games"].write(json.dumps(rnd.summary) + "\n")
             for f in logs.values():
                 f.flush()
@@ -103,6 +107,8 @@ def main() -> int:
                          "this probability, else laya-vision's pick")
     ap.add_argument("--oracle", default=None,
                     help="a lookup-table value ranking (sf2.data.value_oracle json); play it with --model none")
+    ap.add_argument("--ram-log", action="store_true",
+                    help="also write <char>/ram.jsonl: the RAM rows around each decision (the U arm's labels)")
     ap.add_argument("--log-dir", default=os.path.join("logs", "system1"),
                     help="process logs <dir>/<char>.log (one dir per parallel invocation, or their logs collide)")
     ap.add_argument("--one", nargs=2, metavar=("CHAR", "PORT"), help=argparse.SUPPRESS)
@@ -114,7 +120,7 @@ def main() -> int:
     cmds = [((c,), [sys.executable, os.path.abspath(__file__), "--one", c, str(args.base_port + i), "--model",
                     args.model, "--games", str(args.games), "--threshold", str(args.threshold), "--out", args.out,
                     "--seed", str(args.seed), "--memory", args.memory, "--opp", args.opp,
-                    "--explore", str(args.explore)] + (["--oracle", args.oracle] if args.oracle else [])
+                    "--explore", str(args.explore)] + (["--oracle", args.oracle] if args.oracle else []) + (["--ram-log"] if args.ram_log else [])
              + (["--rom", args.rom] if args.rom else [])) for i, c in enumerate(chars)]
     print("%d characters playing (%s/<char>.log)" % (len(cmds), args.log_dir), flush=True)
     failed = [c for (c,) in fan_out(cmds, args.log_dir, job_gb=VISION_JOB_GB)]

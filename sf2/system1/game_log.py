@@ -13,10 +13,15 @@ actions.jsonl, per action:
     his move:      opp_move (fireball / uppercut / hurricane / slap / throw / jump_attack / normal / none: his attack
                    episode overlapping this window, sf2.system1.opp_moves), opp_shot (his projectile out at the decision)
 games.jsonl, per game: result, frames, clock_end, lives at the end, dealt, taken, action counts, outcome counts.
+ram.jsonl (opt-in, play_system1 --ram-log; docs/prereg_u_perception.md), per action, keyed by (game, frame) like
+actions.jsonl: the full RAM rows from up to BACK frames before the decision frame n to up to LOOKAHEAD frames after it
+(the real continuation: her move, his answer, the next decisions), "n" = the index of the decision row, "names" = the
+columns (sf2.emu.vs.NAMES). Row n is the frame of the "now" image, row n - 4 the frame of the "prev" image.
 """
 import collections
 from typing import Dict, List
 
+from ..emu.vs import NAMES
 from ..vocab import range_of
 from ..data.vs_defense import BLOCKS
 from ..data.vs_sweep import MOVEMENT
@@ -86,3 +91,10 @@ def game_entry(game: int, result: str, frames: int, last: Dict, actions: List[Di
         "outcomes": dict(collections.Counter(a["actual"] for a in actions if a["kind"] == "attack")),
         "times_hit": sum(a["i_was_hit"] for a in actions),
     }
+
+
+def ram_entry(game: int, frame: int, rows: List[Dict], n: int) -> Dict:
+    """One ram.jsonl line: ``rows`` (dicts, consecutive frames) as lists in NAMES order, ``rows[n]`` the decision."""
+    if not 0 <= n < len(rows):
+        raise ValueError("decision index %d outside %d rows" % (n, len(rows)))
+    return {"game": game, "frame": frame, "n": n, "names": list(NAMES), "rows": [[r[k] for k in NAMES] for r in rows]}

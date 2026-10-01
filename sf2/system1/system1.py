@@ -27,7 +27,7 @@ import numpy as np
 
 from ..config import PAD
 from ..data.dataset import save_png
-from .game_log import action_entry, game_entry
+from .game_log import action_entry, game_entry, ram_entry
 from .advice import FORWARD, opp_doing
 from .advisor import choose
 from .game_log import name as state_name
@@ -48,6 +48,8 @@ WAIT = 4              # idle frames per step while the fighter cannot act (the 4
 MAX_RECOVER = 90      # frames to wait after an attack for the fighter to be able to act again
 MAX_FRAMES = 12000    # a round cannot last longer (99 s clock plus the KO)
 RESULT = {1: "win", 2: "loss", 0xFF: "draw"}
+BACK = 8              # --ram-log: rows kept before each decision frame n (n - 4 is the prev image's frame)
+LOOKAHEAD = 30        # --ram-log: rows kept after it (the real continuation, her move included)
 
 
 @dataclass
@@ -56,6 +58,7 @@ class Round:
     frames: int = 0
     log: List[Dict] = field(default_factory=list)      # sf2.game_log.action_entry per action
     summary: Dict = field(default_factory=dict)         # sf2.game_log.game_entry
+    ram: List[Dict] = field(default_factory=list)       # sf2.game_log.ram_entry per action (play_round's ram_log)
 
 
 def choices(me: str) -> List[str]:
@@ -220,16 +223,19 @@ def write_live(path: str, entry: Dict) -> None:
 
 
 def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: random.Random, img_dir: Optional[str],
-               game: int, live_path: Optional[str] = None, echo: bool = False) -> Round:
+               game: int, live_path: Optional[str] = None, echo: bool = False, ram_log: bool = False) -> Round:
     """One game (a round) until the ROM's round result is set: from ``state`` (a savestate), or with ``state`` None
     from wherever the game is now (arcade play from power-on). Every action is logged from its decision to the next
-    decision, so the opponent's reaction (and a punish while System 1 cannot act) is part of it."""
+    decision, so the opponent's reaction (and a punish while System 1 cannot act) is part of it. ``ram_log``: also
+    keep every RAM row of the round and return, per action, the rows around its decision (``Round.ram``)."""
     if state is not None:
         bridge.load_state(state)
         rows, prev, cur = _run(bridge, [[]] * (4 + rng.randrange(40)))    # a random start so games differ
     else:
         rows, prev, cur = _run(bridge, [[]] * 4)
     rnd = Round()
+    stream = list(rows) if ram_log else None    # every row of the round in frame order (index k = frame k of it)
+    marks: List[Tuple[int, int]] = []           # (frame, index of the decision row in stream) per action
     opp_moves = OppMoveTracker()   # holds each entry until the attack episodes its window overlaps are classified
     pending = None          # (decision row, rows since, decision, actual, frame, images) of the last action
     while True:
@@ -240,12 +246,16 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
         if not _can_act(r):
             rows, prev, cur = _run(bridge, [[]] * WAIT)
             rnd.frames += WAIT
+            if stream is not None:
+                stream.extend(rows[1:])     # row 0 of a RUN is the previous RUN's last row
             if pending:
                 pending[1].extend(rows[1:])
             continue
         if pending:
             rnd.log.extend(opp_moves.add(_close(game, s1.me, opp, pending), pending[0], pending[1]))
         d, text = _decide(s1, opp, r, prev, cur)
+        if stream is not None:
+            marks.append((rnd.frames, len(stream) - 1))
         if live_path or echo:
             _show(live_path, echo, game, rnd.frames, opp, r, d)
         images = _save_images(img_dir, game, rnd.frames, prev, cur) if img_dir else None
@@ -253,10 +263,15 @@ def play_round(bridge, s1: System1, opp: str, state: Optional[bytes], rng: rando
         pending = (r, list(live), dict(d, prompt=text), actual, rnd.frames, images)
         rnd.frames += len(live)
         rows = [r] + live
+        if stream is not None:
+            stream.extend(live)
     if pending:
         rnd.log.extend(opp_moves.add(_close(game, s1.me, opp, pending), pending[0], pending[1]))
     rnd.log.extend(opp_moves.flush())
     rnd.summary = game_entry(game, rnd.result, rnd.frames, rows[-1], rnd.log)
+    if stream is not None:
+        rnd.ram = [ram_entry(game, frame, stream[max(0, i - BACK):i + 1 + LOOKAHEAD], min(i, BACK))
+                   for frame, i in marks]
     return rnd
 
 
