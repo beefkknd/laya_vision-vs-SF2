@@ -12,12 +12,13 @@ Exact rules (thresholds ``th``: lessons/perception_thresholds_v1.json, scripts/c
            (a character without its own band uses the pooled "all"). trend: gap(t) - gap(t - 4) < -eps closing,
            > eps opening, else steady.
  2 phase   being hit: his state 0x0E with a hit reaction (not 06 / 08), or thrown (0x14). blocking: state 0x08, or
-           0x0E with a block reaction (06 / 08). attacking: state 0x0A / 0x0C; it is "recovering after a miss" when
-           (a) his attack episode (the consecutive attack rows around t) starts and ends inside the rows, (b) I take no
-           contact during the whole episode - on none of its rows do I ENTER hit / block stun or thrown (0x0E / 0x14)
-           or lose life - and (c) he is still attacking at t + k. Contact seen, or an end before t + k, decides
-           "attacking" even when the episode's other end is outside the rows; otherwise a start or end outside the
-           rows is unknown. Anything else (stand, crouch, jump, turn) is neutral.
+           0x0E with a block reaction (06 / 08). attacking: state 0x0A / 0x0C; it is "recovering after a miss"
+           (prereg amendment 2026-10-01) when (a) his attack episode (the consecutive attack rows around t) starts
+           and ends inside the rows, (b) t lies in its second half (frame j of 0..L-1 with 2j >= L), and (c) I take
+           no contact during the whole episode - on none of its rows do I ENTER hit / block stun or thrown
+           (0x0E / 0x14) or lose life. Contact seen decides "attacking" even when the episode runs past the rows; no
+           contact seen and a start or end outside the rows: unknown; the first half: attacking. Anything else
+           (stand, crouch, jump, turn) is neutral.
  3 air     grounded: his y == GROUND_Y at t. Airborne: landing if he is on the ground at some frame in (t, t + k];
            else jumping at me if his x moved toward me over t - 4 -> t, else jumping away or straight up. Airborne
            with frame t + k missing and no landing seen: unknown. (A fighter knocked into the air is labelled by the
@@ -33,7 +34,7 @@ Exact rules (thresholds ``th``: lessons/perception_thresholds_v1.json, scripts/c
            without sub 0x04. An episode running past the rows without a sub 0x04 seen: unknown.
  6 corner  me (or him) if x is within corner_d (<=) of a wall (walls: the x the fighters pile up at, observed); me
            when both are.
- 7 bars    sf2.vocab.bar of life at t (prereg: life; the drawn bar follows hp, which drains to life after a hit).
+ 7 bars    sf2.vocab.bar of hp at t: the DRAWN bar, which drains to life after a hit (prereg amendment 2026-10-01).
 """
 from typing import Dict, List, Optional, Tuple
 
@@ -140,11 +141,9 @@ def phase(rows: Rows, t: int, th: Dict) -> str:
     s, e = _run(rows, t, lambda x: x["p2_state"] in ATTACK)
     if _contact_on_me(rows, max(s or 1, 1), len(rows) - 1 if e is None else e):
         return "attacking"            # contact seen in the part of the episode the rows hold: decided
-    if e is not None and e < t + th["k"]:
-        return "attacking"            # over before t + k: no opening
     if s is None or e is None:
         return UNKNOWN                # no contact seen, but it may have come before the rows or after them
-    return "recovering after a miss"
+    return "recovering after a miss" if 2 * (t - s) >= e - s + 1 else "attacking"     # second half: recovery
 
 
 # ---- 3 ----------------------------------------------------------------------------------------------------------
@@ -221,8 +220,34 @@ def labels(rows: Rows, n: int, th: Dict) -> Dict[str, str]:
         "range": range_band(rows, t, th), "trend": trend(rows, t, th), "phase": phase(rows, t, th),
         "air": air(rows, t, th), "projectile": projectile(rows, t, th),
         "me_can_act": can_act(rows, t, 1), "him_can_act": can_act(rows, t, 2), "corner": corner(rows, t, th),
-        "my_bar": bar(r["p1_life"]), "his_bar": bar(r["p2_life"]),
+        "my_bar": bar(r["p1_hp"]), "his_bar": bar(r["p2_hp"]),
     }
+
+
+# ---- gate 2 helper: is the table's best move in a ranking's top 3 ------------------------------------------------
+
+def table_best(table: Dict[Tuple, Dict[str, float]], cell: Tuple, moves: Optional[List[str]] = None) -> str:
+    """The table's best move in ``cell`` exactly as the T arm plays it (System1._by_table via value_oracle.rank): the
+    max over ``moves`` (default sf2.system1.system1.choices(me), whose order breaks ties), a move missing from the
+    cell counting 0, values rounded to 3 places."""
+    if moves is None:
+        from ..system1.system1 import choices
+        moves = choices(cell[0])
+    row = table.get(tuple(cell), {})
+    vals = {m: round(float(row.get(m, 0.0)), 3) for m in moves}
+    return max(vals, key=vals.get)
+
+
+def best_in_top3(table: Dict[Tuple, Dict[str, float]], cell: Tuple, ranking, moves: Optional[List[str]] = None
+                 ) -> Optional[bool]:
+    """Prereg gate 2 for one decision: is the table's best move (by RAM's cell) among the first 3 of ``ranking`` (a
+    list, best first, or {move: score}, higher first; ties keep the given order)? None when the table's best is
+    walking in (those decisions are reported separately: walking in is always offered)."""
+    best = table_best(table, cell, moves)
+    if best == FORWARD:
+        return None
+    order = list(ranking) if not isinstance(ranking, dict) else sorted(ranking, key=lambda m: -ranking[m])
+    return best in order[:3]
 
 
 # ---- 8: the soft target ------------------------------------------------------------------------------------------

@@ -95,12 +95,16 @@ def attack_rows(start, dur, contact_at=None, n_rows=60):
     return mk(n_rows, f)
 
 
-def test_an_attack_that_has_not_touched_me_and_lasts_k_more_frames_is_recovering_after_a_miss():
-    assert at(attack_rows(5, 30), 16)["phase"] == "recovering after a miss"
+def test_a_whole_attack_without_contact_is_recovering_in_its_second_half():
+    """Amendment 2026-10-01: episode 5-34 (30 frames) fully stored; frames 20-34 are its second half."""
+    assert at(attack_rows(5, 30), 21)["phase"] == "recovering after a miss"     # t = 20: frame 15 of 0-29
+    assert at(attack_rows(5, 30), 35)["phase"] == "recovering after a miss"     # t = 34: its last frame
 
 
-def test_an_attack_that_ends_within_k_frames_is_attacking():
-    assert at(attack_rows(5, 14), 16)["phase"] == "attacking"          # t = 15, ends at 18 < 15 + 6
+def test_the_first_half_of_a_whole_attack_without_contact_is_attacking():
+    assert at(attack_rows(5, 30), 20)["phase"] == "attacking"          # t = 19: frame 14 of 0-29
+    assert at(attack_rows(5, 14), 12)["phase"] == "attacking"          # t = 11: frame 6 of 0-13
+    assert at(attack_rows(5, 14), 13)["phase"] == "recovering after a miss"   # t = 12: frame 7 of 0-13
 
 
 def test_an_attack_that_touched_me_earlier_in_the_episode_is_attacking():
@@ -115,7 +119,7 @@ def test_a_life_drop_counts_as_contact():
     rows = attack_rows(5, 30)
     for r in rows[25:]:
         r["p1_life"] = 150
-    assert at(rows, 16)["phase"] == "attacking"
+    assert at(rows, 26)["phase"] == "attacking"
 
 
 def test_an_attack_whose_end_is_beyond_the_rows_is_unknown():
@@ -130,7 +134,7 @@ def test_an_attack_whose_start_is_before_the_rows_is_unknown():
 
 def test_contact_already_on_me_before_his_attack_is_not_his_contact():
     rows = attack_rows(10, 30, contact_at=0)          # I reel 0-11 from an earlier hit; his attack starts at 10
-    assert at(rows, 20)["phase"] == "recovering after a miss"
+    assert at(rows, 36)["phase"] == "recovering after a miss"
 
 
 @pytest.mark.parametrize("p2,phase", [({"state": 0x08}, "blocking"), ({"state": 0x0E, "react": 0x06}, "blocking"),
@@ -256,10 +260,11 @@ def test_corner_is_within_d_of_the_observed_walls(mx, hx, corner):
 
 # ---- 7: bars ----
 
-def test_bars_follow_vocab_bar_on_life():
-    lab = at(still(p1={"x": 100, "life": 176}, p2={"x": 200, "life": 40}))
+def test_bars_follow_the_drawn_bar_hp_not_life():
+    """Amendment 2026-10-01: what a human sees. hp drains to life after a hit; the bar is drawn from hp."""
+    lab = at(still(p1={"x": 100, "hp": 176, "life": 40}, p2={"x": 200, "hp": 40, "life": 176}))
     assert (lab["my_bar"], lab["his_bar"]) == ("full", "low")
-    lab = at(still(p1={"x": 100, "life": 255}, p2={"x": 200, "life": 100}))     # a KO wraps life to 255
+    lab = at(still(p1={"x": 100, "hp": 255}, p2={"x": 200, "hp": 100}))     # a KO wraps it to 255
     assert (lab["my_bar"], lab["his_bar"]) == ("low", "half")
 
 
@@ -286,9 +291,9 @@ def test_contact_seen_decides_attacking_even_when_the_episode_runs_past_the_rows
     assert P.labels(rows, 16, TH)["phase"] == "attacking"
 
 
-def test_an_attack_ending_before_t_plus_k_is_attacking_even_if_it_started_before_the_rows():
-    rows = attack_rows(0, 8)              # t = 3, ends at 7 < 3 + 6
-    assert P.labels(rows, 4, TH)["phase"] == "attacking"
+def test_an_attack_not_fully_stored_without_contact_is_unknown_even_in_its_second_half():
+    rows = attack_rows(0, 8)              # starts at row 0: its start may be earlier
+    assert P.labels(rows, 7, TH)["phase"] == "unknown"
 
 
 def test_the_default_and_the_shipped_lag_is_one_frame():
@@ -299,3 +304,32 @@ def test_the_default_and_the_shipped_lag_is_one_frame():
     assert P.labels(rows, 9, th)["range"] == "throw"
     shipped = json.loads((Path(__file__).parent.parent / "lessons" / "perception_thresholds_v1.json").read_text())
     assert shipped["lag"] == P.LAG == 1
+
+
+# ---- the gate helper (prereg gate 2) ----
+
+TABLE = {("chunli", "close", 0, 0): {"throw": 6.0, "lk": 2.0, "forward": 1.0, "sweep": -3.0},
+         ("chunli", "far", 0, 0): {"forward": 4.0, "lk": 1.0}}
+
+
+def test_gate_the_tables_best_move_in_the_top_3():
+    cell = ("chunli", "close", 0, 0)
+    assert P.table_best(TABLE, cell, ["throw", "lk", "forward", "sweep"]) == "throw"
+    assert P.best_in_top3(TABLE, cell, {"lk": 0.9, "sweep": 0.8, "throw": 0.7, "mp": 0.1}) is True
+    assert P.best_in_top3(TABLE, cell, {"lk": 0.9, "sweep": 0.8, "mp": 0.75, "throw": 0.7}) is False
+    assert P.best_in_top3(TABLE, cell, ["mp", "throw", "lk", "sweep"]) is True      # a ranked list works too
+
+
+def test_gate_is_none_when_the_tables_best_is_walking_in():
+    assert P.best_in_top3(TABLE, ("chunli", "far", 0, 0), {"lk": 0.9}) is None
+
+
+def test_gate_uses_the_shipped_table_like_the_t_arm():
+    """Same best as System 1's table player: max over choices(me) (ties: first in that order), missing moves 0."""
+    from sf2.data.value_oracle import load
+    from sf2.system1.system1 import choices
+    table = load(str(Path(__file__).parent.parent / "lessons" / "value_oracle_v1.json"))
+    for cell, row in list(table.items())[:40]:
+        moves = choices(cell[0])
+        vals = {m: round(float(row.get(m, 0.0)), 3) for m in moves}
+        assert P.table_best(table, cell) == max(vals, key=vals.get)
