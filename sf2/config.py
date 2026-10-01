@@ -31,6 +31,8 @@ DEFAULT_ROM = "roms/Street Fighter II (USA).sfc"
 # (331 s) reasoning for a 1,177-character answer (the same lesson as agent_harness's model_client.py).
 QWEN_URL = _env("SF2_QWEN_URL", "http://127.0.0.1:8000/v1/chat/completions")
 QWEN_MODEL = _env("SF2_QWEN_MODEL", "Jundot--Qwen3.8-27B-oQ4e-mtp")
+# A server that needs an API key: $SF2_QWEN_API_KEY or this private file (chmod 600, outside the repo), never committed
+QWEN_KEY_FILE = _env("SF2_QWEN_KEY_FILE", "~/.config/sf2/qwen_api_key")
 QWEN_THINKING = False
 QWEN_MAX_TOKENS = 8192
 QWEN_TEMPERATURE = 0.0

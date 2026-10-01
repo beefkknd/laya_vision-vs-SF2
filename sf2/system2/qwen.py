@@ -7,9 +7,19 @@ import time
 import urllib.request
 from typing import Dict, List
 
-from ..config import QWEN_MAX_TOKENS, QWEN_MODEL, QWEN_TEMPERATURE, QWEN_THINKING, QWEN_URL
+from ..config import QWEN_KEY_FILE, QWEN_MAX_TOKENS, QWEN_MODEL, QWEN_TEMPERATURE, QWEN_THINKING, QWEN_URL
 
 LOG_DIR = os.path.join("logs", "system2")
+
+
+def _api_key() -> str:
+    """The server's API key, if it needs one: $SF2_QWEN_API_KEY, else the private file QWEN_KEY_FILE; "" when neither.
+    Read per request, sent only as a header, never logged."""
+    key = os.environ.get("SF2_QWEN_API_KEY", "")
+    if not key and os.path.exists(QWEN_KEY_FILE):
+        with open(QWEN_KEY_FILE) as f:
+            key = f.read().strip()
+    return key
 
 
 def chat(messages: List[Dict], task: str, max_tokens: int = QWEN_MAX_TOKENS, temperature: float = QWEN_TEMPERATURE,
@@ -17,7 +27,11 @@ def chat(messages: List[Dict], task: str, max_tokens: int = QWEN_MAX_TOKENS, tem
     """Qwen's reply text. Raises on an HTTP error, a timeout, or an empty or cut-off reply."""
     body = {"model": QWEN_MODEL, "messages": messages, "max_tokens": max_tokens, "temperature": temperature,
             "chat_template_kwargs": {"enable_thinking": thinking}}
-    req = urllib.request.Request(QWEN_URL, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    key = _api_key()
+    if key:
+        headers["Authorization"] = "Bearer " + key
+    req = urllib.request.Request(QWEN_URL, data=json.dumps(body).encode(), headers=headers)
     t = time.time()
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         out = json.loads(resp.read())
