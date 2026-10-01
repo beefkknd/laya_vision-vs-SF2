@@ -45,7 +45,7 @@ from types import SimpleNamespace
 from typing import Dict, List
 
 import _path  # noqa: F401
-from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, RUN_JOB_SHARED_GB, TEXT_LAYA
+from sf2.config import LAYA_VISION, MODEL_JOB_GB, PORTS, QWEN_MODEL, QWEN_URL, RUN_JOB_SHARED_GB, TEXT_LAYA
 from sf2.data import value_oracle
 from sf2.data.dataset import read
 from sf2.eval import lock as lk
@@ -134,6 +134,11 @@ def load_oracle(path):
     with open(path, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     return value_oracle.load(path), digest
+
+
+def qwen_meta() -> Dict:
+    """Which Qwen served this run (server and model; never the key): runs on different servers stay distinguishable."""
+    return {"qwen_url": QWEN_URL, "qwen_model": QWEN_MODEL}
 
 
 def oracle_meta(args) -> Dict:
@@ -241,7 +246,7 @@ def play_arm(args, arm: str, port: int, out: str) -> int:
     table = load_oracle(getattr(args, "oracle", None))[0]
     mark_run(out, test=True, arm=arm, opp=args.opp, seed=args.seed, lock=args.lock,
              prompt=args.prompt, track=args.track, track_sha256=digest, forward_lessons=args.forward_lessons,
-             **book, **oracle_meta(args), **eye_meta(args), **play_settings(args, table))      # never play data (sf2.eval.logs)
+             **book, **oracle_meta(args), **eye_meta(args), **play_settings(args, table), **qwen_meta())      # never play data (sf2.eval.logs)
     with Advisor(args.advisor, **advisor_options(args)) as advisor, \
             open_fight(ME, args.opp, port, state=args.state) as (b, state), \
             open_logs(out, ("actions", "rounds", "ledger")) as logs:
@@ -484,7 +489,8 @@ def main() -> int:
     failed = fan_out(cmds, log_dir(root), job_gb=job_gb(args))
     v = dict(verdict(root, args.opp, args.history, args.lock, args.prompt), seed=args.seed, lock=args.lock, track=args.track,
              track_sha256=load_track(args.track, args.opp)[1], forward_lessons=args.forward_lessons,
-             failed_jobs=[list(k) for k in failed], **book_meta(args), **oracle_meta(args), **eye_meta(args))
+             failed_jobs=[list(k) for k in failed], **book_meta(args), **oracle_meta(args), **eye_meta(args),
+             **qwen_meta())
     with open(os.path.join(root, "verdict.json"), "w") as f:
         json.dump(v, f, indent=1)
     print(json.dumps(v, indent=1))

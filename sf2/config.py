@@ -29,8 +29,11 @@ DEFAULT_ROM = "roms/Street Fighter II (USA).sfc"
 # System 2: Qwen 3.8 27B (Q4, MTP) served by omlx on this machine (OpenAI-style chat API); start it with
 # ~/work/omlx/start. Thinking is OFF and the reply capped: with it on, one playbook review spent 11,593 tokens
 # (331 s) reasoning for a 1,177-character answer (the same lesson as agent_harness's model_client.py).
-QWEN_URL = _env("SF2_QWEN_URL", "http://127.0.0.1:8000/v1/chat/completions")
-QWEN_MODEL = _env("SF2_QWEN_MODEL", "Jundot--Qwen3.8-27B-oQ4e-mtp")
+# Owner 2026-10-01: Qwen moved to a faster LAN server (llama.cpp, Qwen3.8-27B UD-Q4_K_M; needs an API key, see
+# QWEN_KEY_FILE). Runs before this (locks lesson_loop_v1-v3) used the local omlx server, Jundot--Qwen3.8-27B-oQ4e-mtp
+# at http://127.0.0.1:8000 (start: ~/work/omlx/start); set SF2_QWEN_URL / SF2_QWEN_MODEL to use it again.
+QWEN_URL = _env("SF2_QWEN_URL", "http://192.168.1.173:8080/v1/chat/completions")
+QWEN_MODEL = os.environ.get("SF2_QWEN_MODEL", "C:\\work\\qwen3.8-27b\\models\\Qwen3.8-27B-UD-Q4_K_M.gguf")
 # A server that needs an API key: $SF2_QWEN_API_KEY or this private file (chmod 600, outside the repo), never committed
 QWEN_KEY_FILE = _env("SF2_QWEN_KEY_FILE", "~/.config/sf2/qwen_api_key")
 QWEN_THINKING = False
