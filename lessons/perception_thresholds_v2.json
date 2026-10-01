@@ -1,0 +1,1039 @@
+{
+ "corner_d": 11,
+ "evidence": {
+  "k": {
+   "all_moves": {
+    "blanka c.hp": [
+     10.0,
+     25
+    ],
+    "blanka c.lk": [
+     7.0,
+     30
+    ],
+    "blanka c.mk": [
+     7.0,
+     25
+    ],
+    "blanka electricity": [
+     9.0,
+     26
+    ],
+    "blanka hk": [
+     9.0,
+     11
+    ],
+    "blanka hp": [
+     8.0,
+     19
+    ],
+    "blanka lk": [
+     9.0,
+     10
+    ],
+    "blanka lp": [
+     7.0,
+     15
+    ],
+    "blanka mk": [
+     9.0,
+     11
+    ],
+    "blanka mp": [
+     6.5,
+     14
+    ],
+    "blanka sweep": [
+     10.0,
+     111
+    ],
+    "blanka throw": [
+     8.0,
+     10
+    ],
+    "chunli c.hp": [
+     9.0,
+     183
+    ],
+    "chunli c.lk": [
+     9.0,
+     135
+    ],
+    "chunli c.mk": [
+     7.0,
+     193
+    ],
+    "chunli hk": [
+     13.0,
+     146
+    ],
+    "chunli hp": [
+     8.0,
+     180
+    ],
+    "chunli lightning_legs": [
+     17.5,
+     224
+    ],
+    "chunli lk": [
+     9.0,
+     83
+    ],
+    "chunli lp": [
+     5.0,
+     37
+    ],
+    "chunli mk": [
+     9.0,
+     118
+    ],
+    "chunli mp": [
+     7.0,
+     147
+    ],
+    "chunli sweep": [
+     9.0,
+     1206
+    ],
+    "chunli throw": [
+     8.0,
+     181
+    ],
+    "dhalsim c.hp": [
+     15.0,
+     15
+    ],
+    "dhalsim c.lk": [
+     7.0,
+     47
+    ],
+    "dhalsim c.mk": [
+     15.0,
+     43
+    ],
+    "dhalsim hk": [
+     14.0,
+     25
+    ],
+    "dhalsim hp": [
+     15.0,
+     37
+    ],
+    "dhalsim lk": [
+     8.0,
+     17
+    ],
+    "dhalsim lp": [
+     9.0,
+     6
+    ],
+    "dhalsim mk": [
+     9.0,
+     26
+    ],
+    "dhalsim mp": [
+     11.0,
+     31
+    ],
+    "dhalsim sweep": [
+     13.0,
+     155
+    ],
+    "dhalsim throw": [
+     15.0,
+     40
+    ],
+    "dhalsim yoga_fire": [
+     35.0,
+     166
+    ],
+    "dhalsim yoga_flame": [
+     35.0,
+     25
+    ],
+    "guile c.hp": [
+     8.0,
+     21
+    ],
+    "guile c.lk": [
+     9.0,
+     27
+    ],
+    "guile c.mk": [
+     10.0,
+     29
+    ],
+    "guile flash_kick": [
+     8.0,
+     5
+    ],
+    "guile hk": [
+     8.0,
+     13
+    ],
+    "guile hp": [
+     12.0,
+     25
+    ],
+    "guile lk": [
+     7.0,
+     11
+    ],
+    "guile lp": [
+     5.0,
+     9
+    ],
+    "guile mk": [
+     15.0,
+     12
+    ],
+    "guile mp": [
+     6.0,
+     13
+    ],
+    "guile sonic_boom": [
+     17.5,
+     32
+    ],
+    "guile sweep": [
+     10.0,
+     75
+    ],
+    "guile throw": [
+     12.0,
+     25
+    ],
+    "honda c.hp": [
+     8.0,
+     19
+    ],
+    "honda c.lk": [
+     12.0,
+     25
+    ],
+    "honda c.mk": [
+     12.0,
+     18
+    ],
+    "honda hk": [
+     12.0,
+     21
+    ],
+    "honda hp": [
+     12.0,
+     20
+    ],
+    "honda hundred_hand_slap": [
+     32.0,
+     39
+    ],
+    "honda lk": [
+     12.0,
+     10
+    ],
+    "honda lp": [
+     7.0,
+     9
+    ],
+    "honda mk": [
+     12.0,
+     17
+    ],
+    "honda mp": [
+     9.0,
+     19
+    ],
+    "honda sweep": [
+     10.0,
+     75
+    ],
+    "honda throw": [
+     12.0,
+     11
+    ],
+    "ken c.lk": [
+     6.0,
+     35
+    ],
+    "ken c.mk": [
+     7.0,
+     21
+    ],
+    "ken hadoken": [
+     29.0,
+     410
+    ],
+    "ken hk": [
+     11.0,
+     8
+    ],
+    "ken hp": [
+     7.0,
+     12
+    ],
+    "ken lk": [
+     7.5,
+     2
+    ],
+    "ken lp": [
+     6.0,
+     3
+    ],
+    "ken mk": [
+     15.0,
+     12
+    ],
+    "ken mp": [
+     7.0,
+     9
+    ],
+    "ken shoryuken": [
+     10.5,
+     14
+    ],
+    "ken sweep": [
+     7.0,
+     21
+    ],
+    "ken tatsumaki": [
+     28.0,
+     21
+    ],
+    "ken throw": [
+     12.0,
+     14
+    ],
+    "ryu c.lk": [
+     6.0,
+     11
+    ],
+    "ryu c.mk": [
+     7.0,
+     18
+    ],
+    "ryu hadoken": [
+     24.0,
+     373
+    ],
+    "ryu hk": [
+     11.0,
+     11
+    ],
+    "ryu hp": [
+     9.0,
+     15
+    ],
+    "ryu lk": [
+     9.5,
+     4
+    ],
+    "ryu lp": [
+     6.0,
+     5
+    ],
+    "ryu mk": [
+     11.0,
+     4
+    ],
+    "ryu mp": [
+     7.0,
+     12
+    ],
+    "ryu shoryuken": [
+     14.0,
+     21
+    ],
+    "ryu sweep": [
+     7.0,
+     67
+    ],
+    "ryu tatsumaki": [
+     28.5,
+     22
+    ],
+    "ryu throw": [
+     9.0,
+     9
+    ],
+    "zangief c.hp": [
+     9.0,
+     24
+    ],
+    "zangief c.lk": [
+     6.0,
+     18
+    ],
+    "zangief c.mk": [
+     6.0,
+     29
+    ],
+    "zangief clothesline": [
+     33.0,
+     22
+    ],
+    "zangief hk": [
+     12.0,
+     24
+    ],
+    "zangief hp": [
+     9.0,
+     26
+    ],
+    "zangief lk": [
+     7.0,
+     9
+    ],
+    "zangief lp": [
+     5.0,
+     18
+    ],
+    "zangief mk": [
+     9.0,
+     16
+    ],
+    "zangief mp": [
+     7.0,
+     27
+    ],
+    "zangief spinning_piledriver": [
+     15.0,
+     13
+    ],
+    "zangief sweep": [
+     6.0,
+     212
+    ],
+    "zangief throw": [
+     9.0,
+     19
+    ]
+   },
+   "by_move": {
+    "blanka": {
+     "c.hp": [
+      10.0,
+      25
+     ],
+     "c.lk": [
+      7.0,
+      30
+     ],
+     "c.mk": [
+      7.0,
+      25
+     ],
+     "electricity": [
+      9.0,
+      26
+     ],
+     "hk": [
+      9.0,
+      11
+     ],
+     "hp": [
+      8.0,
+      19
+     ],
+     "lk": [
+      9.0,
+      10
+     ],
+     "lp": [
+      7.0,
+      15
+     ],
+     "mk": [
+      9.0,
+      11
+     ],
+     "mp": [
+      6.5,
+      14
+     ],
+     "sweep": [
+      10.0,
+      111
+     ],
+     "throw": [
+      8.0,
+      10
+     ]
+    },
+    "chunli": {
+     "c.hp": [
+      9.0,
+      183
+     ],
+     "c.lk": [
+      9.0,
+      135
+     ],
+     "c.mk": [
+      7.0,
+      193
+     ],
+     "hk": [
+      13.0,
+      146
+     ],
+     "hp": [
+      8.0,
+      180
+     ],
+     "lightning_legs": [
+      17.5,
+      224
+     ],
+     "lk": [
+      9.0,
+      83
+     ],
+     "lp": [
+      5.0,
+      37
+     ],
+     "mk": [
+      9.0,
+      118
+     ],
+     "mp": [
+      7.0,
+      147
+     ],
+     "sweep": [
+      9.0,
+      1206
+     ],
+     "throw": [
+      8.0,
+      181
+     ]
+    },
+    "dhalsim": {
+     "c.hp": [
+      15.0,
+      15
+     ],
+     "c.lk": [
+      7.0,
+      47
+     ],
+     "c.mk": [
+      15.0,
+      43
+     ],
+     "hk": [
+      14.0,
+      25
+     ],
+     "hp": [
+      15.0,
+      37
+     ],
+     "lk": [
+      8.0,
+      17
+     ],
+     "lp": [
+      9.0,
+      6
+     ],
+     "mk": [
+      9.0,
+      26
+     ],
+     "mp": [
+      11.0,
+      31
+     ],
+     "sweep": [
+      13.0,
+      155
+     ],
+     "throw": [
+      15.0,
+      40
+     ],
+     "yoga_fire": [
+      35.0,
+      166
+     ],
+     "yoga_flame": [
+      35.0,
+      25
+     ]
+    },
+    "guile": {
+     "c.hp": [
+      8.0,
+      21
+     ],
+     "c.lk": [
+      9.0,
+      27
+     ],
+     "c.mk": [
+      10.0,
+      29
+     ],
+     "flash_kick": [
+      8.0,
+      5
+     ],
+     "hk": [
+      8.0,
+      13
+     ],
+     "hp": [
+      12.0,
+      25
+     ],
+     "lk": [
+      7.0,
+      11
+     ],
+     "lp": [
+      5.0,
+      9
+     ],
+     "mk": [
+      15.0,
+      12
+     ],
+     "mp": [
+      6.0,
+      13
+     ],
+     "sonic_boom": [
+      17.5,
+      32
+     ],
+     "sweep": [
+      10.0,
+      75
+     ],
+     "throw": [
+      12.0,
+      25
+     ]
+    },
+    "honda": {
+     "c.hp": [
+      8.0,
+      19
+     ],
+     "c.lk": [
+      12.0,
+      25
+     ],
+     "c.mk": [
+      12.0,
+      18
+     ],
+     "hk": [
+      12.0,
+      21
+     ],
+     "hp": [
+      12.0,
+      20
+     ],
+     "hundred_hand_slap": [
+      32.0,
+      39
+     ],
+     "lk": [
+      12.0,
+      10
+     ],
+     "lp": [
+      7.0,
+      9
+     ],
+     "mk": [
+      12.0,
+      17
+     ],
+     "mp": [
+      9.0,
+      19
+     ],
+     "sweep": [
+      10.0,
+      75
+     ],
+     "throw": [
+      12.0,
+      11
+     ]
+    },
+    "ken": {
+     "c.lk": [
+      6.0,
+      35
+     ],
+     "c.mk": [
+      7.0,
+      21
+     ],
+     "hadoken": [
+      29.0,
+      410
+     ],
+     "hk": [
+      11.0,
+      8
+     ],
+     "hp": [
+      7.0,
+      12
+     ],
+     "mk": [
+      15.0,
+      12
+     ],
+     "mp": [
+      7.0,
+      9
+     ],
+     "shoryuken": [
+      10.5,
+      14
+     ],
+     "sweep": [
+      7.0,
+      21
+     ],
+     "tatsumaki": [
+      28.0,
+      21
+     ],
+     "throw": [
+      12.0,
+      14
+     ]
+    },
+    "ryu": {
+     "c.lk": [
+      6.0,
+      11
+     ],
+     "c.mk": [
+      7.0,
+      18
+     ],
+     "hadoken": [
+      24.0,
+      373
+     ],
+     "hk": [
+      11.0,
+      11
+     ],
+     "hp": [
+      9.0,
+      15
+     ],
+     "lp": [
+      6.0,
+      5
+     ],
+     "mp": [
+      7.0,
+      12
+     ],
+     "shoryuken": [
+      14.0,
+      21
+     ],
+     "sweep": [
+      7.0,
+      67
+     ],
+     "tatsumaki": [
+      28.5,
+      22
+     ],
+     "throw": [
+      9.0,
+      9
+     ]
+    },
+    "zangief": {
+     "c.hp": [
+      9.0,
+      24
+     ],
+     "c.lk": [
+      6.0,
+      18
+     ],
+     "c.mk": [
+      6.0,
+      29
+     ],
+     "clothesline": [
+      33.0,
+      22
+     ],
+     "hk": [
+      12.0,
+      24
+     ],
+     "hp": [
+      9.0,
+      26
+     ],
+     "lk": [
+      7.0,
+      9
+     ],
+     "lp": [
+      5.0,
+      18
+     ],
+     "mk": [
+      9.0,
+      16
+     ],
+     "mp": [
+      7.0,
+      27
+     ],
+     "spinning_piledriver": [
+      15.0,
+      13
+     ],
+     "sweep": [
+      6.0,
+      212
+     ],
+     "throw": [
+      9.0,
+      19
+     ]
+    }
+   },
+   "contacts": 5964,
+   "k": 5,
+   "provisional": 5
+  },
+  "lag": {
+   "agreement": {
+    "-1": 0.8592,
+    "0": 0.8603,
+    "1": 0.989,
+    "2": 0.9223,
+    "3": 0.9212
+   },
+   "lag": 1,
+   "pairs": 12209
+  },
+  "poke_n_connected_missed": {
+   "all": [
+    6889,
+    15372
+   ],
+   "blanka": [
+    436,
+    1496
+   ],
+   "chunli": [
+    3273,
+    6627
+   ],
+   "dhalsim": [
+    595,
+    958
+   ],
+   "guile": [
+    560,
+    1214
+   ],
+   "honda": [
+    391,
+    1353
+   ],
+   "ken": [
+    488,
+    958
+   ],
+   "ryu": [
+    412,
+    865
+   ],
+   "zangief": [
+    734,
+    1901
+   ]
+  },
+  "throw_n_connected_missed": {
+   "all": [
+    82,
+    1819
+   ],
+   "blanka": [
+    0,
+    167
+   ],
+   "chunli": [
+    32,
+    778
+   ],
+   "dhalsim": [
+    5,
+    111
+   ],
+   "guile": [
+    10,
+    137
+   ],
+   "honda": [
+    0,
+    146
+   ],
+   "ken": [
+    5,
+    142
+   ],
+   "ryu": [
+    7,
+    127
+   ],
+   "zangief": [
+    23,
+    211
+   ]
+  },
+  "trend": {
+   "eps": 2,
+   "n": 3956,
+   "walk_4f_median": 7.0,
+   "walk_4f_p5": 4
+  },
+  "walls": {
+   "by_char": {
+    "blanka": {
+     "hi": 449,
+     "lo": 63
+    },
+    "chunli": {
+     "hi": 459,
+     "lo": 53
+    },
+    "dhalsim": {
+     "hi": 457,
+     "lo": 55
+    },
+    "guile": {
+     "hi": 457,
+     "lo": 55
+    },
+    "honda": {
+     "hi": 448,
+     "lo": 64
+    },
+    "ken": {
+     "hi": 457,
+     "lo": 55
+    },
+    "ryu": {
+     "hi": 457,
+     "lo": 55
+    },
+    "zangief": {
+     "hi": 453,
+     "lo": 59
+    }
+   },
+   "corner_d": 11,
+   "dropped_impossible_x": 1,
+   "walls": [
+    53,
+    459
+   ],
+   "x_seen": [
+    44,
+    468
+   ]
+  }
+ },
+ "k": 5,
+ "lag": 1,
+ "mid_max": 120,
+ "near_px": 120,
+ "poke_max": {
+  "all": 72,
+  "blanka": 72,
+  "chunli": 64,
+  "dhalsim": 78,
+  "guile": 80,
+  "honda": 73,
+  "ken": 61,
+  "ryu": 50,
+  "zangief": 82
+ },
+ "sources": {
+  "entries": 77760,
+  "lag_probe": [
+   {
+    "files": 3913,
+    "path": "logs/perception_probe/ryu",
+    "sha256": "088535eaac523f0b1bbbdc4b346a0237f07246bd1b392448bd9ffe4708d25b26"
+   },
+   {
+    "files": 5639,
+    "path": "logs/perception_probe/ken",
+    "sha256": "c1a220607779fef4453b3e1603cffdffc96832b5de4fe1116ec6757cd1cc9ee8"
+   },
+   {
+    "files": 3177,
+    "path": "logs/perception_probe/honda",
+    "sha256": "960413c146ad5c33d4d51bd5c0c0fe642b9810a18d7e15fb32afbc5f2bcc229a"
+   }
+  ],
+  "logs": [
+   "rollouts/lv_value/*/*/actions.jsonl",
+   "rollouts/live_dhalsim/*/actions.jsonl"
+  ],
+  "ram": [],
+  "ram_root": {
+   "files": 42,
+   "note": "sha256 over the ram.jsonl and actions.jsonl files (path + sha256 each)",
+   "path": "rollouts/u_perception",
+   "sha256": "8e2f666a33ac482f4c1c691fb7abc8960d1453d51a5d65d2041dcf889cedeb61"
+  },
+  "rows": [
+   {
+    "bytes": 9289961,
+    "path": "logs/perception_probe/ryu/rows.jsonl",
+    "sha256": "cee0304c422f7d9f311a63c4afc7189bdf00e73e20742aa1f40e94ed43e4f27f"
+   },
+   {
+    "bytes": 9255135,
+    "path": "logs/perception_probe/ken/rows.jsonl",
+    "sha256": "84441e219d85ea0edaa5c07b827f8441c8188f6ad6541e86f8bb232a845ba09a"
+   },
+   {
+    "bytes": 7898568,
+    "path": "logs/perception_probe/honda/rows.jsonl",
+    "sha256": "7dd84cb7e04ae8e79905869b48113c7a5a4fe0e55bbf26c2014b7a571c82ef94"
+   }
+  ]
+ },
+ "throw_max": {
+  "all": 43,
+  "chunli": 43,
+  "guile": 44,
+  "zangief": 43
+ },
+ "trend_eps": 2,
+ "undecided": {
+  "mid_max": "vocab.MID (the table's mid/far cut), kept for the table's cells",
+  "near_px": "= mid_max: a projectile inside mid range is near (a judgment, not data)"
+ },
+ "walls": [
+  53,
+  459
+ ]
+}
