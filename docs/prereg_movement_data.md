@@ -125,3 +125,26 @@ Owner: "Ok but keep in mind how the data is collected."
   Never merged silently with test_data_act; any training using it reports results per source.
 - Gates as for test_data_act (labels re-derived 100%, alignment, coverage listed) plus: the provenance fields present
   on every row and equal to the run's settings.
+
+## Result (2026-10-01): CPU Chun-Li collection mv4 and test_data_act_cpu - gate PASS (code 22cbcb2)
+- Setup: states/p1_<char>_vs_chunli.state for the 7 others (arcade, Chun-Li is each one's possible first opponent;
+  RAM p1/p2_char and a frame checked); every game's RAM checked to hold (<char>, Chun-Li) on every row (none failed).
+  Player 1 runs/all8/best, explore 0.5; only Chun-Li's episodes sampled; caps 30/5/10 per (code, stage, split).
+- Owner stop during the collection ("I don't want rare move"): stopped cleanly; committed games kept, no more games.
+  blanka 48, guile 50, ken 61 games stopped by the rule (no new Chun-Li code); dhalsim 68, honda 62, ryu 76, zangief 49
+  stopped by the owner (no stop.json). 414 games, rollouts/mv4 0.93 GB.
+- test_data_act_cpu (scripts/build_action_data_cpu.py): 16,037 pairs, 32,074 rows (act + stage, "Chun-Li (him)",
+  note "me=<player-1 char>"): train 20,784 / val 3,452 / test 7,838; one dir per player-1 character. train.py: passes
+  with --balance sampling (val 3,452 <= the default --val-limit 4,000). Head tokens: act 204, stage 48 (<= 256).
+- Gate (scripts/gate_action_data.py --data test_data_act_cpu --compare-act test_data_act): labels 16,037 of 16,037
+  re-derived match (no player-1 rows); provenance 32,074 rows equal to rollouts/mv4/run.json; alignment lag 1 0.9925
+  (lag 0 0.93, lag 2 0.92), 0.9975 on 400 discriminating pairs (0.46 / 0.54); disk 0.90 GB.
+- Choice: the clock here is read by the HUD digits' own palette (sf2.data.movement_gate.HUD_DIGITS). Her stage's teal
+  sky sits behind the clock and scrolls with the camera, so the blue mask gives 0.74 at lag 1 (reported, not gated);
+  on mv3 the digit mask gives 1.000 at lag 1 (blue mask 0.965).
+- Coverage: 36 Chun-Li codes. New against mv3's Chun-Li options: act17, 18, 30, 32, 35, 36, 37, 40, 54, 58. Of the
+  watched IDs, act32 (j.hk) is in (254 train / 48 val / 96 test); 23-27 never appear (not even as episodes): the CPU's
+  jump attacks come out as other IDs (30, 35-37, 40, no names in lessons/chunli_action_ids.json; see the contact
+  sheet test_data_act_cpu/contact/contact_chunli.png). No train rows: act11 (hk close, 2 episodes), act58 (3).
+  In mv3 but not here: act44, 49, 50, 52, 89, 92.
+- Tests: tests/test_cpu_chunli.py; seeded faults tests/faults/cpu_chunli_faults.py 37 of 37; mv3 set still 51 of 51.
