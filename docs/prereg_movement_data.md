@@ -43,3 +43,14 @@ Disk budget: under 10 GB for images.
 ## Not decided here
 The next training run (from runs/u_eye/best or BASE, steps, stop rule) is pre-registered separately after the gates
 pass and the owner has looked at the data.
+
+## Amendments before the collection (2026-10-01; implementation 272b9fb)
+- Quota per split, not flat: a flat 1,500 per (opponent, answer) split 6/3/1 by whole games gives ~900 training
+  pairs, below gate 1's 1,000. Per (opponent, answer): train 1,100 / validation 100 / test 300 (1,500 in total), each
+  filled only from its own split's games.
+- Game cap 1,000 per opponent (Ken expected ~770 from the U collection's RAM: walking away is his rarest answer at
+  ~2 pairs per game). Expected ~3 h wall, ~4.3 GB of images.
+- Pair at displayed frame t = the captures showing t-4 and t (the same n-4 / n pair as before). Stage thirds by
+  position in the episode; "unknown" breaks episodes. Seeds per (seed, opponent, game).
+- Gate 3: every row's label re-derived by an independent implementation; alignment by the HUD clock (lag 1 >= 95% of
+  400 random pairs, and >= 90% and best on pairs where lags 0/1/2 disagree). Smoke: 0.98 at lag 1 (0.915 lag 0).
