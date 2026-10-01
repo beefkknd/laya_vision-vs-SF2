@@ -114,3 +114,14 @@ Training: 36,000 steps, best validation NLL 0.610 at step 35,994 (still improvin
 - The health bars are visible (HUD unblanked, checked on frames) and correctly labelled (checked), yet read near chance:
   under-training, or the bar's few pixels at 256x256 - not yet known.
 - Q8 barely beats always answering "likely fails"; its ranking misses the table's best move in ~26% of decisions.
+
+## Owner decision after the gate (2026-10-01)
+Owner: "hook this checkpoint and play a couple of games, see if this helps the game in place of the table. Maybe another
+round of training on top of this checkpoint is needed. Health bar is not that important."
+- Exploratory look, not the pre-registered success test (gate 2 failed): runs/u_eye/best through qwen_lessons --eye,
+  Chun-Li vs the 6 opponents x seeds 73001-73002 (2 of the locked 2x2 seeds), 30 rounds per arm, book, character_fgc,
+  shared text laya. U0 (no advice) pairs with the locked T0 / A0 of the same seeds (no Qwen involved: comparable).
+  U1 uses the NEW Qwen server (192.168.1.173, UD-Q4_K_M) while the locked T1 / A1 used local Jundot: indicative only.
+  2 seeds per opponent: below the 3-run minimum for a verdict.
+- Health bars: deprioritised by the owner.
+- A further training round continuing from this checkpoint (not from BASE) is an owner option for later.
