@@ -37,3 +37,5 @@ test_data_v3/
 test_data_u/
 test_data_u2/
 test_data_mv/
+# Movement dataset v2 (scripts/build_movement_data2.py): rows + frames symlinked to rollouts/mv2; local only
+test_data_mv2/
