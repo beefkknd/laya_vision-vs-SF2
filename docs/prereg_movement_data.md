@@ -64,3 +64,9 @@ it ... once it is in action then we have it, and we move on" / "We want to 'see'
   training pairs and 20 test pairs (enough to measure). Gates 2-3, disk and the contact sheets unchanged.
 - Known limit: the RAM fields we read (state, sub, special) do not name his specific move (Ken shows 3 attack codes),
   so "every distinct attack seen" cannot be checked from them; it is shown by the contact sheets, not gated.
+
+## Result (2026-10-01): dataset gate PASS (test_data_mv2/gate.json; scripts/gate_movement_data.py --min-train 50 --min-test 20)
+50,513 pairs from 513 games (Chun-Li vs 7 opponents, 60-87 games each), 2.6 GB. Counts: no shortfall (fewest: Ken
+walking away 110 train / 50 test). Stages: start/middle/end each >= 20% everywhere. Labels: 50,513 of 50,513
+re-derived from RAM match. Alignment (HUD clock): lag 1 0.985 (lag 0 0.93, lag 2 0.90); on 400 pairs where lags
+disagree 0.95 vs 0.48 / 0.52. Contact sheets sent to the owner. Training not yet registered.
