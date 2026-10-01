@@ -87,3 +87,9 @@ Collection (~2.5 h), dataset build, training (alone), eval, games: one at a time
 - Known limitation (stated, not hidden): the decision's CONTENT uses no RAM, but the play loop still uses RAM for WHEN
   she may act (_can_act) and for which way the buttons face. A human sees both on screen (question 5 asks "can I act
   now"); replacing them with laya-vision's answers is a later step, measured separately.
+
+## Note before the offline evaluation (2026-10-01, after training, before any eval)
+Gate 1's per-question floors were to be fixed before training from a label-noise check; they were not set (my miss).
+Gate 1 is therefore REPORTED, not gated, for this run. Gate 2 (the table's best move in the top 3 >= 90% on held-out
+games and on held-out Guile) was fixed before training and decides, with gate 3 (softness) reported.
+Training: 36,000 steps, best validation NLL 0.610 at step 35,994 (still improving at the end of the budget).
