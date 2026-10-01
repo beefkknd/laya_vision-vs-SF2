@@ -13,6 +13,13 @@ before any training. The exit code decides: a dataset passes only when every gat
              validation rows and equal shares; the validation size is reported against train.py's --val-limit.
   coverage   (report, never a fail; the owner decides) every (actor, code) the collection saw: its train / val / test
              rows in the act set; shortfalls (none in train or none in test) listed by name.
+
+The CPU Chun-Li act set (build.json "layout": "cpu_chunli", sf2.data.action_data_cpu): one dir per player-1
+character, only player 2's (Chun-Li's) rows; the labels gate checks her rows at every pair and that no other
+fighter has any, coverage counts her codes only, and one more gate:
+  provenance every row's provenance fields (sf2.data.cpu_chunli.PROVENANCE_KEYS) present and equal to the
+             collection's own run.json (<root>/run.json, not build.json), with p1_char = the row's dir and the note
+             (and state_text) "me=<p1_char>".
 """
 import collections
 import json
@@ -22,12 +29,14 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from . import action_probe as AP
+from . import cpu_chunli as K
 from . import movement_collect_io as MIO
 from .movement_gate import SAMPLE, MIN_AGREE, MIN_AGREE_DISC, MIN_DISC, MAX_GB, alignment_check, disk_check
 
 FILES = ("train", "val", "test_real")
 SPLIT_OF_FILE = {"train": "train", "val": "val", "test_real": "test"}
 GATES = ("labels", "alignment", "disk", "trainable")
+CPU_LAYOUT = "cpu_chunli"
 VAL_LIMIT = 4000                  # scripts/train.py --val-limit default
 LAG, T0, GROUND = 1, 4, 192
 
@@ -146,8 +155,13 @@ def _row_ok(r: Dict) -> bool:
     return r["images"] == imgs and list(r["question"]["criteria"])[r["label"]] == r["answer"]
 
 
+def _is_cpu(meta: Dict) -> bool:
+    return meta.get("layout") == CPU_LAYOUT
+
+
 def label_check(meta: Dict, files: Dict[str, Dict[str, List[Dict]]], th: Dict) -> Dict:
     ds = meta["dataset"]
+    players = (2,) if _is_cpu(meta) else (1, 2)
     checked, bad, missing, examples = 0, 0, set(), []
 
     def fail(r, want):
@@ -167,14 +181,18 @@ def label_check(meta: Dict, files: Dict[str, Dict[str, List[Dict]]], th: Dict) -
                 missing.add("%s g%d" % (o, game))
                 continue
             if ds == "act":
-                labs = {p: independent_actions(ram, p) for p in (1, 2)}
-                chars = {1: meta["me"], 2: o}
+                labs = {p: independent_actions(ram, p) for p in players}
+                chars = {1: o, 2: "chunli"} if _is_cpu(meta) else {1: meta["me"], 2: o}
                 by_dec: Dict[str, List[Dict]] = collections.defaultdict(list)
                 for r in rs:
                     by_dec[r["decision"]].append(r)
                 for dec, group in by_dec.items():
                     t = group[0]["t"]
-                    for p in (1, 2):
+                    for r in group:
+                        if r.get("player") not in players:
+                            checked += 1
+                            fail(r, "player %s has no rows in this set" % r.get("player"))
+                    for p in players:
                         mine = [r for r in group if r["player"] == p]
                         want = labs[p].get(t)
                         checked += 1
@@ -200,6 +218,31 @@ def label_check(meta: Dict, files: Dict[str, Dict[str, List[Dict]]], th: Dict) -
                         fail(r, want)
     return {"pass": checked > 0 and bad == 0 and not missing, "checked": checked, "mismatches": bad,
             "missing_ram": sorted(missing), "examples": examples}
+
+
+def provenance_check(meta: Dict, files: Dict[str, Dict[str, List[Dict]]]) -> Dict:
+    """Every row's provenance equal to the collection's run.json (the run's settings, not the builder's)."""
+    run = K.read_run(meta["root"])
+    if run is None:
+        return {"pass": False, "error": "no run.json in %s" % meta["root"]}
+    checked, bad, examples = 0, 0, []
+    for o, fs in sorted(files.items()):
+        try:
+            want = K.expected_provenance(run, o)
+        except (ValueError, KeyError) as e:
+            return {"pass": False, "error": "%s: %s" % (o, e)}
+        for rows in fs.values():
+            for r in rows:
+                checked += 1
+                probs = K.provenance_problems(r, want)
+                if r.get("state_text") != want["note"]:
+                    probs.append("state_text %r is not the note %r" % (r.get("state_text"), want["note"]))
+                if probs:
+                    bad += 1
+                    if len(examples) < 10:
+                        examples.append({"id": r.get("id"), "problems": probs})
+    return {"pass": checked > 0 and bad == 0, "checked": checked, "bad": bad, "examples": examples,
+            "run": {k: run.get(k) for k in ("collection", "chunli_slot", "controller", "p1_chars")}}
 
 
 def one_per_pair(files: Dict[str, Dict[str, List[Dict]]]) -> Dict[str, Dict[str, List[Dict]]]:
@@ -230,6 +273,7 @@ def observed_codes(root: str, opps: Sequence[str]) -> collections.Counter:
 
 
 def coverage(meta: Dict, files: Dict[str, Dict[str, List[Dict]]]) -> Dict:
+    """In the CPU Chun-Li set only her codes count (player 1's episodes were observed, never sampled)."""
     rows_by: Dict[Tuple[str, int], collections.Counter] = collections.defaultdict(collections.Counter)
     for fs in files.values():
         for name, rows in fs.items():
@@ -237,6 +281,8 @@ def coverage(meta: Dict, files: Dict[str, Dict[str, List[Dict]]]) -> Dict:
                 if r["key"] == "act":
                     rows_by[(r["actor"], r["code"])][SPLIT_OF_FILE[name]] += 1
     obs = observed_codes(meta["root"], meta["opps"])
+    if _is_cpu(meta):
+        obs = collections.Counter({k: v for k, v in obs.items() if k[0] == meta["cpu"]})
     keys = sorted(set(obs) | set(rows_by))
     table = {"%s act%02d" % k: {"episodes_seen": obs.get(k, 0), "train": rows_by[k]["train"],
                                 "val": rows_by[k]["val"], "test": rows_by[k]["test"]} for k in keys}
@@ -273,17 +319,26 @@ def run_gates(data: str, thresholds: str, max_gb: float = MAX_GB, sample: int = 
               val_limit: int = VAL_LIMIT, check_train: bool = True) -> Dict:
     meta, files = load(data)
     th = json.load(open(thresholds))
+    pairs = one_per_pair(files)
+    blue = alignment_check(data, meta, pairs, sample, MIN_DISC, MIN_AGREE, MIN_AGREE_DISC, seed)
     gates = {
         "labels": label_check(meta, files, th),
-        "alignment": alignment_check(data, meta, one_per_pair(files), sample, MIN_DISC, MIN_AGREE, MIN_AGREE_DISC,
-                                     seed),
+        "alignment": blue,
         "disk": disk_check(data, meta["opps"], max_gb),
         "trainable": trainable(data, meta["opps"], val_limit) if check_train else {"pass": True, "skipped": True},
     }
+    if _is_cpu(meta):
+        gates["provenance"] = provenance_check(meta, files)
+        # her stage's teal sky behind the clock fools the blue mask (sf2.data.movement_gate.HUD_DIGITS): the gate
+        # reads the clock by its digit colours; the blue mask's result is kept as a report
+        gates["alignment"] = alignment_check(data, meta, pairs, sample, MIN_DISC, MIN_AGREE, MIN_AGREE_DISC, seed,
+                                             clock="digits")
     rep = {"pass": all(g["pass"] for g in gates.values()), "dataset": meta["dataset"], "gates": gates,
            "rows": {o: {n: len(r) for n, r in fs.items()} for o, fs in files.items()}, "opps": meta["opps"]}
     if meta["dataset"] == "act":
         rep["coverage"] = coverage(meta, files)
+    if _is_cpu(meta):
+        rep["alignment_blue_mask"] = dict(blue, report_only=True)
     return rep
 
 

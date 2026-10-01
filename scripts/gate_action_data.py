@@ -4,6 +4,10 @@ RAM (100%), RAM-to-image alignment (lag 1), disk, train.py's data checks; and, f
 decides: 0 only when every gate of every dataset given passes.
 
     python scripts/gate_action_data.py --data test_data_act --data test_data_where --data test_data_dist
+    python scripts/gate_action_data.py --data test_data_act_cpu --compare-act test_data_act    # CPU Chun-Li set
+
+The CPU Chun-Li set (build.json "layout": "cpu_chunli") also has the provenance gate; with --compare-act its coverage
+lists her codes new against that act set's Chun-Li options and the watched jump-attack IDs 23-27, 32.
 
 Writes <data>/gate.json and, for the act set, <data>/contact/contact_<actor>.png.
 """
@@ -16,6 +20,7 @@ import _path  # noqa: F401
 
 from sf2.data import action_codes as A
 from sf2.data import action_gate as G
+from sf2.data import cpu_chunli as K
 from sf2.data.action_data import THRESHOLDS
 
 
@@ -30,16 +35,20 @@ def main(argv=None) -> int:
     ap.add_argument("--no-train-check", action="store_true", help="skip train.py's data checks (tests)")
     ap.add_argument("--sheets", default="contact", help="contact sheet subdir of the act set; 'none' skips")
     ap.add_argument("--chunli-ids", default=os.path.join("lessons", "chunli_action_ids.json"))
+    ap.add_argument("--compare-act", help="an act set whose Chun-Li options the CPU set's codes are compared with")
     args = ap.parse_args(argv)
     ok = True
     for data in args.data:
         rep = G.run_gates(data, args.thresholds, args.max_gb, args.sample, args.seed, args.val_limit,
                           not args.no_train_check)
+        if args.compare_act and "coverage" in rep:
+            ref = json.load(open(os.path.join(args.compare_act, "build.json")))
+            old = [int(c[3:]) for c in ref["options"].get(K.CPU, [])]
+            rep["compare"] = dict(K.compare_codes(rep["coverage"]["table"], old), against=args.compare_act)
         with open(os.path.join(data, "gate.json"), "w") as f:
             json.dump(rep, f, indent=1)
         print("== %s (%s)" % (data, rep["dataset"]))
-        for name in G.GATES:
-            g = rep["gates"][name]
+        for name, g in rep["gates"].items():
             detail = {k: v for k, v in g.items() if k not in ("pass", "rows_problems")}
             print("%s %s %s" % ("PASS" if g["pass"] else "FAIL", name, json.dumps(detail)[:800]))
         if "coverage" in rep:
@@ -47,6 +56,9 @@ def main(argv=None) -> int:
             print("REPORT coverage: %d (actor, code), %d shortfalls" % (c["codes"], len(c["shortfalls"])))
             for s in c["shortfalls"]:
                 print("   short:", s)
+            if "compare" in rep:
+                print("REPORT vs %s: new %s; watched %s" % (args.compare_act, rep["compare"]["new_vs_mv3"], {
+                    k: v and (v["train"], v["val"], v["test"]) for k, v in rep["compare"]["watched"].items()}))
             if args.sheets != "none":
                 for p in G.contact_sheets(data, os.path.join(data, args.sheets), args.chunli_ids, A.RESERVED):
                     print("contact sheet:", p)

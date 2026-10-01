@@ -59,7 +59,7 @@ FAULTS = [
      "if prog.since_new >= patience:"),
     ("io: patience off by one", IO, "prog.since_new >= patience:", "prog.since_new > patience:"),
     ("io: hard cap ignored", IO, "if prog.played >= cap:", "if False:"),
-    ("io: novelty counts val", IO, 'if p["split"] in NOVEL_SPLITS}', "}"),
+    ("io: novelty counts val", IO, 'if p["split"] in NOVEL_SPLITS\n', "if True\n"),
     ("io: patience never resets", IO, "0 if new else prog.since_new + 1", "prog.since_new + 1"),
     ("io: resume counts uncommitted pairs", IO, "    for g in games:\n        prog = advance(",
      "    for g in [{\"game\": x} for x in sorted(set(by_game) | {g[\"game\"] for g in games})]:\n"

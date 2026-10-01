@@ -145,8 +145,27 @@ def _clock_changed(frames: str, a: str, b: str) -> bool:
     return bool((mask(a) != mask(b)).any())
 
 
+# The clock digits' own palette (orange strokes, dark-blue outline), read on the ROM's frames. The blue mask above
+# also takes the background behind the clock: on Chun-Li's stage (the CPU Chun-Li games) its teal sky moves with the
+# camera's vertical scroll, so it sees "changes" the clock never made. Exact colours of the digits only.
+HUD_DIGITS = np.array([(255, 156, 107), (247, 107, 66), (24, 66, 173)])
+
+
+def digits_changed(frames: str, a: str, b: str) -> bool:
+    from PIL import Image
+
+    def mask(p):
+        im = np.asarray(Image.open(os.path.join(frames, os.path.basename(p))).convert("RGB")).astype(int)[CLOCK]
+        return (im[..., None, :] == HUD_DIGITS).all(-1).any(-1)
+    return bool((mask(a) != mask(b)).any())
+
+
+CLOCKS = {"blue": _clock_changed, "digits": digits_changed}
+
+
 def alignment_check(data: str, meta: Dict, files: Dict[str, Dict[str, List[Dict]]], sample: int, min_disc: int,
-                    min_agree: float, min_agree_disc: float, seed: int) -> Dict:
+                    min_agree: float, min_agree_disc: float, seed: int, clock: str = "blue") -> Dict:
+    changed = CLOCKS[clock]
     cache: Dict = {}
     preds = []                      # (row, opp, {lag: timer changed})
     for o, fs in sorted(files.items()):
@@ -175,14 +194,14 @@ def alignment_check(data: str, meta: Dict, files: Dict[str, Dict[str, List[Dict]
             if gone:
                 missing.append("%s %s" % (o, gone[0]))
                 continue
-            seen = _clock_changed(fr, r["images"][0], r["images"][1])
+            seen = changed(fr, r["images"][0], r["images"][1])
             for L in LAGS:
                 hits[L] += p[L] == seen
         return {str(L): round(hits[L] / len(items), 4) if items else None for L in LAGS}
     ag, ad = agree(rand), agree(disc)
     best = max(LAGS, key=lambda L: ad[str(L)] or 0.0) if disc else None
     ok = alignment_verdict(ag, ad, len(rand), len(disc), len(missing), min_disc, min_agree, min_agree_disc)
-    return {"pass": bool(ok), "sample": len(rand), "agreement": ag, "discriminating": len(disc),
+    return {"pass": bool(ok), "clock": clock, "sample": len(rand), "agreement": ag, "discriminating": len(disc),
             "discriminating_total": len(disc_all), "agreement_discriminating": ad, "best_lag": best,
             "missing_images": missing[:10]}
 

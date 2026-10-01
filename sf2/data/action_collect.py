@@ -10,7 +10,7 @@ stage) has fewer than ``cap`` pairs in this game's split (CAPS). A displayed row
 """
 import random
 from collections import Counter, deque
-from typing import Callable, Deque, Dict, List, Optional, Set, Tuple
+from typing import Callable, Deque, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -42,7 +42,8 @@ class ActionSampler:
     ``counts`` holds this split's committed pairs per (actor, code, stage); ``actors`` names player 1 and 2."""
 
     def __init__(self, game: int, split: str, actors: Dict[int, str], counts: Counter, cap: int,
-                 rng: random.Random, save_image: Callable[[int, np.ndarray], str], ring: int = RING):
+                 rng: random.Random, save_image: Callable[[int, np.ndarray], str], ring: int = RING,
+                 sample_actors: Optional[Iterable[str]] = None):
         if ring < 5:
             raise ValueError("a ring of %d frames cannot hold a (t - 4, t) pair" % ring)
         if split not in CAPS:
@@ -51,6 +52,10 @@ class ActionSampler:
             raise ValueError("actors must name players 1 and 2, got %r" % actors)
         if cap < 0:
             raise ValueError("cap %r < 0" % cap)
+        if sample_actors is not None and not set(sample_actors) <= set(actors.values()):
+            raise ValueError("sample_actors %r are not fighters of %r" % (sorted(sample_actors), actors))
+        # None: both fighters' episodes are sampled; else only these actors' (both are still tracked and observed)
+        self.sample_actors = None if sample_actors is None else frozenset(sample_actors)
         self.game, self.split, self.actors, self.cap = game, split, dict(actors), cap
         self.rng, self.save_image = rng, save_image
         self.counts: Counter = Counter(counts)
@@ -88,6 +93,8 @@ class ActionSampler:
             self.unknown[(actor, ep.reason)] += 1
             return
         self.observed[(actor, ep.code)] += 1
+        if self.sample_actors is not None and actor not in self.sample_actors:
+            return
         if not self.ring:
             return
         oldest, newest = self.ring[0][0], self.ring[-1][0]
