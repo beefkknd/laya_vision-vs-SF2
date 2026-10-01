@@ -70,3 +70,16 @@ it ... once it is in action then we have it, and we move on" / "We want to 'see'
 walking away 110 train / 50 test). Stages: start/middle/end each >= 20% everywhere. Labels: 50,513 of 50,513
 re-derived from RAM match. Alignment (HUD clock): lag 1 0.985 (lag 0 0.93, lag 2 0.90); on 400 pairs where lags
 disagree 0.95 vs 0.48 / 0.52. Contact sheets sent to the owner. Training not yet registered.
+
+## Owner change after the gate (2026-10-01): label each action by actor, action and stage
+Owner: "we need to label these actions with the actor and its action name and that's it. It is our training set ...
+however you label it, chun-li act1-stg2, then that is it." This replaces, for this dataset, the earlier rule that laya
+names no opponent and no move.
+- Label: "<actor> act<NN> stg<1-3>" for each fighter on the pair (him and her), NN = a per-character action ID read
+  from RAM, stage = third of that action's episode (start / middle / end). IDs, not move names.
+- The RAM fields logged so far (state, sub, special) do not identify the move (Ken: 3 attack codes). Step 1: a RAM
+  probe of each fighter's full struct (0x0C00-0x0DFF me, 0x0E00-0x0FFF him) for a byte that is constant within an
+  action episode and differs between actions; checked against frames on a contact sheet before use.
+- Step 2: re-collect the same way (Chun-Li vs 7, 60-90 games each, stop when every action seen; ~15 min) logging that
+  byte for both fighters; build; gate (labels re-derived 100%, alignment, every (actor, action) seen; counts per
+  action reported, rare ones listed, not padded).
