@@ -97,3 +97,19 @@ If mix them in one fine tune will have more messed up result."
   poke / mid / far).
 - Three separate datasets from the same collection and, later, three separate fine-tunes - never one mixed run.
   Training is registered separately.
+
+## Collection and build (2026-10-01; code 3cf2300, e3b7c78)
+- Collector (scripts/collect_actions.py -> rollouts/mv3): both fighters' 0x?C3E / 0x?CBA / 0x?C49 logged every frame;
+  episodes per (actor, code) (sf2.data.action_codes, table lessons/action_codes.json: attack IDs 1-59, throw 60,
+  fireball 61, standing 70 ... thrown 77, box-less special 80 + 0x?C49); a jump with an attack is the attack's ID over
+  the whole jump (not split). Caps per (actor, code, stage): train 30 / val 5 / test 10, counted on the fighter whose
+  episode was sampled (the other fighter's rows on the pair are extra). Stop: >= 40 games and 15 games with no new
+  (actor, code, train|test); hard cap 150. All 7 stopped by the rule: blanka 103, dhalsim 125, guile 118, honda 83,
+  ken 75, ryu 74, zangief 93 games (671; ~40 min wall); 1.8 GB.
+- Datasets (scripts/build_action_data.py): test_data_act (per pair per fighter two questions: "What move is <Name>
+  (me|him) doing?" over that actor's act<NN> codes, and "Which part of ...'s move is this?" stg1-3; the single
+  "<actor> act<NN> stg<k>" question does not fit laya's 256-token head), test_data_where, test_data_dist; one dir per
+  opponent, split by whole games.
+- Gate (scripts/gate_action_data.py): all three PASS (labels 100% by an independent implementation, alignment lag 1
+  0.978 / 0.973 on discriminating pairs, disk 1.8 GB, train.py's checks with --balance sampling). The act set needs
+  train.py --val-limit >= 15,642. Coverage: 217 (actor, code), 21 without train or test rows (test_data_act/gate.json).

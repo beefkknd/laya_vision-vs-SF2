@@ -264,7 +264,8 @@ def trainable(data: str, opps: Sequence[str], val_limit: int = VAL_LIMIT) -> Dic
     out["val_over_limit"] = len(val) > val_limit
     out["val_limit"] = val_limit
     out["pass"] = (len(train) + len(val) == n_rows and "tags" in out and not out["sampling_problems"]
-                   and not TD.coverage_problems(train, val, dirs, share_check=False))
+                   and not TD.coverage_problems(train, val, dirs, share_check=False) and not out["val_over_limit"])
+    out["train_py_flags"] = ["--balance sampling"] + ([] if len(val) <= VAL_LIMIT else ["--val-limit %d" % len(val)])
     return out
 
 
