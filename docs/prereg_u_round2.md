@@ -38,3 +38,14 @@ new CUDA"; standing permission to stop Qwen during laya training and restart it 
 - Mac (MPS, torch 2.14) vs threebody (CUDA, torch 2.5.1): the run is not bit-identical to what the Mac would produce;
   the gates are judged on the Mac after copying the checkpoint back.
 - Training settings unchanged: 90,000 steps = --epochs 0.9031 on 797,253 training rows.
+
+## Result (2026-10-01, threebody): no gain - early stop at step 5,000, best = step 0 (round 1 itself)
+- Speed on the RTX 4090: ~280 steps/min (2x the Mac), 29% of time waiting on image loading; the first launch was killed
+  by the ssh session (ledger #30) and relaunched via WMI. Qwen stopped for the run and restarted after (/health ok).
+- Validation NLL: step 0 (round 1's weights) 0.548; then 0.593, 0.571, 0.551, 0.564, 0.575 -> early stop (patience 5).
+  Q8's soft cross-entropy stayed at its prior throughout (1.002-1.052 vs 1.032).
+- Why it cannot move: Q8 (one row per move) is 68% of the rows (720 of 1,054 per validation file) and does not improve
+  from frames, so it dominates both the gradient and the pooled-NLL stop rule; perception (32% of rows) has little room
+  to show a gain in the pooled number. Combined with round 1's per-question results (Q8 ~ always "likely fails"), the
+  eye does not learn move value from frames at this data size, while it does learn several perceptions.
+- runs/u_eye2/best = round 1's weights (no new checkpoint worth evaluating). Gates not re-run.
