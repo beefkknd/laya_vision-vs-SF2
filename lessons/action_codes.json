@@ -1,0 +1,34 @@
+{
+ "label": "<actor> act<NN> stg<1-3>",
+ "attack_ids": "1..59: the fighter's own ROM attack ID (0x0C3E me / 0x0E3E him), per character",
+ "reserved": {
+  "act60": "throw (no attack box; MOVE_CLASS 0x06 / 0x0C)",
+  "act61": "fireball (own projectile slot active)",
+  "act70": "standing",
+  "act71": "walking toward the other fighter",
+  "act72": "walking away from the other fighter",
+  "act73": "crouching",
+  "act74": "jumping (no attack in the jump)",
+  "act75": "blocking",
+  "act76": "being hit",
+  "act77": "being thrown"
+ },
+ "specials_without_box": "act80..act99: act80 + SPECIAL_CLASS (0x0C49 / 0x0E49), a special put out no box",
+ "unknown_dropped": [
+  "an attack cut before any ID or class (cut)",
+  "an ID above 59 (id_range)",
+  "state 0x06 and other unnamed states",
+  "an impossible x on a standing row",
+  "rows before t = 4"
+ ],
+ "stage": "stg = 1 + 3 * (t - start) // length of the fighter's episode (thirds: start / middle / end)",
+ "episode": "a run of state 0x0A / 0x0C / 0x04 (one code, the run's first non-zero attack ID; a jump with an attack is labelled with the attack, not split), else a run of rows with one code",
+ "ram": {
+  "p1_aid": "0x0C3E",
+  "p1_mclass": "0x0CBA",
+  "p1_sclass": "0x0C49",
+  "p2_aid": "0x0E3E",
+  "p2_mclass": "0x0EBA",
+  "p2_sclass": "0x0E49"
+ }
+}
