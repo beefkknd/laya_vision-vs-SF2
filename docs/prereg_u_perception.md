@@ -1,0 +1,55 @@
+# Pre-registration: the U arm's laya-vision - the eye (2026-10-01, before any code, data or training)
+
+Owner: "this is still a vision project... a human player can't read RAM, but they can see it on the screen. Name it U
+arm, unified" (plan: docs/plan_u_arm.md); the question set from the players' research (docs/research/
+2026-10-01_perception_synthesis.md) - owner: "Locked and start fine-tune". Baseline locked: lesson_loop_v3 (tag
+lesson-loop-v3).
+
+## Principle
+At play time laya-vision sees only the screen (two frames, n-4 and n, HUD visible) and knows only its own character
+("me=<char>"). RAM is the referee and teacher at training time only: it labels the answers and scores the games.
+General: no opponent names, no move names of the opponent.
+
+## The 8 questions (locked)
+| # | question | answers | label (training only) |
+|---|---|---|---|
+| 1 | how far is he, and is the gap changing | throw / poke / mid / far x closing / steady / opening | gap from RAM x; band thresholds calibrated from logged data BEFORE training (throw band: gaps where throws connected; poke band: where ground normals connected); trend = gap change n-4 -> n |
+| 2 | what is he doing | neutral / attacking / recovering after a miss / blocking / being hit | his state; "recovering after a miss" = attacking at n, no contact on me during the attack, still attacking k frames later (lookahead) |
+| 3 | his air state | grounded / jumping at me / jumping away or straight up / landing | y, x motion toward me, landing within k frames (lookahead) |
+| 4 | projectile | none / far / near (coming at me) | projectile slots, |shot_x - my x|, direction |
+| 5 | who can act: me / him (two questions) | free / stunned / knocked down / dizzy | state, react, dizzy, frames until free (lookahead) |
+| 6 | corner | me / him / neither | x within D of the stage's extremes observed in the logs |
+| 7 | health bars: mine / his (two questions) | full / high / half / low | life |
+| 8 | if I do X now, is it better than walking in (per move) | likely works / may work / likely fails | SOFT: per (situation, move), bootstrap the explored outcomes of that table cell (opponents included): share of resamples >= walking in + 3 hp / above walking in / not. Never a confident answer where opponents disagree |
+
+Exact thresholds (bands, k, D) are fixed from data and written into this file before training starts; RAM-to-frame
+alignment is checked (the frame and the RAM row must be the same moment).
+
+## Data
+A new headless collection that also logs the RAM rows around each decision (frames n-4 and n, plus a short lookahead),
+same design as the value collection: explore 0.5 with runs/all8, images saved; Chun-Li vs 7 opponents x 120 games, the
+other 7 characters vs Ryu and vs Dhalsim x 60 games; no text laya, no Qwen. Split by whole games: game % 10 in 2,5,8 ->
+test; validation = a separate set of whole training-split games (val.jsonl), never neighbouring frames of training
+games; Chun-Li vs Guile held out entirely. Characters sampled in equal shares.
+
+## Training
+One LoRA run from BASE (thaitea/laya-vision-smolvlm-256m), the all8 recipe (rank 16, alpha 32, 2 epochs, batch 8, lr
+head 1e-4, backbone 2e-4, seed 0); keep best and early-stop on validation NLL over whole held-out games (eval every
+1,000 steps, patience 5); note v3 ("me=<char>"), HUD visible.
+
+## Offline gates (held-out test games and held-out Guile)
+1. Perception accuracy per question (1-7), reported per character, with a floor fixed before training from a
+   label-noise check (questions whose RAM labels are not visible in two frames are reported, not gated).
+2. **The gate that matters (owner):** the table's best move (from RAM facts) is in laya-vision's top 3 by question 8 in
+   >= 90% of held-out decisions, and of held-out Guile's.
+3. Question 8 is soft: where the table's cell is uncertain across opponents, laya-vision's answer must not be confident
+   (reported).
+
+## In play
+U0 (laya-vision eye, no advice) vs T0 (the table on RAM) and vs A0 (runs/all8), then U1 (with Qwen + book) vs T1 and
+A1, Chun-Li vs 6 opponents x seeds 73001-73008 (the locked 2x2 runs reused). Success: U close to T (the price of seeing
+instead of reading RAM) and clearly above A.
+
+## Load
+Collection (~2.5 h), dataset build, training (alone), eval, games: one at a time; memory watchdog; Qwen via
+~/work/omlx/start only.
