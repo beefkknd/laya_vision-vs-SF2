@@ -158,3 +158,65 @@ def test_k_from_too_few_contacts_is_only_provisional():
     acts = [entry(action=m, actual="hit", frame=i) for i, m in enumerate(("lp", "sweep"))]
     k = c.k_frames(acts, recs)
     assert k["k"] is None and k["provisional"] == 4 and k["contacts"] == 2
+
+
+# ---- the collection (--ram-root) and reproducible sources ----
+
+def write_dir(d, recs, acts):
+    d.mkdir(parents=True)
+    (d / "ram.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+    (d / "actions.jsonl").write_text("".join(json.dumps(a) + "\n" for a in acts))
+
+
+def test_ram_root_joins_actions_per_directory_not_across_them(tmp_path):
+    """rollouts/u_perception/<opp>/<me>/: (game, frame) repeats across directories; each joins its own actions."""
+    c = cal()
+    write_dir(tmp_path / "ryu" / "chunli", [ram_rec(0, i, 5) for i in range(6)],
+              [entry(action="lp", actual="hit", frame=i) for i in range(6)])
+    write_dir(tmp_path / "ken" / "chunli", [ram_rec(0, i, 9) for i in range(6)],
+              [entry(action="sweep", actual="hit", frame=i) for i in range(6)])
+    k = c.k_from_root(str(tmp_path))
+    assert k["by_move"]["chunli"] == {"lp": [5.0, 6], "sweep": [9.0, 6]} and k["k"] == 5
+
+
+def test_ram_root_rows_count_each_frame_once():
+    """Decision windows overlap (60 back, 60 ahead): a frame seen by several records counts once for the walls."""
+    c = cal()
+    rows = [row({"x": 53 + (i % 3), "char": 5}, {"x": 459, "char": 0}) for i in range(100)]
+    recs = [ram_entry(0, f, rows[max(0, f - 30):f + 31], min(f, 30)) for f in range(0, 100, 10)]
+    got = list(c.frames_of(recs))
+    assert len(got) == 100 and [r["p1_x"] for r in got] == [r["p1_x"] for r in rows]
+
+
+def test_sources_carry_sha256_not_just_paths(tmp_path):
+    c = cal()
+    f = tmp_path / "rows.jsonl"
+    f.write_text("abc\n")
+    src = c.source([str(f)])
+    assert src == [{"path": str(f), "sha256": "edeaaff3f1774ad2888673770c6d64097e391bc362d7d6fb34982ddf0efd18cb",
+                    "bytes": 4}]
+    d = tmp_path / "probe"
+    (d / "img").mkdir(parents=True)
+    (d / "img" / "a.png").write_bytes(b"x")
+    (d / "rows.jsonl").write_text("abc\n")
+    one = c.source([str(d)])[0]
+    (d / "img" / "a.png").write_bytes(b"y")
+    assert c.source([str(d)])[0]["sha256"] != one["sha256"] and one["files"] == 2
+
+
+def test_main_reads_a_collection_root_for_k_and_walls(tmp_path, monkeypatch):
+    c = cal()
+    logs = tmp_path / "logs" / "a" / "chunli"
+    logs.mkdir(parents=True)
+    es = [entry(gap=g, thrown=True) for g in range(10, 48)] + [entry(gap=g) for g in range(48, 120)]
+    (logs / "actions.jsonl").write_text("".join(json.dumps(e) + "\n" for e in es))
+    root = tmp_path / "u_perception"
+    write_dir(root / "ryu" / "chunli", [ram_rec(0, i, 6) for i in range(6)],
+              [entry(action="lp", actual="hit", frame=i) for i in range(6)])
+    out = tmp_path / "v2.json"
+    monkeypatch.setattr(sys, "argv", ["calibrate_perception.py", "--logs", str(tmp_path / "logs" / "*" / "*" /
+                                      "actions.jsonl"), "--ram-root", str(root), "--out", str(out), "--no-q8"])
+    assert c.main() == 0
+    th = json.loads(out.read_text())
+    assert th["k"] == 6 and "k" not in th["undecided"]
+    assert th["walls"] == [100, 140] and th["sources"]["ram_root"]["path"] == str(root)

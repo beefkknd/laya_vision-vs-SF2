@@ -167,21 +167,49 @@
  "sources": {
   "entries": 77760,
   "lag_probe": [
-   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ryu",
-   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ken",
-   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/honda"
+   {
+    "files": 3913,
+    "path": "logs/perception_probe/ryu",
+    "sha256": "088535eaac523f0b1bbbdc4b346a0237f07246bd1b392448bd9ffe4708d25b26"
+   },
+   {
+    "files": 5639,
+    "path": "logs/perception_probe/ken",
+    "sha256": "c1a220607779fef4453b3e1603cffdffc96832b5de4fe1116ec6757cd1cc9ee8"
+   },
+   {
+    "files": 3177,
+    "path": "logs/perception_probe/honda",
+    "sha256": "960413c146ad5c33d4d51bd5c0c0fe642b9810a18d7e15fb32afbc5f2bcc229a"
+   }
   ],
   "logs": [
    "rollouts/lv_value/*/*/actions.jsonl",
    "rollouts/live_dhalsim/*/actions.jsonl"
   ],
   "ram": [
-   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/ram_smoke/out/chunli/ram.jsonl"
+   {
+    "bytes": 188051,
+    "path": "logs/perception_probe/smoke/chunli/ram.jsonl",
+    "sha256": "e340a2b39d03e37681e91d698269ed1a7784be90a6deac5615a4878be992e612"
+   }
   ],
   "rows": [
-   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ryu/rows.jsonl",
-   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ken/rows.jsonl",
-   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/honda/rows.jsonl"
+   {
+    "bytes": 9289961,
+    "path": "logs/perception_probe/ryu/rows.jsonl",
+    "sha256": "cee0304c422f7d9f311a63c4afc7189bdf00e73e20742aa1f40e94ed43e4f27f"
+   },
+   {
+    "bytes": 9255135,
+    "path": "logs/perception_probe/ken/rows.jsonl",
+    "sha256": "84441e219d85ea0edaa5c07b827f8441c8188f6ad6541e86f8bb232a845ba09a"
+   },
+   {
+    "bytes": 7898568,
+    "path": "logs/perception_probe/honda/rows.jsonl",
+    "sha256": "7dd84cb7e04ae8e79905869b48113c7a5a4fe0e55bbf26c2014b7a571c82ef94"
+   }
   ]
  },
  "throw_max": {

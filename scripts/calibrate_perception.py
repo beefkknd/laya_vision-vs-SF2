@@ -19,16 +19,28 @@ From --lag-probe dirs (rows.jsonl every frame + img/sSS_tTTTT.png every 3rd): th
 Not decided by data (stated in "undecided"): mid_max (vocab.MID, the table's mid/far cut), near_px (= mid_max), and
 any of the above whose source is missing.
 
-Writes lessons/perception_thresholds_v1.json and (unless --no-q8) lessons/perception_q8_targets_v1.json.
+Writes lessons/perception_thresholds_v1.json and (unless --no-q8) lessons/perception_q8_targets_v1.json. Every input is
+recorded with its sha256 ("sources").
+
+v1 (2026-10-01; the probe and the smoke game copied from the session scratchpad to logs/perception_probe/):
+    P=logs/perception_probe
+    python scripts/calibrate_perception.py --rows $P/{ryu,ken,honda}/rows.jsonl --lag-probe $P/{ryu,ken,honda} \
+        --ram $P/smoke/chunli/ram.jsonl --no-q8
+v2 (after the U collection, play_system1 --ram-log into rollouts/u_perception/<opp>/<me>/): k, walls and corner D from
+the collection (all 8 characters' stages), the probe kept for the trend and the lag:
+    python scripts/calibrate_perception.py --rows $P/{ryu,ken,honda}/rows.jsonl --lag-probe $P/{ryu,ken,honda} \
+        --ram-root rollouts/u_perception --out lessons/perception_thresholds_v2.json --no-q8
 """
 import argparse
 import collections
 import glob
+import itertools
 import json
 import os
 import statistics
+import hashlib
 import sys
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence
 
 import _path  # noqa: F401
 from sf2.data.perception import LAG, Q8_ANSWERS, STUN, decode, q8_targets
@@ -88,18 +100,20 @@ def poke_band(entries: Iterable[Dict]) -> Dict:
 # ---- walls, corner, trend ---------------------------------------------------------------------------------------
 
 def walls(rows: Iterable[Dict]) -> Dict:
-    xs: Dict[str, List[int]] = collections.defaultdict(list)
+    """Streams ``rows`` once, keeping only x counts per character (a whole collection fits)."""
+    xs: Dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for r in rows:
         for p in (1, 2):
-            xs[CHARACTERS.get(r["p%d_char" % p], str(r["p%d_char" % p]))].append(r["p%d_x" % p])
-    every = [x for v in xs.values() for x in v]
-    lo_seen, hi_seen = min(every), max(every)
+            xs[CHARACTERS.get(r["p%d_char" % p], str(r["p%d_char" % p]))][r["p%d_x" % p]] += 1
+    lo_seen = min(x for v in xs.values() for x in v)
+    hi_seen = max(x for v in xs.values() for x in v)
     by_char: Dict[str, Dict[str, int]] = {}
     for c, v in sorted(xs.items()):
         w = {}
-        for side, near in (("lo", [x for x in v if x <= lo_seen + EDGE]), ("hi", [x for x in v if x >= hi_seen - EDGE])):
+        for side, near in (("lo", [x for x in sorted(v) if x <= lo_seen + EDGE]),
+                           ("hi", [x for x in sorted(v) if x >= hi_seen - EDGE])):
             if near:
-                w[side] = collections.Counter(near).most_common(1)[0][0]
+                w[side] = max(near, key=lambda x: v[x])          # the pile-up: the most frequent x near the edge
         by_char[c] = w
     lo = min(w["lo"] for w in by_char.values() if "lo" in w)
     hi = max(w["hi"] for w in by_char.values() if "hi" in w)
@@ -139,17 +153,63 @@ def _contact(rows: List[Dict], n: int) -> Optional[int]:
     return None
 
 
-def k_frames(actions: Iterable[Dict], ram: Iterable[Dict]) -> Dict:
-    by_key = {(r["game"], r["frame"]): r for r in ram}
-    seen: Dict[str, Dict[str, List[int]]] = collections.defaultdict(lambda: collections.defaultdict(list))
-    for a in actions:
-        rec = by_key.get((a["game"], a["frame"]))
-        if rec is None or a["actual"] not in ("hit", "blocked"):
+def _new_seen() -> Dict[str, Dict[str, List[int]]]:
+    return collections.defaultdict(lambda: collections.defaultdict(list))
+
+
+def _add_contacts(seen, actions: Iterable[Dict], ram: Iterable[Dict]) -> None:
+    """One log directory: its actions joined to its ram records by (game, frame) (keys repeat across directories);
+    the ram records are streamed, never all held."""
+    by_key = {(a["game"], a["frame"]): a for a in actions if a["actual"] in ("hit", "blocked")}
+    for rec in ram:
+        a = by_key.get((rec["game"], rec["frame"]))
+        if a is None:
             continue
         rows, n = decode(rec)
         s = _contact(rows, n)
         if s is not None:
             seen[a["me"]][a["action"]].append(s)
+
+
+def k_frames(actions: Iterable[Dict], ram: Iterable[Dict]) -> Dict:
+    seen = _new_seen()
+    _add_contacts(seen, actions, ram)
+    return _k_summary(seen)
+
+
+def _stream(path: str) -> Iterator[Dict]:
+    with open(path) as f:
+        for line in f:
+            if line.strip():
+                yield json.loads(line)
+
+
+def ram_dirs(root: str) -> List[str]:
+    """The collection's log directories: <root>/<opp>/<me>/ with a ram.jsonl (play_system1 --ram-log)."""
+    return sorted(os.path.dirname(p) for p in glob.glob(os.path.join(root, "*", "*", "ram.jsonl")))
+
+
+def k_from_root(root: str) -> Dict:
+    seen = _new_seen()
+    for d in ram_dirs(root):
+        _add_contacts(seen, read_jsonl([os.path.join(d, "actions.jsonl")]), _stream(os.path.join(d, "ram.jsonl")))
+    return _k_summary(seen)
+
+
+def frames_of(recs: Iterable[Dict]) -> Iterator[Dict]:
+    """The per-frame rows of a ram.jsonl's records (in file order), each frame once although the decision windows
+    overlap: a row's frame is the record's frame + (its index - n)."""
+    last: Dict[int, int] = {}
+    for rec in recs:
+        rows, n = decode(rec)
+        for i, r in enumerate(rows):
+            f = rec["frame"] + i - n
+            if f > last.get(rec["game"], -1 << 30):
+                last[rec["game"]] = f
+                yield r
+
+
+def _k_summary(seen) -> Dict:
     by_move = {me: {m: [float(statistics.median(v)), len(v)] for m, v in sorted(ms.items()) if len(v) >= MIN_CONTACTS}
                for me, ms in sorted(seen.items())}
     meds = [v[0] for ms in by_move.values() for v in ms.values()]
@@ -193,12 +253,44 @@ def display_lag(dirs: Sequence[str], lags=range(-1, 4)) -> Dict:
 
 # ---- main -------------------------------------------------------------------------------------------------------
 
+def source(paths: Iterable[str]) -> List[Dict]:
+    """Each input as {path, sha256, bytes} (a file) or {path, sha256, files} (a directory: its files' relative paths
+    and contents, in sorted order), so the json names exactly what it was calibrated on."""
+    out = []
+    for p in paths:
+        h = hashlib.sha256()
+        if os.path.isdir(p):
+            files = sorted(os.path.relpath(os.path.join(dp, f), p) for dp, _, fs in os.walk(p) for f in fs)
+            for rel in files:
+                h.update(rel.encode() + b"\0")
+                with open(os.path.join(p, rel), "rb") as f:
+                    h.update(f.read())
+            out.append({"path": p, "sha256": h.hexdigest(), "files": len(files)})
+        else:
+            with open(p, "rb") as f:
+                data = f.read()
+            out.append({"path": p, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)})
+    return out
+
+
+def _root_source(root: str) -> Dict:
+    h = hashlib.sha256()
+    files = [os.path.join(d, n) for d in ram_dirs(root) for n in ("ram.jsonl", "actions.jsonl")]
+    for s in source(files):
+        h.update((s["path"] + s["sha256"]).encode())
+    return {"path": root, "sha256": h.hexdigest(), "files": len(files),
+            "note": "sha256 over the ram.jsonl and actions.jsonl files (path + sha256 each)"}
+
+
 def thresholds(args) -> Dict:
     entries = read_jsonl(args.logs)
     if not entries:
         raise SystemExit("no decision logs matched %s" % (args.logs,))
-    th: Dict = {"undecided": {}, "sources": {"logs": list(args.logs), "rows": list(args.rows), "ram": list(args.ram),
-                                             "lag_probe": list(args.lag_probe), "entries": len(entries)}}
+    th: Dict = {"undecided": {}, "sources": {"logs": list(args.logs), "entries": len(entries),
+                                             "rows": source(args.rows), "ram": source(args.ram),
+                                             "lag_probe": source(args.lag_probe)}}
+    if args.ram_root:
+        th["sources"]["ram_root"] = _root_source(args.ram_root)
     tb, pb = throw_band(entries), poke_band(entries)
     th["throw_max"] = {k: v for k, v in tb.items() if k != "n"}
     th["poke_max"] = {k: v for k, v in pb.items() if k != "n"}
@@ -208,8 +300,10 @@ def thresholds(args) -> Dict:
     th["near_px"] = MID
     th["undecided"]["near_px"] = "= mid_max: a projectile inside mid range is near (a judgment, not data)"
     rows = read_jsonl(args.rows)
-    if rows:
-        w = walls(rows)
+    collected = (r for d in (ram_dirs(args.ram_root) if args.ram_root else [])
+                 for r in frames_of(_stream(os.path.join(d, "ram.jsonl"))))
+    if rows or args.ram_root:
+        w = walls(itertools.chain(rows, collected))
         th.update(walls=w["walls"], corner_d=w["corner_d"])
         th["evidence"]["walls"] = w
         te = trend_eps(rows)
@@ -223,9 +317,12 @@ def thresholds(args) -> Dict:
     else:
         th["trend_eps"] = 2
         th["undecided"]["trend_eps"] = "no rows with inputs: 2 px (stated, not measured)"
-    ram = read_jsonl(args.ram)
-    acts = read_jsonl([os.path.join(os.path.dirname(p), "actions.jsonl") for p in args.ram])
-    k = k_frames(acts, ram) if ram else {"k": None, "by_move": {}, "provisional": None, "contacts": 0}
+    seen = _new_seen()
+    for p in args.ram:
+        _add_contacts(seen, read_jsonl([os.path.join(os.path.dirname(p), "actions.jsonl")]), _stream(p))
+    for d in ram_dirs(args.ram_root) if args.ram_root else []:
+        _add_contacts(seen, read_jsonl([os.path.join(d, "actions.jsonl")]), _stream(os.path.join(d, "ram.jsonl")))
+    k = _k_summary(seen)
     th["k"] = k["k"] if k["k"] is not None else k["provisional"]
     th["evidence"]["k"] = k
     if k["k"] is None:
@@ -264,6 +361,8 @@ def main() -> int:
     ap.add_argument("--logs", nargs="+", default=list(DEFAULT_LOGS))
     ap.add_argument("--rows", nargs="*", default=[], help="per-frame RAM rows jsonl (the his_moves probe)")
     ap.add_argument("--ram", nargs="*", default=[], help="ram.jsonl sidecars (play_system1 --ram-log)")
+    ap.add_argument("--ram-root", default=None,
+                    help="a --ram-log collection: <root>/<opp>/<me>/{ram,actions}.jsonl (walls, corner D and k)")
     ap.add_argument("--lag-probe", nargs="*", default=[], help="probe dirs with rows.jsonl and img/")
     ap.add_argument("--out", default="lessons/perception_thresholds_v1.json")
     ap.add_argument("--q8-root", default="rollouts/lv_value", help="the value collection behind the table")
