@@ -25,3 +25,16 @@ prereg_u_perception.md), "ok" to a second round.
 
 ## Load
 Training alone on the machine (~11 h), memory watchdog; nothing else heavy meanwhile.
+
+## Amendment before training (2026-10-01): train on threebody (owner)
+Owner: train on the Windows box "threebody" (RTX 4090 24 GB) in a separate folder C:\work\laya_finetune; "do not install
+new CUDA"; standing permission to stop Qwen during laya training and restart it (C:\work\qwen3.8-27b\NOTES.md).
+- Environment: Python 3.11.7 venv; torch 2.5.1+cu121 BORROWED read-only from an existing venv (no CUDA installed);
+  transformers 5.17.0 / tokenizers 0.23.2 / huggingface-hub 1.33.0 / safetensors 0.8.0 as on the Mac (pip, no torch, no
+  CUDA packages); laya 0.2.0.dev0 copied from the Mac. Code: git archive of dc56d03. Data: test_data_u2 copied
+  (row and frame counts match); runs/u_eye/best copied (8 files, sha256 match).
+- Parity (the same checkpoint, the same 300 test rows): same answer 297/300 (99.0%); max |prob diff| median 0.0025,
+  p95 0.011, max 0.15 (near-ties) - device float differences, accepted.
+- Mac (MPS, torch 2.14) vs threebody (CUDA, torch 2.5.1): the run is not bit-identical to what the Mac would produce;
+  the gates are judged on the Mac after copying the checkpoint back.
+- Training settings unchanged: 90,000 steps = --epochs 0.9031 on 797,253 training rows.

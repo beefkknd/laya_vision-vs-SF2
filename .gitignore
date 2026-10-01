@@ -35,3 +35,4 @@ test_data_v2/
 test_data_v3/
 # U arm dataset (scripts/build_u_data.py): perception rows, frames with the HUD visible; local only
 test_data_u/
+test_data_u2/
