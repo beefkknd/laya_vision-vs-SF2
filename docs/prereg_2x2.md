@@ -57,3 +57,33 @@ Unit: the run (seed) per opponent (sf2.eval.stats.run_level); pooled with the op
 server; memory checked before each wave; watchdog alert < 30 GB; Qwen's server health watched (it hung after the book
 round: 0.4 tok/s, then no answers - restarted 18:53); nothing else heavy during the round. A failed run is re-run once
 with its seed.
+
+## Result (2026-09-30 19:02-23:40; 96 runs, all saved, none re-run; logs/factorial_2x2.{txt,json})
+
+hp per round, the seed as the unit per opponent (8 each), pooled with the opponent as the unit, 95%:
+
+| effect | Ryu | Ken | Honda | Zangief | Guile | Dhalsim | pooled |
+|---|---|---|---|---|---|---|---|
+| **T0 - A0** table, no advice | +80.2 | +86.6 | +216.8 | +83.7 | +81.5 | +47.1 | **+99.3 [+65.3, +149.8] helps** |
+| **T1 - T0** Qwen + book on the table | -4.3 | +15.0 | **+18.2** | +12.0 | -15.2 | **+32.2** | +9.6 [-3.9, +22.6] not shown |
+| **interaction** (T1-T0) - (A1-A0) | **-62.7** | **-49.9** | **-29.8** | +5.0 | **-80.0** | -5.5 | **-37.1 [-61.7, -12.3]** |
+| A1 - A0 Qwen + book on runs/all8 | +58.4 | +64.8 | +48.0 | +7.0 | +64.8 | +37.7 | +46.8 [+28.4, +61.6] helps |
+
+| cell (1,440 rounds each) | hp/round | taken/round | rounds won | throws per close decision |
+|---|---|---|---|---|
+| A0 runs/all8, no advice | -57.0 | 155.6 | 290 | 0.03 |
+| A1 runs/all8, Qwen + book | -10.3 | 138.7 | 601 | 0.98 |
+| T0 table, no advice | +42.3 | 106.7 | 922 | 0.45 |
+| T1 table, Qwen + book | **+51.9** | **99.8** | **1000** | 0.57 |
+
+Qwen: 7.5 vs 7.3 lessons registered per run, hold rate 0.77 vs 0.78 (runs/all8 vs table).
+
+Reading (as pre-registered: "T1 ~ T0 -> the table already carries what the book taught; Qwen's effort goes to what the
+table cannot know"):
+- The book replicates on new seeds (A1 - A0 +46.8 vs +47.1 in the book round).
+- The table alone does twice what Qwen + book do on today's ranking (+99 vs +47), and its gain holds with text laya in
+  the loop (+81 without it, docs/prereg_value_oracle.md).
+- On top of the table, Qwen + book add +9.6, not shown pooled; the interaction is clearly negative: the book's main
+  lesson (the throw) is what the table already plays. The best cell is still T1 (1,000 of 1,440 rounds won).
+- Where Qwen + book still add on the table: Dhalsim +32, Honda +18 (opponent-specific); where they cost: Guile -15
+  (not shown). This is the residual "who he is" term, Qwen's job.
