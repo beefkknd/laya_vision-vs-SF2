@@ -29,3 +29,10 @@ is it." Replaces docs/prereg_movement_data.md (that data was deleted: over-compl
 ## Gates (mechanical) before any training
 Labels re-derived independently from RAM 100%; frame/RAM alignment (lag 1); counts table per (character, movement,
 direction, facing) and per question; disk < 10 GB; one contact sheet per character.
+
+## Fallback if CPU vs CPU is impossible (owner, 2026-10-01)
+"use our own system in current system 2 and direct laya-text to make these attacks and defense as player 1 vs CPU and
+then use CPU player against our laya-text": player 1 = our system, with text laya directed to cycle through the
+character's full set of attacks and defence (not runs/all8's own picks), player 2 = CPU; each ordered pair still
+played both ways (AB and BA), so every character is seen as the CPU and as our directed player. Rows record which
+side was directed and which was CPU.

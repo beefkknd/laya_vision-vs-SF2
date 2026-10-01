@@ -20,6 +20,7 @@
 --                              PNGs come back blank (headless --testrunner runs)
 --   KEEP                       keep a headless test-runner alive during slow Python inference; no response
 --   DUMP                       whole 128 KiB WRAM
+--   POKE <a1> <v1> [<a2> <v2> ..]  write WRAM bytes now (addr = WRAM offset, decimal); replies OK
 --   QUIT                       disconnect, keep emulating, wait for the next Python run
 --   EXIT                       end the Mesen process (headless --testrunner runs)
 -- F9 while a WATCH is running saves a savestate; it comes back in that WATCH's report.
@@ -230,6 +231,9 @@ local function serve()
       local blob = table.concat(parts)
       send("BIN " .. #blob .. "\n")
       send(blob)
+    elseif op == "POKE" then
+      for i = 2, #cmd - 1, 2 do emu.write(tonumber(cmd[i]), tonumber(cmd[i + 1]), WRAM) end
+      send("OK\n")
     elseif op == "PING" then
       send("PONG\n")
     elseif op == "QUIT" then                    -- Python is done; wait for the next one

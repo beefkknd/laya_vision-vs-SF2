@@ -181,6 +181,17 @@ class MesenBridge:
         self._send("RESET")
         return self._obs()
 
+    def poke(self, writes: Dict[int, int]) -> None:
+        """Write WRAM bytes now ({offset: value}, offsets into WRAM, values 0-255)."""
+        for a, v in writes.items():
+            if not (0 <= a < 0x20000 and 0 <= v < 256):
+                raise ValueError("bad POKE %r=%r" % (a, v))
+        if not writes:
+            return
+        self._send("POKE " + " ".join("%d %d" % kv for kv in writes.items()))
+        if self._line() != "OK":
+            raise RuntimeError("POKE not accepted")
+
     def dump_wram(self) -> bytes:
         self._send("DUMP")
         head = self._line().split()
