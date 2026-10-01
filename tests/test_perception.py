@@ -278,3 +278,14 @@ def test_every_answer_is_in_the_locked_answer_set():
         lab = P.labels(rows, rng.randrange(0, 45), TH)
         for q, a in lab.items():
             assert a in P.QUESTIONS[q] + (P.UNKNOWN,), (q, a)
+
+
+def test_contact_seen_decides_attacking_even_when_the_episode_runs_past_the_rows():
+    """Smoke game: his 65+ frame attack that hit me ran past the rows; the contact already decides it."""
+    rows = attack_rows(5, 200, contact_at=12, n_rows=40)
+    assert P.labels(rows, 16, TH)["phase"] == "attacking"
+
+
+def test_an_attack_ending_before_t_plus_k_is_attacking_even_if_it_started_before_the_rows():
+    rows = attack_rows(0, 8)              # t = 3, ends at 7 < 3 + 6
+    assert P.labels(rows, 4, TH)["phase"] == "attacking"

@@ -15,8 +15,9 @@ Exact rules (thresholds ``th``: lessons/perception_thresholds_v1.json, scripts/c
            0x0E with a block reaction (06 / 08). attacking: state 0x0A / 0x0C; it is "recovering after a miss" when
            (a) his attack episode (the consecutive attack rows around t) starts and ends inside the rows, (b) I take no
            contact during the whole episode - on none of its rows do I ENTER hit / block stun or thrown (0x0E / 0x14)
-           or lose life - and (c) he is still attacking at t + k. A start or end outside the rows: unknown. Anything
-           else (stand, crouch, jump, turn) is neutral.
+           or lose life - and (c) he is still attacking at t + k. Contact seen, or an end before t + k, decides
+           "attacking" even when the episode's other end is outside the rows; otherwise a start or end outside the
+           rows is unknown. Anything else (stand, crouch, jump, turn) is neutral.
  3 air     grounded: his y == GROUND_Y at t. Airborne: landing if he is on the ground at some frame in (t, t + k];
            else jumping at me if his x moved toward me over t - 4 -> t, else jumping away or straight up. Airborne
            with frame t + k missing and no landing seen: unknown. (A fighter knocked into the air is labelled by the
@@ -137,10 +138,12 @@ def phase(rows: Rows, t: int, th: Dict) -> str:
     if st not in ATTACK:
         return "neutral"
     s, e = _run(rows, t, lambda x: x["p2_state"] in ATTACK)
+    if _contact_on_me(rows, max(s or 1, 1), len(rows) - 1 if e is None else e):
+        return "attacking"            # contact seen in the part of the episode the rows hold: decided
+    if e is not None and e < t + th["k"]:
+        return "attacking"            # over before t + k: no opening
     if s is None or e is None:
-        return UNKNOWN
-    if _contact_on_me(rows, s, e) or e < t + th["k"]:
-        return "attacking"
+        return UNKNOWN                # no contact seen, but it may have come before the rows or after them
     return "recovering after a miss"
 
 
@@ -220,3 +223,83 @@ def labels(rows: Rows, n: int, th: Dict) -> Dict[str, str]:
         "me_can_act": can_act(rows, t, 1), "him_can_act": can_act(rows, t, 2), "corner": corner(rows, t, th),
         "my_bar": bar(r["p1_life"]), "his_bar": bar(r["p2_life"]),
     }
+
+
+# ---- 8: the soft target ------------------------------------------------------------------------------------------
+Q8_ANSWERS = ("likely works", "may work", "likely fails")
+Q8_MARGIN = 3.0          # hp over walking in for "likely works" (prereg)
+FORWARD = "forward"
+
+
+def _resampled_means(rng, clusters: List, picks) -> "np.ndarray":
+    """Per resample r: the shrunk mean (sf2.data.value_oracle: n / (n + SHRINK)) of the decisions of the opponents
+    picked in row r of ``picks``, each pick resampled with replacement on its own (an opponent picked twice gets two
+    independent resamples); no decisions -> 0, as the table's empty cell."""
+    import numpy as np
+
+    from .value_oracle import SHRINK
+
+    sums = np.zeros(picks.shape)
+    sizes = np.array([len(c) for c in clusters])[picks]
+    for o, vals in enumerate(clusters):
+        mask = picks == o
+        if len(vals) and mask.any():
+            draws = rng.integers(0, len(vals), (int(mask.sum()), len(vals)))
+            sums[mask] = np.asarray(vals)[draws].sum(axis=1)
+    return sums.sum(axis=1) / np.maximum(sizes.sum(axis=1) + SHRINK * (sizes.sum(axis=1) > 0), 1)
+
+
+def _q8_one(rng, move: List[List[float]], fwd: List[List[float]], resamples: int, margin: float) -> Dict[str, float]:
+    picks = rng.integers(0, len(move), (resamples, len(move)))
+    diff = _resampled_means(rng, move, picks) - _resampled_means(rng, fwd, picks)
+    works = int((diff >= margin).sum())
+    may = int(((diff > 0) & (diff < margin)).sum())
+    return {"likely works": works / resamples, "may work": may / resamples,
+            "likely fails": (resamples - works - may) / resamples}
+
+
+def q8_targets(entries, resamples: int = 200, seed: int = 0, margin: float = Q8_MARGIN,
+               moves: Optional[Dict[str, List[str]]] = None) -> Dict[Tuple, Dict[str, Dict]]:
+    """Per (table cell, move): {"p": share of resamples per Q8_ANSWERS, "n": decisions, "n_by_opp": {opp: n},
+    "mean": raw mean net, "forward_mean": raw mean net of walking in}. The decisions are the table's
+    (sf2.data.value_oracle.build: explored, training-split games, not Chun-Li vs Guile). One resample: draw the cell's
+    opponents with replacement (a cluster bootstrap: opponents who disagree make the answer spread), then each drawn
+    opponent's decisions with replacement, for the move and for walking in alike; compare the shrunk means as the
+    table does. ``moves``: per character, the moves to answer for (default: every move it tried anywhere); walking
+    in is the baseline and gets no target of its own. Seeded per (cell, move): reproducible."""
+    import zlib
+
+    import numpy as np
+
+    from .value_oracle import HELDOUT, _cell_of
+    from .vs_sweep import TEST_INDEX
+
+    if resamples <= 0:
+        raise ValueError("resamples must be positive, got %r" % resamples)
+    nets: Dict[Tuple, Dict[str, Dict[str, List[float]]]] = {}
+    tried: Dict[str, set] = {}
+    for e in entries:
+        if not e.get("explored") or e["game"] % 10 in TEST_INDEX or (e["me"], e["opp"]) == HELDOUT:
+            continue
+        nets.setdefault(_cell_of(e), {}).setdefault(e["action"], {}).setdefault(e["opp"], []).append(
+            float(e["dealt"] - e["taken"]))
+        tried.setdefault(e["me"], set()).add(e["action"])
+    out: Dict[Tuple, Dict[str, Dict]] = {}
+    for c in sorted(nets):
+        by_move = nets[c]
+        opps = sorted({o for per in by_move.values() for o in per})
+        fwd = [by_move.get(FORWARD, {}).get(o, []) for o in opps]
+        names = (moves or {}).get(c[0], sorted(tried.get(c[0], ())))
+        row: Dict[str, Dict] = {}
+        for m in names:
+            if m == FORWARD:
+                continue
+            mv = [by_move.get(m, {}).get(o, []) for o in opps]
+            rng = np.random.default_rng([seed, zlib.crc32(repr((c, m)).encode())])
+            flat, flat_f = [v for x in mv for v in x], [v for x in fwd for v in x]
+            row[m] = {"p": _q8_one(rng, mv, fwd, resamples, margin), "n": len(flat),
+                      "n_by_opp": {o: len(x) for o, x in zip(opps, mv) if x},
+                      "mean": round(sum(flat) / len(flat), 3) if flat else None,
+                      "forward_mean": round(sum(flat_f) / len(flat_f), 3) if flat_f else None}
+        out[c] = row
+    return out

@@ -48,8 +48,8 @@ WAIT = 4              # idle frames per step while the fighter cannot act (the 4
 MAX_RECOVER = 90      # frames to wait after an attack for the fighter to be able to act again
 MAX_FRAMES = 12000    # a round cannot last longer (99 s clock plus the KO)
 RESULT = {1: "win", 2: "loss", 0xFF: "draw"}
-BACK = 8              # --ram-log: rows kept before each decision frame n (n - 4 is the prev image's frame)
-LOOKAHEAD = 30        # --ram-log: rows kept after it (the real continuation, her move included)
+BACK = 60             # --ram-log: rows kept before each decision frame n (n - 4 is the prev image's frame)
+LOOKAHEAD = 60        # --ram-log: rows kept after it (the real continuation, her move included)
 
 
 @dataclass
