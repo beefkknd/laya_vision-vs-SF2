@@ -54,3 +54,42 @@ Owner: "Do not run it, plan it." No further collection until the owner approves 
 only. Movement (10): stand, walk toward, walk away, crouch, jump, attack, special, block, being hit, knocked down
 (jump direction not a separate cell). Cap 60 per cell (40 train / 20 test by whole game). Air and distance stay
 separate questions on the same pairs.
+
+## Plan B (owner: "B then, plan it out ... a matrix of what needs to be collected for which character"; not run)
+2-player versus mode: BOTH controllers ours, each a hardcoded action list (no CPU, no model). Both fighters labelled.
+
+Step 0 (check, ~15 min): start a 2P versus match headless with chosen characters for both sides; verify from RAM
+(p1_char, p2_char) and a frame, and that each side follows its own controller. If it fails: stop and report.
+
+Matches: the 56 ordered pairs (A left / B right, then B left / A right). Per round each character plays 14 matches:
+7 starting on the left (mostly facing right), 7 starting on the right (mostly facing left).
+
+The matrix - every character, the same 20 cells, 60 pairs each (40 train / 20 test by whole game):
+
+| movement      | made by (own list, or the other side's list)                     | facing R | facing L |
+|---------------|------------------------------------------------------------------|----------|----------|
+| stand         | idle step                                                        | 60       | 60       |
+| walk toward   | walk forward                                                     | 60       | 60       |
+| walk away     | walk back (no attack coming)                                     | 60       | 60       |
+| crouch        | hold down                                                        | 60       | 60       |
+| jump          | jump up / toward / away (no attack in the jump)                  | 60       | 60       |
+| attack        | 6 standing + 6 crouching normals, jump attacks, throw            | 60       | 60       |
+| special       | the character's specials (below)                                 | 60       | 60       |
+| block         | hold back / down-back while the OTHER side's attack arrives      | 60       | 60       |
+| being hit     | the other side's attack lands                                    | 60       | 60       |
+| knocked down  | the other side's sweep / throw / special knocks down             | 60       | 60       |
+Per character 1,200 pairs; 8 characters 9,600. A jump attack counts as "attack" (the air question says "in the
+air"; owner earlier: same action, where is a separate question). Air (ground / air) and distance (close / far) are
+answered on the same pairs.
+
+Specials in the lists: blanka electricity, rolling attack; chunli lightning legs, spinning bird kick; dhalsim yoga
+fire, yoga flame; guile sonic boom, flash kick; honda hundred hand slap, sumo headbutt; ken and ryu hadoken,
+shoryuken, tatsumaki; zangief spinning piledriver, clothesline.
+
+Interaction: block / being hit / knocked down need the two sides close; each list includes walk-forward steps, so they
+meet. Spread: at most 3 pairs per (cell, match) per game, so a cell needs >= 20 matches -> >= 2 rounds.
+
+Budget: one round = 56 matches (~1 min, from round 1's ~15 s per game x 24 workers). After round 1: report the matrix
+% filled per character x cell (owner decides); hard limit 5 rounds. Shortfalls reported by name, never padded.
+After collection: build 4 datasets (movement 10, facing 2, air 2, distance 2), gate (labels vs RAM 100%, lag 1, counts
+matrix, disk), contact sheet per character. Training registered separately, one fine-tune per question.
