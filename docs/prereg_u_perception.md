@@ -73,3 +73,17 @@ Collection (~2.5 h), dataset build, training (alone), eval, games: one at a time
   Gate 2 (table's best move in top 3) is computed over decisions where the table's best move is not walking in
   (walking in is always offered to text laya); decisions where it is are reported separately.
 - "unknown" labels are not trained on (masked) and not counted in accuracy.
+
+## Amendments before training (2026-10-01)
+- Training length: 25 questions per decision make ~0.87M training rows; 2 epochs would be ~216k steps (~27 h). Fixed
+  budget instead: **36,000 steps** (~4.4 h at the measured speed; `--epochs` = 36000 x 8 / training rows,
+  `--max-minutes 270` as a guard), everything else as registered (select on validation NLL, eval every 1,000, patience
+  5, equal-share sampling per character: Chun-Li's larger set is seen ~0.09 epoch, the others ~0.55).
+- Validation: whole val games (game % 10 == 0), capped at 48 decisions per character chosen by hash (~9.6k rows, the
+  eval cost of the value runs); the rest of those games kept in val_rest.jsonl (reported, never trained on).
+- Mapping of laya-vision's answers to text laya's words: range throw -> close, poke and mid -> mid, far -> far (95.2%
+  agreement with RAM's words on Chun-Li's data); doing: airborne -> jumping, attacking / recovering -> attacking, being
+  hit or him not free -> stunned, neutral / blocking -> standing; bars carried over.
+- Known limitation (stated, not hidden): the decision's CONTENT uses no RAM, but the play loop still uses RAM for WHEN
+  she may act (_can_act) and for which way the buttons face. A human sees both on screen (question 5 asks "can I act
+  now"); replacing them with laya-vision's answers is a later step, measured separately.
