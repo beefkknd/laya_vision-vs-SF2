@@ -1,0 +1,511 @@
+{
+ "what": "Chun-Li's attack ID: the ROM's per-character move number of the attack box she has out",
+ "address": {
+  "player1": "0x0C3E",
+  "player2": "0x0E3E",
+  "size": 1,
+  "state_byte": {
+   "player1": "0x0C03",
+   "player2": "0x0E03"
+  }
+ },
+ "rule": "an episode is a run of one state byte; its move is the FIRST non-zero attack ID in it (startup frames read 0; multi-hit moves step through several IDs). 0 all through = no attack box.",
+ "measured": "scripts/probe_action_moves.py: VS BATTLE, Chun-Li vs a still Ken, each move pressed from the same savestate at a close (26-28 px) and a far (151-153 px) gap, as player 1 and as player 2; the move's inputs are sf2.data.vs_sweep.actions('chunli') (the controller's own) plus six neutral-jump normals; seen_in_play: scripts/probe_action_ram.py games (runs/all8, explore 0.5)",
+ "move_to_ids": {
+  "lp": {
+   "close": [
+    1
+   ],
+   "far": [
+    2
+   ]
+  },
+  "mp": {
+   "close": [
+    3
+   ],
+   "far": [
+    4
+   ]
+  },
+  "hp": {
+   "close": [
+    5
+   ],
+   "far": [
+    6
+   ]
+  },
+  "lk": {
+   "close": [
+    7
+   ],
+   "far": [
+    8
+   ]
+  },
+  "mk": {
+   "close": [
+    9
+   ],
+   "far": [
+    10
+   ]
+  },
+  "hk": {
+   "close": [
+    11
+   ],
+   "far": [
+    12
+   ]
+  },
+  "c.lk": {
+   "close": [
+    20
+   ],
+   "far": [
+    20
+   ]
+  },
+  "c.mk": {
+   "close": [
+    21
+   ],
+   "far": [
+    21
+   ]
+  },
+  "sweep": {
+   "close": [
+    22
+   ],
+   "far": [
+    22
+   ]
+  },
+  "c.hp": {
+   "close": [
+    19
+   ],
+   "far": [
+    19
+   ]
+  },
+  "lightning_legs": {
+   "close": [
+    7,
+    50
+   ],
+   "far": [
+    8,
+    50
+   ]
+  },
+  "spinning_bird_kick": {
+   "close": [
+    46
+   ],
+   "far": [
+    46
+   ]
+  },
+  "j.lp": {
+   "close": [
+    23
+   ],
+   "far": [
+    23
+   ]
+  },
+  "j.mp": {
+   "close": [
+    24
+   ],
+   "far": [
+    24
+   ]
+  },
+  "j.hp": {
+   "close": [
+    25
+   ],
+   "far": [
+    25
+   ]
+  },
+  "j.lk": {
+   "close": [
+    26
+   ],
+   "far": [
+    26
+   ]
+  },
+  "j.mk": {
+   "close": [
+    27
+   ],
+   "far": [
+    27
+   ]
+  },
+  "j.hk": {
+   "close": [
+    32
+   ],
+   "far": [
+    32
+   ]
+  },
+  "throw": {
+   "far": [
+    6
+   ]
+  }
+ },
+ "id_to_moves": {
+  "1": {
+   "moves": [
+    "lp@close"
+   ],
+   "seen_in_play": 1,
+   "in_sequence_of": [
+    "lp"
+   ],
+   "note": ""
+  },
+  "2": {
+   "moves": [
+    "lp@far"
+   ],
+   "seen_in_play": 17,
+   "in_sequence_of": [
+    "lp"
+   ],
+   "note": ""
+  },
+  "3": {
+   "moves": [
+    "mp@close"
+   ],
+   "seen_in_play": 4,
+   "in_sequence_of": [
+    "mp"
+   ],
+   "note": ""
+  },
+  "4": {
+   "moves": [
+    "mp@far"
+   ],
+   "seen_in_play": 25,
+   "in_sequence_of": [
+    "mp"
+   ],
+   "note": ""
+  },
+  "5": {
+   "moves": [
+    "hp@close"
+   ],
+   "seen_in_play": 9,
+   "in_sequence_of": [
+    "hp"
+   ],
+   "note": ""
+  },
+  "6": {
+   "moves": [
+    "hp@far",
+    "throw@far"
+   ],
+   "seen_in_play": 37,
+   "in_sequence_of": [
+    "hp",
+    "throw"
+   ],
+   "note": "shared by hp, throw"
+  },
+  "7": {
+   "moves": [
+    "lk@close",
+    "lightning_legs@close"
+   ],
+   "seen_in_play": 3,
+   "in_sequence_of": [
+    "lightning_legs",
+    "lk"
+   ],
+   "note": "shared by lightning_legs, lk"
+  },
+  "8": {
+   "moves": [
+    "lk@far",
+    "lightning_legs@far"
+   ],
+   "seen_in_play": 40,
+   "in_sequence_of": [
+    "lightning_legs",
+    "lk"
+   ],
+   "note": "shared by lightning_legs, lk"
+  },
+  "9": {
+   "moves": [
+    "mk@close"
+   ],
+   "seen_in_play": 3,
+   "in_sequence_of": [
+    "mk"
+   ],
+   "note": ""
+  },
+  "10": {
+   "moves": [
+    "mk@far"
+   ],
+   "seen_in_play": 17,
+   "in_sequence_of": [
+    "mk"
+   ],
+   "note": ""
+  },
+  "11": {
+   "moves": [
+    "hk@close"
+   ],
+   "seen_in_play": 3,
+   "in_sequence_of": [
+    "hk"
+   ],
+   "note": ""
+  },
+  "12": {
+   "moves": [
+    "hk@far"
+   ],
+   "seen_in_play": 25,
+   "in_sequence_of": [
+    "hk"
+   ],
+   "note": ""
+  },
+  "19": {
+   "moves": [
+    "c.hp@close",
+    "c.hp@far"
+   ],
+   "seen_in_play": 29,
+   "in_sequence_of": [
+    "c.hp"
+   ],
+   "note": ""
+  },
+  "20": {
+   "moves": [
+    "c.lk@close",
+    "c.lk@far"
+   ],
+   "seen_in_play": 27,
+   "in_sequence_of": [
+    "c.lk"
+   ],
+   "note": ""
+  },
+  "21": {
+   "moves": [
+    "c.mk@close",
+    "c.mk@far"
+   ],
+   "seen_in_play": 38,
+   "in_sequence_of": [
+    "c.mk"
+   ],
+   "note": ""
+  },
+  "22": {
+   "moves": [
+    "sweep@close",
+    "sweep@far"
+   ],
+   "seen_in_play": 122,
+   "in_sequence_of": [
+    "sweep"
+   ],
+   "note": ""
+  },
+  "23": {
+   "moves": [
+    "j.lp@close",
+    "j.lp@far"
+   ],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "j.lp"
+   ],
+   "note": ""
+  },
+  "24": {
+   "moves": [
+    "j.mp@close",
+    "j.mp@far"
+   ],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "j.mp"
+   ],
+   "note": ""
+  },
+  "25": {
+   "moves": [
+    "j.hp@close",
+    "j.hp@far"
+   ],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "j.hp"
+   ],
+   "note": ""
+  },
+  "26": {
+   "moves": [
+    "j.lk@close",
+    "j.lk@far"
+   ],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "j.lk"
+   ],
+   "note": ""
+  },
+  "27": {
+   "moves": [
+    "j.mk@close",
+    "j.mk@far"
+   ],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "j.mk"
+   ],
+   "note": ""
+  },
+  "32": {
+   "moves": [
+    "j.hk@close",
+    "j.hk@far"
+   ],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "j.hk"
+   ],
+   "note": ""
+  },
+  "33": {
+   "moves": [],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "j.hk"
+   ],
+   "note": "a later phase of j.hk (its first ID is another; first only when an episode starts mid-move)"
+  },
+  "45": {
+   "moves": [],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "spinning_bird_kick"
+   ],
+   "note": "a later phase of spinning_bird_kick (its first ID is another; first only when an episode starts mid-move)"
+  },
+  "46": {
+   "moves": [
+    "spinning_bird_kick@close",
+    "spinning_bird_kick@far"
+   ],
+   "seen_in_play": 22,
+   "in_sequence_of": [
+    "spinning_bird_kick"
+   ],
+   "note": ""
+  },
+  "49": {
+   "moves": [],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "spinning_bird_kick"
+   ],
+   "note": "a later phase of spinning_bird_kick (its first ID is another; first only when an episode starts mid-move)"
+  },
+  "50": {
+   "moves": [
+    "lightning_legs@close",
+    "lightning_legs@far"
+   ],
+   "seen_in_play": 17,
+   "in_sequence_of": [
+    "lightning_legs"
+   ],
+   "note": ""
+  },
+  "51": {
+   "moves": [],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "lightning_legs"
+   ],
+   "note": "a later phase of lightning_legs (its first ID is another; first only when an episode starts mid-move)"
+  },
+  "52": {
+   "moves": [],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "lightning_legs"
+   ],
+   "note": "a later phase of lightning_legs (its first ID is another; first only when an episode starts mid-move)"
+  },
+  "53": {
+   "moves": [],
+   "seen_in_play": 0,
+   "in_sequence_of": [
+    "lightning_legs"
+   ],
+   "note": "a later phase of lightning_legs (its first ID is another; first only when an episode starts mid-move)"
+  }
+ },
+ "moves_without_id": [
+  "back@close",
+  "back@far",
+  "block_high@close",
+  "block_high@far",
+  "block_low@close",
+  "block_low@far",
+  "crouch@close",
+  "crouch@far",
+  "forward@close",
+  "forward@far",
+  "idle@close",
+  "idle@far",
+  "jump@close",
+  "jump@far",
+  "jump_back@close",
+  "jump_back@far",
+  "jump_forward@close",
+  "jump_forward@far",
+  "throw@close"
+ ],
+ "attack_episodes_without_id": [
+  "throw@close: throw"
+ ],
+ "shared_ids_explained": {
+  "6": "a throw pressed out of grab range comes out as the far fierce (hp): the same real move",
+  "7/8": "Lightning Legs starts with the short (lk) it is mashed from: a 0x0A lk episode, then the 0x0C Lightning Legs episode (ID 50)"
+ },
+ "no_box_fallback": {
+  "rule": "attack-state episode with no ID: own throw MOVE_CLASS (0x0CBA in 0x06 / 0x0C) -> throw; state 0x0C with SPECIAL_CLASS 0x0C49 -> that special; else cut (an attack stopped in its startup, 4-7 rows: unknown)",
+  "state 0x0C, 0x0C49 = 0x09": "spinning_bird_kick (46)",
+  "state 0x0C, 0x0C49 = 0x0C": "lightning_legs (50)",
+  "0x0CBA = 0x0C": "throw (close)"
+ },
+ "non_attack_moves": "walks, jumps, crouch, blocks, idle never put out an attack box (ID 0): name them by the state byte (0x00 stand / walk by x, 0x02 crouch, 0x04 jump, 0x08 guard, 0x0E hit, 0x14 thrown), as sf2.data.movement does",
+ "player_slots_agree": "same ID sequence on player 1 and player 2 (see the probe report)"
+}
