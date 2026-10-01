@@ -482,7 +482,7 @@ def overwrite(out: str) -> None:
     if not os.path.exists(out):
         return
     for d in os.listdir(out):
-        if d == "build.json":
+        if d in ("build.json", "summary.json"):     # both written by scripts/build_u_data.py
             continue
         if d not in FIGHTERS or not os.path.exists(os.path.join(out, d, "stats.json")):
             raise SystemExit("%s holds %s, not a U-data build: not removing it" % (out, d))

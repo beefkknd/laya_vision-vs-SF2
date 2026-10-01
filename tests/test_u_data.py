@@ -289,3 +289,25 @@ def test_a_decision_whose_ram_row_disagrees_is_a_problem_in_the_build(tmp_path):
     res = U.build(root, str(tmp_path / "out"), t, q)
     assert any(p.startswith("ken/chunli g1 f64: ram (game, frame, gap") for p in res["problems"])
     assert not os.path.exists(os.path.join(str(tmp_path / "out"), ME, "frames", "ken_g001_f00064_now.png"))
+
+
+def test_overwrite_accepts_a_previous_build_with_its_summary(tmp_path):
+    # 2026-10-01: scripts/build_u_data.py writes summary.json next to build.json; the guard refused its own build
+    from sf2.data.u_data import overwrite
+    out = tmp_path / "test_data_u"
+    (out / "chunli").mkdir(parents=True)
+    (out / "chunli" / "stats.json").write_text("{}")
+    (out / "build.json").write_text("{}")
+    (out / "summary.json").write_text("{}")
+    overwrite(str(out))
+    assert not out.exists() or not any(out.iterdir())
+
+
+def test_overwrite_still_refuses_a_foreign_folder(tmp_path):
+    import pytest
+    from sf2.data.u_data import overwrite
+    out = tmp_path / "test_data_u"
+    (out / "notes").mkdir(parents=True)
+    (out / "build.json").write_text("{}")
+    with pytest.raises(SystemExit):
+        overwrite(str(out))
