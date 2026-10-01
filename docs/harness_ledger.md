@@ -40,5 +40,7 @@ hygiene), **S** statistics / analysis, **V** verifier (sf2/system2/lessons.py), 
 
 | 28 | 10-01 | tests/test_early_stop.py fails on real data: the stop rule false-alarms in 5.5% of no-advice checks (271 arms) vs < 5% | the 2x2's no-advice arms (table and runs/all8, new seeds) joined the data; STOP_DROP = 60 was set on earlier arms (see #13) | V | open - re-tune per arm type or per opponent, an owner decision | the test (data-dependent) |
 
+| 29 | 10-01 | the U training started with thresholds whose right wall was x = 65369, so "right corner" could never be labelled | one glitch frame (Blanka vs Dhalsim, game 24) with a wrapped x (-167 read as unsigned 16-bit); the wall calibration took the outermost x without a plausibility check | H | training stopped minutes in (only the step-0 checkpoint existed); impossible x -> unknown in labels; walls only from piled-up modes with >= 20 frames, impossible walls refused (5f97590, 3029b79); dataset rebuilt, training restarted | fixture of the real record, 4 seeded faults |
+
 Text laya (TL): follows its label rule 98-100% where it was trained; two untrained cases found 2026-09-30 (lessons naming
 forward, nothing left) - docs/component_boundaries.md.
