@@ -48,3 +48,9 @@ at most 35%); hardcoded player 1 does 95.8% of its moves when not interrupted. L
 Owner: "if the opponent is not in our control then control the character we have and then label the player we do
 have control [of] and that is it." -> datasets keep only player 1's rows (build_pairs_data.py --controller directed).
 Owner: "Do not run it, plan it." No further collection until the owner approves the plan.
+
+## Owner: the grid (2026-10-01, planning; nothing run)
+"8 player x 2 facing x ~10 moves including block" -> 160 cells (character, facing, movement), the player we control
+only. Movement (10): stand, walk toward, walk away, crouch, jump, attack, special, block, being hit, knocked down
+(jump direction not a separate cell). Cap 60 per cell (40 train / 20 test by whole game). Air and distance stay
+separate questions on the same pairs.
