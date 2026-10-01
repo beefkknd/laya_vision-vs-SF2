@@ -41,3 +41,10 @@ side was directed and which was CPU.
 "Play 1 game is fast, you can just hardcode: play one action of A and push through, then the next action. Brute
 force." Player 1 = a hardcoded list of the character's actions sent straight to the controller, one after another,
 each executed in full, repeated until the game ends. No text laya, no model. Player 2 = CPU.
+
+## Round 1 result and owner decision (2026-10-01)
+Round 1 (G=1, 56 ordered pairs, 47 s wall, 4,728 pairs): overall fill 20.5% of the 60-per-bucket caps (G=1 can reach
+at most 35%); hardcoded player 1 does 95.8% of its moves when not interrupted. Labels 18,912/18,912 vs RAM, lag 1.
+Owner: "if the opponent is not in our control then control the character we have and then label the player we do
+have control [of] and that is it." -> datasets keep only player 1's rows (build_pairs_data.py --controller directed).
+Owner: "Do not run it, plan it." No further collection until the owner approves the plan.

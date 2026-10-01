@@ -165,3 +165,21 @@ def test_build_refuses_bad_pairs(tmp_path):
     _rewrite(os.path.join(base, "pairs.jsonl"), lambda r: dict(r, movement="flying"))
     with pytest.raises(ValueError):
         D.build(root, out)
+
+
+def test_build_only_the_controlled_player(tmp_path):
+    root, out = str(tmp_path / "col"), str(tmp_path / "data")
+    collection(root)
+    meta = D.build(root, out, {"train": 4, "test": 2}, controllers=("directed",))
+    rows = [r for q in D.QUESTION_ANSWERS for f in ("train", "test")
+            for r in IO.read_jsonl(os.path.join(out, q, f + ".jsonl"))]
+    assert rows and {r["controller"] for r in rows} == {"directed"} and {r["slot"] for r in rows} == {1}
+    assert meta["controllers"] == ["directed"]
+    assert not [k for k in meta["short"] if "|cpu|" in k]
+
+
+def test_build_refuses_unknown_controller(tmp_path):
+    with pytest.raises(ValueError):
+        D.build(str(tmp_path), str(tmp_path / "o"), controllers=("human",))
+    with pytest.raises(ValueError):
+        D.build(str(tmp_path), str(tmp_path / "o"), controllers=())

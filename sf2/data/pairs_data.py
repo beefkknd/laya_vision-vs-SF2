@@ -58,11 +58,15 @@ def cell(p: Dict) -> Tuple[str, str, str, str, str]:
     return (p["char"], p["controller"], p["movement"], p["direction"], p["facing"])
 
 
-def universe(chars: Iterable[str], caps: Dict[str, int] = CAPS) -> List[Tuple]:
+CONTROLLERS = ("directed", "cpu")
+
+
+def universe(chars: Iterable[str], caps: Dict[str, int] = CAPS,
+             controllers: Sequence[str] = CONTROLLERS) -> List[Tuple]:
     """Every (split, char, controller, movement, direction, facing) cell a full collection could fill."""
     combos = [(m, "none") for m in L.MOVEMENTS if m not in ("walk", "jump")]
     combos += [("walk", d) for d in ("toward", "away")] + [("jump", d) for d in L.DIRECTIONS]
-    return [(s, c, ctl, m, d, f) for s in caps for c in sorted(chars) for ctl in ("directed", "cpu")
+    return [(s, c, ctl, m, d, f) for s in caps for c in sorted(chars) for ctl in controllers
             for m, d in combos for f in L.FACINGS]
 
 
@@ -126,8 +130,14 @@ def collection_pairs(root: str) -> Tuple[List[Dict], Dict[str, int], List[str]]:
     return pairs, dropped, names
 
 
-def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0) -> Dict:
+def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
+          controllers: Sequence[str] = CONTROLLERS) -> Dict:
+    """controllers: whose rows to keep (owner 2026-10-01: label only the player we control -> ("directed",))."""
+    bad = set(controllers) - set(CONTROLLERS)
+    if bad or not controllers:
+        raise ValueError("controllers must be a non-empty subset of %s, got %s" % (CONTROLLERS, controllers))
     pairs, dropped, names = collection_pairs(root)
+    pairs = [p for p in pairs if p["controller"] in controllers]
     problems = [x for p in pairs for x in pair_problems(p, os.path.join(root, p["pair_name"], "images"))]
     if problems:
         raise ValueError("%d bad pairs, e.g. %s" % (len(problems), problems[:5]))
@@ -151,8 +161,9 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0) -> Di
             per_q[q][f] = dict(collections.Counter(r["answer"] for r in mine))
     counts = collections.Counter((split_of_game(p["game"]),) + cell(p) for p in chosen)
     chars = {c for n in names for c in n.split("_vs_")}
-    short = {"|".join(k): caps[k[0]] - counts[k] for k in universe(chars, caps) if counts[k] < caps[k[0]]}
+    short = {"|".join(k): caps[k[0]] - counts[k] for k in universe(chars, caps, controllers) if counts[k] < caps[k[0]]}
     meta = {"root": os.path.abspath(root), "pairs": names, "caps": caps, "seed": seed, "lag": LAG,
+            "controllers": list(controllers),
             "split": "game %% %d == %d test" % (SPLIT_MOD, TEST_REST), "collected": len(pairs),
             "selected": len(chosen), "dropped_uncommitted": dropped,
             "cells": {"|".join(k): n for k, n in sorted(counts.items())}, "short": short, "questions": per_q}

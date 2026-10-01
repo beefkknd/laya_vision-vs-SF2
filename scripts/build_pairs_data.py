@@ -21,10 +21,13 @@ def main(argv=None) -> int:
     ap.add_argument("--cap-train", type=int, default=D.CAPS["train"])
     ap.add_argument("--cap-test", type=int, default=D.CAPS["test"])
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--controller", action="append", choices=D.CONTROLLERS,
+                    help="keep only these players' rows (repeatable; default both)")
     args = ap.parse_args(argv)
     if os.path.exists(os.path.join(args.out, "build.json")):
         raise SystemExit("%s already holds a build: pick a new --out" % args.out)
-    meta = D.build(args.root, args.out, {"train": args.cap_train, "test": args.cap_test}, args.seed)
+    meta = D.build(args.root, args.out, {"train": args.cap_train, "test": args.cap_test}, args.seed,
+                   tuple(args.controller) if args.controller else D.CONTROLLERS)
     print("collected %d pairs, selected %d; %d cells short of the cap" % (meta["collected"], meta["selected"],
                                                                          len(meta["short"])))
     print(json.dumps(meta["questions"], indent=1, sort_keys=True))
