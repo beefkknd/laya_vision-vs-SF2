@@ -48,3 +48,30 @@ U1 ~5 h. One heavy job at a time, memory watchdog, Qwen restarted only via ~/wor
 - A laya-vision fine-tune (perception, general, one run from BASE): approve?
 - Laya-vision as a perception model only for U (outcome questions stay with runs/all8 for the A arms), or one model
   that keeps the outcome questions too? Recommended: perception only - smallest change, cleanest test.
+
+
+## Revision after the owner's review (2026-10-01)
+Owner: "First 3 is fine, they are general. 4th is tricky... I doubt one specific attack is effective across all
+opponents... the attack part needs to be softened or the data will skew the results. This may be adjusted later when
+Qwen sees the game results and tries to push further. As long as laya-vision does not rule out the best move as
+suggested by the table I think it should work... a boundary of how much we want to fine-tune. Health bar is fine:
+human players see the health bar." And: "the table will not be used in the real game; it is derived from RAM."
+
+So the U arm uses NO table and NO RAM at play time; the table is only the teacher of question 4 at training time.
+
+| # | question (screen only) | answers | label | strictness |
+|---|---|---|---|---|
+| 1 | how far away is he | close / mid / far | RAM, exact | exact |
+| 2 | is he attacking right now | yes / no | RAM, exact | exact |
+| 3 | is he in the air | yes / no | RAM, exact | exact |
+| 4 | if I do X now, is it better than walking in (per move) | likely works / may work / likely fails | soft: the table's confidence across opponents | soft |
+| 5 | how full is my bar / his bar (HUD strip no longer blanked) | full / high / half / low | RAM, exact | exact |
+
+- Question 4's target is a soft distribution: per (situation, move), resample its explored outcomes (opponents
+  included) and count how often the move is >= walking in + 3 hp ("likely works"), above walking in ("may work"), or not
+  ("likely fails"). A move good vs some opponents and bad vs others gets a spread answer, never a confident one. Its
+  three words are text laya's own, so laya-vision's answer goes straight to text laya.
+- Boundary: laya-vision = general, softened shortlist; Qwen + book = opponent-specific choice among it.
+- The gate that matters: the table's best move (from RAM facts) is in laya-vision's top 3 in >= 90% of held-out
+  decisions and of held-out Guile's (threshold fixed in the pre-registration); perception questions gated by accuracy.
+- In play: U0 / U1 vs A0 / A1 and T0 / T1 on seeds 73001-73008.
