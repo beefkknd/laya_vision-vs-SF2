@@ -1,0 +1,203 @@
+{
+ "corner_d": 11,
+ "evidence": {
+  "k": {
+   "all_moves": {
+    "chunli c.hp": [
+     9.0,
+     1
+    ],
+    "chunli c.lk": [
+     9.0,
+     1
+    ],
+    "chunli sweep": [
+     9.0,
+     1
+    ],
+    "chunli throw": [
+     8.0,
+     1
+    ]
+   },
+   "by_move": {
+    "chunli": {}
+   },
+   "contacts": 4,
+   "k": null,
+   "provisional": 8
+  },
+  "lag": {
+   "agreement": {
+    "-1": 0.8592,
+    "0": 0.8603,
+    "1": 0.989,
+    "2": 0.9223,
+    "3": 0.9212
+   },
+   "lag": 1,
+   "pairs": 12209
+  },
+  "poke_n_connected_missed": {
+   "all": [
+    6889,
+    15372
+   ],
+   "blanka": [
+    436,
+    1496
+   ],
+   "chunli": [
+    3273,
+    6627
+   ],
+   "dhalsim": [
+    595,
+    958
+   ],
+   "guile": [
+    560,
+    1214
+   ],
+   "honda": [
+    391,
+    1353
+   ],
+   "ken": [
+    488,
+    958
+   ],
+   "ryu": [
+    412,
+    865
+   ],
+   "zangief": [
+    734,
+    1901
+   ]
+  },
+  "throw_n_connected_missed": {
+   "all": [
+    82,
+    1819
+   ],
+   "blanka": [
+    0,
+    167
+   ],
+   "chunli": [
+    32,
+    778
+   ],
+   "dhalsim": [
+    5,
+    111
+   ],
+   "guile": [
+    10,
+    137
+   ],
+   "honda": [
+    0,
+    146
+   ],
+   "ken": [
+    5,
+    142
+   ],
+   "ryu": [
+    7,
+    127
+   ],
+   "zangief": [
+    23,
+    211
+   ]
+  },
+  "trend": {
+   "eps": 2,
+   "n": 3956,
+   "walk_4f_median": 7.0,
+   "walk_4f_p5": 4
+  },
+  "walls": {
+   "by_char": {
+    "chunli": {
+     "hi": 459,
+     "lo": 53
+    },
+    "honda": {
+     "hi": 448
+    },
+    "ken": {
+     "hi": 457,
+     "lo": 55
+    },
+    "ryu": {
+     "hi": 457,
+     "lo": 55
+    }
+   },
+   "corner_d": 11,
+   "walls": [
+    53,
+    459
+   ],
+   "x_seen": [
+    44,
+    468
+   ]
+  }
+ },
+ "k": 8,
+ "lag": 1,
+ "mid_max": 120,
+ "near_px": 120,
+ "poke_max": {
+  "all": 72,
+  "blanka": 72,
+  "chunli": 64,
+  "dhalsim": 78,
+  "guile": 80,
+  "honda": 73,
+  "ken": 61,
+  "ryu": 50,
+  "zangief": 82
+ },
+ "sources": {
+  "entries": 77760,
+  "lag_probe": [
+   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ryu",
+   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ken",
+   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/honda"
+  ],
+  "logs": [
+   "rollouts/lv_value/*/*/actions.jsonl",
+   "rollouts/live_dhalsim/*/actions.jsonl"
+  ],
+  "ram": [
+   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/ram_smoke/out/chunli/ram.jsonl"
+  ],
+  "rows": [
+   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ryu/rows.jsonl",
+   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/ken/rows.jsonl",
+   "/private/tmp/claude-502/-Users-worker-work-hobby-laya-vision-vs-SF2/3404ec4c-a642-4f56-b6e8-6c692ee5e912/scratchpad/his_moves/honda/rows.jsonl"
+  ]
+ },
+ "throw_max": {
+  "all": 43,
+  "chunli": 43,
+  "guile": 44,
+  "zangief": 43
+ },
+ "trend_eps": 2,
+ "undecided": {
+  "k": "no move with >= 5 contacts in --ram (4 contacts): k = 8 is PROVISIONAL (the fastest median seen); recompute on the collection's ram.jsonl",
+  "mid_max": "vocab.MID (the table's mid/far cut), kept for the table's cells",
+  "near_px": "= mid_max: a projectile inside mid range is near (a judgment, not data)"
+ },
+ "walls": [
+  53,
+  459
+ ]
+}
