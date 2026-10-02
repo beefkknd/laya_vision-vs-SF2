@@ -129,3 +129,20 @@ accuracy: air 0.786 (majority 0.766), dist 0.655 (majority 0.717).
   question text, not the frames; it is no evidence that laya-vision sees facing.
 - move, air, dist: small gains (move +0.009, air +0.035, dist +0.004 balanced; all lower bounds above round 1's
   point estimates only for air); dist traded far recall for close recall (.41 -> .63). Equal per side throughout.
+
+## Round 3 (owner, 2026-10-02): attack vs movement, special vs regular, and the fireball
+Owner: "I only care if the opponent is attacking vs moving; if attacking, special attack vs regular attack. That
+should be it. Another problem is the fireball in the air. That is a real bug. We need to capture it."
+- Facing dropped (round 2: the side gives the answer). Air and distance stay as trained in round 2 (mv2_air, mv2_dist).
+- Q "act": "What is the fighter on the <side> doing?" -> moving / attack / special. moving = stand, walk, crouch,
+  jump, block, hit, down; attack = normal, jump attack, throw; special = the character's special (pressed-move rule,
+  RAM-confirmed). Same frames and splits as round 2; equal draws per answer (one data dir per answer, no copies).
+- Q "fireball": "Is there a fireball on the screen?" -> none / from the fighter on the left / from the fighter on the
+  right. Label from RAM: shot slots (shot1 = player 1's, shot2 = player 2's), thrower's side by x at the displayed
+  frame. Today only 277 of 9,471 pairs show one (3%), so collect more: new rounds of the same 2P matches with an extra
+  sampling trigger - while a projectile is on screen, sample its flight at start / middle / end; cap per (thrower
+  character, side, flight stage); throwers: ryu, ken (hadoken), guile (sonic boom), dhalsim (yoga fire). Gate as
+  before plus: every fireball label checked against the shot slots and a frame (contact sheet). "none" pairs come
+  from the existing data.
+- Two runs (act, fireball), same settings as rounds 1-2, from BASE; same held-out evaluation and "learned" rule;
+  per answer, per side, per character.
