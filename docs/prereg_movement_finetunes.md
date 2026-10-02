@@ -226,3 +226,15 @@ threebody's Hugging Face download of BASE hung (0-byte weights); the identical s
 - act: best val NLL 0.989 at step 1,000 of 1,972. No better than round 2's 10-answer model collapsed to 3 answers.
 - fireball: 860 training rows -> 3 epochs = 322 steps only; it never answers "none". Real-play weighted accuracy for
   fireball would be about the share of "none" frames it gets right (96.5% of real frames have no fireball) - here 0.
+
+## Round 4 plan (owner, 2026-10-02): "collect more data and then come back for long training, step by step"
+Step 1 - collection only (no training), same 2P matches, same labels and checks:
+- act: raise the caps of the attack and special cells (character x facing) from 40 train / 20 test to 100 train /
+  30 test, so each answer reaches >= 1,000 train (16 cells x ~65+), with validation by whole match as before; moving
+  unchanged.
+- fireball: raise the per (thrower x side x flight stage) cap from 40 train / 20 test to 120 train / 30 test, aiming
+  for >= 1,000 train per fireball answer (left / right); "none" matched to the larger fireball answer per split.
+- Hard limit 50 games per ordered pair in total (about 1 minute per round of 56 / 44 matches); stop earlier when the
+  targets are met; report fill after each round in one line; shortfalls named, never padded.
+- Gate as before (labels vs RAM, episode, projectile drawn, lag 1, disk) + contact sheets; tests/faults for any change.
+Step 2 - the long training is planned and approved separately once the data is in.
