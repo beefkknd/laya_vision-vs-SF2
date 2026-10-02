@@ -26,3 +26,14 @@ Dropped: facing (the side gives the answer).
 5. A mechanical shortcut check per question: a trivial predictor from metadata only (characters, side, game, pose
    class of the other fighter) must not beat chance by more than a set margin; otherwise the data is not aligned.
 6. Gate as before (labels vs RAM, episode, projectile drawn, lag 1, disk) + contact sheets.
+
+## Training plan (owner: "fine. all good, journal and go ahead", 2026-10-02)
+1. Data first: rebuild the five datasets from one frame pool (rollouts/pairs2p games 0-31, the round-4 pairs build
+   test_data_pairs2p_mv4 and the fireball samples) to the alignment rules above; shortcut check + gate + contact
+   sheets; shown to the owner before any training.
+2. Five separate runs (one question each) on threebody - the measuring stick per question.
+3. One combined run, all five questions: each question an equal share of training draws (~20%), each answer equal
+   within its question; same frames, splits and test set.
+4. Decision, mechanical: keep the combined checkpoint if every question's balanced accuracy is within 0.02 of its
+   separate run on the same held-out test; otherwise separate adapters for the questions that lose more.
+Run lengths, patience and the time limit are fixed in a pre-registration before step 2.
