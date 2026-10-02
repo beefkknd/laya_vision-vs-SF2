@@ -2,7 +2,7 @@
 
     python scripts/build_mv3_data.py act --src test_data_pairs2p_down [--out test_data_mv3_act]
     python scripts/build_mv3_data.py fireball --src test_data_pairs2p_down --shots rollouts/pairs2p \
-        [--out test_data_mv3_fireball]
+        [--out test_data_mv3_fireball] [--cap-train 120 --cap-test 30]      # round 4: the raised caps
 
 act (sf2.data.mv3_act): round 2's movement rows (same frames, sides, splits), answer moving / attack / special, one dir
 per answer. fireball (sf2.data.mv3_fireball): the projectile-trigger samples of the new rounds (none / left / right by
@@ -45,6 +45,9 @@ def main(argv=None) -> int:
     ap.add_argument("--shots", help="fireball: the collection root with <pair>/shots.jsonl")
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--cap-train", type=int, help="fireball: cap per (thrower, side, stage), train split "
+                    "(default %s; round 4: 120)" % "40")
+    ap.add_argument("--cap-test", type=int, help="fireball: the same, test split (default 20; round 4: 30)")
     ap.add_argument("--tokenizer", default=AD.TOKENIZER, help="laya-vision processor dir ('none' skips the check)")
     args = ap.parse_args(argv)
     _gated(args.src)
@@ -56,7 +59,11 @@ def main(argv=None) -> int:
         if not args.shots:
             raise SystemExit("fireball needs --shots <collection root>")
         _heads({"fireball": F.question_fireball()}, args.tokenizer)
-        meta = F.build_fireball(args.src, args.shots, args.out or F.OUT, seed=args.seed)
+        caps = {"train": F.CAPS["train"] if args.cap_train is None else args.cap_train,
+                "test": F.CAPS["test"] if args.cap_test is None else args.cap_test}
+        if min(caps.values()) < 1:
+            raise SystemExit("fireball caps must be >= 1, got %s" % caps)
+        meta = F.build_fireball(args.src, args.shots, args.out or F.OUT, caps=caps, seed=args.seed)
     print(json.dumps({k: v for k, v in meta.items() if k not in ("problems", "dropped_equal_x", "ids")}, indent=1)[:4000])
     print("dropped (equal x at t): %s" % meta.get("dropped_equal_x", {}).get("total"))
     print("problems: %d" % len(meta["problems"]))

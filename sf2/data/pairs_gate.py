@@ -4,8 +4,10 @@ labels     every row of every question file: its five labels re-derived from the
            ``independent_labels`` (written from the prereg / pairs_labels docstring, deliberately not importing
            sf2.data.pairs_labels) at the displayed row t must match 100%; the question's answer and label index must
            follow from them; the images must be the captures t - 4 + LAG and t + LAG of its game.
-caps       per (split, char, movement10, facing) - the owner's grid cell - at most the build's cap; per (pair, game,
-           slot, movement10, facing) at most PER_GAME (re-counted here; movement10 re-derived here too).
+caps       per (split, char, movement10, facing) - the owner's grid cell - at most the build's cap (its movement_caps
+           for that movement when set, round 4: attack / special); per (pair, game, slot, movement10, facing) at most
+           PER_GAME (re-counted here; movement10 re-derived here too).
+kept       round 4: every movement row of the build named in keep_from is in this build, same id and split.
 alignment  RAM-to-image lag 1 on a sample: the HUD clock digits change between a pair's two images iff the RAM timer
            changed between the rows they show (sf2.data.movement_gate.digits_changed / alignment_verdict).
 disk       every image file the collection wrote < max_gb (10 GB).
@@ -28,7 +30,7 @@ from ..vocab import FULL_LIFE
 
 CONTROLLER_OF = ({1: "directed", 2: "cpu"}, {1: "p1", 2: "p2"})   # P1 vs CPU, or Plan B (both ours)
 
-GATES = ("labels", "episode", "caps", "alignment", "disk", "second_fact")
+GATES = ("labels", "episode", "caps", "kept", "alignment", "disk", "second_fact")
 MAX_GB = 10.0
 LAG = 1
 
@@ -257,16 +259,35 @@ def second_fact_check(d: Dict, bands: Dict[str, int], ram_of=None) -> Dict:
 
 
 def cap_check(d: Dict) -> Dict:
-    caps = d["meta"]["caps"]
+    """Caps per cell: the build's movement_caps for that grid movement (round 4: attack / special), else its split's
+    cap; movement10 re-derived here."""
+    caps, mcaps = d["meta"]["caps"], d["meta"].get("movement_caps") or {}
     rows = d["files"]["movement"]["train"] + d["files"]["movement"]["test"]
-    per_cell = collections.Counter((r["split"],) + cell(r) for r in rows)
     def grid(r):
         return ("walk " + r["direction"]) if r["movement"] == "walk" else r["movement"]
+    per_cell = collections.Counter((r["split"], r["char"], grid(r), r["facing"]) for r in rows)
     per_game = collections.Counter((r["pair_name"], r["game"], r["slot"], grid(r), r["facing"]) for r in rows)
-    over = ["%s: %d > %d" % ("|".join(k), n, caps[k[0]]) for k, n in per_cell.items() if n > caps[k[0]]]
+    def cap(k):
+        return mcaps[k[2]][k[0]] if k[2] in mcaps else caps[k[0]]
+    over = ["%s: %d > %d" % ("|".join(k), n, cap(k)) for k, n in per_cell.items() if n > cap(k)]
     over += ["%s: %d > %d per game" % ("|".join(map(str, k)), n, PER_GAME) for k, n in per_game.items()
              if n > PER_GAME]
     return {"pass": bool(rows) and not over, "over": over[:20], "cells": len(per_cell)}
+
+
+def kept_check(d: Dict) -> Dict:
+    """Round 4: every movement row of the kept build (build.json keep_from) is in this build, same id and split, so
+    the earlier test rows stay comparable. Passes when nothing was kept."""
+    src = d["meta"].get("keep_from")
+    if not src:
+        return {"pass": True, "keep_from": None}
+    mine = {r["id"]: f for f in FILES for r in d["files"]["movement"][f]}
+    theirs = {r["id"]: f for f in FILES for r in MIO.read_jsonl(os.path.join(src, "movement", f + ".jsonl"))}
+    missing = sorted(i for i in theirs if i not in mine)
+    moved = sorted(i for i in theirs if i in mine and mine[i] != theirs[i])
+    return {"pass": bool(theirs) and not missing and not moved, "keep_from": src, "kept_rows": len(theirs),
+            "per_split": dict(collections.Counter(theirs.values())), "missing": missing[:10],
+            "n_missing": len(missing), "moved": moved[:10]}
 
 
 def alignment_check(data: str, d: Dict, sample: int = SAMPLE, min_disc: int = MIN_DISC, min_agree: float = MIN_AGREE,
@@ -332,7 +353,7 @@ def counts_table(d: Dict) -> Dict:
 def run_gates(data: str, bands: Dict[str, int], max_gb: float = MAX_GB, sample: int = SAMPLE,
               min_disc: int = MIN_DISC, seed: int = 0) -> Dict:
     d = load(data)
-    gates = {"labels": label_check(d, bands), "episode": episode_check(d, bands), "caps": cap_check(d),
+    gates = {"labels": label_check(d, bands), "episode": episode_check(d, bands), "caps": cap_check(d), "kept": kept_check(d),
              "alignment": alignment_check(data, d, sample, min_disc, seed=seed),
              "disk": disk_check(d["meta"]["root"], d["meta"]["pairs"], max_gb),
              "second_fact": second_fact_check(d, bands)}

@@ -74,8 +74,53 @@ def universe(chars: Iterable[str], caps: Dict[str, int] = CAPS) -> List[Tuple]:
     return [(s, c, m, f) for s in caps for c in sorted(chars) for m in L.MOVEMENTS10 for f in L.FACINGS]
 
 
-def select(pairs: Sequence[Dict], caps: Dict[str, int] = CAPS, seed: int = 0) -> List[Dict]:
-    """At most caps[split] per (split, cell), round-robin over (pair, game) groups in a seeded order."""
+MovementCaps = Optional[Dict[str, Dict[str, int]]]
+
+
+def cap_of(caps: Dict[str, int], split: str, movement10: str, movement_caps: MovementCaps = None) -> int:
+    """The cap of a (split, char, movement10, facing) cell: the movement's own cap when given (round 4: attack and
+    special 100 train / 30 test), else the split's."""
+    own = (movement_caps or {}).get(movement10)
+    return own[split] if own else caps[split]
+
+
+def cell_caps(chars: Iterable[str], caps: Dict[str, int] = CAPS, movement_caps: MovementCaps = None) -> Dict[Tuple, int]:
+    return {k: cap_of(caps, k[0], k[2], movement_caps) for k in universe(chars, caps)}
+
+
+def parse_movement_caps(items: Iterable[str]) -> Dict[str, Dict[str, int]]:
+    """["attack:100:30", ...] -> {"attack": {"train": 100, "test": 30}}; a grid movement, two counts >= 0, once."""
+    out: Dict[str, Dict[str, int]] = {}
+    for item in items:
+        parts = item.split(":")
+        if len(parts) != 3 or parts[0] not in L.MOVEMENTS10 or parts[0] in out:
+            raise ValueError("bad movement cap %r (movement:train:test, a grid movement of %s, once)"
+                             % (item, L.MOVEMENTS10))
+        tr, te = int(parts[1]), int(parts[2])
+        if tr < 0 or te < 0:
+            raise ValueError("bad movement cap %r (counts >= 0)" % item)
+        out[parts[0]] = {"train": tr, "test": te}
+    return out
+
+
+def pair_key(p: Dict) -> Tuple[str, int, int, int]:
+    return (p["pair_name"], p["game"], p["slot"], p["t"])
+
+
+def keep_keys(build_dir: str) -> set:
+    """The pairs (pair, game, slot, t) of an earlier build's movement files (both splits)."""
+    return {pair_key(r) for f in FILES for r in MIO.read_jsonl(os.path.join(build_dir, "movement", f + ".jsonl"))}
+
+
+def select(pairs: Sequence[Dict], caps: Dict[str, int] = CAPS, seed: int = 0, movement_caps: MovementCaps = None,
+           keep: Optional[set] = None) -> List[Dict]:
+    """At most the cell's cap (cap_of) per (split, cell), round-robin over (pair, game) groups in a seeded order. The
+    ``keep`` pairs (pair_key; round 4: an earlier build's rows) are taken first in each cell; every one must be in
+    ``pairs`` and fit under its cell's cap (else ValueError)."""
+    keep = set(keep or ())
+    missing = keep - {pair_key(p) for p in pairs}
+    if missing:
+        raise ValueError("%d kept pairs are not in the pool, e.g. %s" % (len(missing), sorted(missing)[:3]))
     groups: Dict[Tuple, Dict[Tuple, List[Dict]]] = collections.defaultdict(lambda: collections.defaultdict(list))
     for p in pairs:
         groups[(split_of(p),) + cell(p)][(p["pair_name"], p["game"])].append(p)
@@ -90,7 +135,11 @@ def select(pairs: Sequence[Dict], caps: Dict[str, int] = CAPS, seed: int = 0) ->
             q = sorted(g[gk], key=lambda p: (p["slot"], p["t"]))
             rng.shuffle(q)
             queues.append(q)
-        cap, taken = caps[key[0]], []
+        cap = cap_of(caps, key[0], key[2], movement_caps)
+        taken = sorted((p for q in queues for p in q if pair_key(p) in keep), key=pair_key)
+        if len(taken) > cap:
+            raise ValueError("cell %s: %d kept pairs > its cap %d" % ("|".join(key), len(taken), cap))
+        queues = [[p for p in q if pair_key(p) not in keep] for q in queues]
         while len(taken) < cap and any(queues):
             for q in queues:
                 if q and len(taken) < cap:
@@ -203,10 +252,11 @@ def mv_sources(pairs: Sequence[Dict]) -> Dict[str, Dict[str, int]]:
     return {c: dict(v) for c, v in sorted(out.items())}
 
 
-def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
-          controllers: Sequence[str] = CONTROLLERS, bands: Optional[Dict[str, int]] = None) -> Dict:
-    """controllers: whose rows to keep (owner 2026-10-01: label only the player we control -> ("directed",); Plan B
-    controls both: ("p1", "p2"), the default keeps every row)."""
+def eligible(root: str, seed: int = 0, controllers: Sequence[str] = CONTROLLERS,
+             bands: Optional[Dict[str, int]] = None) -> Tuple[List[Dict], Dict[str, int], List[str], Dict[str, int]]:
+    """The pool a build selects from: committed pairs of the controllers' rows, checked as collected, relabelled,
+    both frames inside one episode, at most PER_GAME per (pair, game, slot, cell). (pool, dropped uncommitted per
+    dir, pair dirs, dropped outside an episode per movement)."""
     bad = set(controllers) - set(CONTROLLERS)
     if bad or not controllers:
         raise ValueError("controllers must be a non-empty subset of %s, got %s" % (CONTROLLERS, controllers))
@@ -220,7 +270,19 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
         problems = [x for p in pairs for x in pair_problems(p, os.path.join(root, p["pair_name"], "images"))]
     if problems:
         raise ValueError("%d bad pairs, e.g. %s" % (len(problems), problems[:5]))
-    chosen = select(pairs, caps, seed)
+    return pairs, dropped, names, dropped_ep
+
+
+def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
+          controllers: Sequence[str] = CONTROLLERS, bands: Optional[Dict[str, int]] = None,
+          movement_caps: MovementCaps = None, keep_from: Optional[str] = None) -> Dict:
+    """controllers: whose rows to keep (owner 2026-10-01: label only the player we control -> ("directed",); Plan B
+    controls both: ("p1", "p2"), the default keeps every row). movement_caps: per grid movement {split: cap} over
+    ``caps`` (round 4: attack / special). keep_from: an earlier build whose every movement row is selected again
+    (round 4: round 3's rows, so its test rows stay in the test)."""
+    pairs, dropped, names, dropped_ep = eligible(root, seed, controllers, bands)
+    keep = keep_keys(keep_from) if keep_from else set()
+    chosen = select(pairs, caps, seed, movement_caps, keep)
     os.makedirs(os.path.join(out, "frames"), exist_ok=True)
     for n in names:
         link = os.path.join(out, "frames", n)
@@ -240,8 +302,11 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
             per_q[q][f] = dict(collections.Counter(r["answer"] for r in mine))
     counts = collections.Counter((split_of(p),) + cell(p) for p in chosen)
     chars = {c for n in names for c in n.split("_vs_")}
-    short = {"|".join(k): caps[k[0]] - counts[k] for k in universe(chars, caps) if counts[k] < caps[k[0]]}
+    want = cell_caps(chars, caps, movement_caps)
+    short = {"|".join(k): n - counts[k] for k, n in want.items() if counts[k] < n}
     meta = {"root": os.path.abspath(root), "pairs": names, "caps": caps, "seed": seed, "lag": LAG,
+            "movement_caps": dict(movement_caps or {}), "keep_from": os.path.abspath(keep_from) if keep_from else None,
+            "kept": len(keep),
             "controllers": list(controllers),
             "split": "crc32(pair:game) %% %d == %d test" % (SPLIT_MOD, TEST_REST), "collected": len(pairs),
             "selected": len(chosen), "dropped_uncommitted": dropped, "mv_sources": mv_sources(pairs),

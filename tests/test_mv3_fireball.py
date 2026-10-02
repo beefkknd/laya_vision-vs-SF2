@@ -230,3 +230,22 @@ def test_a_none_row_with_a_shot_within_8_rows_before_t_is_not_in_the_pool(src, t
     r = pool[0]
     _set(r, r["t"] - 6, root=root, shot1=1)
     assert r["images"] not in [x["images"] for x in F.none_rows(s, root)]
+
+
+def test_build_cli_takes_the_round_4_fireball_caps(src, tmp_path):
+    """Round 4: the per (thrower, side, stage) caps are flags (120 train / 30 test), recorded in build.json."""
+    import subprocess
+    import sys
+    s, root = src
+    out = str(tmp_path / "fire_cli")
+    with open(os.path.join(s, "gate.json"), "w") as fh:          # the CLI wants a gated pairs build
+        json.dump({"pass": True}, fh)
+    script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "build_mv3_data.py")
+    r = subprocess.run([sys.executable, script, "fireball", "--src", s, "--shots", root, "--out", out,
+                        "--cap-train", "3", "--cap-test", "1", "--tokenizer", "none"], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-2000:]
+    meta = json.load(open(os.path.join(out, "build.json")))
+    assert meta["caps"] == {"train": 3, "test": 1} and meta["problems"] == []
+    n = collections.Counter((D.split_of_game(x["pair_name"], x["game"]), x["char"], x["side"], x["flight_stage"])
+                            for x in _rows(out) if x["answer"] != "none")
+    assert max(v for k, v in n.items() if k[0] == "train") <= 3 and max(v for k, v in n.items() if k[0] == "test") <= 1

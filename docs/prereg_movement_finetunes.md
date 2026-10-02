@@ -238,3 +238,48 @@ Step 1 - collection only (no training), same 2P matches, same labels and checks:
   targets are met; report fill after each round in one line; shortfalls named, never padded.
 - Gate as before (labels vs RAM, episode, projectile drawn, lag 1, disk) + contact sheets; tests/faults for any change.
 Step 2 - the long training is planned and approved separately once the data is in.
+
+## Round 4 data (2026-10-02; step 1 only - no training)
+- Code: the pairs build takes per-movement caps (sf2.data.pairs_data.cap_of / parse_movement_caps; scripts/
+  build_pairs_data.py --cap-movement attack:100:30 --cap-movement special:100:30) and an earlier build to keep
+  (--keep-from: every one of its movement rows is selected first, in its own split); the gate checks caps per movement
+  and a new "kept" gate (every kept row present, same id and split). Fireball caps are flags (scripts/build_mv3_data.py
+  fireball --cap-train 120 --cap-test 30). Per-round fill line: scripts/fill_mv4.py (sf2.data.mv4_fill: counts what
+  the builds select, train = after the val cut). Tests first (tests/test_pairs_mv4_caps.py, test_mv4_fill.py, a CLI
+  test in test_mv3_fireball.py; seen red). Seeded faults: pairs 113 of 113 (+16 round 4), mv3 39 of 39 (+1), mv_eval
+  9 of 9.
+- Found before collecting: act was already full - at caps 100 / 30, games 0-9 give attack 1,313 / special 1,334
+  train (all 64 attack/special cells full); round 3 only used 40 / 20. The rounds were for the fireball.
+- Collection: rollouts/pairs2p resumed (run.json saved first as run_before_g16_mv4.json), all 56 ordered pairs, 2P
+  versus, --shots, movement pairs per game 3 as before; "games N" = committed games per thrower pair (the 12 pairs
+  without a thrower caught up from 10 to 17 in the first round). One line per round (train counts after the val cut;
+  0 failed workers every round; peak RSS 8.7-9.2 GB; ~90 s a round):
+  games 17: attack 1,306 special 1,325 | left 353 right 324 | not full act 0/64, fireball 48/48 | 274 s | 2.4 GB
+  games 18: 1,335 1,334 | 410 379 | 0, 48 | games 19: 1,315 1,344 | 444 433 | 0, 42 | games 20: 1,329 1,343 | 495 470 | 0, 38
+  games 21: 1,311 1,341 | 556 550 | 0, 36 | games 22: 1,340 1,346 | 597 586 | 0, 26 | games 23: 1,338 1,360 | 660 637 | 0, 24
+  games 24: 1,336 1,351 | 720 716 | 0, 24 | games 25: 1,329 1,346 | 757 755 | 0, 24 | games 26: 1,337 1,349 | 808 797 | 0, 24
+  games 27: 1,322 1,340 | 830 839 | 0, 24 | games 28: 1,310 1,344 | 866 880 | 0, 24 | games 29: 1,338 1,328 | 942 942 | 0, 24
+  games 30: 1,341 1,327 | 987 999 | 0, 24 | games 31: 1,331 1,339 | 1,052 1,041 | 0, 22 - targets met; stopped (limit 50).
+  Collection 5.2 GB (images 5.04 GB of the 10 GB gate). Logs: logs/mv4_fill.jsonl.
+- Pairs build test_data_pairs2p_mv4 (attack / special 100 / 30, others 40 / 20, kept test_data_pairs2p_down):
+  105,019 pairs eligible, 11,840 selected, 0 of 320 cells short (round 3's 14 short "down" cells now full). Gate PASS:
+  labels 47,360/47,360, episode 11,840/11,840, caps, kept 9,517/9,517 (6,354 train / 3,163 test, none missing or
+  moved), lag 1 (0.97 on discriminating pairs vs 0.50 / 0.51 at lag 0 / 2), disk 5.04 GB, second fact down on the
+  ground 960/960 (hit health lost 945/960). Contact sheets test_data_pairs2p_mv4/contact/contact_<char>.png.
+- test_data_mv4_act (scripts/build_mv3_data.py act; problems_act 0; 8 equal-x rows dropped): rows train / val / test
+  moving 4,235 / 880 / 2,560; attack 1,331 / 269 / 480; special 1,336 / 261 / 480. Matches 772 / 150 / 362.
+  Comparable with round 3: every one of round 3's 9,511 act rows is in round 4 with the same split, answer, side and
+  images (the kept build), so round 4's test = round 3's 3,163 test rows + 160 attack + 160 special + 37 moving (the
+  filled "down" cells); round 3's test rows can be scored as their own subset.
+- test_data_mv4_fireball (caps 120 / 30 per thrower x side x stage): 4,777 trigger samples, dropped 925 not a
+  projectile word (yoga flame), 13 two shots, 1 equal x, 0 not drawn; 3,838 eligible. Rows train / val / test:
+  left 1,052 / 182 / 360; right 1,041 / 209 / 360; none 1,052 / 209 / 360 (matched to the larger answer per split,
+  pool 11,273). Test cells all full (30); 22 build-train cells short of 120 (worst ken right middle / start 115,
+  guile right 110-112 ... ken left end 88 - i.e. short by 5-32). Gate PASS: labels 4,825 rows 0 problems; lag 1 1.000
+  (400) and 1.000 on 400 discriminating vs 0.52 / 0.49 (698 clock-blink pairs left out); drawn: hadoken 1,579/1,638
+  (96.4%) blue in the labelled frame, none of Ryu-vs-Ken 57/57 clear; disk 5.04 GB. Ownership over 1,622 flights:
+  1,309 own, 2 other only, 311 neither (yoga flame). Contact sheets test_data_mv4_fireball_contact/fireball_{ryu,ken,
+  guile,dhalsim,none}.png; guile and none looked at: sonic booms on the labelled side (some small at impact), no
+  projectile in the none frames.
+- Caveat kept from round 3, smaller: fireball rows come from games 10-31, none rows mostly from games 0-9 (train 901
+  of 1,052, test 340 of 360), because the kept round-3 rows fill the moving cells the none pool is drawn from.

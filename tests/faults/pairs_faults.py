@@ -11,7 +11,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS = ["tests/test_pairs_labels.py", "tests/test_pairs_moves.py", "tests/test_pairs_collect.py",
          "tests/test_pairs_data.py", "tests/test_pairs_pressed.py", "tests/test_pairs_episode.py",
-         "tests/test_pairs_down.py", "tests/test_pairs_train.py", "tests/test_pairs_train_side.py"]
+         "tests/test_pairs_down.py", "tests/test_pairs_train.py", "tests/test_pairs_train_side.py",
+         "tests/test_pairs_mv4_caps.py", "tests/test_mv4_fill.py"]
 VS = "sf2/emu/vs.py"
 LAB, MOV, COL, IOF, DAT, GAT = ("sf2/data/pairs_labels.py", "sf2/data/pairs_moves.py", "sf2/data/pairs_collect.py",
                                 "sf2/data/pairs_collect_io.py", "sf2/data/pairs_data.py", "sf2/data/pairs_gate.py")
@@ -60,10 +61,10 @@ FAULTS = [
      "while len(committed(base)) <= games:"),
     # 4 the builder and the gate
     ("data: no test split", DAT, 'return "test" if h % SPLIT_MOD == TEST_REST else "train"', 'return "train"'),
-    ("data: the cap per cell ignored", DAT, "cap, taken = caps[key[0]], []", "cap, taken = 10 ** 6, []"),
+    ("data: the cap per cell ignored", DAT, "cap = cap_of(caps, key[0], key[2], movement_caps)", "cap = 10 ** 6"),
     ("gate: independent facing read the wrong way", GAT, 'face = {64: "right", 0: "left"}',
      'face = {64: "left", 0: "right"}'),
-    ("gate: over-full cells not counted", GAT, "for k, n in per_cell.items() if n > caps[k[0]]]",
+    ("gate: over-full cells not counted", GAT, "for k, n in per_cell.items() if n > cap(k)]",
      "for k, n in per_cell.items() if n > 10 ** 6]"),
     ("gate: disk never over", GAT, '"pass": total / 1e9 < max_gb', '"pass": True'),
     ("gate: alignment verdict ignored", GAT,
@@ -209,6 +210,36 @@ FAULTS += [
      'mine, theirs = (xs[0], xs[1]) if r["slot"] == 1 else (xs[1], xs[0])', "mine, theirs = xs[0], xs[1]"),
     ("S check: equal-x rows may stay in the data", TRN,
      'src_ids = {i for i in src_ids if sides[i] is not None}', "src_ids = src_ids"),
+]
+
+# round 4 step 1: per-movement caps, the kept round-3 build, the fill line
+FIL = "sf2/data/mv4_fill.py"
+FAULTS += [
+    ("R4 data: the movement caps ignored", DAT, "return own[split] if own else caps[split]", "return caps[split]"),
+    ("R4 data: kept rows not taken first", DAT,
+     "taken = sorted((p for q in queues for p in q if pair_key(p) in keep), key=pair_key)", "taken = []"),
+    ("R4 data: a kept row missing from the pool not refused", DAT, "    if missing:\n        raise ValueError(\"%d kept",
+     "    if False:\n        raise ValueError(\"%d kept"),
+    ("R4 data: more kept rows than the cap not refused", DAT, "        if len(taken) > cap:", "        if False:"),
+    ("R4 data: kept rows also left in the round-robin", DAT,
+     "        queues = [[p for p in q if pair_key(p) not in keep] for q in queues]\n", ""),
+    ("R4 data: shortfalls against the split cap", DAT, "want = cell_caps(chars, caps, movement_caps)",
+     "want = cell_caps(chars, caps)"),
+    ("R4 data: a movement cap for no grid movement accepted", DAT, "parts[0] not in L.MOVEMENTS10 or ", ""),
+    ("R4 data: keep_from ignored", DAT, "keep = keep_keys(keep_from) if keep_from else set()", "keep = set()"),
+    ("R4 gate: caps by split only", GAT, "return mcaps[k[2]][k[0]] if k[2] in mcaps else caps[k[0]]",
+     "return caps[k[0]]"),
+    ("R4 gate: every cell gets the largest cap", GAT, "return mcaps[k[2]][k[0]] if k[2] in mcaps else caps[k[0]]",
+     "return max([caps[k[0]]] + [m[k[0]] for m in mcaps.values()])"),
+    ("R4 gate: a missing kept row ignored", GAT, '"pass": bool(theirs) and not missing and not moved',
+     '"pass": bool(theirs) and not moved'),
+    ("R4 gate: the kept gate not run", GAT, '"kept": kept_check(d),', '"kept": {"pass": True},'),
+    ("R4 fill: act counted by the build split (val not cut)", FIL,
+     'act[mv][T.split3(p["pair_name"], p["game"])] += 1', 'act[mv][D.split_of(p)] += 1'),
+    ("R4 fill: the fireball caps ignored", FIL, "fire_rows = F.select(kept, fire_caps, seed)",
+     "fire_rows = F.select(kept, F.CAPS, seed)"),
+    ("R4 fill: met ignores the fireball", FIL, 'all(rep["fireball"][a]["train"] >= target for a in FIRE)', "True"),
+    ("R4 fill: the kept build ignored", FIL, "keep = D.keep_keys(keep_from) if keep_from else set()", "keep = set()"),
 ]
 
 

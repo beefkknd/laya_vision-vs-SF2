@@ -20,6 +20,9 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default="test_data_pairs")
     ap.add_argument("--cap-train", type=int, default=D.CAPS["train"])
     ap.add_argument("--cap-test", type=int, default=D.CAPS["test"])
+    ap.add_argument("--cap-movement", action="append", default=[], metavar="MOVEMENT:TRAIN:TEST",
+                    help="a grid movement's own cap (repeatable; round 4: attack:100:30, special:100:30)")
+    ap.add_argument("--keep-from", help="an earlier build: every one of its movement rows is selected again")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--controller", action="append", choices=D.CONTROLLERS,
                     help="keep only these players' rows (repeatable; default both)")
@@ -27,9 +30,10 @@ def main(argv=None) -> int:
     if os.path.exists(os.path.join(args.out, "build.json")):
         raise SystemExit("%s already holds a build: pick a new --out" % args.out)
     meta = D.build(args.root, args.out, {"train": args.cap_train, "test": args.cap_test}, args.seed,
-                   tuple(args.controller) if args.controller else D.CONTROLLERS)
-    print("collected %d pairs, selected %d; %d cells short of the cap" % (meta["collected"], meta["selected"],
-                                                                         len(meta["short"])))
+                   tuple(args.controller) if args.controller else D.CONTROLLERS,
+                   movement_caps=D.parse_movement_caps(args.cap_movement), keep_from=args.keep_from)
+    print("collected %d pairs, selected %d (kept %d); %d cells short of the cap" % (
+        meta["collected"], meta["selected"], meta["kept"], len(meta["short"])))
     print(json.dumps(meta["questions"], indent=1, sort_keys=True))
     return 0
 

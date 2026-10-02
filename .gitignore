@@ -59,3 +59,8 @@ test_data_mv2_dist/
 test_data_mv3_act/
 test_data_mv3_fireball/
 test_data_mv3_fireball_contact/
+# Round 4 step 1 (docs/prereg_movement_finetunes.md): the pairs build with raised attack/special caps and the two datasets
+test_data_pairs2p_mv4/
+test_data_mv4_act/
+test_data_mv4_fireball/
+test_data_mv4_fireball_contact/

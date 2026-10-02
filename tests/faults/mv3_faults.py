@@ -80,6 +80,13 @@ FAULTS = [
      'breakdown(rows, preds, "side", answers)'),
 ]
 
+# round 4 step 1: the fireball caps as flags
+FAULTS += [
+    ("R4 build: the fireball cap flags ignored", "scripts/build_mv3_data.py",
+     "meta = F.build_fireball(args.src, args.shots, args.out or F.OUT, caps=caps, seed=args.seed)",
+     "meta = F.build_fireball(args.src, args.shots, args.out or F.OUT, seed=args.seed)"),
+]
+
 
 def run(fault) -> bool:
     name, path, old, new = fault
