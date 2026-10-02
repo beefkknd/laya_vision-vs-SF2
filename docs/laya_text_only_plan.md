@@ -99,3 +99,16 @@ Gate (script, exit code decides; RAM only as referee, read at collection time or
 - Reader rule: a sprite with no confident match -> a default answer (action "stand", the rest from position / HUD as
   usual) + logged (frame saved, side, best score) for a later catalog top-up. The gate reports the unknown rate; an
   unknown is not a gate failure by itself.
+
+## Gate amendment (owner 2026-10-02: "yes and move on"), after the first gate (commit cc48bad)
+- Health: gated against the DRAWN health (the bar drains 1 hp/frame after a hit; RAM life drops at once - the screen
+  cannot show RAM's number). Truth = the drawn hp the game shows (from replay), within 0.03.
+- Round over: = the NEXT ROUND visibly starting (both bars refilled + fighters back at start positions), or the time-
+  over clock 00 (already exact). "Bar empty" is not used (2 hp per bar pixel: 1 hp looks empty). Gate: detected on
+  100% of rounds, no earlier than RAM's result and within 300 frames after the next round's start; inputs after a KO
+  do nothing, so late is free.
+- In the air, facing: the bar is the measured ceiling (sprite-defined truth) minus 0.01, per set. Risk noted: the game
+  reads button directions with its own (lagging) facing - checked in the S0 games.
+- Unknown sprite -> default + log lives in the screen-only play loop, not in the reader (the reader stays a pure
+  function: it reports unknown, the loop defaults to "stand" and logs the crop).
+- Re-gate on a NEW seed (303), both sets; the seed-202 run was looked at, so it is not the clean number any more.
