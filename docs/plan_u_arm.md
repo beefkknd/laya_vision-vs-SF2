@@ -75,3 +75,14 @@ So the U arm uses NO table and NO RAM at play time; the table is only the teache
 - The gate that matters: the table's best move (from RAM facts) is in laya-vision's top 3 in >= 90% of held-out
   decisions and of held-out Guile's (threshold fixed in the pre-registration); perception questions gated by accuracy.
 - In play: U0 / U1 vs A0 / A1 and T0 / T1 on seeds 73001-73008.
+
+## Owner note (2026-10-02): left/right changes the context for text laya and Qwen
+"Left/right blurs the character; this also changes the prompt in Qwen and text laya as the context awareness: 'I am
+on the left, I am on the ground, and I can do kick, punch and block - what should I do?'"
+- The eye answers about screen sides only (left / right fighter): what it is doing, facing, ground/air, distance.
+- A small step maps sides to me / him each frame (which side am I), then text laya and Qwen get first-person context:
+  "I am on the left, on the ground, facing right; he is on the right, in the air, attacking, close. I can: <my move
+  list>." My character and move list are known (I chose them); his character is not needed for the eye.
+- Open: where "which side am I" comes from without RAM - round start (player 1 starts left), then follow crossovers
+  (the eye's facing flips when they cross). Today the play loop still reads the side from RAM (a known limitation).
+- Not built yet; decided after round 2's results.

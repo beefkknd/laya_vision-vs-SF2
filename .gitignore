@@ -52,3 +52,7 @@ test_data_mv_face/
 test_data_mv_air/
 test_data_mv_dist/
 test_data_pairs2p_down/
+test_data_mv2_move/
+test_data_mv2_face/
+test_data_mv2_air/
+test_data_mv2_dist/
