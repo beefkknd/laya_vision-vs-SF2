@@ -328,3 +328,18 @@ Build `python scripts/build_eye_data.py --questions q3v2b,q4v2b --max-game 31`; 
 - train.py (--balance sampling): both pass the checks at the defaults (q3v2b 4,329 train / 517 val per dir, val 3,619;
   q4v2b 3,916 / 776, val 2,328). Both in one combined run: val 5,947 > the 4,000 default, needs --val-limit.
 - Tests tests/test_eye_v2.py 79; seeded faults tests/faults/eye_v2_faults.py 29 of 29.
+
+## Training v2 runs and results (2026-10-02; threebody, two runs at a time; scored on the Mac against RAM)
+Setup and commands: C:\work\laya_finetune\WORKNOTE_eye2.md (code_eye2 = decd704). All five runs EXIT 0; eye2_all tar
+sha256 2dba9692...5801 matched after copy.
+
+| question | separate run | combined eye2_all | chance | v1 for comparison |
+|---|---|---|---|---|
+| q1 fireball yes/no | **0.760** (lb 0.742; yes .735 / no .786; real-play 0.784) | 0.741 | 0.500 | eye_q1 0.500, eye_all 0.696 (same v2 test) |
+| q3v2b act (7) | **0.351** (lb 0.342; walk .56, hit .48, jump .40, special .34, attack .30, stand .24, block .14) | 0.319 | 0.143 | new question |
+| q4v2b high/normal/low | **0.742** (lb 0.732; high .85, normal .71, low .67) | 0.622 | 0.333 | new question |
+| q5 close/far | **0.744** (lb 0.730; close .76, far .73) | 0.700 | 0.500 | eye_q5 0.663, eye_all 0.627 |
+
+Keep rule (margin 0.02): DROP eye2_all - it loses 0.031 on q3v2b, 0.120 on q4v2b, 0.044 on q5 (q1 -0.020, within).
+The four separate checkpoints (runs/eye2_q1, eye2_q3, eye2_q4, eye2_q5) are the current best eye. eye2_q3 hit its
+6,000-step budget still improving. eye2_all selected on pooled validation accuracy (q3 = 43% of its val rows).
