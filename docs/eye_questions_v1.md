@@ -271,3 +271,34 @@ a shortcut check fails, no training - wait for the owner.
   ~3.3 GB VRAM, 17-41% GPU per run).
 - Scored on held-out test matches against RAM as before (balanced accuracy, 2.5% lower bound, learned rule, per answer
   / side / character, real-play weighted); eye2_all kept only if every question is within 0.02 of its separate run.
+
+## q1 v2 data (2026-10-02; data only - no training; threebody / Qwen untouched)
+- Collection: rollouts/pairs2p resumed (run.json saved first as run_before_g32_q1.json), the 44 ordered pairs with
+  ryu / ken / guile / dhalsim, 2P versus, `--shots --shot-per-game 3 --per-game 3` (the round-4 settings), one round =
+  one more committed game per pair (game numbers 31-57; "games N" = committed games per pair, as round 4). Cap NOT
+  raised: in the new games 4,284 of 4,536 shot cells (pair x game x thrower slot x flight stage; game 31: 157 / 168,
+  games 32-57: 4,127 / 4,368) held fewer than 3 samples - games rarely have 3 flights per slot, so the cap never limited.
+  New flag scripts/collect_pairs.py --shot-per-game (recorded in run.json, forwarded to the workers). Fill line
+  scripts/fill_eye_q1.py (sf2.data.eye_q1_fill: counts exactly what the q1 build selects; logs/eye_q1_fill.jsonl).
+  Every round: 44 / 44 pairs "budget spent", 0 failed, 62-65 s, peak worker RSS 0.43 GB (~10 GB for 24 workers),
+  disk free 99 -> 95 GB. q1 train yes = no per round (val / test yes):
+  games 32: 616 (152 / 389) | 33: 638 | 34: 672 | 35: 726 | 36: 791 | 37: 847 | 38: 904 | 39: 970 | 40: 1,001 |
+  41: 1,030 | 42: 1,092 | 43: 1,163 | 44: 1,228 | 45: 1,278 | 46: 1,328 | 47: 1,355 | 48: 1,424 | 49: 1,495 |
+  50: 1,536 | 51: 1,589 | 52: 1,662 | 53: 1,695 | 54: 1,769 | 55: 1,835 | 56: 1,894 | 57: 1,943 |
+  58: 2,001 (349 / 1,108) - target met; stopped at 58 of the 80-game limit. Matching is the bottleneck: at 58,
+  6,629 train "yes" candidates, 4,628 lost in 960 strata with too few "no" (mostly a fighter in the throwing pose).
+- test_data_eye_q1_fireball_v2 (scripts/build_eye_data.py --questions q1 --out-pattern test_data_eye_%s_fireball_v2;
+  same v1.1 labels, strata, tiers, split3): pool 224,201 pairs; rows yes / no 2,001 / 349 / 1,108 each (train / val /
+  test); matches 877 / 141 / 512; 1,798 strata; dropped no blink byte 46,488, hidden in both 884, off screen 605,
+  unknown projectile 22. v1.1's 177 test matches all stay test (701 of its 712 test rows kept). Hard negatives 963 /
+  159 / 497; tags throwing pose 1,553 (= yes in throwing pose), before spawn 1,124, after impact 183, yoga flame 18.
+  "yes" drawn in both frames 2,624, n-4 only 314, n only 520.
+- Shortcut check: best 0.500 (lookup:pair, +0.000; logreg 0.4995) - PASS. Gate (scripts/gate_eye_data.py, exit 0):
+  labels 6,916 / 6,916; splits one table; drawn hadoken yes 478 / 481 blue, Ryu/Ken "no" 480 / 481 clear (319 / 320
+  hard); lag 1 1.000 (400 discriminating vs 0.45 / 0.55); disk 9.13 GB of the 10 GB gate (close to it now).
+- Contact sheet test_data_eye_contact_q1_v2/q1_fireball.png, looked at: projectiles in the yes bands (yoga fire, sonic
+  boom, hadoken), none in the before-spawn / pose / plain no bands. Caveats seen (by the rules, not label errors): the
+  yoga-flame "no" rows show big flames (18 rows); one after-impact "no" (ryu_vs_blanka g48 t297) shows the white
+  impact flash after the hadoken slot turned off.
+- Also: tests/test_layout.py's eye_gate failure fixed (THRESHOLDS from sf2.config.REPO; landed with 97bab70). Tests
+  tests/test_eye_q1_fill.py; seeded faults tests/faults/eye_q1_fill_faults.py 16 of 16; eye_faults 41 of 41.
