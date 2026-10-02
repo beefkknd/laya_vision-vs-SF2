@@ -67,3 +67,19 @@ A2 agreement overall 0.697 (laya eye2_q3 on the full test: 0.351); codex never s
 - laya's gap to codex is mostly NOT motion: on single-pose kinds codex sees well and laya does not (standing attack
   .92 vs .31, jump in air .92 vs .44, down 1.00 vs .44). The likely limit is the input: 16 tokens per 256 px frame
   (a 4x4 grid of 64 px patches; subagent report, laya preprocess.py:103-105).
+
+## C. Pre-registration: action at 512 px (owner 2026-10-02: "yes, lift that rule, and test out upscaled 512 px for action first")
+- Change ONE thing vs runs/eye2_q3: laya's image size 256 -> 512 by nearest-neighbour 2x (every pixel an exact 2x2
+  block; checked by a test that laya's own prep output equals numpy repeat). 64 image tokens per frame instead of 16.
+- Same everything else as eye2_q3: data test_data_eye_q3v2b_act (7 answers, same rows and splits), base
+  thaitea/laya-vision-smolvlm-256m, rank 16, alpha 32, epochs 1.584 (6,000 steps), batch 8, lr head 1e-4 / LoRA 2e-4,
+  eval every 250, patience 10, --select acc, --balance sampling, --min-sampled-train 1000, val limit 4000, seed 0.
+  Time limit raised 180 -> 360 min (512 is slower; the aim is the same 6,000 steps). Machine: threebody (RTX 4090),
+  Qwen stays off. Output runs/eye3_q3_512.
+- Measured on the held-out test (scripts/eval_eye.py, the same as eye2_q3): balanced accuracy with its 2.5% lower
+  bound, per answer and per kind; then the frame-duplication probe B1 at 512.
+- Reading, fixed now: 512 HELPS if its balanced accuracy minus eye2_q3's (0.351) is >= +0.03 and its lower bound is
+  above 0.351; NO CHANGE within +/-0.03; also report the codex-seeable kinds (standing attack, jump in air, down,
+  crouch, crouching block, hit on ground) separately - that is where more detail should show first. If it stops
+  before 6,000 steps, both are compared at the same step too (eye2_q3's eval log).
+- Not in this run: answer-set shrink, difference image (each its own run afterwards, owner's choice). Crop: dropped by the owner ("no crop", 2026-10-02).
