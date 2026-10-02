@@ -53,10 +53,10 @@ def predict_rows(agent, rows: Sequence[Dict]) -> List[Dict[str, float]]:
 
 
 def score(rows: Sequence[Dict], probs: Sequence[Dict[str, float]]) -> Dict:
-    """Accuracy (the top option is one of the answers) overall and by case, wording and character."""
+    """Accuracy (the top option is one of the answers) overall and by round, case, wording and character."""
     hit = [max(p, key=p.get) in r["answers"] for r, p in zip(rows, probs)]
     out = {"n": len(rows), "accuracy": round(float(np.mean(hit)), 4)}
-    for key in ("case", "words", "me"):
+    for key in ("round", "case", "words", "me"):
         groups = collections.defaultdict(list)
         for r, h in zip(rows, hit):
             groups[r.get(key, "-")].append(h)

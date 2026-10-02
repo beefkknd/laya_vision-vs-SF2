@@ -36,6 +36,7 @@ from typing import Dict, Optional, Tuple
 from ..screen.assets import CATALOG
 from ..screen.facts import FighterFacts, ScreenFacts
 from ..vocab import FULL_LIFE, bar, range_of
+from .advice import situation_text
 
 CAN_ACT = ("stand", "walk")
 CROUCH_STATE = "02"
@@ -82,6 +83,7 @@ class Moment:
     my_life: int                   # drawn bar * FULL_LIFE
     his_life: int
     filled: Tuple[str, ...] = ()   # facts not on the screen this frame, filled from the last moment / defaults
+    fireball: bool = False         # G4: a fireball the reader sees coming at me (an opponent / unattributed shot)
 
     @property
     def can_act(self) -> bool:
@@ -135,6 +137,13 @@ def label(f: FighterFacts) -> str:
     return f.action or DEFAULT_LABEL
 
 
+def says_fireball(facts: ScreenFacts) -> bool:
+    """A fireball the reader sees coming at me: a projectile the opponent threw, or one it could not attribute to
+    either fighter. A shot I threw myself (owner is my side) is not a threat."""
+    me, _ = players(facts)
+    return any(p.owner_side != me.side for p in facts.projectiles)
+
+
 def moment(facts: ScreenFacts, last: Optional[Moment] = None) -> Moment:
     """The decision facts of one frame. A fighter not found keeps its last x (or its start place) and is listed in
     ``filled``; its label is the reader's default."""
@@ -157,7 +166,7 @@ def moment(facts: ScreenFacts, last: Optional[Moment] = None) -> Moment:
             filled.append(name)
     return Moment(my_x, his_x, me.facing if me.found else None, label(me), bool(me.in_air),
                   label(him), bool(him.in_air), bool(not him.unknown and him.sprite in crouch_sprites()),
-                  life_of(my_frac), life_of(his_frac), tuple(filled))
+                  life_of(my_frac), life_of(his_frac), tuple(filled), says_fireball(facts))
 
 
 def note(me: str, m: Moment) -> str:
@@ -170,3 +179,9 @@ def note(me: str, m: Moment) -> str:
 def situation(m: Moment) -> Tuple[str, str, str, str]:
     """sf2.system1.system1.situation in the same words: (range, what he is doing, my bar, his bar)."""
     return range_of(abs(m.dx)), m.doing, bar(m.my_life), bar(m.his_life)
+
+
+def sentence(m: Moment) -> str:
+    """The full situation sentence text laya reads (sf2.system1.advice.situation_text), with the fireball clause added
+    only when a fireball is coming at me this frame."""
+    return situation_text(*situation(m), fireball=m.fireball)

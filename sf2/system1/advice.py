@@ -25,8 +25,14 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..vocab import BARS, OPP_STATES, RANGE_WORDS, RANGES
+from .action_menu import CATEGORIES, CATEGORY_ORDER, DEFAULT_MOVE, category_of
 
 FORWARD = "forward"
+
+# G4: the fireball condition in text laya's grammar. The TOKEN is the word "fireball": the screen words say the exact
+# clause ``FIREBALL_CLAUSE`` when the reader sees a projectile coming (sf2.system1.screen_words), and a lesson's
+# fireball condition is read off the same word (``FIRE`` below), so "block_low when a fireball comes at mid" parses.
+FIREBALL_CLAUSE = "A fireball is coming."
 
 WORKS, MAY, FAILS = "likely works", "may work", "likely fails"
 RATING = {WORKS: 2, MAY: 1, FAILS: 0}
@@ -70,10 +76,11 @@ def opp_doing(entry: Dict) -> str:
         entry.get("opp_state"), "standing")
 
 
-def situation_text(rng: str, doing: str, my_bar: str, opp_bar: str) -> str:
+def situation_text(rng: str, doing: str, my_bar: str, opp_bar: str, fireball: bool = False) -> str:
     if rng not in RANGES or doing not in OPP_STATES or my_bar not in BARS or opp_bar not in BARS:
         raise ValueError("bad situation %r %r %r %r" % (rng, doing, my_bar, opp_bar))
-    return "He is %s and %s. My bar is %s, his bar is %s." % (RANGE_WORDS[rng], doing, my_bar, opp_bar)
+    base = "He is %s and %s. My bar is %s, his bar is %s." % (RANGE_WORDS[rng], doing, my_bar, opp_bar)
+    return (base + " " + FIREBALL_CLAUSE) if fireball else base
 
 
 def option_text(move: str, rated: Optional[str]) -> str:
@@ -107,6 +114,7 @@ WHEN = {"jumping": re.compile(r"\bwhen %s (jumps|is jumping|is in the air)\b|\bj
 WHERE = {"close": re.compile(r"\b(close|next to)\b", re.I),
          "mid": re.compile(r"\b(mid|middle)\b", re.I),
          "far": re.compile(r"\b(far|long range)\b", re.I)}
+FIRE = re.compile(r"\bfireballs?\b", re.I)      # G4: the lesson conditions on an incoming fireball (identical token)
 HE_DOES = re.compile(r"\b(he|him|ryu|ken|blanka|guile|chunli|chun-li|honda|zangief|dhalsim)\s+(is\s+)?\w+", re.I)
 
 
@@ -117,9 +125,11 @@ class Lesson:
     polarity: str                # "soft" | "hard" | "neg" | "none"
     where: Optional[str]         # a range, or None: anywhere
     when: Optional[str]          # an opponent state, or None: whatever he does
+    fireball: bool = False       # G4: the lesson holds only while a fireball is coming (default: regardless)
 
-    def applies(self, rng: str, doing: str) -> bool:
-        return (self.where is None or self.where == rng) and (self.when is None or self.when == doing)
+    def applies(self, rng: str, doing: str, fireball: bool = False) -> bool:
+        return ((self.where is None or self.where == rng) and (self.when is None or self.when == doing)
+                and (not self.fireball or fireball))
 
 
 def parse(text: str, moves: Sequence[str]) -> Lesson:
@@ -146,7 +156,7 @@ def parse(text: str, moves: Sequence[str]) -> Lesson:
     when = [s for s, pat in WHEN.items() if pat.search(text)]
     if len(where) > 1 or len(when) > 1:
         raise ValueError("lesson has conflicting conditions: %r" % text)
-    return Lesson(text, move, pol, where[0] if where else None, when[0] if when else None)
+    return Lesson(text, move, pol, where[0] if where else None, when[0] if when else None, bool(FIRE.search(text)))
 
 
 def read(text: str, moves: Sequence[str]) -> Lesson:
@@ -177,3 +187,94 @@ def answers(rng: str, doing: str, options: Dict[str, str], lessons: Sequence[Les
     if FORWARD not in out:
         return [FORWARD], "walk"
     return sorted(moves) or [FORWARD], "nothing_left"
+
+
+# ---- G1: the two-stage menu (sf2.system1.action_menu). No table, no ratings: round 1 picks a CATEGORY, round 2 the
+# MOVE inside it. Text laya follows an applying advice line; nothing applies -> the hardcoded default (block). The
+# situation prunes the stance, so round 2 only ever offers the moves that stance can do. ----
+
+CAT_INSTRUCTIONS = "Which kind of move do I do now? Follow the advice when it fits this moment."
+STANCES = ("standing", "close", "crouch", "air")
+GROUNDED_STANCES = ("standing", "close", "crouch")
+# how a stance picks the move variant: standing -> s.* , grounded+close -> cl.* , crouch -> c.* , air -> j./jf.*
+STANCE_PREFIXES = {"standing": ("s.",), "close": ("cl.",), "crouch": ("c.",), "air": ("j.", "jf.")}
+NORMAL_PREFIXES = ("jf.", "cl.", "j.", "s.", "c.")      # longest/ambiguous first so "cl."/"jf." win over "c."/"j."
+
+
+def stance_of(posture: str, rng: str) -> str:
+    """The stance that prunes the menu, from my posture (stand / crouch / air) and the range (grounded+far -> standing,
+    grounded+close -> close)."""
+    if posture == "air":
+        return "air"
+    if posture == "crouch":
+        return "crouch"
+    if posture == "stand":
+        return "close" if rng == "close" else "standing"
+    raise ValueError("unknown posture %r" % posture)
+
+
+def _prefix(move: str) -> Optional[str]:
+    for p in NORMAL_PREFIXES:
+        if move.startswith(p):
+            return p
+    return None
+
+
+def moves_in_stance(category: str, stance: str) -> List[str]:
+    """``category``'s move names that this stance can actually do: a prefixed normal/combo by its prefix, a throw only
+    up close, and the other grounded moves (movement, block, special) only while grounded."""
+    if stance not in STANCES:
+        raise ValueError("unknown stance %r" % stance)
+    out = []
+    for m in CATEGORIES[category]:
+        p = _prefix(m)
+        if p is not None:
+            if p in STANCE_PREFIXES[stance]:
+                out.append(m)
+        elif category == "throw":
+            if stance == "close":
+                out.append(m)
+        elif stance in GROUNDED_STANCES:
+            out.append(m)
+    return out
+
+
+def available_moves(stance: str) -> set:
+    return {m for cat in CATEGORY_ORDER for m in moves_in_stance(cat, stance)}
+
+
+def category_question() -> Dict:
+    """Round 1: pick one of the 7 categories (unrated; the words + advice decide)."""
+    return {"type": "choice", "instructions": CAT_INSTRUCTIONS, "criteria": {c: c for c in CATEGORY_ORDER}}
+
+
+def move_question(moves: Sequence[str]) -> Dict:
+    """Round 2: pick one move from the chosen category, pruned to the stance (empty -> the default move)."""
+    moves = list(moves) or [DEFAULT_MOVE]
+    return {"type": "choice", "instructions": INSTRUCTIONS, "criteria": {m: m for m in moves}}
+
+
+def chosen_moves(rng: str, doing: str, stance: str, lessons: Sequence[Lesson],
+                 fireball: bool = False) -> Tuple[List[str], str]:
+    """The move(s) the advice picks from the stance-pruned (unrated) menu, and which rule decided: an applying hard
+    lesson, else an applying soft lesson, else the hardcoded default (block). A negative lesson rules its move out.
+    With no ratings a move is chosen only when a lesson names it; otherwise it is the default."""
+    avail = available_moves(stance)
+    live = [les for les in lessons if les.move in avail and les.applies(rng, doing, fireball)]
+    out = {les.move for les in live if les.polarity == "neg"}
+    hard = sorted({les.move for les in live if les.polarity == "hard"} - out)
+    if hard:
+        return hard, "hard"
+    soft = sorted({les.move for les in live if les.polarity == "soft"} - out)
+    if soft:
+        return soft, "soft"
+    return [DEFAULT_MOVE], "default"
+
+
+def two_stage(rng: str, doing: str, stance: str, lessons: Sequence[Lesson],
+              fireball: bool = False) -> Tuple[List[str], List[str], str]:
+    """Labels for the two-stage menu: (round-1 category answers, round-2 move answers, the rule that decided). Round 2
+    is scoped to one category, so when the picks span categories the caller asks round 2 per category."""
+    moves, rule = chosen_moves(rng, doing, stance, lessons, fireball)
+    cats = sorted({category_of(m) for m in moves})
+    return cats, moves, rule
