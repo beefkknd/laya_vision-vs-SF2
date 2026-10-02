@@ -12,6 +12,36 @@ the air. Fireball: no. We are far apart. I can: ...". laya-vision is not in the 
   should land near T0 - fair by the owner's rule "everything I see on the screen is fair".
 - It splits "see well" from "decide well": if laya-text cannot win on near-perfect words, no eye will fix it.
 
+## The rule: no RAM in play (owner 2026-10-02)
+"Exclude RAM entirely: the screen is dumped out and read out, so this can be a clean swap later when laya-vision is
+back in."
+- Play path: screen frames in -> a SCREEN READER -> a fixed record of facts (ScreenFacts) -> words -> table + text
+  laya -> buttons. Nothing in that path reads RAM: not the facts, not "can I act", not facing, not round start / end,
+  not health, not the timer, not Qwen's inputs.
+- No RAM while a game is played - not even for logging. During play the emulator gives screen frames and takes
+  buttons, nothing else. The run saves the frames, the reader's facts, the buttons pressed and the start savestate.
+- RAM is used only OUTSIDE play: (1) before - labelling the sprite catalog, and the table (built earlier from RAM-
+  labelled games): fixed files the reader / decider load; (2) after - scoring: replay the saved savestate + buttons
+  offline (the emulator is deterministic; probe: two lockstep copies byte-identical) and read RAM truth there. A replay
+  whose frames do not match the saved frames pixel for pixel is refused (no silent scoring of a drifted game).
+- One slot, two readers: the sprite reader now; laya-vision (512) later, same ScreenFacts out. Swapping is changing
+  which reader is plugged in, nothing downstream.
+- Enforced by a test, not by care: in screen-only mode the play loop gets an emulator handle whose RAM reads raise;
+  a scanning test asserts no play module imports the RAM row helpers.
+
+## What the play loop reads from RAM today -> screen replacement (inventory 2026-10-02)
+| today (RAM) | used for | screen replacement |
+|---|---|---|
+| p1_state, p1_y | can I act (decision gate) + waiting after a move | my sprite's label: idle stand / crouch on the ground |
+| p1_facing, p1_x vs p2_x | which way "forward" / "back" buttons go | my sprite's flip / which side each sprite is on |
+| result 0x1ACF | round over (win / loss / draw) | HUD: a life bar empty, KO / win text, timer 00 |
+| p1_x, p2_x | range | the two sprites' x |
+| p2_y, p2_state | he is attacking / in the air / crouching | his sprite's label |
+| p1_life, p2_life | health bars (words) | HUD life bar lengths |
+| timer, damage, his move, outcome | logs, hp/round, Qwen's lessons (loop arms) | logs: from the replay (RAM) for scoring; for Qwen in a screen-only loop arm: HUD-bar damage + screen facts |
+Screen capture today: frames n-4, n on every run call (lockstep: the emulator waits for the decision); about one
+decision per 16 frames.
+
 ## Steps
 1. **Sprite catalog (labelling, on the Mac).** Run 2P versus games (the existing brute-force collector, all 8
    characters, both sides). Per frame, save each fighter's own pixels (only the sprite, no background), its RAM
