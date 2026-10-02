@@ -183,3 +183,17 @@ in the pool's ratio 41,995 : 23,609 (build.json candidates - an assumption, the 
   projectile sampling trigger; fireball cap per (thrower x side x flight stage) raised as needed; the "no" side drawn
   from the same new games (matching keeps it aligned). Hard limit 80 games per pair in total; report fill per round.
 - Then rebuild q1 only (q3-q5 unchanged), gate, shortcut check, contact sheet. No training in this step.
+
+## Questions v2 - relabel (owner, 2026-10-02)
+Owner: "attack, block, walk, jump, stand should be default, no crouching. high / normal / low position. A special move
+is like a continuous attack. Can we relabel the data set?" + answers: being hit / knocked down -> its own answer "hit";
+position is a separate question replacing ground/air.
+- q3 v2 "What is the fighter on the <side> doing?" -> attack / block / walk / jump / stand / hit.
+  attack = normal, crouching normal, jump attack, throw AND special (a special is a continuous attack);
+  block = standing or crouching guard; walk = toward or away; jump = in the air with no attack out (incl. take-off and
+  landing); stand = standing or crouching still (crouching is a position, not an action); hit = being hit, thrown or
+  knocked down (incl. on the ground after the knockdown).
+- q4 v2 "Is the fighter on the <side> high, normal or low?" -> high = in the air (y above ground); low = crouching
+  (crouch, crouching attack, crouching block - from the state / move); normal = standing on the ground otherwise.
+- Relabel from the same frame pool and RAM (no new games); same alignment rules (matching, equal draws per answer,
+  shortcut check, gate, contact sheets). q1 fireball and q5 distance unchanged.

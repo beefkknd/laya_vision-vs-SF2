@@ -26,6 +26,7 @@ import random
 import zlib
 from typing import Dict, List, Optional, Sequence
 
+from ..config import REPO
 from . import movement_collect_io as MIO
 from . import mv3_fireball_gate as FG
 from . import pairs_gate as PG
@@ -35,8 +36,7 @@ GATES = ("labels", "episode", "splits", "drawn", "alignment", "disk", "shortcut"
 NOT_BLUE = {"ryu", "ken", "blanka", "zangief"}       # drawn check: no blue fighter, and only hadokens are thrown
 FRAME = {"n-4": 0, "n": 1}
 THROWN = {"ryu": "hadoken", "ken": "hadoken", "guile": "sonic_boom", "dhalsim": "yoga_fire"}
-THRESHOLDS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                          "lessons", "perception_thresholds_v2.json")
+THRESHOLDS = os.path.join(REPO, "lessons", "perception_thresholds_v2.json")
 ANSWERS = {"q1": ("yes", "no"), "q3": ("moving", "attack", "special"), "q4": ("ground", "air"),
            "q5": ("close", "far")}
 
