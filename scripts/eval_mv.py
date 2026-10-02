@@ -45,6 +45,9 @@ def show(name: str, res) -> str:
     lines.append("  by char: " + ", ".join("%s %.2f" % (c, v["balanced_accuracy"]) for c, v in res["by_char"].items()))
     lines.append("  by facing: " + ", ".join("%s %.2f" % (c, v["balanced_accuracy"])
                                              for c, v in res["by_facing"].items()))
+    if "by_side" in res:
+        lines.append("  by side: " + ", ".join("%s %.2f" % (c, v["balanced_accuracy"])
+                                               for c, v in res["by_side"].items()))
     return "\n".join(lines)
 
 

@@ -72,3 +72,14 @@ def test_rows_of_one_match_move_together_in_the_bootstrap():
     res = E.evaluate(rows, preds, ANS, ["ground"])
     assert res["model"]["balanced_accuracy"] == pytest.approx(0.6)
     assert res["balanced_lower_bound"] < 0.45 and not res["learned"]
+
+
+def test_breakdown_per_side_when_the_rows_ask_by_side_and_none_otherwise():
+    """Round 2: a row asked by screen side carries ``side``; the result has by_side. Round-1 rows: no by_side."""
+    rows, preds = _spec(4, lambda i, r: r["facing"] == "right")
+    sided = [dict(r, side="left" if i % 2 else "right") for i, r in enumerate(rows)]
+    preds2 = [r["answer"] if r["side"] == "left" else ("air" if r["answer"] == "ground" else "ground") for r in sided]
+    res = E.evaluate(sided, preds2, ANS, ["ground"])
+    assert res["by_side"]["left"]["balanced_accuracy"] == 1.0
+    assert res["by_side"]["right"]["balanced_accuracy"] == 0.0
+    assert "by_side" not in E.evaluate(rows, preds, ANS, ["ground"])

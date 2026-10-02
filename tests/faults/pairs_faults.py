@@ -11,7 +11,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS = ["tests/test_pairs_labels.py", "tests/test_pairs_moves.py", "tests/test_pairs_collect.py",
          "tests/test_pairs_data.py", "tests/test_pairs_pressed.py", "tests/test_pairs_episode.py",
-         "tests/test_pairs_down.py", "tests/test_pairs_train.py"]
+         "tests/test_pairs_down.py", "tests/test_pairs_train.py", "tests/test_pairs_train_side.py"]
 VS = "sf2/emu/vs.py"
 LAB, MOV, COL, IOF, DAT, GAT = ("sf2/data/pairs_labels.py", "sf2/data/pairs_moves.py", "sf2/data/pairs_collect.py",
                                 "sf2/data/pairs_collect_io.py", "sf2/data/pairs_data.py", "sf2/data/pairs_gate.py")
@@ -180,13 +180,35 @@ FAULTS += [
     ("M data: answer dirs pooled", TRN, 'return rec["answer"] if DATASETS[dataset][1] else dataset', "return dataset"),
     ("M data: label off the criteria order", TRN, '"label": list(crit).index(r["answer"])',
      '"label": sorted(crit).index(r["answer"])'),
-    ("M data: the question names the other fighter", TRN, '"question": question(q, r["char"])',
-     '"question": question(q, r["opp"])'),
+    ("M data: the question names the other fighter", TRN, 'asked = question(q, r["char"]) if',
+     'asked = question(q, r["opp"]) if'),
     ("M data: no frames link", TRN, "        os.symlink(frames, os.path.join(base, \"frames\"))\n", ""),
     ("J data: a jump over the other fighter (direction unknown) refused", DAT,
      ' and not (\n                k == "direction" and p.get(k) == L.UNKNOWN and p.get("movement") == "jump")', ""),
     ("J data: any movement may lack its direction", DAT, 'and p.get("movement") == "jump"):', "):"),
     ("M check: the split never checked", TRN, 'if r["split"] != f or f != want:', "if False:"),
+    # round 2: ask by screen side
+    ("S side: the larger x is left", TRN, 'return "left" if me < other else "right"',
+     'return "left" if me > other else "right"'),
+    ("S side: read at t - 4", TRN, 'return side_of(ram[r["t"]], r["slot"])', 'return side_of(ram[r["t"] - 4], r["slot"])'),
+    ("S side: read at the capture row t + 1 (no lag)", TRN, 'return side_of(ram[r["t"]], r["slot"])',
+     'return side_of(ram[r["t"] + 1], r["slot"])'),
+    ("S side: equal x not dropped", TRN, "    if me == other:\n        return None", "    if False:\n        return None"),
+    ("S side: the other slot's x as mine", TRN, 'me, other = ram_row["p%d_x" % slot], ram_row["p%d_x" % (3 - slot)]',
+     'me, other = ram_row["p%d_x" % (3 - slot)], ram_row["p%d_x" % slot]'),
+    ("S text: movement question reworded", TRN, '"What is the fighter on the %s doing?"', '"What is the %s fighter doing?"'),
+    ("S text: distance question loses 'the other fighter'", TRN,
+     '"Is the fighter on the %s close to or far from the other fighter?"', '"Is the fighter on the %s close or far?"'),
+    ("S data: the side build still asks by name", TRN,
+     'asked = question(q, r["char"]) if side is None else question_side(q, side)', 'asked = question(q, r["char"])'),
+    ("S data: side not recorded on the row", TRN, 'extra = {} if side is None else {"side": side}', "extra = {}"),
+    ("S data: dropped rows not counted", TRN, '"total": len(dropped)', '"total": 0'),
+    ("S check: the side never checked", TRN,
+     'if r.get("side") != want_side or text != SIDE_INSTRUCTIONS[q] % want_side:', "if False:"),
+    ("S check: the independent side ignores the slot", TRN,
+     'mine, theirs = (xs[0], xs[1]) if r["slot"] == 1 else (xs[1], xs[0])', "mine, theirs = xs[0], xs[1]"),
+    ("S check: equal-x rows may stay in the data", TRN,
+     'src_ids = {i for i in src_ids if sides[i] is not None}', "src_ids = src_ids"),
 ]
 
 

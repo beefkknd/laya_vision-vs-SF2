@@ -21,6 +21,8 @@ FAULTS = [
     ("facing breakdown by character", 'breakdown(rows, preds, "facing", answers)', 'breakdown(rows, preds, "char", answers)'),
     ("floor without the majority baseline", 'floor = max(chance, base_maj["balanced_accuracy"] or 0.0)',
      "floor = chance / 2"),
+    ("side breakdown by facing", 'breakdown(rows, preds, "side", answers)', 'breakdown(rows, preds, "facing", answers)'),
+    ("side breakdown on round-1 rows too", 'if rows and all("side" in r for r in rows):', "if rows:"),
 ]
 
 

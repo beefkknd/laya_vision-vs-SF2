@@ -8,7 +8,8 @@ the held-out test matches"; scripts/eval_mv.py). Pure functions, any answer set.
 - balanced_lower_bound: the 2.5% quantile of the balanced accuracy over 1,000 cluster-bootstrap resamples of whole
   matches ((pair_name, game)), seeded.
 - learned: that lower bound above BOTH the majority baseline's and chance's balanced accuracy.
-- breakdown: the same metrics per character and per facing (the row's own facing label).
+- breakdown: the same metrics per character and per facing (the row's own facing label); per screen side when
+  the rows were asked by side (round 2).
 """
 import collections
 from typing import Dict, List, Optional, Sequence
@@ -90,8 +91,11 @@ def evaluate(rows: Sequence[Dict], preds: Sequence[str], answers: Sequence[str],
     chance = 1.0 / len(answers)
     lb = balanced_lower_bound(rows, preds, answers, resamples, seed)
     floor = max(chance, base_maj["balanced_accuracy"] or 0.0)
-    return {"n": len(rows), "matches": len({(r["pair_name"], r["game"]) for r in rows}), "answers": list(answers),
-            "model": model, "balanced_lower_bound": lb, "resamples": resamples, "majority": base_maj,
-            "chance": {"balanced_accuracy": chance, "accuracy": chance},
-            "learned": lb is not None and lb > floor, "floor": floor,
-            "by_char": breakdown(rows, preds, "char", answers), "by_facing": breakdown(rows, preds, "facing", answers)}
+    res = {"n": len(rows), "matches": len({(r["pair_name"], r["game"]) for r in rows}), "answers": list(answers),
+           "model": model, "balanced_lower_bound": lb, "resamples": resamples, "majority": base_maj,
+           "chance": {"balanced_accuracy": chance, "accuracy": chance},
+           "learned": lb is not None and lb > floor, "floor": floor,
+           "by_char": breakdown(rows, preds, "char", answers), "by_facing": breakdown(rows, preds, "facing", answers)}
+    if rows and all("side" in r for r in rows):          # round 2: asked by screen side
+        res["by_side"] = breakdown(rows, preds, "side", answers)
+    return res
