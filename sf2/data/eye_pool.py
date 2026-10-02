@@ -107,7 +107,8 @@ def fighter(rows, t: int, s: int, char: str, words: List, classes: List) -> Dict
             "air_prev": L.air(rows, t - GAP, s), "pose": pose_of(rows, t, s, char, words[t], mv10),
             "pressed": words[t], "act2": V2.act2(rows, t, s, classes[t]),
             "act2_in_episode": V2.act2_in_episode(rows, t, s, classes), "pos": V2.position(rows, t, s),
-            "low_kind": V2.low_kind(rows[t], s)}
+            "low_kind": V2.low_kind(rows[t], s),
+            "jump_ground": rows[t]["p%d_state" % s] == L.JUMP and L.air(rows, t, s) == "ground"}
 
 
 def shot(rows, kinds: List, t: int, s: int) -> Dict:

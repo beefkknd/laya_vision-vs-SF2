@@ -69,9 +69,18 @@ Q: Dict[str, Dict] = {
              "criteria": {"high": "high (in the air)", "normal": "normal (on the ground, not crouching)",
                           "low": "low (crouching)"}},
 }
+# amendment after the v2 build (owner "ok", 2026-10-02): q3v2b matches WITHOUT the game (pair, side, the other
+# fighter's grid movement; uncapped); q4v2b drops the jump state on the ground (take-off / landing squats)
+Q["q3v2b"] = dict(Q["q3v2"], base="q3v2", cap=None, game_in_stratum=False)
+Q["q4v2b"] = dict(Q["q4v2"], base="q4v2", drop_jump_ground=True)
 V1 = ("q1", "q3", "q4", "q5")
-V2 = ("q3v2", "q4v2")
-SIDE_ANSWER = {"q3": "act", "q4": "air", "q3v2": "act2", "q4v2": "pos"}      # the fighter fact each side question asks
+V2 = ("q3v2", "q4v2", "q3v2b", "q4v2b")
+SIDE_ANSWER = {"q3": "act", "q4": "air", "q3v2": "act2", "q4v2": "pos", "q3v2b": "act2", "q4v2b": "pos"}
+
+
+def base_of(q: str) -> str:
+    """The question a variant relabels (q3v2b -> q3v2); a question is its own base."""
+    return Q[q].get("base", q)      # the fighter fact each side question asks
 OUT = "test_data_eye_%s_%s"
 
 
@@ -145,15 +154,19 @@ def cands_side(pool: Iterable[Dict], q: str, prefer: set) -> Tuple[List[Dict], D
             if q == "q3" and (me["act"] is None or not me["in_episode"]):
                 drop["unknown_movement" if me["act"] is None else "outside_episode"] += 1
                 continue
-            if q == "q3v2" and (me["act2"] is None or not me["act2_in_episode"]):
+            if base_of(q) == "q3v2" and (me["act2"] is None or not me["act2_in_episode"]):
                 drop["unknown_movement" if me["act2"] is None else "outside_episode"] += 1
+                continue
+            if Q[q].get("drop_jump_ground") and me["jump_ground"]:
+                drop["jump_state_on_ground"] += 1
                 continue
             answer = me[SIDE_ANSWER[q]]
             if answer is None:
                 drop["no_answer"] += 1
                 continue
             split = T.split3(f["pair_name"], f["game"])
-            stratum = (split, f["pair_name"], f["game"], me["side"], him["mv10"])
+            game = (f["game"],) if Q[q].get("game_in_stratum", True) else ()
+            stratum = (split, f["pair_name"]) + game + (me["side"], him["mv10"])
             out.append(_base(f, q, _rid(q, f, s), answer, stratum,
                              {"pair": f["pair_name"], "side": me["side"], "game": f["game"],
                               "other_mv10": him["mv10"]},
@@ -166,8 +179,8 @@ def cands_side(pool: Iterable[Dict], q: str, prefer: set) -> Tuple[List[Dict], D
 
 def v2_kind(q: str, me: Dict) -> str:
     """What kind of row inside its answer (the build's extras and the contact sheet's bands)."""
-    a = me["act2"] if q == "q3v2" else me["pos"]
-    if q == "q4v2":
+    a = me["act2"] if base_of(q) == "q3v2" else me["pos"]
+    if base_of(q) == "q4v2":
         return me["low_kind"] if a == "low" else me["act2"] or "unknown_movement"
     if a == "attack":
         return ("jump_attack" if me["air"] == "air" else "throw" if me["pressed"] == "throw" else
@@ -308,7 +321,7 @@ def extras(q: str, rows: List[Dict]) -> Dict:
                  for a in Q[q]["answers"]}
         out = {"by_kind": kinds, "take_off": by(lambda r: r["air_prev"] == "ground" and r["air"] == "air"),
                "landing": by(lambda r: r["air_prev"] == "air" and r["air"] == "ground")}
-        if q == "q4v2":
+        if base_of(q) == "q4v2":
             out["low_kinds"] = kinds["low"]
         return out
     if q == "q4":

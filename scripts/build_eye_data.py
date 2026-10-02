@@ -18,7 +18,8 @@ from sf2.data import eye_data as E
 from sf2.data import eye_pool as P
 from sf2.data import pairs_labels as L
 
-PREFER = {"q1": ["test_data_mv3_fireball"], "q3": ["test_data_mv3_act"], "q3v2": ["test_data_mv3_act"]}
+PREFER = {"q1": ["test_data_mv3_fireball"], "q3": ["test_data_mv3_act"], "q3v2": ["test_data_mv3_act"],
+          "q3v2b": ["test_data_mv3_act"]}
 
 
 def heads(tokenizer_dir: str) -> None:

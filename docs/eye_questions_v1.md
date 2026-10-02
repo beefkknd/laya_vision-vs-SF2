@@ -257,3 +257,17 @@ answer text in the question is "special attack".
   the game index has no visual footprint; shortcut check still gated at +0.05. (b) q4 v2 drops jump take-off / landing
   frames (fighter in the jump state but on the ground): they were 16.8% of "normal" (owner's bar: edge cases > 5% are
   fixed, < 5% let go; Ryu/Ken c.hp rising 1.4% of low and Dhalsim squatting normals <= 1.2% of normal are let go).
+
+## Training v2 pre-registration (owner, 2026-10-02: "if done before I come back you can start training")
+Starts once BOTH data steps are done and their gates PASS: q1 fireball v2 (test_data_eye_q1_fireball_v2) and the v2b
+relabel (test_data_eye_q3v2b_act, test_data_eye_q4v2b_pos); q5 = test_data_eye_q5_dist (unchanged). If a gate fails or
+a shortcut check fails, no training - wait for the owner.
+- threebody (Qwen stays OFF; HF_HUB_OFFLINE=1; WMI launch), from BASE, LoRA r16/a32, batch 8, lr 1e-4 / 2e-4, seed 0,
+  eval every 250, patience 10, --max-minutes 180.
+- Selection on validation ACCURACY (--select acc; validation sets are equal per answer, so this is balanced accuracy)
+  instead of NLL: in v1 the q1 run's NLL selection kept a flat "always yes" model while accuracy rose later.
+- Runs: eye2_q1, eye2_q3, eye2_q4, eye2_q5 (separate; budget min(10 epochs, 6,000 steps)) and eye2_all (all four, each
+  question 25% of draws via --balance question; 12,000 steps). Two runs may run side by side on the GPU (measured:
+  ~3.3 GB VRAM, 17-41% GPU per run).
+- Scored on held-out test matches against RAM as before (balanced accuracy, 2.5% lower bound, learned rule, per answer
+  / side / character, real-play weighted); eye2_all kept only if every question is within 0.02 of its separate run.

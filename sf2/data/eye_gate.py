@@ -42,6 +42,7 @@ ANSWERS = {"q1": ("yes", "no"), "q3": ("moving", "attack", "special"), "q4": ("g
            "q5": ("close", "far"),
            "q3v2": ("attack", "special attack", "block", "walk", "jump", "stand", "hit"),
            "q4v2": ("high", "normal", "low")}
+ANSWERS.update({"q3v2b": ANSWERS["q3v2"], "q4v2b": ANSWERS["q4v2"]})     # the owner's amendment: same answers
 # questions v2, written from the doc's text (not sf2.data.eye_v2): the independent movement -> the v2 action
 ACT2_FROM = {"attack": "attack", "special": "special attack", "block": "block", "walk toward": "walk",
              "walk away": "walk", "jump": "jump", "stand": "stand", "crouch": "stand", "hit": "hit", "down": "hit"}
@@ -161,9 +162,11 @@ def expected(q: str, r: Dict, ram, moves, band: int) -> Dict:
     side = _side(ram, t, s)
     if q == "q4":
         return {"answer": "ground" if ram[t]["p%d_y" % s] == 192 else "air", "side": side}
-    if q == "q4v2":
+    if q == "q4v2b" and ram[t]["p%d_state" % s] == 4 and ram[t]["p%d_y" % s] == 192:
+        return {"answer": None, "side": side}                  # the jump state on the ground: no q4v2b row
+    if q in ("q4v2", "q4v2b"):
         return {"answer": position_at(ram, t, s), "side": side}
-    if q == "q3v2":
+    if q in ("q3v2", "q3v2b"):
         return {"answer": act2_at(ram, moves, t, s, chars[s - 1], band), "side": side}
     return {"answer": _act(ram, moves, t, s, chars[s - 1], {"all": band}), "side": side}
 
@@ -196,7 +199,7 @@ def episode_check(rows: Sequence[Dict], store: Store, band: int, gap: int = 4, q
     for r in rows:
         ram, moves = store.rows(r["pair_name"], r["game"]), store.moves(r["pair_name"], r["game"]) or []
         s, char = r["slot"], r["pair_name"].split("_vs_")[r["slot"] - 1]
-        if q == "q3v2":
+        if q in ("q3v2", "q3v2b"):
             seq = [act2_at(ram, moves, u, s, char, band) if u >= 0 else "unknown"
                    for u in range(r["t"] - gap, r["t"] + 1)]
         else:
@@ -308,11 +311,11 @@ def run_gates(datas: Dict[str, str], root: str, sample: int = 400, seed: int = 0
     out = {"splits": splits, "datasets": {}}
     for q, d in datas.items():
         g = {"labels": label_check(q, d, rows[q], store, band),
-             "episode": (episode_check(rows[q], store, band, q=q) if q in ("q3", "q3v2")
+             "episode": (episode_check(rows[q], store, band, q=q) if q in ("q3", "q3v2", "q3v2b")
                          else {"pass": True, "n/a": q}),
              "splits": {"pass": splits["pass"]},
              "drawn": drawn_check(d, rows[q]) if q == "q1" else {"pass": True, "n/a": q},
-             "second_fact": second_fact_check(rows[q], store) if q == "q4v2" else {"pass": True, "n/a": q},
+             "second_fact": second_fact_check(rows[q], store) if q in ("q4v2", "q4v2b") else {"pass": True, "n/a": q},
              "alignment": FG.alignment_check(d, root, rows[q], sample, seed=seed),
              "disk": disk, "shortcut": SC.check(rows[q], ANSWERS[q], margin)}
         out["datasets"][q] = {"pass": all(x["pass"] for x in g.values()), "gates": g}
@@ -325,12 +328,12 @@ THUMB = 192
 
 
 def bands_of(q: str, rows: Sequence[Dict]) -> List:
-    if q in ("q3v2", "q4v2"):
+    if q in ("q3v2", "q4v2", "q3v2b", "q4v2b"):
         out = []
         for a in ANSWERS[q]:
             mine = [r for r in rows if r["answer"] == a]
             out.append((a, mine))
-            if q == "q4v2" and a == "high":
+            if q in ("q4v2", "q4v2b") and a == "high":
                 continue
             kinds = sorted({r["kind"] for r in mine})
             if len(kinds) > 1:
