@@ -113,3 +113,64 @@ Judged on the held-out test matches against RAM: balanced accuracy, 2.5% lower b
 "learned" = lower bound above majority and chance; per answer, side, character; accuracy weighted to real play
 (fireball 3.5% of frames; moving 71.5% / attacking 28.5%; air 28% - from the old U collection's RAM). eye_all kept
 only if every question's balanced accuracy is within 0.02 of its separate run; otherwise separate adapters.
+
+## Training runs and results (2026-10-02, as pre-registered)
+Combined-run support: scripts/train.py `--balance question` (each question = a --data dir's parent folder gets an
+equal share of draws, its answer dirs equal within it; laya mix weights from sf2.data.train_data.question_weights,
+checked from laya's own mix; defaults unchanged). Tests tests/test_train_question_share.py; seeded faults
+tests/faults/question_share_faults.py 10 / 10. Scoring sf2.data.eye_eval + scripts/eval_eye.py (tests
+tests/test_eye_eval.py; faults tests/faults/eye_eval_faults.py 9 / 9).
+
+On threebody (Qwen off, checked), one unattended chain `cmd /c C:\work\laya_finetune\run_eye.cmd` launched via WMI
+09:56, ended 11:30 (`CHAIN EXIT`); code C:\work\laya_finetune\code_eye (git archive of 11337eb); data
+C:\work\laya_finetune\data\eye\test_data_eye_q*\<answer> with frames junctions to data\eye_images (104,022 images,
+all 139,486 references checked present); logs logs\eye_{q1,q3,q4,q5,all}.log (each "EXIT 0"), chain log
+logs\eye_chain.log; outputs runs\eye_* (copied to the Mac's runs/eye_*, sha256-checked). Work note
+C:\work\laya_finetune\WORKNOTE_eye.md. Commands (cwd code_eye, HF_HUB_OFFLINE=1, from BASE):
+```
+COMMON=--rank 16 --alpha 32 --batch-size 8 --lr-head 1e-4 --lr-backbone 2e-4 --eval-every 250 --patience 10
+       --select nll --max-minutes 180 --seed 0 --device cuda
+train.py <yes,no>                --out ..\runs\eye_q1  --epochs 10       --balance sampling --min-sampled-train 500 COMMON
+train.py <moving,attack,special> --out ..\runs\eye_q3  --epochs 4.475897 --balance sampling COMMON
+train.py <ground,air>            --out ..\runs\eye_q4  --epochs 2.620306 --balance sampling COMMON
+train.py <close,far>             --out ..\runs\eye_q5  --epochs 5.791988 --balance sampling COMMON
+train.py <all nine answer dirs>  --out ..\runs\eye_all --epochs 2.495231 --balance question --min-sampled-train 500
+                                 --val-limit 8000 COMMON
+```
+(<...> = `--data ..\data\eye\test_data_eye_qN_*\<answer>` per answer; epochs chosen so int(epochs x train rows / 8)
+is exactly the pre-registered 1,427 / 6,000 / 6,000 / 6,000 / 12,000 steps.)
+
+| run | budget | ran to | best step | best val NLL | train min | stop |
+|---|---|---|---|---|---|---|
+| eye_q1 | 1,427 | 1,427 | 250 | 0.691 | 3.9 | budget (only 6 evals after step 0) |
+| eye_q3 | 6,000 | 4,500 | 2,000 | 1.047 | 15.7 | early stop (patience 10) |
+| eye_q4 | 6,000 | 5,500 | 3,000 | 0.435 | 22.0 | early stop |
+| eye_q5 | 6,000 | 3,750 | 1,250 | 0.637 | 12.3 | early stop |
+| eye_all | 12,000 | 7,250 | 4,750 | 0.711 | 36.1 | early stop |
+
+Held-out test matches vs RAM (scripts/eval_eye.py; runs/eye_*/eval_q*.json; lb = 2.5% bound, 1,000 resamples by
+match; weighted = recall weighted to real play: q1 yes 3.5%, q3 moving 71.5% / attacking 28.5% split attack : special
+in the pool's ratio 41,995 : 23,609 (build.json candidates - an assumption, the prereg gives attacking only), q4 air
+28%; q5 has no real-play share):
+
+| run | q | n (matches) | balanced | lb | majority | chance | learned | weighted | recall |
+|---|---|---|---|---|---|---|---|---|---|
+| eye_q1 | q1 | 712 (177) | 0.501 | 0.500 | 0.500 | 0.500 | NO | 0.038 | yes 1.000, no 0.003 |
+| eye_all | q1 | 712 (177) | 0.699 | 0.662 | 0.500 | 0.500 | yes | 0.736 | yes 0.660, no 0.739 |
+| eye_q3 | q3 | 6582 (487) | 0.437 | 0.423 | 0.333 | 0.333 | yes | 0.502 | moving 0.545, attack 0.425, special 0.340 |
+| eye_all | q3 | 6582 (487) | 0.448 | 0.436 | 0.333 | 0.333 | yes | 0.497 | moving 0.515, attack 0.548, special 0.282 |
+| eye_q4 | q4 | 11218 (554) | 0.860 | 0.854 | 0.500 | 0.500 | yes | 0.861 | ground 0.861, air 0.860 |
+| eye_all | q4 | 11218 (554) | 0.784 | 0.777 | 0.500 | 0.500 | yes | 0.765 | ground 0.741, air 0.827 |
+| eye_q5 | q5 | 5050 (465) | 0.663 | 0.649 | 0.500 | 0.500 | yes | - | close 0.790, far 0.535 |
+| eye_all | q5 | 5050 (465) | 0.627 | 0.614 | 0.500 | 0.500 | yes | - | close 0.857, far 0.398 |
+
+- By side (balanced): q3 eye_q3 left 0.443 / right 0.430, eye_all 0.447 / 0.449; q4 eye_q4 0.844 / 0.877, eye_all
+  0.789 / 0.778. By character: q3 eye_q3 0.385 (blanka) - 0.483 (guile); q4 eye_q4 0.830 (dhalsim) - 0.890 (blanka);
+  eye_all q4 0.750 (dhalsim) - 0.810 (blanka). No side or character far off the rest.
+- q1: eye_q1's NLL-selected checkpoint (step 250) answers "yes" to everything (val NLL 0.691 = ln 2); later steps
+  reached val accuracy ~0.6 but NLL exploded (5-6.6) - 571 rows per answer overfit within 2 epochs, and NLL selection
+  keeps the flat model. eye_all on q1: "no" accuracy plain 0.81, after impact 0.74, throwing pose 0.64, before spawn
+  0.61; "yes" drawn in both frames 0.70, n only 0.56, n-4 only 0.51.
+- Keep rule (mechanical, margin 0.02): q1 +0.198, q3 +0.011 within; q4 -0.077 and q5 -0.035 lose more ->
+  **eye_all NOT kept; separate adapters for q4 and q5** (eye_all is the better checkpoint for q1 and within margin
+  for q3).
