@@ -92,3 +92,10 @@ Gate (script, exit code decides; RAM only as referee, read at collection time or
 - Speed: median ms per frame on the Mac, reported; must fit the decision loop (target < 20 ms).
 - If (b) fails on unknown sprites: add CPU games to the catalog (collection time, RAM labels) - a catalog fix, not a
   reader change - and re-gate on new held-out games.
+
+## Owner decision (2026-10-02): the sprite set is good enough
+- Full ROM pose set found (847 poses, 196 never seen in play; out/sprite_rom/, commit 939bdc7) - NOT polished further:
+  "let it go, we already have it ... worst case we see something unseen before, take a default and log it".
+- Reader rule: a sprite with no confident match -> a default answer (action "stand", the rest from position / HUD as
+  usual) + logged (frame saved, side, best score) for a later catalog top-up. The gate reports the unknown rate; an
+  unknown is not a gate failure by itself.
