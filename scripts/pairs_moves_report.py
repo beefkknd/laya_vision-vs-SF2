@@ -1,4 +1,4 @@
-"""How well player 1 did the directed moves in a movement-pairs collection (sf2.data.pairs_moves.executed, logged per
+"""How well the players we drive (player 1, or both in Plan B) did the directed moves in a movement-pairs collection (sf2.data.pairs_moves.executed, logged per
 move in each games.jsonl), per character and move word, plus seconds and pairs per game and MB per pair.
 
     python scripts/pairs_moves_report.py --root rollouts/pairs [--json out.json]
@@ -19,12 +19,12 @@ def report(root: str) -> dict:
     per = collections.defaultdict(collections.Counter)
     games, img_bytes = [], 0
     for n in names:
-        a = n.split("_vs_")[0]
+        chars = dict(enumerate(n.split("_vs_"), 1))
         for g in IO.committed(os.path.join(root, n)):
             games.append({"pair": n, "seconds": g["seconds"], "pairs": g["pairs"], "rows": g["rows"],
                           "result": g.get("result")})
-            for w, _, _, st in g["moves"]:
-                per[(a, w)][st] += 1
+            for m in g["moves"]:            # [word, k0, k1, status] (player 1) or [..., status, slot] (Plan B)
+                per[(chars[m[4] if len(m) > 4 else 1], m[0])][m[3]] += 1
         d = os.path.join(root, n, "images")
         if os.path.isdir(d):
             img_bytes += sum(e.stat().st_size for e in os.scandir(d) if e.is_file())

@@ -37,6 +37,8 @@ def still(n=5, p1=None, p2=None):
     ({"state": 0x0A, "mclass": 0x02}, "attack"),
     ({"state": 0x0A, "y": GROUND_Y - 40}, "attack"),
     ({"state": 0x04, "sub": 0x06}, "jump"),
+    ({"state": 0x04, "aid": 7}, "attack"),                      # Plan B: a jump attack (its box out) is an attack
+    ({"state": 0x00, "y": GROUND_Y - 30, "aid": 2}, "attack"),
     ({"state": 0x04}, "jump"),
     ({"state": 0x00, "y": GROUND_Y - 3}, "jump"),
     ({"state": 0x02}, "crouch"),
@@ -122,15 +124,30 @@ def test_labels_at_reads_the_displayed_row_one_back():
 
 
 def test_episode_key_is_none_when_any_part_is_unknown():
-    assert L.episode_key(still(5), 4, 1) == ("stand", "none", "right")
-    assert L.episode_key(still(5), 4, 2) == ("stand", "none", "left")
+    assert L.episode_key(still(5), 4, 1) == ("stand", "right")
+    assert L.episode_key(still(5), 4, 2) == ("stand", "left")
     assert L.episode_key(still(5, {"facing": 0x13}), 4, 1) is None
+
+
+def test_episode_key_is_the_grid_cell_walk_by_direction_jump_not():
+    walk = [prow({"x": 200})] * 4 + [prow({"x": 204})]
+    assert L.episode_key(walk, 4, 1) == ("walk toward", "right")
+    back = [prow({"x": 200})] * 4 + [prow({"x": 196})]
+    assert L.episode_key(back, 4, 1) == ("walk away", "right")
+    air = {"state": 0x04, "y": GROUND_Y - 30}
+    for end in (200, 210, 190):
+        jump = [prow(dict(air, x=200))] * 4 + [prow(dict(air, x=end))]
+        assert L.episode_key(jump, 4, 1) == ("jump", "right")
+    assert L.movement10("walk", "none") == "unknown" and L.movement10("hit", "none") == "hit"
+    assert set(L.MOVEMENTS10) == {L.movement10(m, d) for m in L.MOVEMENTS for d in ("toward", "away", "none")} - {
+        "unknown"}
 
 
 def _random_row(rng):
     def side():
         return {"state": rng.choice([0, 0, 0, 2, 4, 6, 8, 10, 12, 14, 20]), "sub": rng.choice([0, 2, 4, 6, 8]),
                 "react": rng.choice([0, 2, 6, 8, 14]), "mclass": rng.choice([0, 2, 8, 14]),
+                "aid": rng.choice([0, 0, 0, 5]),
                 "x": rng.choice([rng.randrange(40, 470), 65369]) if rng.random() < 0.05 else rng.randrange(40, 470),
                 "y": rng.choice([GROUND_Y] * 3 + [GROUND_Y - rng.randrange(1, 80)]),
                 "facing": rng.choice([0, 0x40, 0x40, 7]), "char": rng.randrange(8)}

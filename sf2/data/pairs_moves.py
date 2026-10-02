@@ -158,11 +158,29 @@ def _evidence(char: str, word: str, rows: Sequence[Dict[str, int]]) -> str:
     return "done" if ok else ""
 
 
-def executed(char: str, word: str, rows: Sequence[Dict[str, int]]) -> Dict:
-    """status: done (RAM shows the move) / held (a block with nothing to block) / interrupted (player 1 was hit or
-    thrown before showing it) / cut (the round ended first) / missed; aids: the non-zero attack IDs (0x0C3E) seen."""
+def as_p1(row: Dict[str, int], p: int) -> Dict[str, int]:
+    """The row seen from player ``p``: its p<p>_ fields under p1_, the other's under p2_ (shared fields as they are)."""
+    if p == 1:
+        return row
+    if p != 2:
+        raise ValueError("player %r" % p)
+    out = {}
+    for k, v in row.items():
+        if k.startswith("p1_"):
+            out["p2_" + k[3:]] = v
+        elif k.startswith("p2_"):
+            out["p1_" + k[3:]] = v
+        else:
+            out[k] = v
+    return out
+
+
+def executed(char: str, word: str, rows: Sequence[Dict[str, int]], p: int = 1) -> Dict:
+    """status: done (RAM shows the move) / held (a block with nothing to block) / interrupted (player ``p`` was hit or
+    thrown before showing it) / cut (the round ended first) / missed; aids: the non-zero attack IDs (0x?C3E) seen."""
     if not rows:
         raise ValueError("no rows for %s" % word)
+    rows = [as_p1(r, p) for r in rows]
     ev = _evidence(char, word, rows)
     if ev:
         status = ev

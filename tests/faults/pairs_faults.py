@@ -11,6 +11,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS = ["tests/test_pairs_labels.py", "tests/test_pairs_moves.py", "tests/test_pairs_collect.py",
          "tests/test_pairs_data.py"]
+VS = "sf2/emu/vs.py"
 LAB, MOV, COL, IOF, DAT, GAT = ("sf2/data/pairs_labels.py", "sf2/data/pairs_moves.py", "sf2/data/pairs_collect.py",
                                 "sf2/data/pairs_collect_io.py", "sf2/data/pairs_data.py", "sf2/data/pairs_gate.py")
 FAULTS = [
@@ -42,8 +43,8 @@ FAULTS = [
     ("moves: a jump attack's box counted on the ground", MOV,
      'ok = ok and any(a and r["p1_aid"] for a, r in zip(air, rows))', 'ok = ok and any(r["p1_aid"] for r in rows)'),
     ("moves: jumps aimed by the facing byte", COL,
-     'right = (r["p1_x"] < r["p2_x"]) if word in PM.BY_X else r["p1_facing"] == 0x40',
-     'right = r["p1_facing"] == 0x40'),
+     'right = (r[me + "x"] < r[him + "x"]) if word in PM.BY_X else r[me + "facing"] == 0x40',
+     'right = r[me + "facing"] == 0x40'),
     # 3 the collector
     ("collect: the per-game cap ignored", COL,
      "if self.taken.get((p, key), 0) >= self.per_game or u + LAG >= n:", "if u + LAG >= n:"),
@@ -55,7 +56,7 @@ FAULTS = [
     ("collect: one game over the budget", IOF, "while len(committed(base)) < games:",
      "while len(committed(base)) <= games:"),
     # 4 the builder and the gate
-    ("data: no test split", DAT, 'return "test" if game % SPLIT_MOD == TEST_REST else "train"', 'return "train"'),
+    ("data: no test split", DAT, 'return "test" if h % SPLIT_MOD == TEST_REST else "train"', 'return "train"'),
     ("data: the cap per cell ignored", DAT, "cap, taken = caps[key[0]], []", "cap, taken = 10 ** 6, []"),
     ("gate: independent facing read the wrong way", GAT, 'face = {64: "right", 0: "left"}',
      'face = {64: "left", 0: "right"}'),
@@ -65,6 +66,39 @@ FAULTS = [
     ("gate: alignment verdict ignored", GAT,
      "    ok = alignment_verdict(ag, ad, len(rand), len(disc), len(missing), min_disc, min_agree, min_agree_disc)",
      "    ok = True"),
+]
+
+
+# Plan B (2P versus, both ours; the 8 x 20 grid), 2026-10-01
+FAULTS += [
+    ("B label: a jump attack left as a jump", LAB, 'return "attack" if _f(r, p, "aid") else "jump"', 'return "jump"'),
+    ("B label: walk direction dropped from the grid", LAB,
+     'return "walk " + direction_ if direction_ in ("toward", "away") else UNKNOWN', 'return "walk"'),
+    ("B label: jump split by direction in the grid", LAB, "    return mv\n\n\ndef episode_key",
+     "    return mv + (\" \" + direction_ if mv == \"jump\" else \"\")\n\n\ndef episode_key"),
+    ("B moves: executed always reads player 1", MOV, "rows = [as_p1(r, p) for r in rows]", "rows = list(rows)"),
+    ("B moves: as_p1 does not swap", MOV, 'out["p2_" + k[3:]] = v', 'out[k] = v'),
+    ("B collect: player 2 aimed as player 1", COL, "queues[p] = press_frames(chars[p], word, r, p)",
+     "queues[p] = press_frames(chars[p], word, r, 1)"),
+    ("B collect: player 2's inputs never sent", COL, "rows = run(chunk[1], chunk[2])", "rows = run(chunk[1], [[]] * WAIT)"),
+    ("B collect: the next word before the last one is done", COL, "if not queues[p] and can_act(r, p):",
+     "if can_act(r, p):"),
+    ("B collect: one cycle for both players", COL, "word = cycles[p].next()", "word = cycles[1].next()"),
+    ("B collect: can_act reads player 1 only", COL, 'return r["p%d_state" % p] in (0, 2) and r["p%d_y" % p] == GROUND_Y',
+     'return r["p1_state"] in (0, 2) and r["p1_y"] == GROUND_Y'),
+    ("B collect: the sampler's controllers ignored", COL, "controller=self.controllers[p],", "controller=SLOTS[p],"),
+    ("B io: the move log's slot ignored", IOF, "p = m[3] if len(m) > 3 else 1", "p = 1"),
+    ("B data: facings pooled in one cell", DAT,
+     'return (p["char"], L.movement10(p["movement"], p["direction"]), p["facing"])',
+     'return (p["char"], L.movement10(p["movement"], p["direction"]), "any")'),
+    ("B data: split by game number, not by match", DAT,
+     'h = zlib.crc32(("%s:%d" % (pair_name, game)).encode())', "h = game"),
+    ("B gate: independent jump attack read as a jump", GAT,
+     'mv = "attack" if r[me + "aid"] != 0 else "jump"', 'mv = "jump"'),
+    ("B gate: per-game cap without the facing", GAT,
+     'per_game = collections.Counter((r["pair_name"], r["game"], r["slot"], grid(r), r["facing"]) for r in rows)',
+     'per_game = collections.Counter((r["pair_name"], r["game"], r["slot"], grid(r)) for r in rows)'),
+    ("B vs: no parked plan for the cursor swap", VS, "    plans += [[(2, c), (1, t1), (2, t2)] for c in parks]\n", ""),
 ]
 
 

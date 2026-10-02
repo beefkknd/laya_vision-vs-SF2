@@ -7,9 +7,11 @@ movement (from the state byte, 9 answers; precedence top to bottom):
   0x0E otherwise                                                                        -> hit    (being hit)
   0x0C, or 0x0A with MOVE_CLASS 0x08 (the CPU's specials run in 0x0A, sf2.data.action_probe) -> special (incl. projectile)
   0x0A                                                                                  -> attack
+  0x04, or y off the ground in any other state, with the attack box out (0x?C3E != 0)  -> attack (a jump attack;
+                Plan B: "a jump attack counts as attack", the air question says "in the air". The state stays 0x04
+                and the sub byte that marks it differs by character, so the attack-ID byte is read: the rows while
+                the box is out are "attack", the rest of that jump "jump")
   0x04, or y off the ground in any other state                                           -> jump
-                (a jump attack stays 0x04: jump; the sub byte that marks it differs by character, Ryu 0x06 and
-                Chun-Li 0x08 in the smoke, so it is not read - the state byte only, as the prereg says)
   0x02                                                                                  -> crouch
   0x00: own x moved >= WALK_PX over t - 4 -> t                                           -> walk, else stand
   anything else (0x06 turning, ...)                                                     -> unknown
@@ -20,6 +22,8 @@ facing: the facing byte (0x?CF4): 0x40 right, 0x00 left (sf2.system1.system1._ac
 air: y == GROUND_Y ground, else air.
 distance: |x1 - x2| <= the fighter's own calibrated poke band (lessons/perception_thresholds_v2.json poke_max, which
   contains the throw band) -> close, else far.
+movement10 (the owner's grid, Plan B): the 10 movement cells - walk split by direction, jump not:
+  stand, walk toward, walk away, crouch, jump, attack, special, block, hit (being hit), down (knocked down).
 Every label that reads an x is unknown when an x is impossible (perception.STAGE_X) or the t - 4 row is missing.
 """
 import json
@@ -37,6 +41,7 @@ DIRECTIONS = ("toward", "away", "none")
 FACINGS = ("left", "right")
 AIRS = ("ground", "air")
 DISTANCES = ("close", "far")
+MOVEMENTS10 = ("stand", "walk toward", "walk away", "crouch", "jump", "attack", "special", "block", "hit", "down")
 QUESTIONS: Dict[str, Tuple[str, ...]] = {"movement": MOVEMENTS, "direction": DIRECTIONS, "facing": FACINGS,
                                          "air": AIRS, "distance": DISTANCES}
 STAND, CROUCH, JUMP, GUARD, ATTACK, SPECIAL, HIT, THROWN = 0x00, 0x02, 0x04, 0x08, 0x0A, 0x0C, 0x0E, 0x14
@@ -86,7 +91,7 @@ def movement(rows: Rows, t: int, p: int) -> str:
     if st == ATTACK:
         return "attack"
     if st == JUMP or _f(r, p, "y") != GROUND_Y:
-        return "jump"
+        return "attack" if _f(r, p, "aid") else "jump"
     if st == CROUCH:
         return "crouch"
     if st == STAND:
@@ -142,11 +147,19 @@ def labels(rows: Rows, t: int, p: int, bands: Dict[str, int]) -> Dict[str, str]:
             "air": air(rows, t, p), "distance": distance(rows, t, p, bands)}
 
 
-def episode_key(rows: Rows, t: int, p: int) -> Optional[Tuple[str, str, str]]:
-    """(movement, direction, facing): what an episode is a run of, and (with the character and the controller) the
-    cell a cap counts; None if any is unknown."""
+def movement10(mv: str, direction_: str) -> str:
+    """The grid's movement cell from (movement, direction): walk -> walk toward / away, everything else as is (a jump's
+    direction is not a cell). UNKNOWN for a walk without a direction."""
+    if mv == "walk":
+        return "walk " + direction_ if direction_ in ("toward", "away") else UNKNOWN
+    return mv
+
+
+def episode_key(rows: Rows, t: int, p: int) -> Optional[Tuple[str, str]]:
+    """(movement10, facing): what an episode is a run of, and (with the character) the grid cell a cap counts; None if
+    either is unknown."""
     mv = movement(rows, t, p)
-    key = (mv, direction(rows, t, p, mv), facing(rows, t, p))
+    key = (movement10(mv, direction(rows, t, p, mv)), facing(rows, t, p))
     return None if UNKNOWN in key else key
 
 

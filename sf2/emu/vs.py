@@ -73,16 +73,38 @@ def _controllable(bridge) -> bool:
     return walk["p1_x"] != idle["p1_x"] and walk["p2_x"] != idle["p2_x"]
 
 
+def cursor_plans(t1: int, t2: int) -> List[List[Tuple[int, int]]]:
+    """Orders of (player, cell) cursor walks that end with 1P on ``t1`` and 2P on ``t2``, tried in turn. A cursor
+    cannot step onto the other's, so: 1P first, or 2P first (1P's pick is where 2P's cursor starts, Ken), or, for a
+    swap (1P wants Ken while 2P wants Ryu, 2026-10-01), 2P parked on a free cell first."""
+    plans = [[(1, t1), (2, t2)], [(2, t2), (1, t1)]]
+    parks = [c for c in range(8) if c not in (t1, t2, CURSOR_START[1], CURSOR_START[2])]
+    plans += [[(2, c), (1, t1), (2, t2)] for c in parks]
+    return plans
+
+
+def _pick_both(bridge, t1: int, t2: int) -> None:
+    """Walk both select cursors to (t1, t2), trying cursor_plans from the select screen until one gets there."""
+    at = bridge.save_state()
+    for i, plan in enumerate(cursor_plans(t1, t2)):
+        if i:
+            bridge.load_state(at)
+        try:
+            for player, cell in plan:
+                _walk_cursor(bridge, player, cell)
+            return
+        except RuntimeError:
+            continue
+    raise RuntimeError("no cursor plan reaches 1P %d / 2P %d" % (t1, t2))
+
+
 def boot_vs(bridge, p1: str, p2: str) -> bytes:
     """Reset, go to VS BATTLE, pick ``p1`` / ``p2``, and return the savestate of the first frame both answer the
     stick in round 1. Replaces the bridge's VARS with VARS."""
     bridge.set_vars(VARS)
     bridge.reset()
     bridge.run(_frames(MENU))
-    # a cursor cannot step onto the other's: when 1P's pick is where 2P's cursor starts (Ken), 2P moves first
-    order = (2, 1) if IDS[p1] == CURSOR_START[2] else (1, 2)
-    for player in order:
-        _walk_cursor(bridge, player, IDS[p1 if player == 1 else p2])
+    _pick_both(bridge, IDS[p1], IDS[p2])
     jab = [["y"]] * 2 + [[]] * PICK_WAIT
     bridge.run(jab, p2=jab)
     bridge.run(_frames([("start", 2), ("-", HANDICAP_WAIT)]))

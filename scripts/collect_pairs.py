@@ -6,6 +6,11 @@ once as the memory budget allows.
 
     python scripts/collect_pairs.py --out rollouts/pairs --games 3                       # all 56 pairs
     python scripts/collect_pairs.py --out /tmp/x --games 1 --pairs ryu:ken,ken:ryu        # a smoke
+    python scripts/collect_pairs.py --mode vs --out rollouts/pairs2p --games 1           # Plan B round 1
+
+--mode vs (Plan B): 2P versus, BOTH controllers ours, each driven by its own character's list and seeded cycle
+(sf2.data.pairs_collect.play_both); rows record controller p1 / p2. Needs states/vs_<A>_vs_<B>.state
+(scripts/make_vs_pair_states.py).
 
 Writes <out>/<A>_vs_<B>/{images/, ram/, pairs.jsonl, games.jsonl, stop.json} (sf2.data.pairs_collect_io) and
 <out>/run.json; process logs <log-dir>/<A>_vs_<B>.log. Re-running the same command resumes from the committed games.
@@ -29,7 +34,8 @@ from sf2.data import pairs_moves as PM
 from sf2.data.action_codes import EXTRA_NAMES, EXTRA_VARS
 from sf2.emu.vs import NAMES, VARS
 from sf2.eval.budget import Budget
-from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight
+from sf2.eval.runner import exit_on_sigterm, fan_out, open_fight, savestate
+from make_vs_pair_states import vs_state
 
 CHARS = ("blanka", "chunli", "dhalsim", "guile", "honda", "ken", "ryu", "zangief")
 GAMES = 3
@@ -62,21 +68,30 @@ def rss_of(pid: int) -> float:
     return int(out) * 1024 / 1e9 if out.isdigit() else 0.0
 
 
+def state_path(mode: str, a: str, b: str) -> str:
+    return vs_state(a, b) if mode == "vs" else savestate(a, b)
+
+
 def play_one(args, a: str, b: str, port: int) -> int:
     base = os.path.join(args.out, IO.pair_name(a, b))
     bands = L.poke_bands()
-    words = list(PM.moves(a))
+    chars = {1: a, 2: b}
+    words = {p: list(PM.moves(c)) for p, c in chars.items()}
     t0 = time.time()
-    with open_fight(a, b, port, args.rom) as (br, state):
+    with open_fight(a, b, port, args.rom, state=state_path(args.mode, a, b)) as (br, state):
         br.set_vars(VARS + EXTRA_VARS)
         proxy = C.CapturingBridge(br, ALL_NAMES)
 
         def play(game: int, sampler) -> dict:
             proxy.sink = sampler.feed
-            cycle = PM.Cycle(words, random.Random("cycle:%d:%s:%s:%d" % (args.seed, a, b, game)))
-            out = PC.play_directed(proxy, ALL_NAMES, a, cycle, state,
-                                   random.Random("start:%d:%s:%s:%d" % (args.seed, a, b, game)),
-                                   lambda: len(sampler.rows))
+            start = random.Random("start:%d:%s:%s:%d" % (args.seed, a, b, game))
+            if args.mode == "vs":
+                cycles = {p: PM.Cycle(words[p], random.Random("cycle%d:%d:%s:%s:%d" % (p, args.seed, a, b, game)))
+                          for p in chars}
+                out = PC.play_both(proxy, ALL_NAMES, chars, cycles, state, start, lambda: len(sampler.rows))
+            else:
+                cycle = PM.Cycle(words[1], random.Random("cycle:%d:%s:%s:%d" % (args.seed, a, b, game)))
+                out = PC.play_directed(proxy, ALL_NAMES, a, cycle, state, start, lambda: len(sampler.rows))
             proxy.sink = None
             return out
 
@@ -86,7 +101,8 @@ def play_one(args, a: str, b: str, port: int) -> int:
         try:
             stop = IO.collect_pair(base, play, a, b, args.games, args.seed, bands, ring=args.ring,
                                    per_game=args.per_game, mem_cap_gb=args.mem_cap_gb, rss_gb=rss,
-                                   log=lambda m: print(m, flush=True))
+                                   log=lambda m: print(m, flush=True),
+                                   controllers=PC.VS_SLOTS if args.mode == "vs" else PC.SLOTS)
         except IO.MemoryCapExceeded as e:
             print("STOP:", e, flush=True)
             return 3
@@ -97,6 +113,8 @@ def play_one(args, a: str, b: str, port: int) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=os.path.join("rollouts", "pairs"))
+    ap.add_argument("--mode", choices=("directed", "vs"), default="directed",
+                    help="directed: player 1 ours vs the CPU; vs: Plan B, 2P versus, both ours")
     ap.add_argument("--pairs", default="all", help="all, or A:B,A:B,... (A = player 1, directed)")
     ap.add_argument("--games", type=int, default=GAMES, help="games per ordered pair (the fixed budget)")
     ap.add_argument("--per-game", type=int, default=PC.PER_GAME)
@@ -115,18 +133,19 @@ def main() -> int:
     if args.one:
         return play_one(args, args.one[0], args.one[1], int(args.one[2]))
     pairs = parse_pairs(args.pairs)
-    missing = [p for p in pairs if not os.path.exists(os.path.join("states", "p1_%s_vs_%s.state" % p))]
+    missing = [p for p in pairs if not os.path.exists(state_path(args.mode, *p))]
     if missing:
-        raise SystemExit("no savestate for %s: run scripts/make_pair_states.py" % missing)
+        raise SystemExit("no savestate for %s: run scripts/make_%spair_states.py" % (
+            missing, "vs_" if args.mode == "vs" else ""))
     if args.workers < 1 or len(pairs) > PORTS["pairs"][1]:
         raise SystemExit("--workers must be >= 1 and at most %d pairs (one port each)" % PORTS["pairs"][1])
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "run.json"), "w") as f:
-        json.dump({"pairs": ["%s:%s" % p for p in pairs], "games": args.games, "per_game": args.per_game,
+        json.dump({"mode": args.mode, "pairs": ["%s:%s" % p for p in pairs], "games": args.games, "per_game": args.per_game,
                    "ring": args.ring, "seed": args.seed, "short": C.SHORT, "lag": C.LAG,
-                   "moves": {c: list(PM.moves(c)) for c in sorted({a for a, _ in pairs})},
+                   "moves": {c: list(PM.moves(c)) for c in sorted({c for p in pairs for c in p})},
                    "started": time.strftime("%Y-%m-%d %H:%M:%S")}, f, indent=1)
-    common = ["--out", args.out, "--games", str(args.games), "--per-game", str(args.per_game), "--ring",
+    common = ["--mode", args.mode, "--out", args.out, "--games", str(args.games), "--per-game", str(args.per_game), "--ring",
               str(args.ring), "--seed", str(args.seed), "--mem-cap-gb", str(args.mem_cap_gb)] + (
               ["--rom", args.rom] if args.rom else [])
     # one port per pair (never shared); at most ``workers`` at once (the budget's job_gb * workers)

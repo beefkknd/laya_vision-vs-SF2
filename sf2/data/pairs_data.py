@@ -6,19 +6,22 @@
 <out>/<question>/{train,test}.jsonl
 <out>/build.json                   the counts per cell and per question, the shortfalls, the sources
 
-Questions: movement (movement + direction in one answer, MOVEMENT_ANSWERS), facing, air, distance
-(sf2.data.pairs_labels). A row is about ONE fighter: slot 1 (player 1, controller "directed") or slot 2 (player 2,
-"cpu"); it records game, pair [A, B], slot, controller, char, opp and all five labels.
+Questions: movement (the owner's 10 grid movements, sf2.data.pairs_labels.movement10: walk split toward / away, jump
+not), facing, air, distance (sf2.data.pairs_labels). A row is about ONE fighter: slot 1 (player 1) or slot 2 (player
+2); controller "directed" / "cpu" (P1 vs CPU) or "p1" / "p2" (Plan B, both ours); it records game, pair [A, B], slot,
+controller, char, opp and all five labels.
 
-Selection (the one set every question file is cut from): pairs of committed games only; split by game (game % 3 == 2
-test, else train); per cell (char, controller, movement, direction, facing) at most CAPS[split] rows, taken round-robin
-over the (pair, game) groups in a seeded order so they spread over games and opponents. Shortfalls are reported, never
+Selection (the one set every question file is cut from): pairs of committed games only; split by whole game (Plan B:
+crc32 of "<A>_vs_<B>:<game>" % 3 == 2 test, else train - by match, so round 1's games (all game 0) already give both
+splits); per grid cell (char, movement10, facing) at most CAPS[split] rows, taken round-robin over the (pair, game)
+groups in a seeded order so they spread over games and opponents. Shortfalls are reported, never
 padded. A question file leaves out the rows whose answer to it is unknown (distance with an impossible x).
 """
 import collections
 import json
 import os
 import random
+import zlib
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 from . import pairs_collect_io as IO
@@ -28,24 +31,21 @@ from .movement_collect import LAG
 CAP = 60
 CAPS = {"train": 40, "test": 20}
 SPLIT_MOD, TEST_REST = 3, 2
-MOVEMENT_ANSWERS = ("stand", "walk toward", "walk away", "crouch", "jump toward", "jump away", "jump up", "attack",
-                    "special", "block", "hit", "down")
+MOVEMENT_ANSWERS = L.MOVEMENTS10
 QUESTION_ANSWERS: Dict[str, Tuple[str, ...]] = {"movement": MOVEMENT_ANSWERS, "facing": L.FACINGS, "air": L.AIRS,
                                                 "distance": L.DISTANCES}
 FILES = ("train", "test")
 LABEL_KEYS = ("movement", "direction", "facing", "air", "distance")
 
 
-def split_of_game(game: int) -> str:
-    return "test" if game % SPLIT_MOD == TEST_REST else "train"
+def split_of_game(pair_name: str, game: int) -> str:
+    """By whole game (match): the same game of the same ordered pair is always on one side."""
+    h = zlib.crc32(("%s:%d" % (pair_name, game)).encode())
+    return "test" if h % SPLIT_MOD == TEST_REST else "train"
 
 
 def movement_answer(mv: str, direction: str) -> str:
-    if mv == "walk":
-        return "walk " + direction
-    if mv == "jump":
-        return "jump up" if direction == "none" else "jump " + direction
-    return mv
+    return L.movement10(mv, direction)
 
 
 def answer(question: str, p: Dict) -> str:
@@ -54,27 +54,28 @@ def answer(question: str, p: Dict) -> str:
     return p[question]
 
 
-def cell(p: Dict) -> Tuple[str, str, str, str, str]:
-    return (p["char"], p["controller"], p["movement"], p["direction"], p["facing"])
+def cell(p: Dict) -> Tuple[str, str, str]:
+    """The owner's grid cell: (character, movement10, facing); both players we control pool into it."""
+    return (p["char"], L.movement10(p["movement"], p["direction"]), p["facing"])
 
 
-CONTROLLERS = ("directed", "cpu")
+def split_of(p: Dict) -> str:
+    return split_of_game(p["pair_name"], p["game"])
 
 
-def universe(chars: Iterable[str], caps: Dict[str, int] = CAPS,
-             controllers: Sequence[str] = CONTROLLERS) -> List[Tuple]:
-    """Every (split, char, controller, movement, direction, facing) cell a full collection could fill."""
-    combos = [(m, "none") for m in L.MOVEMENTS if m not in ("walk", "jump")]
-    combos += [("walk", d) for d in ("toward", "away")] + [("jump", d) for d in L.DIRECTIONS]
-    return [(s, c, ctl, m, d, f) for s in caps for c in sorted(chars) for ctl in controllers
-            for m, d in combos for f in L.FACINGS]
+CONTROLLERS = ("directed", "cpu", "p1", "p2")
+
+
+def universe(chars: Iterable[str], caps: Dict[str, int] = CAPS) -> List[Tuple]:
+    """Every (split, char, movement10, facing) cell a full collection could fill: 8 x 20 per split."""
+    return [(s, c, m, f) for s in caps for c in sorted(chars) for m in L.MOVEMENTS10 for f in L.FACINGS]
 
 
 def select(pairs: Sequence[Dict], caps: Dict[str, int] = CAPS, seed: int = 0) -> List[Dict]:
     """At most caps[split] per (split, cell), round-robin over (pair, game) groups in a seeded order."""
     groups: Dict[Tuple, Dict[Tuple, List[Dict]]] = collections.defaultdict(lambda: collections.defaultdict(list))
     for p in pairs:
-        groups[(split_of_game(p["game"]),) + cell(p)][(p["pair_name"], p["game"])].append(p)
+        groups[(split_of(p),) + cell(p)][(p["pair_name"], p["game"])].append(p)
     out = []
     for key in sorted(groups):
         rng = random.Random("%d:%s" % (seed, "|".join(key)))
@@ -99,7 +100,7 @@ def row_of(question: str, p: Dict) -> Dict:
     a = answer(question, p)
     rid = "pairs_%s_g%04d_s%d_t%05d" % (p["pair_name"], p["game"], p["slot"], p["t"])
     return dict({"id": "%s-%s" % (rid, question), "decision": rid, "question_key": question,
-                 "answer": a, "label": QUESTION_ANSWERS[question].index(a), "split": split_of_game(p["game"]),
+                 "answer": a, "label": QUESTION_ANSWERS[question].index(a), "split": split_of(p),
                  "pair": [p["pair_name"].split("_vs_")[0], p["pair_name"].split("_vs_")[1]],
                  "pair_name": p["pair_name"], "images": ["frames/%s/%s" % (p["pair_name"], n) for n in p["images"]]},
                 **{k: p[k] for k in ("game", "slot", "controller", "char", "opp", "t", "k_prev", "k_now", "stage",
@@ -109,6 +110,8 @@ def row_of(question: str, p: Dict) -> Dict:
 def pair_problems(p: Dict, img_dir: str) -> List[str]:
     where = "%s g%s s%s t%s" % (p.get("pair_name"), p.get("game"), p.get("slot"), p.get("t"))
     out = []
+    if L.movement10(p.get("movement", ""), p.get("direction", "")) not in L.MOVEMENTS10:
+        out.append("%s: movement %r / direction %r is no grid cell" % (where, p.get("movement"), p.get("direction")))
     for k, answers in L.QUESTIONS.items():
         if p.get(k) not in answers and not (k == "distance" and p.get(k) == L.UNKNOWN):
             out.append("%s: %s %r is not an answer" % (where, k, p.get(k)))
@@ -132,7 +135,8 @@ def collection_pairs(root: str) -> Tuple[List[Dict], Dict[str, int], List[str]]:
 
 def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
           controllers: Sequence[str] = CONTROLLERS) -> Dict:
-    """controllers: whose rows to keep (owner 2026-10-01: label only the player we control -> ("directed",))."""
+    """controllers: whose rows to keep (owner 2026-10-01: label only the player we control -> ("directed",); Plan B
+    controls both: ("p1", "p2"), the default keeps every row)."""
     bad = set(controllers) - set(CONTROLLERS)
     if bad or not controllers:
         raise ValueError("controllers must be a non-empty subset of %s, got %s" % (CONTROLLERS, controllers))
@@ -159,12 +163,12 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
             mine = [r for r in rows if r["split"] == f]
             _write_jsonl(os.path.join(qd, f + ".jsonl"), mine)
             per_q[q][f] = dict(collections.Counter(r["answer"] for r in mine))
-    counts = collections.Counter((split_of_game(p["game"]),) + cell(p) for p in chosen)
+    counts = collections.Counter((split_of(p),) + cell(p) for p in chosen)
     chars = {c for n in names for c in n.split("_vs_")}
-    short = {"|".join(k): caps[k[0]] - counts[k] for k in universe(chars, caps, controllers) if counts[k] < caps[k[0]]}
+    short = {"|".join(k): caps[k[0]] - counts[k] for k in universe(chars, caps) if counts[k] < caps[k[0]]}
     meta = {"root": os.path.abspath(root), "pairs": names, "caps": caps, "seed": seed, "lag": LAG,
             "controllers": list(controllers),
-            "split": "game %% %d == %d test" % (SPLIT_MOD, TEST_REST), "collected": len(pairs),
+            "split": "crc32(pair:game) %% %d == %d test" % (SPLIT_MOD, TEST_REST), "collected": len(pairs),
             "selected": len(chosen), "dropped_uncommitted": dropped,
             "cells": {"|".join(k): n for k, n in sorted(counts.items())}, "short": short, "questions": per_q}
     with open(os.path.join(out, "build.json"), "w") as f:
@@ -180,22 +184,20 @@ def _write_jsonl(path: str, rows: Iterable[Dict]) -> None:
 
 
 def fill_report(pairs: Sequence[Dict], chars: Iterable[str], cap: int = CAP) -> Dict:
-    """How full the buckets (char, controller, movement, direction, facing) are, over every collected pair (both
-    splits): per bucket min(n, cap) / cap, summed per character, per (character, controller) and overall, with the
-    empty buckets named."""
+    """How full the grid is over every collected pair (both splits, both controllers): per cell (char, movement10,
+    facing) min(n, cap) / cap, per character and overall, with the empty cells named and the raw counts."""
     n = collections.Counter(cell(p) for p in pairs)
-    buckets = sorted({k[1:] for k in universe(chars, {"all": cap})})
-    filled = {b: min(n[b], cap) for b in buckets}
+    cells = sorted({k[1:] for k in universe(chars, {"all": cap})})
+    filled = {c: min(n[c], cap) for c in cells}
 
     def pct(keys):
         keys = list(keys)
-        return round(100.0 * sum(filled[b] for b in keys) / (cap * len(keys)), 1) if keys else None
-    out = {"cap": cap, "buckets": len(buckets), "overall_pct": pct(buckets), "per_char": {}, "zero": {}}
-    for c in sorted({b[0] for b in buckets}):
-        mine = [b for b in buckets if b[0] == c]
-        out["per_char"][c] = {"all": pct(mine), **{ctl: pct(b for b in mine if b[1] == ctl)
-                                                   for ctl in ("directed", "cpu")}}
-        out["zero"][c] = ["%s %s %s %s" % b[1:] for b in mine if not n[b]]
-    out["per_controller"] = {ctl: pct(b for b in buckets if b[1] == ctl) for ctl in ("directed", "cpu")}
-    out["counts"] = {"|".join(b): n[b] for b in buckets}
+        return round(100.0 * sum(filled[c] for c in keys) / (cap * len(keys)), 1) if keys else None
+    out = {"cap": cap, "cells": len(cells), "overall_pct": pct(cells), "per_char": {}, "zero": {}, "pct": {}}
+    for ch in sorted({c[0] for c in cells}):
+        mine = [c for c in cells if c[0] == ch]
+        out["per_char"][ch] = pct(mine)
+        out["zero"][ch] = ["%s %s" % c[1:] for c in mine if not n[c]]
+        out["pct"][ch] = {"%s|%s" % c[1:]: pct([c]) for c in mine}
+    out["counts"] = {"|".join(c): n[c] for c in cells}
     return out

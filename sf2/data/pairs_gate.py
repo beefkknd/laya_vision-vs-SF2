@@ -4,8 +4,8 @@ labels     every row of every question file: its five labels re-derived from the
            ``independent_labels`` (written from the prereg / pairs_labels docstring, deliberately not importing
            sf2.data.pairs_labels) at the displayed row t must match 100%; the question's answer and label index must
            follow from them; the images must be the captures t - 4 + LAG and t + LAG of its game.
-caps       per (split, char, controller, movement, direction, facing) at most the build's cap; per (pair, game, slot,
-           movement, direction, facing) at most PER_GAME (re-counted here).
+caps       per (split, char, movement10, facing) - the owner's grid cell - at most the build's cap; per (pair, game,
+           slot, movement10, facing) at most PER_GAME (re-counted here; movement10 re-derived here too).
 alignment  RAM-to-image lag 1 on a sample: the HUD clock digits change between a pair's two images iff the RAM timer
            changed between the rows they show (sf2.data.movement_gate.digits_changed / alignment_verdict).
 disk       every image file the collection wrote < max_gb (10 GB).
@@ -21,6 +21,8 @@ from . import movement_collect_io as MIO
 from .movement_gate import LAGS, MIN_AGREE, MIN_AGREE_DISC, MIN_DISC, SAMPLE, alignment_verdict, digits_changed
 from .pairs_collect import PER_GAME
 from .pairs_data import FILES, QUESTION_ANSWERS, answer, cell, split_of_game
+
+CONTROLLER_OF = ({1: "directed", 2: "cpu"}, {1: "p1", 2: "p2"})   # P1 vs CPU, or Plan B (both ours)
 
 GATES = ("labels", "caps", "alignment", "disk")
 MAX_GB = 10.0
@@ -50,7 +52,7 @@ def independent_labels(rows: List[Dict[str, int]], t: int, p: int, bands: Dict[s
     elif state == 10:
         mv = "attack"
     elif state == 4 or r[me + "y"] != 192:
-        mv = "jump"
+        mv = "attack" if r[me + "aid"] != 0 else "jump"           # Plan B: a jump attack (box out) is an attack
     elif state == 2:
         mv = "crouch"
     elif state == 0 and moved is not None:
@@ -113,8 +115,8 @@ def label_check(d: Dict, bands: Dict[str, int]) -> Dict:
                 checked += 1
                 ok = (all(got[k] == r[k] for k in got) and r["answer"] == answer(q, got)
                       and QUESTION_ANSWERS[q][r["label"]] == r["answer"] and r["images"] == want_imgs
-                      and r["split"] == f == split_of_game(r["game"])
-                      and r["controller"] == {1: "directed", 2: "cpu"}[r["slot"]])
+                      and r["split"] == f == split_of_game(r["pair_name"], r["game"])
+                      and any(r["controller"] == m[r["slot"]] for m in CONTROLLER_OF))
                 if not ok:
                     bad += 1
                     if len(examples) < 10:
@@ -127,8 +129,9 @@ def cap_check(d: Dict) -> Dict:
     caps = d["meta"]["caps"]
     rows = d["files"]["movement"]["train"] + d["files"]["movement"]["test"]
     per_cell = collections.Counter((r["split"],) + cell(r) for r in rows)
-    per_game = collections.Counter((r["pair_name"], r["game"], r["slot"], r["movement"], r["direction"], r["facing"])
-                                   for r in rows)
+    def grid(r):
+        return ("walk " + r["direction"]) if r["movement"] == "walk" else r["movement"]
+    per_game = collections.Counter((r["pair_name"], r["game"], r["slot"], grid(r), r["facing"]) for r in rows)
     over = ["%s: %d > %d" % ("|".join(k), n, caps[k[0]]) for k, n in per_cell.items() if n > caps[k[0]]]
     over += ["%s: %d > %d per game" % ("|".join(map(str, k)), n, PER_GAME) for k, n in per_game.items()
              if n > PER_GAME]

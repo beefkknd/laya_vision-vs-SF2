@@ -214,3 +214,147 @@ def test_the_memory_cap_stops_the_pair(tmp_path):
         IO.collect_pair(str(tmp_path / "a"), fake_play(), "ryu", "ken", 3, 0, BANDS, mem_cap_gb=1.0,
                         rss_gb=lambda: 2.0, log=lambda *a: None)
     assert len(IO.committed(str(tmp_path / "a"))) == 1
+
+
+# ---- Plan B: 2P versus, both controllers ours ----------------------------------------------------------------------
+
+BUTTONS_PHYS = ("y", "x", "l", "b", "a", "r")
+
+
+class Bridge2:
+    """Two controllers: each player is busy (attack state) for 10 frames after its own button press; player 2 is on
+    the right facing left; every frame's inputs per controller are recorded. No CPU: nothing moves on its own."""
+    END = 1200
+
+    def __init__(self):
+        self.load_state(b"")
+
+    def load_state(self, state):
+        self.f, self.busy, self.inputs = 0, {1: 0, 2: 0}, {1: [], 2: []}
+
+    def _row(self):
+        r = synth(0)
+        r.update(p1_state=0x0A if self.busy[1] else 0, p2_state=0x0A if self.busy[2] else 0, p1_x=200, p2_x=300,
+                 p1_facing=0x40, p2_facing=0x00, p1_y=GROUND_Y, p2_y=GROUND_Y,
+                 result=1 if self.f >= self.END else 0)
+        return [r[n] for n in NAMES_X]
+
+    def run(self, frames, p2=None):
+        from sf2.emu.mesen import Obs
+        if p2 is None or len(p2) != len(frames):
+            raise AssertionError("both controllers must be driven every frame")
+        rams = [self._row()]
+        for b1, b2 in zip(frames, p2):
+            self.f += 1
+            for p, b in ((1, b1), (2, b2)):
+                self.inputs[p].append(list(b))
+                if any(x in b for x in BUTTONS_PHYS):
+                    self.busy[p] = 10
+                elif self.busy[p]:
+                    self.busy[p] -= 1
+            rams.append(self._row())
+        return Obs(rams)
+
+
+class Stream2(Stream):
+    def run(self, frames, p2=None):
+        obs = self.inner.run(frames, p2=p2)
+        self.rows += obs.rams if not self.rows else obs.rams[1:]
+        return obs
+
+
+def _play_both(seed=5):
+    inner = Bridge2()
+    br = Stream2(inner)
+    chars = {1: "ryu", 2: "zangief"}
+    cycles = {p: PM.Cycle(list(PM.moves(chars[p])), random.Random("%d:%d" % (seed, p))) for p in (1, 2)}
+    out = PC.play_both(br, NAMES_X, chars, cycles, b"", random.Random(0), lambda: len(br.rows))
+    return inner, br, chars, out
+
+
+def test_play_both_drives_each_side_through_its_own_cycle():
+    inner, br, chars, out = _play_both()
+    assert out["result"] == "win"
+    for p in (1, 2):
+        mine = [m for m in out["moves"] if m[3] == p]
+        expect = PM.Cycle(list(PM.moves(chars[p])), random.Random("5:%d" % p))
+        assert [m[0] for m in mine] == [expect.next() for _ in mine]
+        assert len(mine) > len(PM.moves(chars[p]))           # its cycle starts again
+        ks = [(m[1], m[2]) for m in mine]
+        assert all(a < b for a, b in ks) and all(ks[i][1] == ks[i + 1][0] for i in range(len(ks) - 1))
+        assert out["cycle_rounds"][p] >= 2
+
+
+def test_play_both_executes_each_word_in_full_on_its_own_controller_and_nothing_else():
+    inner, br, chars, out = _play_both()
+    first_k = min(m[1] for m in out["moves"])
+    rows = [dict(zip(NAMES_X, r)) for r in br.rows]
+    for p in (1, 2):
+        mine = [m for m in out["moves"] if m[3] == p]
+        sent = inner.inputs[p]
+        for i, (w, k0, k1, _) in enumerate(mine[:-1]):
+            want = PC.press_frames(chars[p], w, rows[k0], p)
+            got = sent[k0:k0 + len(want)]
+            assert got == want, (p, w)
+            # after the word's input and until its next word: nothing pressed (no CPU, no filler)
+            assert all(f == [] for f in sent[k0 + len(want):k1]), (p, w)
+        assert all(f == [] for f in sent[:first_k])       # the random idle start
+
+
+def test_press_frames_resolve_forward_per_player():
+    r = dict(synth(0), p1_x=200, p2_x=300, p1_facing=0x40, p2_facing=0x00)
+    assert PC.press_frames("ryu", "forward", r, 1)[0] == ["right"]
+    assert PC.press_frames("ryu", "forward", r, 2)[0] == ["left"]
+    assert PC.press_frames("ryu", "block_high", r, 2)[0] == ["right"]      # back = away from player 1
+    swapped = dict(r, p1_x=320)                                            # crossed over: x decides walks
+    assert PC.press_frames("ryu", "forward", swapped, 2)[0] == ["right"]
+    assert PC.can_act(dict(r, p2_state=0x0A), 1) and not PC.can_act(dict(r, p2_state=0x0A), 2)
+
+
+def test_executed_reads_the_slot_it_is_asked_about():
+    base = dict(synth(0), p1_state=0, p2_state=0, p1_aid=0, p2_aid=0, result=0)
+    rows = [base, dict(base, p2_state=0x0A, p2_aid=4), base]
+    assert PM.executed("ryu", "hp", rows, 2)["status"] == "done"
+    assert PM.executed("ryu", "hp", rows, 1)["status"] != "done"
+    assert PM.as_p1(rows[1], 2)["p1_aid"] == 4 and PM.as_p1(rows[1], 2)["p2_aid"] == 0
+    with pytest.raises(ValueError):
+        PM.as_p1(rows[1], 3)
+
+
+def test_vs_sampler_labels_both_players_as_ours():
+    s = PC.PairSampler(0, {1: "ryu", 2: "ken"}, random.Random(0), saver({}), BANDS, controllers=PC.VS_SLOTS)
+    feed(s, 600)
+    pairs = s.finish()
+    assert {(p["slot"], p["controller"]) for p in pairs} == {(1, "p1"), (2, "p2")}
+    with pytest.raises(ValueError):
+        PC.PairSampler(0, {1: "ryu", 2: "ken"}, random.Random(0), saver({}), BANDS, controllers={1: "p1"})
+
+
+def test_vs_move_log_has_both_slots_with_their_status(tmp_path):
+    def play(game, sampler):
+        for k in range(300):
+            sampler.feed(dict(synth(k), timer=k % 256), None if k == 0 else image(k))
+        return {"result": "win", "frames": 300, "moves": [["hp", 0, 20, 1], ["crouch", 27, 35, 2]]}
+    base = str(tmp_path / "ryu_vs_ken")
+    IO.collect_pair(base, play, "ryu", "ken", 1, 0, BANDS, log=lambda *a: None, controllers=PC.VS_SLOTS)
+    g = IO.committed(base)[0]
+    assert [m[4] for m in g["moves"]] == [1, 2]
+    # synth: in frames 27-35 player 2 crouches (state 0x02) while player 1 jumps: done only when read as player 2
+    assert g["moves"][1][3] == "done"
+    rows = [dict(synth(k), timer=k % 256) for k in range(300)]
+    assert PM.executed("ken", "crouch", rows[27:36], 1)["status"] != "done"
+    assert {p["controller"] for p in IO.committed_pairs(base)[0]} == {"p1", "p2"}
+
+
+def test_cursor_plans_cover_the_swap_with_a_parked_player_2():
+    from sf2.emu.vs import CURSOR_START, cursor_plans
+    from sf2.vocab import IDS
+    plans = cursor_plans(IDS["ken"], IDS["ryu"])             # 1P wants 2P's start, 2P wants 1P's start
+    assert plans[:2] == [[(1, IDS["ken"]), (2, IDS["ryu"])], [(2, IDS["ryu"]), (1, IDS["ken"])]]
+    parked = [p for p in plans if len(p) == 3]
+    assert parked and all(p[0][0] == 2 and p[0][1] not in (IDS["ken"], IDS["ryu"], *CURSOR_START.values())
+                          and p[1:] == [(1, IDS["ken"]), (2, IDS["ryu"])] for p in parked)
+    for a in range(8):
+        for b in range(8):
+            if a != b:
+                assert all(p[-2:] in ([(1, a), (2, b)], [(2, b), (1, a)]) for p in cursor_plans(a, b))

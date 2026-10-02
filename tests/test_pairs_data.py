@@ -38,7 +38,7 @@ def play(lag=1, n=500):
     return run
 
 
-def collection(root, lag=1, games=3, pairs=(("ryu", "ken"), ("ken", "ryu"))):
+def collection(root, lag=1, games=4, pairs=(("ryu", "ken"), ("ken", "ryu"))):
     for a, b in pairs:
         IO.collect_pair(os.path.join(root, IO.pair_name(a, b)), play(lag), a, b, games, 0, BANDS, per_game=3,
                         log=lambda *x: None)
@@ -69,7 +69,11 @@ def test_split_by_game_and_caps_per_cell(built):
     root, out, meta = built
     rows = IO.read_jsonl(os.path.join(out, "movement", "train.jsonl"))
     test = IO.read_jsonl(os.path.join(out, "movement", "test.jsonl"))
-    assert {r["game"] % 3 for r in rows} == {0, 1} and {r["game"] % 3 for r in test} == {2}
+    # by whole game (match): each (pair, game) on one side only, as crc32("<pair>:<game>") % 3 says
+    assert rows and test
+    assert {(r["pair_name"], r["game"]) for r in rows}.isdisjoint({(r["pair_name"], r["game"]) for r in test})
+    for r in rows + test:
+        assert r["split"] == D.split_of_game(r["pair_name"], r["game"])
     cells = {}
     for r in rows:
         cells[D.cell(r)] = cells.get(D.cell(r), 0) + 1
@@ -80,28 +84,42 @@ def test_split_by_game_and_caps_per_cell(built):
     assert len(spread) >= 2
 
 
-def test_movement_answer_combines_direction():
+def test_movement_answer_is_the_grid_movement():
     assert D.movement_answer("walk", "toward") == "walk toward"
-    assert D.movement_answer("jump", "none") == "jump up"
-    assert D.movement_answer("jump", "away") == "jump away"
+    assert D.movement_answer("walk", "away") == "walk away"
+    assert D.movement_answer("jump", "none") == "jump"            # the jump's direction is not a cell
+    assert D.movement_answer("jump", "away") == "jump"
     assert D.movement_answer("attack", "none") == "attack"
+    assert D.MOVEMENT_ANSWERS == ("stand", "walk toward", "walk away", "crouch", "jump", "attack", "special",
+                                  "block", "hit", "down")
+
+
+def test_split_is_by_match_and_round_one_games_reach_both_splits():
+    names = ["%s_vs_%s" % (a, b) for a in "abcdefgh" for b in "abcdefgh" if a != b]
+    splits = [D.split_of_game(n, 0) for n in names]
+    assert splits.count("test") > 10 and splits.count("train") > 25          # game 0 of 56 matches: both splits
+    assert all(D.split_of_game(n, 0) == D.split_of_game(n, 0) for n in names)   # stable
 
 
 def test_build_reports_shortfalls_over_every_bucket(built):
     _, _, meta = built
-    assert "test|ken|cpu|down|none|left" in meta["short"]          # never seen at all: short by the whole cap
-    assert meta["short"]["test|ken|cpu|down|none|left"] == 2
+    assert "test|ken|down|left" in meta["short"]                   # never seen at all: short by the whole cap
+    assert meta["short"]["test|ken|down|left"] == 2
+    assert len(meta["short"]) <= 2 * 2 * 20                        # splits x chars x the 20 grid cells
 
 
 def test_fill_report(built):
     root, _, _ = built
     pairs, _, names = D.collection_pairs(root)
     rep = D.fill_report(pairs, ["ken", "ryu"], cap=3)
-    assert rep["buckets"] == 2 * 2 * 12 * 2
+    assert rep["cells"] == 2 * 10 * 2                               # chars x movements x facings
     assert 0 < rep["overall_pct"] < 100
-    assert "directed down none left" in rep["zero"]["ryu"]          # player 1 never goes down here
-    one = [p for p in pairs if D.cell(p) == ("ryu", "directed", "stand", "none", "right")]
-    assert rep["counts"]["ryu|directed|stand|none|right"] == len(one)
+    assert "down left" in rep["zero"]["ryu"]                        # nobody goes down here
+    one = [p for p in pairs if D.cell(p) == ("ryu", "stand", "right")]
+    assert rep["counts"]["ryu|stand|right"] == len(one)
+    assert rep["pct"]["ryu"]["stand|right"] == round(100.0 * min(len(one), 3) / 3, 1)
+    # both slots pool into a character's cells: ryu's cells count ryu as player 1 AND as player 2
+    assert {p["slot"] for p in pairs if p["char"] == "ryu"} == {1, 2}
 
 
 def test_the_gates_pass_on_a_clean_build(built):
@@ -175,7 +193,7 @@ def test_build_only_the_controlled_player(tmp_path):
             for r in IO.read_jsonl(os.path.join(out, q, f + ".jsonl"))]
     assert rows and {r["controller"] for r in rows} == {"directed"} and {r["slot"] for r in rows} == {1}
     assert meta["controllers"] == ["directed"]
-    assert not [k for k in meta["short"] if "|cpu|" in k]
+
 
 
 def test_build_refuses_unknown_controller(tmp_path):
@@ -183,3 +201,18 @@ def test_build_refuses_unknown_controller(tmp_path):
         D.build(str(tmp_path), str(tmp_path / "o"), controllers=("human",))
     with pytest.raises(ValueError):
         D.build(str(tmp_path), str(tmp_path / "o"), controllers=())
+
+
+def _cap_rows(facings):
+    return [{"split": "train", "char": "ryu", "movement": "jump", "direction": d, "facing": f, "pair_name": "ryu_vs_ken",
+             "game": 0, "slot": 1} for f, d in zip(facings, ["none", "toward", "away", "none", "toward", "away"])]
+
+
+def test_the_per_game_cap_counts_the_grid_cell_with_its_facing():
+    def gate(rows):
+        return G.cap_check({"meta": {"caps": {"train": 40, "test": 20}},
+                            "files": {"movement": {"train": rows, "test": []}}})["pass"]
+    # 3 right + 2 left jumps of one player in one game: two cells, each within PER_GAME (3)
+    assert gate(_cap_rows(["right"] * 3 + ["left"] * 2))
+    # 4 jumps facing right (any direction: the jump's direction is not a cell): over
+    assert not gate(_cap_rows(["right"] * 4))
