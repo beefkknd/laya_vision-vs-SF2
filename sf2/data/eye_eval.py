@@ -6,7 +6,9 @@
   "yes" rows (drawn in n-4 only / n only / both).
 - weighted_accuracy: the recall per answer weighted to real play (REAL_PLAY: the prereg's shares from the old U
   collection's RAM; q3's "attacking" 28.5% split between attack and special in the pool's natural ratio, the
-  dataset's build.json "candidates"; q5 has no real-play share and gets none).
+  dataset's build.json "candidates"; q5 has no real-play share and gets none). v2 (GROUP_SHARES): q3v2b attacking
+  28.5% split attack : special attack and moving 71.5% split block : walk : jump : stand : hit, q4v2b air 28% = high
+  and ground 72% split normal : low - each within its group by the pool's candidate ratio.
 - keep_combined: the mechanical keep rule - eye_all is kept only if every question's balanced accuracy is within
   MARGIN of its separate run on the same test set.
 """
@@ -18,9 +20,27 @@ from . import mv_eval as E
 MARGIN = 0.02
 REAL_PLAY = {"q1": {"yes": 0.035, "no": 0.965}, "q4": {"air": 0.28, "ground": 0.72}}
 Q3_MOVING, Q3_ATTACKING = 0.715, 0.285
+# v2 questions (Training v2): the old U shares per group, split within a group by the pool's candidate ratio
+GROUP_SHARES = {
+    "q3v2b": ((Q3_ATTACKING, ("attack", "special attack")),
+              (Q3_MOVING, ("block", "walk", "jump", "stand", "hit"))),
+    "q4v2b": ((0.28, ("high",)), (0.72, ("normal", "low"))),
+}
+
+
+def _group_weights(groups, candidates: Optional[Dict[str, int]]) -> Dict[str, float]:
+    out = {}
+    for share, answers in groups:
+        total = sum((candidates or {}).get(a, 0) for a in answers)
+        if not total:
+            raise ValueError("needs the pool's candidate counts for %s" % (answers,))
+        out.update({a: share * candidates[a] / total for a in answers})
+    return out
 
 
 def real_play_weights(question: str, candidates: Optional[Dict[str, int]] = None) -> Optional[Dict[str, float]]:
+    if question in GROUP_SHARES:
+        return _group_weights(GROUP_SHARES[question], candidates)
     if question == "q3":
         if not candidates or not (candidates.get("attack", 0) + candidates.get("special", 0)):
             raise ValueError("q3 needs the pool's attack / special candidate counts")

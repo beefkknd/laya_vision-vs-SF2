@@ -22,6 +22,12 @@ FAULTS = [
     ("q1: hard tags not broken down", EV, 'lambda r: (r.get("hard") or ["plain"]) if r["answer"] == "no" else [])',
      'lambda r: ["plain"] if r["answer"] == "no" else [])'),
     ("q1: n-4 only read as both", EV, 'else "n-4 only" if f == {"n-4"}', 'else "both" if f == {"n-4"}'),
+    ("v2 weights: q3v2b hit counted as attacking", EV, '(Q3_MOVING, ("block", "walk", "jump", "stand", "hit"))',
+     '(Q3_MOVING, ("block", "walk", "jump", "stand"))'),
+    ("v2 weights: q4v2b air share wrong", EV, '"q4v2b": ((0.28, ("high",)), (0.72, ("normal", "low")))',
+     '"q4v2b": ((1 / 3, ("high",)), (2 / 3, ("normal", "low")))'),
+    ("v2 weights: groups split equally", EV, "out.update({a: share * candidates[a] / total for a in answers})",
+     "out.update({a: share / len(answers) for a in answers})"),
 ]
 
 

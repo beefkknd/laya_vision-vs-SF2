@@ -25,6 +25,26 @@ def test_q3_weights_split_attacking_by_the_pool():
         V.real_play_weights("q3", None)
 
 
+def test_q3v2b_weights_split_each_old_group_by_the_pool():
+    # attacking 28.5% -> attack : special attack by the pool; moving 71.5% -> block : walk : jump : stand : hit
+    c = {"attack": 3, "special attack": 1, "block": 1, "walk": 1, "jump": 2, "stand": 4, "hit": 2}
+    w = V.real_play_weights("q3v2b", c)
+    assert w == pytest.approx({"attack": 0.285 * 0.75, "special attack": 0.285 * 0.25, "block": 0.715 * 0.1,
+                               "walk": 0.715 * 0.1, "jump": 0.715 * 0.2, "stand": 0.715 * 0.4, "hit": 0.715 * 0.2})
+    assert sum(w.values()) == pytest.approx(1.0)
+    with pytest.raises(ValueError):
+        V.real_play_weights("q3v2b", None)
+    with pytest.raises(ValueError):
+        V.real_play_weights("q3v2b", dict(c, block=0, walk=0, jump=0, stand=0, hit=0))
+
+
+def test_q4v2b_weights_air_is_high_ground_split_normal_low():
+    w = V.real_play_weights("q4v2b", {"high": 50, "normal": 3, "low": 1})
+    assert w == pytest.approx({"high": 0.28, "normal": 0.72 * 0.75, "low": 0.72 * 0.25})
+    with pytest.raises(ValueError):
+        V.real_play_weights("q4v2b", {"high": 1})
+
+
 def test_q5_has_no_real_play_weight():
     assert V.real_play_weights("q5") is None and V.weighted_accuracy({"close": 1.0}, None) is None
 
