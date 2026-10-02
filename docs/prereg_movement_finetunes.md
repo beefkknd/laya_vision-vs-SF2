@@ -212,3 +212,17 @@ should be it. Another problem is the fireball in the air. That is a real bug. We
   to real-play frequency. Real-play frequencies (CPU: moving / attack / special; fireball on screen or not) come from
   the old U collection's RAM (rollouts/u_perception), read-only - owner approved reading it. Plus a per-game check
   of the fireball run (fireball rows come from games 10-15, none rows from games 0-9).
+
+## Round 3 result (2026-10-02; trained on threebody, scored on the Mac; runs/mv3_act, runs/mv3_fireball)
+threebody's Hugging Face download of BASE hung (0-byte weights); the identical snapshot was copied from the Mac (sha256
+3122080...be68 matches) and the runs launched with HF_HUB_OFFLINE=1.
+
+| run | balanced acc | 2.5% lb | majority (bal / acc) | chance | recall | learned |
+|---|---|---|---|---|---|---|
+| mv3_act (3 answers) | 0.414 | 0.393 | moving .333 / .798 | .333 | moving .68, attack .34, special .23 | YES (weak) |
+| mv2_move collapsed to the same 3 answers | 0.413 | 0.393 | same | .333 | moving .74, attack .35, special .15 | YES |
+| mv3_fireball (none/left/right) | 0.345 | 0.315 | none .333 / .368 | .333 | none .00, left .76, right .27 | NO |
+
+- act: best val NLL 0.989 at step 1,000 of 1,972. No better than round 2's 10-answer model collapsed to 3 answers.
+- fireball: 860 training rows -> 3 epochs = 322 steps only; it never answers "none". Real-play weighted accuracy for
+  fireball would be about the share of "none" frames it gets right (96.5% of real frames have no fireball) - here 0.
