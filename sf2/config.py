@@ -46,8 +46,20 @@ BASE_MODEL = "thaitea/laya-vision-smolvlm-256m"
 # What laya-vision sees: 256x256 frames at their native pixels. sf2/data/frames.py pads the 256x224 screen to 256x256,
 # and these settings make laya's image prep an exact identity at that size (checked: max pixel difference 0). The
 # base checkpoint's own settings (image_size 512 via the processor's 2048 px LANCZOS hop) would upscale and resample.
+# 512 (scripts/train.py --image-size 512) is the same prep at twice the side: nearest-neighbour turns each source pixel
+# into an identical 2x2 block (exact, no resampling), so the encoder spends 64 tokens per frame instead of 16.
 IMAGE_SIZE = 256
-IMAGE_CFG = {"image_size": IMAGE_SIZE, "preprocess": "gpu", "image_interpolation": "nearest"}
+IMAGE_SIZES = (256, 512)
+
+
+def image_cfg(size: int = IMAGE_SIZE) -> dict:
+    """laya-vision's image settings (load_vlm overrides) for a frame side of ``size``; a new dict every call."""
+    if type(size) is not int or size not in IMAGE_SIZES:
+        raise ValueError("image size must be one of %s, got %r" % (IMAGE_SIZES, size))
+    return {"image_size": size, "preprocess": "gpu", "image_interpolation": "nearest"}
+
+
+IMAGE_CFG = image_cfg(IMAGE_SIZE)
 LAYA_VISION_REPO = "https://github.com/r33drichards/laya-vision"
 LAYA_VISION_COMMIT = "568feeeada793f70f736756b0f3a7643d1e75910"
 

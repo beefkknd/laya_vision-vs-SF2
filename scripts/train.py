@@ -1,6 +1,7 @@
 """LoRA-train base laya-vision (sf2.config.BASE_MODEL, SmolVLM-256M) on one or more dataset dirs. Always starts from
 the base checkpoint; no other init is supported. Images go in at 256x256 native pixels (sf2.config.IMAGE_CFG), no
-upscale; the saved checkpoint keeps those settings, so play loads them too.
+upscale; the saved checkpoint keeps those settings, so play loads them too. --image-size 512 instead upscales each
+frame by an exact nearest-neighbour 2x (sf2.config.image_cfg(512)): 64 image tokens per frame instead of 16.
 
     python scripts/train.py --out runs/all8 \\
         --data test_data/ryu --data test_data/ken --data test_data/chunli --data test_data/guile \\
@@ -29,7 +30,7 @@ import time
 
 import _path  # noqa: F401
 from sf2.data import lora
-from sf2.config import BASE_MODEL, IMAGE_CFG
+from sf2.config import BASE_MODEL, IMAGE_CFG, IMAGE_SIZE, IMAGE_SIZES, image_cfg
 from sf2.data import train_data as TD
 from sf2.data.train_data import (MIN_SAMPLED_TRAIN, MIN_SAMPLED_VAL, checkpoint_tags, coverage_problems, coverage_table,
                                  load_data, sampling_problems)
@@ -63,15 +64,26 @@ def parse_args(argv=None):
                     help="--balance sampling: train rows needed per dir (lowered only by a pre-registered decision)")
     ap.add_argument("--min-sampled-val", type=int, default=MIN_SAMPLED_VAL,
                     help="--balance sampling: validation rows needed per dir")
+    ap.add_argument("--image-size", type=int, choices=IMAGE_SIZES, default=IMAGE_SIZE,
+                    help="frame side laya-vision sees: 256 native pixels (default), or 512 = exact nearest 2x upscale")
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
     return ap.parse_args(argv)
 
 
 def init_source(args):
-    """(what to load, load kwargs): BASE with the stage-1 image settings, or a checkpoint as saved (its own config
-    carries its image settings, checked against IMAGE_CFG after loading)."""
-    return (args.init, {}) if args.init else (BASE_MODEL, IMAGE_CFG)
+    """(what to load, load kwargs): BASE with the image settings for --image-size, or a checkpoint as saved (its own
+    config carries its image settings, checked against image_cfg(--image-size) after loading)."""
+    return (args.init, {}) if args.init else (BASE_MODEL, image_cfg(args.image_size))
+
+
+def prep_problem(agent, want_cfg):
+    """None if the loaded agent's image prep is want_cfg (an image_cfg), else what differs."""
+    prep = agent.model.prep
+    got = (prep.image_size, prep.backend, prep.interpolation,
+           agent.processor.image_processor.max_image_size.get("longest_edge"))
+    want = (want_cfg["image_size"], want_cfg["preprocess"], want_cfg["image_interpolation"], want_cfg["image_size"])
+    return None if got == want else "image prep is %s, expected %s (sf2.config.image_cfg)" % (got, want)
 
 
 def check_init(path: str, tags) -> None:
@@ -149,14 +161,12 @@ def main():
     agent.cfg = dict(agent.cfg, **tags)      # saved in <out>/best/vlm_agent_config.json
     if init:
         agent.cfg["init_from"] = init
-    prep = agent.model.prep
-    got = (prep.image_size, prep.backend, prep.interpolation,
-           agent.processor.image_processor.max_image_size.get("longest_edge"))
-    want = (IMAGE_CFG["image_size"], IMAGE_CFG["preprocess"], IMAGE_CFG["image_interpolation"], IMAGE_CFG["image_size"])
-    if got != want:
-        raise SystemExit("image prep is %s, expected %s (sf2.config.IMAGE_CFG)" % (got, want))
+    want_cfg = image_cfg(args.image_size)
+    problem = prep_problem(agent, want_cfg)
+    if problem:
+        raise SystemExit(problem)
     print("%s %s | images %s | train %d rows from %d dirs, val %d rows" % (
-        "init" if init else "base", source, IMAGE_CFG, len(train), len(args.data), len(val)))
+        "init" if init else "base", source, want_cfg, len(train), len(args.data), len(val)))
 
     n = lora.inject(agent.model.encoder, rank=args.rank, alpha=args.alpha)
     print("LoRA r=%d on %d projections" % (args.rank, n))
