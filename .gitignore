@@ -70,6 +70,9 @@ test_data_eye_q3_act/
 test_data_eye_q4_air/
 test_data_eye_q5_dist/
 test_data_eye_contact/
+# q1 v2 (docs/eye_questions_v1.md "q1 v2 data"): more fireball games 32+, same q1 v1.1 rules
+test_data_eye_q1_fireball_v2/
+test_data_eye_contact_q1_v2/
 # questions v2 relabel (docs/eye_questions_v1.md "Datasets v2 (relabel)")
 test_data_eye_q3v2_act/
 test_data_eye_q4v2_pos/

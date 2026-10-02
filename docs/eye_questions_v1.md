@@ -252,3 +252,8 @@ answer text in the question is "special attack".
 - train.py (--balance sampling): q4 v2 passes the checks at the defaults (4,198 train / 841 val per dir; val 2,523 <
   4,000); q3 v2 needs --min-sampled-train 400 (409 per dir; val 106 >= 100).
 - Tests tests/test_eye_v2.py (72); seeded faults tests/faults/eye_v2_faults.py 23 of 23; v1 faults still 41 of 41.
+- Amendment after the v2 build (owner "ok", 2026-10-02): (a) q3 v2 matching drops "same game" (keeps character pair,
+  side, the other fighter's movement): 409 -> ~4,300 train per answer; every game starts from the same savestate, so
+  the game index has no visual footprint; shortcut check still gated at +0.05. (b) q4 v2 drops jump take-off / landing
+  frames (fighter in the jump state but on the ground): they were 16.8% of "normal" (owner's bar: edge cases > 5% are
+  fixed, < 5% let go; Ryu/Ken c.hp rising 1.4% of low and Dhalsim squatting normals <= 1.2% of normal are let go).
