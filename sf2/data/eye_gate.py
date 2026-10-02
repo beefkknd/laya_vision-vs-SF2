@@ -44,8 +44,10 @@ ANSWERS = {"q1": ("yes", "no"), "q3": ("moving", "attack", "special"), "q4": ("g
            "q4v2": ("high", "normal", "low")}
 ANSWERS.update({"q3v2b": ANSWERS["q3v2"], "q4v2b": ANSWERS["q4v2"]})     # the owner's amendment: same answers
 # questions v2, written from the doc's text (not sf2.data.eye_v2): the independent movement -> the v2 action
-ACT2_FROM = {"attack": "attack", "special": "special attack", "block": "block", "walk toward": "walk",
-             "walk away": "walk", "jump": "jump", "stand": "stand", "crouch": "stand", "hit": "hit", "down": "hit"}
+# keyed by the independent MOVEMENT, not the v1 grid cell: walk needs no direction (a walk through the other
+# fighter's x has none; found by the q3v2b episode gate, 4 rows)
+ACT2_FROM = {"attack": "attack", "special": "special attack", "block": "block", "walk": "walk", "jump": "jump",
+             "stand": "stand", "crouch": "stand", "hit": "hit", "down": "hit"}
 SECOND_NEED = 0.95
 
 
@@ -122,7 +124,7 @@ def act2_at(ram, moves, t: int, s: int, char: str, band: int) -> str:
         return "unknown"
     lab = PG.independent_labels(ram, t, s, {"all": band},
                                 PG.independent_class(char, PG.independent_pressed(moves, t, s)))
-    return ACT2_FROM.get(PG._grid(lab), "unknown")
+    return ACT2_FROM.get(lab["movement"], "unknown")
 
 
 def low_why(ram, t: int, s: int) -> Optional[str]:

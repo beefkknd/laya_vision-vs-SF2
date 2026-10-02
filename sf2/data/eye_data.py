@@ -80,7 +80,7 @@ SIDE_ANSWER = {"q3": "act", "q4": "air", "q3v2": "act2", "q4v2": "pos", "q3v2b":
 
 def base_of(q: str) -> str:
     """The question a variant relabels (q3v2b -> q3v2); a question is its own base."""
-    return Q[q].get("base", q)      # the fighter fact each side question asks
+    return Q[q].get("base", q)
 OUT = "test_data_eye_%s_%s"
 
 

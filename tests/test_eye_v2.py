@@ -37,6 +37,7 @@ SCRIPT = [
     ("jump", {"state": 0x04, "y": AIR_Y}, "jump", "jump", "high"),
     ("jump_attack", {"state": 0x04, "y": AIR_Y, "aid": 7}, "jump_hk", "attack", "high"),
     ("thrown_air", {"state": 0x14, "y": AIR_Y}, None, "hit", "high"),
+    ("jump_squat", {"state": 0x04}, "jump_forward", "jump", "normal"),     # the jump state on the ground
 ]
 N = BLOCK * len(SCRIPT) * 2 + 8
 GAMES = 12
@@ -105,7 +106,7 @@ def built(root, pool, tmp_path_factory):
     out = {}
     for q in E.V2:
         out[q] = str(tmp / E.out_of(q))
-        E.build(pool, q, out[q], root, cap=None)
+        E.build(pool, q, out[q], root)
     return out
 
 
@@ -341,3 +342,57 @@ def test_the_label_gate_catches_a_row_in_the_wrong_dir(built, root):
     r = next(x for x in rows if x["answer"] == "special attack")
     assert G.label_check("q3v2", built["q3v2"], [r], G.Store(root), 72)["pass"]
     assert not G.label_check("q3v2", built["q3v2"], [dict(r, _dir="attack")], G.Store(root), 72)["pass"]
+
+
+# ---- the owner's amendment: q3v2b (no game in the matching), q4v2b (no jump state on the ground) ---------------
+
+def test_the_pool_marks_the_jump_state_on_the_ground(pool):
+    i = [x[0] for x in SCRIPT].index("jump_squat")
+    f = next(x for x in pool if x["t"] == i * BLOCK + 5)
+    assert f["fighters"][2]["jump_ground"] and not f["fighters"][1]["jump_ground"]
+    j = [x[0] for x in SCRIPT].index("jump")
+    assert not next(x for x in pool if x["t"] == j * BLOCK + 5)["fighters"][2]["jump_ground"]   # in the air
+
+
+def test_q3v2b_matches_without_the_game(built, pool):
+    facts = {(f["pair_name"], f["game"], f["t"]): f for f in pool}
+    rows = _rows(built["q3v2b"])
+    assert {r["answer"] for r in rows} == set(V.ACT2)
+    for r in rows:
+        other = facts[(r["pair_name"], r["game"], r["t"])]["fighters"][3 - r["slot"]]["mv10"]
+        assert r["stratum"].split("|") == [r["split"], r["pair_name"], r["side"], other]
+    assert len(rows) >= len(_rows(built["q3v2"]))
+    assert json.load(open(os.path.join(built["q3v2b"], "build.json")))["cap_per_stratum"] is None
+
+
+def test_q4v2b_drops_the_jump_state_on_the_ground_only(built, pool):
+    facts = {(f["pair_name"], f["game"], f["t"]): f for f in pool}
+    rows = _rows(built["q4v2b"])
+    assert rows and not any(facts[(r["pair_name"], r["game"], r["t"])]["fighters"][r["slot"]]["jump_ground"]
+                            for r in rows)
+    assert any(r["answer"] == "high" and r["kind"] == "jump" for r in rows)          # jumps in the air stay
+    meta = json.load(open(os.path.join(built["q4v2b"], "build.json")))
+    assert meta["dropped"]["jump_state_on_ground"] > 0
+    old = _rows(built["q4v2"])
+    assert any(facts[(r["pair_name"], r["game"], r["t"])]["fighters"][r["slot"]]["jump_ground"] for r in old)
+    assert all(r["stratum"].split("|")[2] == str(r["game"]) for r in rows)          # q4v2b keeps the game
+
+
+def test_the_gates_pass_on_the_amended_builds_and_catch_a_jump_squat_row(built, root):
+    store = G.Store(root)
+    for q in ("q3v2b", "q4v2b"):
+        lab = G.label_check(q, built[q], _rows(built[q]), store, 72)
+        assert lab["pass"] and lab["checked"] > 0, (q, lab)
+    assert G.episode_check(_rows(built["q3v2b"]), store, 72, q="q3v2b")["pass"]
+    assert G.second_fact_check(_rows(built["q4v2b"]), store)["pass"]
+    squat = [r for r in _rows(built["q4v2"]) if r.get("kind") == "jump" and r["answer"] == "normal"]
+    assert squat
+    assert G.label_check("q4v2", built["q4v2"], squat, store, 72)["pass"]
+    assert not G.label_check("q4v2b", built["q4v2"], squat, store, 72)["pass"]
+
+
+def test_the_gate_counts_a_walk_through_the_other_fighters_x_as_walk():
+    rows = [prow({"x": 300}, {"x": 285 + 3 * k}) for k in range(8)]           # player 2 walks across x 300
+    rows[5]["p2_x"] = 300                                                      # same x as player 1: no direction
+    assert G.act2_at(rows, [], 5, 2, "ken", 72) == "walk"
+    assert V.act2(rows, 5, 2) == "walk"

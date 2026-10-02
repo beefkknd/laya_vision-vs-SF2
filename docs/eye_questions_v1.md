@@ -302,3 +302,29 @@ a shortcut check fails, no training - wait for the owner.
   impact flash after the hadoken slot turned off.
 - Also: tests/test_layout.py's eye_gate failure fixed (THRESHOLDS from sf2.config.REPO; landed with 97bab70). Tests
   tests/test_eye_q1_fill.py; seeded faults tests/faults/eye_q1_fill_faults.py 16 of 16; eye_faults 41 of 41.
+
+### Datasets v2b (the amendment, built 2026-10-02; games 0-31, same pool of 127,643 pairs)
+Build `python scripts/build_eye_data.py --questions q3v2b,q4v2b --max-game 31`; gate `python scripts/gate_eye_data.py
+--questions q3v2b,q4v2b --sheets test_data_eye_contact_v2b`. New dirs test_data_eye_q3v2b_act, test_data_eye_q4v2b_pos
+(v2 dirs untouched). Questions, answers and labels as v2 (eye_data.Q "q3v2b" / "q4v2b", base q3v2 / q4v2).
+- q3v2b: strata (split, match pair, side, the other fighter's grid movement) - no game; uncapped. Rows per answer
+  4,329 / 517 / 2,419 (train / val / test; x7), matches 958 / 173 / 586, 934 strata; round 3's test rows kept 2,233.
+  Kinds: stand = crouch 5,191 + standing 2,074 (71% crouches); jump = in the air 6,257 + jump state on the ground
+  1,008 (13.9%; the q4 drop was not asked for q3); attack = crouching 1,871, jump attack 3,149, standing 1,780,
+  throw 465; block = crouching 3,406, standing 3,859; hit = down 1,647, in the air 4,096, on the ground 1,522.
+  Shortcut check: best logreg 0.163 vs chance 0.143 (+0.020; lookup:game 0.162) - PASS at +0.05.
+- q4v2b: rows with the fighter in the jump state (0x04) on the ground (y == 192) are no candidates: 14,370 fighter-
+  frames dropped (normal candidates 118,096 -> 103,726; in the v2 build they were 1,268 of 7,543 normal rows). Rows per
+  answer 3,916 / 776 / 2,345 (x3), matches 851 / 169 / 518, 7,037 strata. Shortcut best 0.333 (+0.000) - PASS.
+- Gate PASS: labels 50,855 / 50,855 and 21,111 / 21,111 (the q4v2b gate also refuses a jump-state-on-ground row);
+  q3v2b episode 50,855 / 50,855; lag 1: 1.000 (400 + 400 discriminating; lag 0 / 2 ~0.5); second fact (q4v2b) crouching
+  attack 1,774 / 1,775, crouching block 1,256 / 1,271 (controls 4 / 1,200, 36 / 609); disk 9.13 GB of the 10 GB
+  limit (the collection grows with games 32+; the disk gate will fail soon). First gate run FAILED q3v2b episode on 4
+  rows: the gate's independent v2 action went through the v1 grid cell, which needs a walk direction - a walk through
+  the other fighter's x (equal x) has none. Test defect: the gate now maps the independent movement (walk = walk), as
+  the builder; data unchanged, re-gated.
+- Contact sheets test_data_eye_contact_v2b/q3v2b_act.png, q4v2b_pos.png looked at: no jump band left in q4 "normal";
+  attack / stand and low / normal as in v2.
+- train.py (--balance sampling): both pass the checks at the defaults (q3v2b 4,329 train / 517 val per dir, val 3,619;
+  q4v2b 3,916 / 776, val 2,328). Both in one combined run: val 5,947 > the 4,000 default, needs --val-limit.
+- Tests tests/test_eye_v2.py 79; seeded faults tests/faults/eye_v2_faults.py 29 of 29.

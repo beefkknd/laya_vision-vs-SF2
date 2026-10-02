@@ -33,8 +33,18 @@ FAULTS = [
     ("pool: act2 without the pressed class", PL, '"act2": V2.act2(rows, t, s, classes[t])', '"act2": V2.act2(rows, t, s)'),
     # the builder
     ("data: q3v2 outside an episode kept", DA,
-     'if q == "q3v2" and (me["act2"] is None or not me["act2_in_episode"]):', 'if q == "q3v2" and me["act2"] is None:'),
-    ("data: q4v2 asks the air", DA, '"q3v2": "act2", "q4v2": "pos"}', '"q3v2": "act2", "q4v2": "air"}'),
+     'if base_of(q) == "q3v2" and (me["act2"] is None or not me["act2_in_episode"]):',
+     'if base_of(q) == "q3v2" and me["act2"] is None:'),
+    ("data: q4v2 asks the air", DA, '"q3v2": "act2", "q4v2": "pos", "q3v2b"', '"q3v2": "act2", "q4v2": "air", "q3v2b"'),
+    ("data: q4v2b keeps the jump state on the ground", DA, 'if Q[q].get("drop_jump_ground") and me["jump_ground"]:',
+     "if False:"),
+    ("data: q3v2b still matches on the game", DA, 'game = (f["game"],) if Q[q].get("game_in_stratum", True) else ()',
+     'game = (f["game"],)'),
+    ("data: q3v2b capped like q3v2", DA, 'base="q3v2", cap=None,', 'base="q3v2", cap=2,'),
+    ("pool: jump_ground ignores y", PL, 'rows[t]["p%d_state" % s] == L.JUMP and L.air(rows, t, s) == "ground"',
+     'rows[t]["p%d_state" % s] == L.JUMP'),
+    ("gate: q4v2b accepts the jump state on the ground", GT,
+     'if q == "q4v2b" and ram[t]["p%d_state" % s] == 4 and ram[t]["p%d_y" % s] == 192:', "if False:"),
     ("data: answer dirs keep the space", DA, "base = os.path.join(out, dir_of(a))", "base = os.path.join(out, a)"),
     # the gates
     ("gate: position ignores the crouching attack", GT, "    if st == 10 and mcl == 2:\n", "    if False:\n"),
@@ -43,7 +53,9 @@ FAULTS = [
     ("gate: down is not hit", GT, '"hit": "hit", "down": "hit"}', '"hit": "hit", "down": "stand"}'),
     ("gate: crouch is not stand", GT, '"stand": "stand", "crouch": "stand"', '"stand": "stand", "crouch": "low"'),
     ("gate: the dir never checked", GT, 'and r["_dir"] == r["answer"].replace(" ", "_")', ""),
-    ("gate: v2 episode as the v1 grid", GT, '        if q == "q3v2":\n            seq', '        if False:\n            seq'),
+    ("gate: v2 episode as the v1 grid", GT, '        if q in ("q3v2", "q3v2b"):\n            seq', '        if False:\n            seq'),
+    ("gate: walk needs a direction (the v1 grid cell)", GT, 'return ACT2_FROM.get(lab["movement"], "unknown")',
+     'return ACT2_FROM.get(PG._grid(lab), "unknown")'),
     ("gate: second fact always agrees", GT, "        res[why][\"agree\"] += bool(ok)", "        res[why][\"agree\"] += 1"),
 ]
 
