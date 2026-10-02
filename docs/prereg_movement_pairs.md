@@ -93,3 +93,19 @@ Budget: one round = 56 matches (~1 min, from round 1's ~15 s per game x 24 worke
 % filled per character x cell (owner decides); hard limit 5 rounds. Shortfalls reported by name, never padded.
 After collection: build 4 datasets (movement 10, facing 2, air 2, distance 2), gate (labels vs RAM 100%, lag 1, counts
 matrix, disk), contact sheet per character. Training registered separately, one fine-tune per question.
+
+## Plan B round 1 result (2026-10-01)
+Step 0: VS BATTLE savestates for all 56 ordered pairs (scripts/make_vs_pair_states.py; boot_vs gained cursor plans for
+the Ken/Ryu swap). Every state checked: RAM p1_char / p2_char (A, B) over 300 frames; 300 idle frames with both pads
+empty - neither x moves, both states stay 0 (no CPU); P1-only forward moves only P1, P2-only forward moves only P2;
+56/56 pass, frames in out/vs_pair_states/. The stage is the same (Ryu's) in every match.
+Choices: a jump attack is "attack" while its box is out (0x?C3E != 0), the rest of that jump "jump"; cells = (character,
+movement10, facing), both players pooled; at most 3 pairs per (slot, cell) per game; split by match (crc32 of
+"<A>_vs_<B>:<game>" % 3 == 2 test). Tests + 43 of 43 seeded faults caught.
+Round 1 (G=1, 56 matches, 90 s wall, ~29 s per game, 24 workers): 4,436 pairs, 199 MB; moves done 5,571 of 6,111
+(interrupted 299, held 124, missed 101, cut 16). Gate PASS: labels 17,744/17,744 vs RAM, caps, lag 1 (0.95 on
+discriminating pairs vs 0.48 / 0.52 at lag 0 / 2), disk 0.19 GB. Fill 46.2% of the 160 x 60 grid (per character
+39-52%). One zero cell: zangief special facing left (right 20%): Zangief's clothesline and spinning piledriver run in
+state 0x0A without move class 0x08, so the shared rule labels them "attack" (owner decision). Block: 2.4-3.4% of each
+character's rows, 29-55 episodes per character over 11-14 of its 14 matches. Lowest cells (walk toward, ~25-35%)
+need ~4 rounds; estimate 3-4 rounds in all (limit 5). Stopped after round 1 for the owner.
