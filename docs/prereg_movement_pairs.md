@@ -117,3 +117,20 @@ need ~4 rounds; estimate 3-4 rounds in all (limit 5). Stopped after round 1 for 
   applies to all characters. Round 1 is relabelled under the fix (same frames, RAM unchanged).
 - Keep one stage (Ryu's, the 2P versus default) for this first test; stated as a limitation.
 - Rounds 2-4, then report the fill matrix; stop at 5 rounds hard limit or when every cell is full.
+
+## Fix and rounds 2-4 result (2026-10-01)
+Fix: the move log in games.jsonl ([word, k0, k1, status, slot]) is the per-frame record of what we pressed (a word
+started on row k0 owns rows k0+1..k1); the collector also records it live per row and per pair (pressed, its class,
+mv_source). In an attack state (0x0A / 0x0C, or a jump attack's box) the pressed class decides (normal / crouching
+normal / jump attack / throw -> attack, the character's special -> special); no attack word pressed -> the RAM rule,
+counted as "fallback". Round 1 is relabelled, not dropped: its log was written by the same play loop, and a test proves
+the live record equals the one rebuilt from the log. The builder relabels every pair from RAM + log, then re-applies
+3 per (slot, cell) per game; the gate re-derives the pressed word from games.jsonl independently. 58 of 58 seeded faults.
+Rounds 2-4 (resumed to G=4): 262 s wall for the three (~87 s a round, ~29 s a game). 224 games, 18,268 pairs, 0.78 GB
+images. Gate PASS (labels 38,336/38,336 incl. the pressed word; caps; lag 1: 0.975 on discriminating pairs vs
+0.51 / 0.49 at lag 0 / 2; disk). Fill: 100% of all 160 cells at cap 60 (both splits pooled); the build selects 9,584 of
+9,600 (40 train / 20 test by match): 7 test cells short by 16 in all (blanka down L 5, dhalsim walk toward R 3, ryu walk
+toward L 3, chunli walk toward L 2, chunli block L 1, chunli walk away L 1, dhalsim walk away R 1). Attack-state rows:
+0 fallbacks for every character; special words confirmed by RAM 120-203 per character, not confirmed 1-13 (guile 13).
+Caveat: Zangief's spinning piledriver pressed far away whiffs as a punch-like move; under the rule it is "special".
+Stopped before round 5 for the owner.
