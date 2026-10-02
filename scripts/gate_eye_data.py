@@ -2,6 +2,7 @@
 The exit code decides: 0 only when every gate of every dataset passes (incl. the shortcut check).
 
     python scripts/gate_eye_data.py [--questions q1,q3,q4,q5] [--root rollouts/pairs2p] [--sheets test_data_eye_contact]
+    python scripts/gate_eye_data.py --questions q3v2,q4v2 --sheets test_data_eye_contact_v2     # questions v2
 
 Writes <data>/gate.json per dataset and <sheets>/<q>_<name>.png.
 """
@@ -18,7 +19,7 @@ from sf2.data import eye_shortcut as SC
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--questions", default=",".join(E.Q))
+    ap.add_argument("--questions", default=",".join(E.V1), help="of %s" % ",".join(E.Q))
     ap.add_argument("--root", default="rollouts/pairs2p")
     ap.add_argument("--out-pattern", default=None, help="data dir per question, %%s = q (default %s)" % E.OUT)
     ap.add_argument("--margin", type=float, default=SC.MARGIN)

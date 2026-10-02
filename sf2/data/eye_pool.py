@@ -9,7 +9,8 @@ Per pair (``facts``), pure, no files:
   fighters  per slot 1 / 2: character, side (smaller x at t = left; None on equal x), act (moving / attack / special
             from the movement rule with the pressed-word rule, sf2.data.pairs_labels.movement_pressed; None when the
             movement is unknown), mv10 (the grid movement), in_episode (rows t - 4 .. t one grid movement,
-            pairs_labels.same_episode), air at t and at t - 4, pose (``pose_of``).
+            pairs_labels.same_episode), air at t and at t - 4, pose (``pose_of``); questions v2 (sf2.data.eye_v2):
+            act2 + act2_in_episode (q3 v2), pos + low_kind (q4 v2).
   shots     per slot: on / drawn at t and t - 4 (drawn = slot on and blink bit 0 of shot<s>_hide clear; None when the
             game has no blink bytes, games < 10), the kind of the flight the slot is in (``flight_kinds``).
   fire      q1 (v1.1, over BOTH shown frames t - 4 and t): "yes" = a fireball flight's slot on, drawn (blink bit
@@ -31,6 +32,7 @@ from . import pairs_collect_io as IO
 from . import pairs_labels as L
 from . import pairs_moves as PM
 from . import pairs_shots as S
+from . import eye_v2 as V2
 from .perception import LAG, STAGE_X, UNKNOWN
 
 GAP = 4
@@ -103,7 +105,9 @@ def fighter(rows, t: int, s: int, char: str, words: List, classes: List) -> Dict
     return {"char": char, "side": S.side_of(rows[t], s), "mv10": mv10, "act": act_of(mv10),
             "in_episode": L.same_episode(rows, t, s, classes), "air": L.air(rows, t, s),
             "air_prev": L.air(rows, t - GAP, s), "pose": pose_of(rows, t, s, char, words[t], mv10),
-            "pressed": words[t]}
+            "pressed": words[t], "act2": V2.act2(rows, t, s, classes[t]),
+            "act2_in_episode": V2.act2_in_episode(rows, t, s, classes), "pos": V2.position(rows, t, s),
+            "low_kind": V2.low_kind(rows[t], s)}
 
 
 def shot(rows, kinds: List, t: int, s: int) -> Dict:
@@ -199,15 +203,16 @@ def game_facts(rows, moves: List, chars: Dict[int, str], ts: Sequence[int], band
     return [facts(rows, t, chars, words, classes, kinds, band) for t in ts if GAP <= t < len(rows)]
 
 
-def match_facts(root: str, pair_name: str, band: int) -> List[Dict]:
-    """Every image pair of one match dir (committed games only), with its facts and its identity."""
+def match_facts(root: str, pair_name: str, band: int, max_game: Optional[int] = None) -> List[Dict]:
+    """Every image pair of one match dir (committed games only; with ``max_game``, games 0 .. max_game only), with its
+    facts and its identity."""
     base = os.path.join(root, pair_name)
     a, b = pair_name.split("_vs_")
     chars = {1: a, 2: b}
     logs = {g["game"]: g.get("moves", []) for g in IO.committed(base)}
     out = []
     for game, ts in disk_pairs(os.listdir(os.path.join(base, "images"))).items():
-        if game not in logs:
+        if game not in logs or (max_game is not None and game > max_game):
             continue
         rows = MIO.read_ram(os.path.join(base, "ram", "g%04d.json.gz" % game))
         for f in game_facts(rows, logs[game], chars, ts, band):
@@ -222,10 +227,11 @@ def _one(args):
     return match_facts(*args)
 
 
-def pool(root: str, band: int, workers: int = 32) -> List[Dict]:
-    """The whole pool, one process per match dir (sorted, deterministic)."""
+def pool(root: str, band: int, workers: int = 32, max_game: Optional[int] = None) -> List[Dict]:
+    """The whole pool, one process per match dir (sorted, deterministic); ``max_game``: games 0 .. max_game only (a
+    stable pool while a collector appends later games)."""
     names = sorted(n for n in os.listdir(root) if "_vs_" in n and os.path.isdir(os.path.join(root, n)))
-    jobs = [(root, n, band) for n in names]
+    jobs = [(root, n, band, max_game) for n in names]
     if workers <= 1:
         parts = [_one(j) for j in jobs]
     else:

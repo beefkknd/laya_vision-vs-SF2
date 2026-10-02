@@ -34,6 +34,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from . import pairs_data as D
 from . import pairs_train as T
 from .eye_pool import ACT_ANSWERS
+from .eye_v2 import ACT2, POS, dir_of
 
 FILES = T.FILES
 GAME_RANGES = (0, 10, 16, 24, 32)          # q1's game ranges: 0-9, 10-15, 16-23, 24-31, 32+
@@ -53,7 +54,24 @@ Q: Dict[str, Dict] = {
     "q5": {"name": "dist", "answers": ("close", "far"), "side": False, "cap": 2,
            "text": "Are the two fighters close or far?",
            "criteria": {"close": "close (throw or poke range)", "far": "far"}},
+    # questions v2 (docs/eye_questions_v1.md, "Questions v2 - relabel"; labels sf2.data.eye_v2)
+    "q3v2": {"name": "act", "key": "act2", "answers": ACT2, "side": True, "cap": 2,
+             "text": "What is the fighter on the %s doing?",
+             "criteria": {"attack": "attacking (a normal - standing, crouching or in the air - or a throw)",
+                          "special attack": "doing a special move",
+                          "block": "blocking (standing or crouching)",
+                          "walk": "walking (toward or away)",
+                          "jump": "jumping (in the air, no attack out)",
+                          "stand": "standing or crouching still",
+                          "hit": "being hit, thrown or knocked down"}},
+    "q4v2": {"name": "pos", "key": "pos", "answers": POS, "side": True, "cap": 1,
+             "text": "Is the fighter on the %s high, normal or low?",
+             "criteria": {"high": "high (in the air)", "normal": "normal (on the ground, not crouching)",
+                          "low": "low (crouching)"}},
 }
+V1 = ("q1", "q3", "q4", "q5")
+V2 = ("q3v2", "q4v2")
+SIDE_ANSWER = {"q3": "act", "q4": "air", "q3v2": "act2", "q4v2": "pos"}      # the fighter fact each side question asks
 OUT = "test_data_eye_%s_%s"
 
 
@@ -79,7 +97,7 @@ def game_range(game: int) -> str:
 def _base(f: Dict, q: str, rid: str, answer: str, stratum: Tuple, shortcut: Dict, tier: int, **extra) -> Dict:
     return dict({"id": rid, "pair_name": f["pair_name"], "pair": list(f["pair"]), "game": f["game"], "t": f["t"],
                  "k_prev": f["k_prev"], "k_now": f["k_now"], "images": list(f["images"]), "answer": answer,
-                 "question_key": Q[q]["name"], "split": T.split3(f["pair_name"], f["game"]),
+                 "question_key": Q[q].get("key", Q[q]["name"]), "split": T.split3(f["pair_name"], f["game"]),
                  "stratum": "|".join(map(str, stratum)), "shortcut": shortcut, "tier": tier}, **extra)
 
 
@@ -116,7 +134,7 @@ def _side_rows(f: Dict, s: int) -> Tuple[Dict, Dict]:
 
 
 def cands_side(pool: Iterable[Dict], q: str, prefer: set) -> Tuple[List[Dict], Dict[str, int]]:
-    """q3 / q4: one candidate per (pair, fighter) with a side."""
+    """q3 / q4 / q3v2 / q4v2: one candidate per (pair, fighter) with a side."""
     out, drop = [], collections.Counter()
     for f in pool:
         for s in (1, 2):
@@ -127,7 +145,13 @@ def cands_side(pool: Iterable[Dict], q: str, prefer: set) -> Tuple[List[Dict], D
             if q == "q3" and (me["act"] is None or not me["in_episode"]):
                 drop["unknown_movement" if me["act"] is None else "outside_episode"] += 1
                 continue
-            answer = me["act"] if q == "q3" else me["air"]
+            if q == "q3v2" and (me["act2"] is None or not me["act2_in_episode"]):
+                drop["unknown_movement" if me["act2"] is None else "outside_episode"] += 1
+                continue
+            answer = me[SIDE_ANSWER[q]]
+            if answer is None:
+                drop["no_answer"] += 1
+                continue
             split = T.split3(f["pair_name"], f["game"])
             stratum = (split, f["pair_name"], f["game"], me["side"], him["mv10"])
             out.append(_base(f, q, _rid(q, f, s), answer, stratum,
@@ -135,8 +159,37 @@ def cands_side(pool: Iterable[Dict], q: str, prefer: set) -> Tuple[List[Dict], D
                               "other_mv10": him["mv10"]},
                              _tier(prefer, (f["pair_name"], f["game"], f["t"], s), False),
                              slot=s, side=me["side"], char=me["char"], other=him["char"], mv10=me["mv10"],
-                             other_mv10=him["mv10"], air=me["air"], air_prev=me["air_prev"]))
+                             other_mv10=him["mv10"], air=me["air"], air_prev=me["air_prev"],
+                             **v2_fields(q, me)))
     return out, dict(drop)
+
+
+def v2_kind(q: str, me: Dict) -> str:
+    """What kind of row inside its answer (the build's extras and the contact sheet's bands)."""
+    a = me["act2"] if q == "q3v2" else me["pos"]
+    if q == "q4v2":
+        return me["low_kind"] if a == "low" else me["act2"] or "unknown_movement"
+    if a == "attack":
+        return ("jump_attack" if me["air"] == "air" else "throw" if me["pressed"] == "throw" else
+                "crouch_attack" if me["low_kind"] == "crouch_attack" else "standing_attack")
+    if a == "block":
+        return "crouch_block" if me["low_kind"] == "crouch_block" else "standing_block"
+    if a == "stand":
+        return "crouch" if me["low_kind"] == "crouch" else "standing"
+    if a == "hit":
+        return "down" if me["mv10"] == "down" else "in_air" if me["air"] == "air" else "on_ground"
+    if a == "jump":
+        return "in_air" if me["air"] == "air" else "on_ground"
+    if a == "walk":
+        return me["mv10"]
+    return "air" if me["air"] == "air" else "ground"
+
+
+def v2_fields(q: str, me: Dict) -> Dict:
+    if q not in V2:
+        return {}
+    return {"act2": me["act2"], "pos": me["pos"], "low_kind": me["low_kind"], "pressed": me["pressed"],
+            "kind": v2_kind(q, me)}
 
 
 def cands_q5(pool: Iterable[Dict], prefer: set) -> Tuple[List[Dict], Dict[str, int]]:
@@ -162,7 +215,7 @@ def candidates(pool: Sequence[Dict], q: str, prefer: Optional[set] = None) -> Tu
         return cands_q1(pool, prefer)
     if q == "q5":
         return cands_q5(pool, prefer)
-    if q in ("q3", "q4"):
+    if q in SIDE_ANSWER:
         return cands_side(pool, q, prefer)
     raise ValueError("unknown question %r (of %s)" % (q, sorted(Q)))
 
@@ -207,7 +260,7 @@ def prefer_keys(q: str, dirs: Sequence[str]) -> set:
                 for line in open(path):
                     r = json.loads(line)
                     k = (r["pair_name"], r["game"], r["t"])
-                    keys.add(k + (r["slot"],) if q in ("q3", "q4") else k)
+                    keys.add(k + (r["slot"],) if Q[q]["side"] else k)
     return keys
 
 
@@ -222,7 +275,7 @@ def _link_frames(out: str, root: str, pairs: Iterable[str]) -> None:
 def _write(out: str, q: str, rows: List[Dict]) -> Dict:
     counts = {}
     for a in Q[q]["answers"]:
-        base = os.path.join(out, a)
+        base = os.path.join(out, dir_of(a))
         os.makedirs(base)
         os.symlink(os.path.join("..", "frames"), os.path.join(base, "frames"))
         counts[a] = {}
@@ -250,6 +303,14 @@ def extras(q: str, rows: List[Dict]) -> Dict:
         return {"jump_attacks": by(lambda r: r["answer"] == "attack" and r["air"] == "air"),
                 "plain_jumps": by(lambda r: r["mv10"] == "jump"),
                 "movements": dict(sorted(collections.Counter(r["mv10"] for r in rows).items()))}
+    if q in V2:
+        kinds = {a: dict(sorted(collections.Counter(r["kind"] for r in rows if r["answer"] == a).items()))
+                 for a in Q[q]["answers"]}
+        out = {"by_kind": kinds, "take_off": by(lambda r: r["air_prev"] == "ground" and r["air"] == "air"),
+               "landing": by(lambda r: r["air_prev"] == "air" and r["air"] == "ground")}
+        if q == "q4v2":
+            out["low_kinds"] = kinds["low"]
+        return out
     if q == "q4":
         return {"take_off": by(lambda r: r["air_prev"] == "ground" and r["air"] == "air"),
                 "landing": by(lambda r: r["air_prev"] == "air" and r["air"] == "ground")}
@@ -271,8 +332,10 @@ def build(pool: Sequence[Dict], q: str, out: str, root: str, seed: int = 0, pref
     os.makedirs(out)
     _link_frames(out, root, {f["pair_name"] for f in pool})
     counts = _write(out, q, rows)
-    meta = {"question": q, "name": Q[q]["name"], "answers": list(Q[q]["answers"]), "dirs": list(Q[q]["answers"]),
+    meta = {"question": q, "name": Q[q]["name"], "answers": list(Q[q]["answers"]),
+            "dirs": [dir_of(a) for a in Q[q]["answers"]],
             "root": os.path.abspath(root), "seed": seed, "cap_per_stratum": cap, "pool": len(pool),
+            "pool_games": [min(f["game"] for f in pool), max(f["game"] for f in pool)],
             "candidates": dict(sorted(collections.Counter(c["answer"] for c in cands).items())),
             "dropped": dropped, "counts": counts, "strata": len({r["stratum"] for r in rows}),
             "prefer": {"given": len(prefer or ()), "selected": sum(1 for r in rows if r["tier"] == 0),
@@ -309,8 +372,9 @@ def problems(out: str, q: str) -> List[str]:
     splits; every stratum holds every answer equally (the alignment)."""
     spec, bad = Q[q], []
     data = read_dataset(out)
-    if sorted(data) != sorted(spec["answers"]):
-        bad.append("dirs %s are not the answers %s" % (sorted(data), sorted(spec["answers"])))
+    dirs = sorted(dir_of(a) for a in spec["answers"])
+    if sorted(data) != dirs:
+        bad.append("dirs %s are not the answers' %s" % (sorted(data), dirs))
     ids, split_of_match = collections.Counter(), collections.defaultdict(set)
     strata: Dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for d, files in data.items():
@@ -321,8 +385,9 @@ def problems(out: str, q: str) -> List[str]:
                 split_of_match[m].add(f)
                 strata[r["stratum"]][r["answer"]] += 1
                 text = spec["text"] % r.get("side") if spec["side"] else spec["text"]
-                if r["answer"] != d or list(r["question"]["criteria"]) != list(spec["answers"]) or \
-                        list(spec["answers"]).index(d) != r["label"] or r["question"]["instructions"] != text:
+                if dir_of(r["answer"]) != d or list(r["question"]["criteria"]) != list(spec["answers"]) or \
+                        r["answer"] not in spec["answers"] or list(spec["answers"]).index(r["answer"]) != r["label"] \
+                        or r["question"]["instructions"] != text:
                     bad.append("%s: answer %s / label %s / question %r in dir %s" % (
                         r["id"], r["answer"], r["label"], r["question"]["instructions"], d))
                 if spec["side"] and r.get("side") not in T.SIDES:

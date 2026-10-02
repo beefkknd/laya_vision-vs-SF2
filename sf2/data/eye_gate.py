@@ -30,15 +30,22 @@ from ..config import REPO
 from . import movement_collect_io as MIO
 from . import mv3_fireball_gate as FG
 from . import pairs_gate as PG
+from . import pairs_moves as PM
 from . import eye_shortcut as SC
 
-GATES = ("labels", "episode", "splits", "drawn", "alignment", "disk", "shortcut")
+GATES = ("labels", "episode", "splits", "drawn", "second_fact", "alignment", "disk", "shortcut")
 NOT_BLUE = {"ryu", "ken", "blanka", "zangief"}       # drawn check: no blue fighter, and only hadokens are thrown
 FRAME = {"n-4": 0, "n": 1}
 THROWN = {"ryu": "hadoken", "ken": "hadoken", "guile": "sonic_boom", "dhalsim": "yoga_fire"}
 THRESHOLDS = os.path.join(REPO, "lessons", "perception_thresholds_v2.json")
 ANSWERS = {"q1": ("yes", "no"), "q3": ("moving", "attack", "special"), "q4": ("ground", "air"),
-           "q5": ("close", "far")}
+           "q5": ("close", "far"),
+           "q3v2": ("attack", "special attack", "block", "walk", "jump", "stand", "hit"),
+           "q4v2": ("high", "normal", "low")}
+# questions v2, written from the doc's text (not sf2.data.eye_v2): the independent movement -> the v2 action
+ACT2_FROM = {"attack": "attack", "special": "special attack", "block": "block", "walk toward": "walk",
+             "walk away": "walk", "jump": "jump", "stand": "stand", "crouch": "stand", "hit": "hit", "down": "hit"}
+SECOND_NEED = 0.95
 
 
 def band_all(path: str = THRESHOLDS) -> int:
@@ -108,6 +115,35 @@ def _act(ram, moves, t: int, s: int, char: str, bands: Dict[str, int]) -> str:
     return "unknown" if grid == "unknown" else grid if grid in ("attack", "special") else "moving"
 
 
+def act2_at(ram, moves, t: int, s: int, char: str, band: int) -> str:
+    """q3 v2 from pairs_gate's independent movement (with the pressed-word rule), "unknown" when there is none."""
+    if not 0 <= t < len(ram):
+        return "unknown"
+    lab = PG.independent_labels(ram, t, s, {"all": band},
+                                PG.independent_class(char, PG.independent_pressed(moves, t, s)))
+    return ACT2_FROM.get(PG._grid(lab), "unknown")
+
+
+def low_why(ram, t: int, s: int) -> Optional[str]:
+    """Why a fighter on the ground counts as crouching (doc: the crouch state; a crouching normal = attack state with
+    move class 2; a crouching block = guard with sub 4 / 6, or the block react 8), None if it does not."""
+    me = "p%d_" % s
+    st, sub, react, mcl = ram[t][me + "state"], ram[t][me + "sub"], ram[t][me + "react"], ram[t][me + "mclass"]
+    if st == 2:
+        return "crouch"
+    if st == 10 and mcl == 2:
+        return "crouch_attack"
+    if (st == 8 and sub in (4, 6)) or (st == 14 and react == 8):
+        return "crouch_block"
+    return None
+
+
+def position_at(ram, t: int, s: int) -> str:
+    if ram[t]["p%d_y" % s] != 192:
+        return "high"
+    return "low" if low_why(ram, t, s) else "normal"
+
+
 def _side(ram, t: int, s: int) -> Optional[str]:
     me, him = ram[t]["p%d_x" % s], ram[t]["p%d_x" % (3 - s)]
     return None if me == him else "left" if me < him else "right"
@@ -125,6 +161,10 @@ def expected(q: str, r: Dict, ram, moves, band: int) -> Dict:
     side = _side(ram, t, s)
     if q == "q4":
         return {"answer": "ground" if ram[t]["p%d_y" % s] == 192 else "air", "side": side}
+    if q == "q4v2":
+        return {"answer": position_at(ram, t, s), "side": side}
+    if q == "q3v2":
+        return {"answer": act2_at(ram, moves, t, s, chars[s - 1], band), "side": side}
     return {"answer": _act(ram, moves, t, s, chars[s - 1], {"all": band}), "side": side}
 
 
@@ -138,7 +178,8 @@ def label_check(q: str, data: str, rows: Sequence[Dict], store: Store, band: int
         ram = store.rows(r["pair_name"], r["game"])
         want = expected(q, r, ram, moves, band)
         imgs = ["frames/%s/g%04d_k%05d.png" % (r["pair_name"], r["game"], k) for k in (r["t"] - 3, r["t"] + 1)]
-        ok = (want["answer"] == r["answer"] == r["_dir"] and ANSWERS[q][r["label"]] == r["answer"]
+        ok = (want["answer"] == r["answer"] and r["_dir"] == r["answer"].replace(" ", "_")
+              and ANSWERS[q][r["label"]] == r["answer"]
               and r["images"] == imgs and all(os.path.exists(os.path.join(data, r["_dir"], p)) for p in imgs)
               and ("side" not in want or want["side"] == r.get("side")))
         if not ok:
@@ -149,18 +190,74 @@ def label_check(q: str, data: str, rows: Sequence[Dict], store: Store, band: int
             "uncommitted": missing, "examples": examples}
 
 
-def episode_check(rows: Sequence[Dict], store: Store, band: int, gap: int = 4) -> Dict:
+def episode_check(rows: Sequence[Dict], store: Store, band: int, gap: int = 4, q: str = "q3") -> Dict:
+    """q3: one grid movement over rows t - gap .. t; q3v2: one v2 action over them."""
     bad, examples = 0, []
     for r in rows:
         ram, moves = store.rows(r["pair_name"], r["game"]), store.moves(r["pair_name"], r["game"]) or []
         s, char = r["slot"], r["pair_name"].split("_vs_")[r["slot"] - 1]
-        seq = [PG._grid(PG.independent_labels(ram, u, s, {"all": band}, PG.independent_class(
-            char, PG.independent_pressed(moves, u, s)))) for u in range(r["t"] - gap, r["t"] + 1)]
+        if q == "q3v2":
+            seq = [act2_at(ram, moves, u, s, char, band) if u >= 0 else "unknown"
+                   for u in range(r["t"] - gap, r["t"] + 1)]
+        else:
+            seq = [PG._grid(PG.independent_labels(ram, u, s, {"all": band}, PG.independent_class(
+                char, PG.independent_pressed(moves, u, s)))) for u in range(r["t"] - gap, r["t"] + 1)]
         if "unknown" in seq or len(set(seq)) != 1:
             bad += 1
             if len(examples) < 10:
                 examples.append({"id": r["id"], "rows_t4_to_t": seq})
     return {"pass": bool(rows) and bad == 0, "checked": len(rows), "outside": bad, "examples": examples}
+
+
+def held(moves, u: int, s: int, char: str) -> tuple:
+    """The stick / buttons our script for slot ``s`` held on the input frame that makes row ``u`` (a word logged
+    [word, k0, k1, status, slot] presses its first step on the frame that makes row k0 + 1); () when none."""
+    for m in moves:
+        if (m[4] if len(m) >= 5 else 1) == s and m[1] < u <= m[2]:
+            off = u - m[1] - 1
+            for toks, n in PM.moves(char).get(m[0], ()):
+                if off < n:
+                    return tuple(toks)
+                off -= n
+    return ()
+
+
+def second_fact_check(rows: Sequence[Dict], store: Store, need: float = SECOND_NEED) -> Dict:
+    """q4 v2: the low rows' crouching read from a second source - what we pressed: a crouching attack (move class 2)
+    while a crouching normal was pressed; a crouching block (guard sub 4 / 6, react 8) while our script held the
+    stick down + back on some row t - 4 .. t (block_low, or the down-back charge / motion of a special).
+    >= ``need`` each. Reported, not gated (controls): the same facts on the "normal" rows in a standing attack (state
+    0x0A) / a standing block (guard, or block react 6)."""
+    res = {"crouch_attack": {"n": 0, "agree": 0}, "crouch_block": {"n": 0, "agree": 0}, "need": need,
+           "control_standing_attack": {"n": 0, "agree": 0}, "control_standing_block": {"n": 0, "agree": 0}}
+    for r in rows:
+        if r["answer"] not in ("low", "normal"):
+            continue
+        ram, moves = store.rows(r["pair_name"], r["game"]), store.moves(r["pair_name"], r["game"]) or []
+        why = low_why(ram, r["t"], r["slot"])
+        if r["answer"] == "normal":
+            me = ram[r["t"]]
+            st, react = me["p%d_state" % r["slot"]], me["p%d_react" % r["slot"]]
+            why = None if why else "crouch_attack" if st == 10 else "crouch_block" if st == 8 or (
+                st == 14 and react == 6) else None
+            if why is None:
+                continue
+            why = "control_" + why.replace("crouch", "standing")
+        if why not in res:
+            continue
+        word = PG.independent_pressed(moves, r["t"], r["slot"])
+        char = r["pair_name"].split("_vs_")[r["slot"] - 1]
+        if why.endswith("_attack"):
+            ok = word is not None and PM.kind(char, word) == "crouch_normal"
+        else:
+            ok = any({"D", "B"} <= set(held(moves, u, r["slot"], char)) for u in range(r["t"] - 4, r["t"] + 1))
+        res[why]["n"] += 1
+        res[why]["agree"] += bool(ok)
+    for k in ("crouch_attack", "crouch_block", "control_standing_attack", "control_standing_block"):
+        res[k]["rate"] = round(res[k]["agree"] / res[k]["n"], 4) if res[k]["n"] else None
+    res["pass"] = all(res[k]["n"] > 0 and res[k]["agree"] >= need * res[k]["n"] for k in ("crouch_attack",
+                                                                                          "crouch_block"))
+    return res
 
 
 def split_of(pair: str, game: int) -> str:
@@ -211,9 +308,11 @@ def run_gates(datas: Dict[str, str], root: str, sample: int = 400, seed: int = 0
     out = {"splits": splits, "datasets": {}}
     for q, d in datas.items():
         g = {"labels": label_check(q, d, rows[q], store, band),
-             "episode": episode_check(rows[q], store, band) if q == "q3" else {"pass": True, "n/a": q},
+             "episode": (episode_check(rows[q], store, band, q=q) if q in ("q3", "q3v2")
+                         else {"pass": True, "n/a": q}),
              "splits": {"pass": splits["pass"]},
              "drawn": drawn_check(d, rows[q]) if q == "q1" else {"pass": True, "n/a": q},
+             "second_fact": second_fact_check(rows[q], store) if q == "q4v2" else {"pass": True, "n/a": q},
              "alignment": FG.alignment_check(d, root, rows[q], sample, seed=seed),
              "disk": disk, "shortcut": SC.check(rows[q], ANSWERS[q], margin)}
         out["datasets"][q] = {"pass": all(x["pass"] for x in g.values()), "gates": g}
@@ -226,6 +325,17 @@ THUMB = 192
 
 
 def bands_of(q: str, rows: Sequence[Dict]) -> List:
+    if q in ("q3v2", "q4v2"):
+        out = []
+        for a in ANSWERS[q]:
+            mine = [r for r in rows if r["answer"] == a]
+            out.append((a, mine))
+            if q == "q4v2" and a == "high":
+                continue
+            kinds = sorted({r["kind"] for r in mine})
+            if len(kinds) > 1:
+                out += [("%s: %s" % (a, k), [r for r in mine if r["kind"] == k]) for k in kinds]
+        return out
     if q != "q1":
         return [(a, [r for r in rows if r["answer"] == a]) for a in ANSWERS[q]]
     no = [r for r in rows if r["answer"] == "no"]
@@ -258,7 +368,7 @@ def contact_sheet(q: str, data: str, path: str, per_band: int = 4, seed: int = 0
             for k, p in enumerate(r["images"]):
                 im = Image.open(os.path.join(data, r["_dir"], p)).convert("RGB").resize((THUMB, THUMB))
                 sheet.paste(im, (x + k * THUMB, y))
-            what = r.get("side") or ",".join(r.get("hard", [])) or "-"
+            what = (r.get("side") or ",".join(r.get("hard", [])) or "-") + (" " + r["kind"] if "kind" in r else "")
             draw.text((x + 2, y + THUMB + 1), "%s g%d t%d %s %s" % (r["pair_name"], r["game"], r["t"], r["answer"],
                                                                      what), fill=(255, 255, 0))
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)

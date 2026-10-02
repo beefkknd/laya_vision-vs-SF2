@@ -200,3 +200,55 @@ position is a separate question replacing ground/air.
 - Amendment (owner, same day: "attack and attack label as 'special attack'"): q3 v2 keeps specials as their own answer.
   Answers: attack / special attack / block / walk / jump / stand / hit (7). attack = normals (standing, crouching,
   jumping) and throws; special attack = the character's special (pressed-move rule, RAM-confirmed).
+
+## Datasets v2 (relabel) (2026-10-02; data only - no training, no new games)
+Pool: sf2.data.eye_pool over rollouts/pairs2p games 0-31 only (`--max-game 31`: a collector was appending games 32+
+meanwhile; nothing written there): 127,643 image pairs, labelled at the displayed row t (lag 1). Labels
+sf2.data.eye_v2; build `python scripts/build_eye_data.py --questions q3v2,q4v2 --max-game 31`; gate `python
+scripts/gate_eye_data.py --questions q3v2,q4v2 --sheets test_data_eye_contact_v2`. New dirs only (v1 untouched):
+test_data_eye_q3v2_act, test_data_eye_q4v2_pos. Answer dirs: the answer with "_" for the space (special_attack); the
+answer text in the question is "special attack".
+- q3 v2 (7 answers) from the movement rule + pressed-word rule (pairs_labels.movement_pressed): attack = movement attack
+  (state 0x0A standing / crouching normal or throw; a jump with the attack box out, 0x?C3E != 0); special attack =
+  movement special (0x0C, or 0x0A with move class 8; the pressed word decides attack vs special when RAM shows an
+  attack state); block = guard 0x08 or 0x0E with block react 06 / 08; walk = walk toward / away; jump = in the air or
+  jump state, no box out; stand = stand or crouch (0x02); hit = hit or down (0x0E, 0x14 in the air or on the ground,
+  knock-down 0x0E sub 4). Unknown movement (0x06 turning, missing t - 4): dropped. Episode rule: rows t - 4 .. t have
+  ONE v2 answer (so crouch -> stand or thrown -> down stay one episode).
+- q4 v2: high = y != 192. low = on the ground and crouching, from these RAM fields (checked on games 0-31):
+  crouch = state 0x02 (sub 0 crouched, sub 2 the 1-6 rows rising out of it); crouching attack = state 0x0A with move
+  class 0x?CBA == 2 (standing normals 0; pressed crouching normals: 662k rows class 2, pressed standing normals: 0 rows
+  class 2); crouching block = guard 0x08 with sub 4 / 6 (standing guard sub 0 / 2), or 0x0E with react 8 (crouching
+  block stun; standing = react 6; every block-stun entry agrees with the guard sub it came from: react 6 <- sub 0 / 2,
+  react 8 <- sub 4 / 6). normal = on the ground otherwise (incl. specials, hit, lying after a knockdown, the jump
+  state's take-off squat on the ground).
+- Alignment as v1: strata (split, match, game, side, the other fighter's grid movement); q3 v2 cap 2, q4 v2 cap 1 per
+  answer per stratum; round 3's test rows preferred for q3 v2 (240 kept, all test).
+- Rows (train / val / test per answer, equal): q3 v2 409 / 106 / 269 (x7; 274 / 65 / 178 matches, 619 strata);
+  q4 v2 4,198 / 841 / 2,504 (x3; 855 / 169 / 520 matches, 7,543 strata). q3 v2 is small: every stratum must hold all
+  7 answers in one game (candidates 12,939 block - 55,529 jump; 31,448 dropped outside an episode); the cap is not
+  the limit (uncapped 426 train). For the owner: matching WITHOUT the game (split, match pair, side, other's grid
+  movement) would give 4,329 train per answer uncapped, shortcut best 0.163 vs chance 0.143 (+0.020, passes) - not
+  built (the spec matches on the game).
+- Kinds inside the answers: q3 v2 attack = crouching 195, jump attack 344, standing 191, throw 54; stand = crouch 588,
+  standing 196; block = crouching 378, standing 406; hit = down 150, in the air 499, on the ground 135; special
+  attack = air 159, ground 625; jump on the ground (take-off / landing) 89. q4 v2 low = crouch 4,240, crouching attack
+  1,995, crouching block 1,308; normal includes walk 1,570, jump-state squat 1,268, special 1,258, stand 1,240.
+- Shortcut check (margin 0.05): q3 v2 best 0.143 (+0.000), q4 v2 best 0.333 (+0.000) - PASS.
+- Gate (exit 0, gate.json in each dir): labels re-derived independently (pairs_gate's movement + the gate's own v2
+  table and crouch rule) 5,488 / 5,488 and 22,629 / 22,629, 0 mismatches; q3 v2 episode 5,488 / 5,488; one split
+  table; lag 1: 1.000 (400 and 400 discriminating; lag 0 / 2 ~0.45 / 0.55); disk 6.79 GB. New gate "second_fact"
+  (q4 v2): the crouching read from what we pressed - crouching attack rows with a crouching normal pressed 1,994 /
+  1,995; crouching block rows with the stick held down + back on a row t - 4 .. t 1,292 / 1,308 (block_low or the
+  down-back charge of Blanka / Honda / Guile specials; block_low alone was only 70% - first FAIL, the rule was too
+  narrow); controls (not gated): standing attacks with a crouching normal pressed 5 / 1,067, standing blocks with
+  down-back held 31 / 553.
+- Contact sheets test_data_eye_contact_v2/q3v2_act.png, q4v2_pos.png (bands per answer and per kind), looked at.
+  Low vs normal: crouches, crouching attacks and crouching blocks look low. Caveats (labels follow the definition, the
+  sprite disagrees): Ryu / Ken crouching fierce (c.hp) rises into an uppercut - "low" while standing tall (94 low rows);
+  some Dhalsim standing normals are drawn squatting / lying (91 normal attack rows are Dhalsim); the jump state's
+  take-off squat on the ground is "normal". Attack vs stand: attacks show a limb out; "stand: crouch" rows are still
+  crouches.
+- train.py (--balance sampling): q4 v2 passes the checks at the defaults (4,198 train / 841 val per dir; val 2,523 <
+  4,000); q3 v2 needs --min-sampled-train 400 (409 per dir; val 106 >= 100).
+- Tests tests/test_eye_v2.py (72); seeded faults tests/faults/eye_v2_faults.py 23 of 23; v1 faults still 41 of 41.

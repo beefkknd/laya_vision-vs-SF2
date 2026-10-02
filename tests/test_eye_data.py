@@ -85,7 +85,7 @@ def pool(root):
 def built(root, pool, tmp_path_factory):
     tmp = tmp_path_factory.mktemp("eyeb")
     out = {}
-    for q in E.Q:
+    for q in E.V1:
         out[q] = str(tmp / E.out_of(q))
         E.build(pool, q, out[q], root, cap=None if q != "q1" else -1)
     return out
