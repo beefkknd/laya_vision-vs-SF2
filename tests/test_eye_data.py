@@ -21,15 +21,15 @@ from test_pairs_collect import BANDS, image
 from test_pairs_labels import prow
 
 N, GAMES, OLD = 240, 14, 2
-WORDS = [(1, "hadoken", 39), (1, "forward", 60), (2, "hadoken", 99), (2, "back", 125)]
-FLIGHTS = [(1, 50, 90), (2, 110, 140)]
+WORDS = [(1, "hadoken", 33), (1, "forward", 60), (2, "hadoken", 99), (2, "back", 125)]
+FLIGHTS = [(1, 45, 90), (2, 110, 140)]
 
 
 def game_row(k, game):
     left, right = (200, 300) if game % 2 == 0 else (300, 200)
     p1 = {"x": left}
-    if 40 <= k <= 55:
-        p1["state"] = 0x0C                                 # the throwing pose, before and after the spawn at 50
+    if 34 <= k <= 55:
+        p1["state"] = 0x0C                                 # the throwing pose, before and after the spawn at 45
     if 112 <= k <= 135:
         p1.update(state=0x04, y=GROUND_Y - 40)             # a jump in a flight (shot samples): take-off 112, landing 136
     p2 = dict({"x": right}, **[{}, {"state": 0x0A}, {"state": 0x0C}, {"state": 0x02}][(k % 40) // 10])
@@ -289,7 +289,7 @@ def test_the_drawn_gate_fails_when_a_yes_frame_shows_nothing(built):
 
 def test_the_episode_gate_catches_a_pair_across_two_movements(built, root):
     rows = _rows(built["q3"])
-    r = dict(rows[0], t=42 if rows[0]["slot"] == 1 else 10)       # rows 38..42 / 6..10 change movement
+    r = dict(rows[0], t=36 if rows[0]["slot"] == 1 else 10)       # rows 32..36 / 6..10 change movement
     assert not G.episode_check([r], G.Store(root), BANDS["all"])["pass"]
 
 
@@ -297,8 +297,10 @@ def test_fire_at_independent_rule(root):
     ram = G.Store(root).rows("ryu_vs_ken", OLD)
     moves = G.Store(root).moves("ryu_vs_ken", OLD)
     assert G.fire_at(ram, moves, 52, ["ryu", "ken"]) == "yes"
-    assert G.fire_at(ram, moves, 51, ["ryu", "ken"]) == "no"          # 51 % 4 == 3: blinked off
-    assert G.fire_at(ram, moves, 45, ["ryu", "ken"]) == "no"
+    assert G.fire_at(ram, moves, 51, ["ryu", "ken"]) is None          # rows 47 and 51 both blinked off
+    assert G.fire_at(ram, moves, 46, ["ryu", "ken"]) == "yes"         # row 46 drawn, row 42 before the spawn
+    assert G.fire_at(ram, moves, 40, ["ryu", "ken"]) == "no"          # windup: no slot on in rows 36 / 40
+    assert G.fire_at(ram, moves, 92, ["ryu", "ken"]) == "yes"         # drawn in row 88, gone at 92 (flight ends 90)
     old = G.Store(root).rows("ryu_vs_ken", 0)
     assert G.fire_at(old, moves, 52, ["ryu", "ken"]) is None
 
@@ -332,5 +334,13 @@ def test_the_split_gate_catches_a_whole_match_in_the_wrong_split(built):
 def test_fire_at_a_fireball_off_the_screen_is_no_row(root):
     st = G.Store(root)
     ram, moves = [dict(r) for r in st.rows("ryu_vs_ken", OLD)], st.moves("ryu_vs_ken", OLD)
-    ram[52]["shot1_x"] = 500                                       # past the screen's right edge
+    ram[48]["shot1_x"] = ram[52]["shot1_x"] = 500                  # past the screen's right edge in both frames
     assert G.fire_at(ram, moves, 52, ["ryu", "ken"]) is None
+
+
+def test_the_drawn_gate_checks_the_frame_ram_names(built):
+    rows = _rows(built["q1"])
+    only_n = [r for r in rows if r["answer"] == "yes" and r["fire_frames"] == ["n"]]
+    assert only_n
+    swapped = [dict(r, images=r["images"][::-1]) if r in only_n else r for r in rows]   # the blue frame now n-4
+    assert not G.drawn_check(built["q1"], swapped, need=1.0)["pass"]

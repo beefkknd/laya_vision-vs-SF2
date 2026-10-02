@@ -19,7 +19,7 @@ answer is not predictable from metadata:
 (The first build matched on the coarse act class - moving / attack / special - of the other fighter / the poses: the
 shortcut check failed q1, q3 and q5 on the finer grid movement, so the strata are the grid movements now.)
 Inside a stratum the rows of an answer are taken in tiers: round 3's test rows first (``prefer``), then the q1 hard
-negatives (blink / before spawn / after impact / throwing pose), then the rest, each tier in a seeded order. q4's
+negatives (before spawn / after impact / throwing pose), then the rest, each tier in a seeded order. q4's
 take-off and landing pairs come in at their natural share (preferring them made a third of the air rows take-offs). q3 keeps only pairs whose two frames lie in one movement episode of the fighter asked
 (pairs_labels.same_episode); q3 / q4 / q5 drop pairs with the two x equal at t (no side). One data dir per answer
 (train.py --balance sampling draws them equally, no copies). Each row keeps its shortcut features (``shortcut``) for
@@ -37,7 +37,7 @@ from .eye_pool import ACT_ANSWERS
 
 FILES = T.FILES
 GAME_RANGES = (0, 10, 16, 24, 32)          # q1's game ranges: 0-9, 10-15, 16-23, 24-31, 32+
-HARD_FIRST = ("blink", "before_spawn", "after_impact", "pose")
+HARD_FIRST = ("before_spawn", "after_impact", "pose")
 Q: Dict[str, Dict] = {
     "q1": {"name": "fireball", "answers": ("yes", "no"), "side": False, "cap": None,
            "text": "Is there a fireball on the screen?",
@@ -106,7 +106,7 @@ def cands_q1(pool: Iterable[Dict], prefer: set) -> Tuple[List[Dict], Dict[str, i
         out.append(_base(f, "q1", _rid("q1", f), f["fire"], stratum,
                          {"pair": f["pair_name"], "game": f["game"], "pose1": fine[0], "pose2": fine[1]},
                          _tier(prefer, (f["pair_name"], f["game"], f["t"]), hard),
-                         hard=list(f["hard"]), poses=poses,
+                         hard=list(f["hard"]), poses=poses, fire_frames=list(f.get("fire_frames", [])),
                          shots={str(s): f["shots"][s] for s in (1, 2)}))
     return out, dict(drop)
 
@@ -243,7 +243,9 @@ def extras(q: str, rows: List[Dict]) -> Dict:
         return {"hard_negatives": {f: sum(1 for r in no if r["split"] == f and set(r["hard"]) & set(HARD_FIRST))
                                    for f in FILES},
                 "hard_tags": dict(sorted(tags.items())),
-                "yes_in_throwing_pose": sum(1 for r in rows if r["answer"] == "yes" and "projectile" in r["poses"])}
+                "yes_in_throwing_pose": sum(1 for r in rows if r["answer"] == "yes" and "projectile" in r["poses"]),
+                "yes_frames": dict(sorted(collections.Counter("+".join(r["fire_frames"]) for r in rows
+                                                              if r["answer"] == "yes").items()))}
     if q == "q3":
         return {"jump_attacks": by(lambda r: r["answer"] == "attack" and r["air"] == "air"),
                 "plain_jumps": by(lambda r: r["mv10"] == "jump"),

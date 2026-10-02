@@ -3,16 +3,18 @@
 labels     every row's answer re-derived here from the stored RAM and move log at the displayed row t (written apart
            from sf2.data.eye_pool / eye_data; the movement rule is sf2.data.pairs_gate's independent one): q1 a
            projectile slot on AND drawn (blink bit 0 clear) whose own player pressed the character's projectile word
-           at the flight's first row, inside the screen estimated from the fighters' x (8 px in from both edges;
-           yoga flame is no fireball; anything else drawn, or a fireball off the screen, may not be a row); q3 the act of
+           at the flight's first row, inside the screen estimated from the fighters' x (8 px in from both edges),
+           in either shown frame (v1.1); "no" = no such slot on in either frame (yoga flame is no fireball; an
+           unknown projectile, or a fireball shown in neither frame, may not be a row); q3 the act of
            the grid movement; q4 y == 192; q5 |x1 - x2| <= poke_max["all"]; the side by x at t (q3 / q4); images =
            captures t - 3 and t + 1 (lag 1); 0 mismatches = PASS.
 episode    q3: rows t - 4 .. t of the fighter asked share one grid movement (both frames inside one episode).
 splits     ONE split table for every dataset: each match's split is pairs_train.split3's (test crc32 % 3 == 2, val 1
            in 6 training matches), the same in every dataset given, no match in two splits.
-drawn      q1: the "yes" rows with a hadoken drawn (Ryu / Ken) show >= BLUE_MIN blue pixels below the HUD in the "now"
-           image; the "no" rows of Ryu / Ken-only matches (no blue fighter) show fewer - >= 95% each (the hard
-           negatives among them reported apart).
+drawn      q1, matches of Ryu / Ken / Blanka / Zangief with a Ryu or Ken (no blue fighter, every projectile a blue
+           hadoken): "yes" rows show >= BLUE_MIN blue pixels below the HUD in EVERY image whose RAM row has the
+           fireball drawn on the screen (fire_frames); "no" rows in neither image - >= 95% each (the hard negatives
+           among them reported apart).
 alignment  RAM-to-image lag 1 (sf2.data.mv3_fireball_gate.alignment_check: HUD clock digits vs the RAM timer).
 disk       every image of the collection < 10 GB.
 shortcut   sf2.data.eye_shortcut.check: no metadata-only predictor beats chance by more than its margin on test.
@@ -30,6 +32,8 @@ from . import pairs_gate as PG
 from . import eye_shortcut as SC
 
 GATES = ("labels", "episode", "splits", "drawn", "alignment", "disk", "shortcut")
+NOT_BLUE = {"ryu", "ken", "blanka", "zangief"}       # drawn check: no blue fighter, and only hadokens are thrown
+FRAME = {"n-4": 0, "n": 1}
 THROWN = {"ryu": "hadoken", "ken": "hadoken", "guile": "sonic_boom", "dhalsim": "yoga_fire"}
 THRESHOLDS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                           "lessons", "perception_thresholds_v2.json")
@@ -71,25 +75,31 @@ class Store:
 
 
 def fire_at(ram, moves, t: int, chars: Sequence[str]) -> Optional[str]:
-    """yes / no / None (something unknown drawn, or no blink byte) for row t, written from the doc's rule."""
+    """yes / no / None for the pair shown at rows (t - 4, t), written from the doc's rule (v1.1): yes = a fireball
+    drawn inside the screen in either frame; no = no fireball / unknown projectile on in either; None otherwise."""
     seen = []
-    for s in (1, 2):
-        if "shot%d_hide" % s not in ram[t]:
-            return None
-        if ram[t]["shot%d" % s] == 0 or ram[t]["shot%d_hide" % s] % 2 == 1:
-            continue
-        a = t
-        while a > 0 and ram[a - 1]["shot%d" % s] != 0:
-            a -= 1
-        word = PG.independent_pressed(moves, a, s)
-        char = chars[s - 1]
-        left = min(max((ram[t]["p1_x"] + ram[t]["p2_x"]) / 2.0 - 128, 32), 224)     # the screen's left edge
-        inside = 8 <= ram[t]["shot%d_x" % s] - left <= 248
-        seen.append(("fireball" if inside else "off") if word == THROWN.get(char) else
-                    "flame" if (char, word) == ("dhalsim", "yoga_flame") else "other")
-    if "fireball" in seen:
+    for u in (t - 4, t):
+        for s in (1, 2):
+            if "shot%d_hide" % s not in ram[u]:
+                return None
+            if ram[u]["shot%d" % s] == 0:
+                continue
+            a = u
+            while a > 0 and ram[a - 1]["shot%d" % s] != 0:
+                a -= 1
+            word = PG.independent_pressed(moves, a, s)
+            char = chars[s - 1]
+            if (char, word) == ("dhalsim", "yoga_flame"):
+                continue
+            if word != THROWN.get(char):
+                seen.append("other")
+                continue
+            left = min(max((ram[u]["p1_x"] + ram[u]["p2_x"]) / 2.0 - 128, 32), 224)     # the screen's left edge
+            inside = 8 <= ram[u]["shot%d_x" % s] - left <= 248
+            seen.append("shown" if ram[u]["shot%d_hide" % s] % 2 == 0 and inside else "unseen")
+    if "shown" in seen:
         return "yes"
-    return None if "other" in seen or "off" in seen else "no"
+    return None if seen else "no"
 
 
 def _act(ram, moves, t: int, s: int, char: str, bands: Dict[str, int]) -> str:
@@ -176,14 +186,13 @@ def split_check(all_rows: Dict[str, Sequence[Dict]]) -> Dict:
 
 def drawn_check(data: str, rows: Sequence[Dict], need: float = FG.DRAWN_MIN, blue_min: int = FG.BLUE_MIN) -> Dict:
     def hadoken(r):
-        chars = r["pair_name"].split("_vs_")
-        return any(r["shots"][str(s)]["kind"] == "fireball" and r["shots"][str(s)]["drawn"] and
-                   chars[s - 1] in FG.HADOKEN for s in (1, 2))
+        chars = set(r["pair_name"].split("_vs_"))
+        return chars <= NOT_BLUE and bool(chars & set(FG.HADOKEN))    # no blue fighter: any blue is a hadoken
     yes = [r for r in rows if r["answer"] == "yes" and hadoken(r)]
-    no = [r for r in rows if r["answer"] == "no" and set(r["pair_name"].split("_vs_")) <= set(FG.HADOKEN)]
-    blue = lambda r: FG.blue_pixels(os.path.join(data, r["_dir"], r["images"][1])) >= blue_min
-    hit = sum(blue(r) for r in yes)
-    clear = [not blue(r) for r in no]
+    no = [r for r in rows if r["answer"] == "no" and hadoken(r)]
+    blue = lambda r, i: FG.blue_pixels(os.path.join(data, r["_dir"], r["images"][i])) >= blue_min
+    hit = sum(bool(r["fire_frames"]) and all(blue(r, FRAME[f]) for f in r["fire_frames"]) for r in yes)
+    clear = [not blue(r, 0) and not blue(r, 1) for r in no]
     hard = [c for c, r in zip(clear, no) if r["hard"]]
     res = {"hadoken_yes": len(yes), "blue": hit, "ryu_ken_no": len(no), "clear": sum(clear),
            "ryu_ken_no_hard": len(hard), "hard_clear": sum(hard), "blue_min": blue_min, "need": need}
@@ -223,8 +232,10 @@ def bands_of(q: str, rows: Sequence[Dict]) -> List:
     out = [("yes", [r for r in rows if r["answer"] == "yes"]), ("yes, throwing pose",
                                                                 [r for r in rows if r["answer"] == "yes" and
                                                                  "projectile" in r["poses"]])]
+    yes = [r for r in rows if r["answer"] == "yes"]
+    out += [("yes: drawn in %s only" % f, [r for r in yes if r.get("fire_frames") == [f]]) for f in ("n-4", "n")]
     out += [("no: %s" % tag, [r for r in no if tag in r["hard"]]) for tag in
-            ("blink", "before_spawn", "after_impact", "pose", "prev_drawn", "yoga_flame")]
+            ("before_spawn", "after_impact", "pose", "yoga_flame")]
     out.append(("no: not hard", [r for r in no if not r["hard"]]))
     return out
 

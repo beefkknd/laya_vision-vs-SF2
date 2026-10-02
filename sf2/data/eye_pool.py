@@ -12,10 +12,11 @@ Per pair (``facts``), pure, no files:
             pairs_labels.same_episode), air at t and at t - 4, pose (``pose_of``).
   shots     per slot: on / drawn at t and t - 4 (drawn = slot on and blink bit 0 of shot<s>_hide clear; None when the
             game has no blink bytes, games < 10), the kind of the flight the slot is in (``flight_kinds``).
-  fire      q1: "yes" = a fireball flight's slot on AND drawn at t AND on the screen (``on_screen``: the slot keeps
-            flying off the edge of the screen; the camera is estimated from the fighters' x, ``camera_x``); "no" =
-            none drawn at t (blink-hidden, before spawn, after impact, a yoga flame: still "no"); None = no blink
-            bytes, an unknown flight drawn, or a drawn fireball off the screen or within SCREEN_PAD px of its edge.
+  fire      q1 (v1.1, over BOTH shown frames t - 4 and t): "yes" = a fireball flight's slot on, drawn (blink bit
+            clear) AND on the screen (``on_screen``; the camera is estimated from the fighters' x, ``camera_x``) in
+            at least one frame; "no" = no fireball (nor unknown projectile) slot on in either frame (before spawn,
+            after impact, a yoga flame: "no"); None = no blink bytes, an unknown projectile on, or a fireball on but
+            drawn on the screen in neither frame (hidden by the blink in both, or off / at the edge of the screen).
   hard      the q1 "no" hard-negative tags (``hard_tags``).
   dist      q5: |x1 - x2| at t <= the calibrated poke band of all characters (lessons/perception_thresholds_v2.json
             poke_max["all"]) -> close, else far; None when an x is impossible.
@@ -124,20 +125,30 @@ def on_screen(row: Dict[str, int], s: int, pad: int = SCREEN_PAD) -> bool:
     return pad <= u <= SCREEN_W - pad
 
 
+def fire_frames(rows, kinds: Dict[int, List], t: int) -> List[str]:
+    """The shown frames ("n-4" = row t - 4, "n" = row t) with a fireball drawn on the screen."""
+    return [name for name, u in (("n-4", t - GAP), ("n", t))
+            if any(kinds[s][u] == "fireball" and drawn(rows[u], s) and on_screen(rows[u], s) for s in (1, 2))]
+
+
 def fire_why(rows, kinds: Dict[int, List], t: int) -> Tuple[Optional[str], str]:
-    """(q1 answer, why): yes = a fireball drawn on the screen; no = none drawn (hidden by the blink, off, yoga
-    flame); None when there is no blink byte, something unknown is drawn, or a drawn fireball is off the screen or at
-    its edge (the camera is an estimate: neither answer is safe)."""
-    if any("shot%d_hide" % s not in rows[t] for s in (1, 2)):
+    """(q1 answer, why), over BOTH shown frames (rows t - 4 and t; v1.1, owner review: a fireball blinking off in
+    frame n is still a fireball coming): yes = a fireball drawn on the screen in at least one of them; no = no
+    fireball or unknown projectile slot active in either (a yoga flame is no fireball); None when a frame has no
+    blink byte, an unknown projectile is active, or a fireball is active but drawn on the screen in neither frame
+    (blink-hidden in both: "hidden_both"; off the screen or at its edge: "off_screen")."""
+    us = (t - GAP, t)
+    if any("shot%d_hide" % s not in rows[u] for s in (1, 2) for u in us):
         return None, "no_blink_byte"
-    shown = [(kinds[s][t], on_screen(rows[t], s)) for s in (1, 2) if drawn(rows[t], s)]
-    if ("fireball", True) in shown:
+    if fire_frames(rows, kinds, t):
         return "yes", "drawn_on_screen"
-    if any(k == "other" for k, _ in shown):
-        return None, "unknown_drawn"
-    if any(k == "fireball" for k, _ in shown):
-        return None, "off_screen"
-    return "no", "none_drawn"
+    active = [(kinds[s][u], drawn(rows[u], s)) for s in (1, 2) for u in us if kinds[s][u] is not None]
+    if any(k == "other" for k, _ in active):
+        return None, "unknown_active"
+    fire = [d for k, d in active if k == "fireball"]
+    if fire:
+        return None, "off_screen" if any(fire) else "hidden_both"
+    return "no", "none_active"
 
 
 def fire_answer(rows, kinds: Dict[int, List], t: int) -> Optional[str]:
@@ -145,22 +156,18 @@ def fire_answer(rows, kinds: Dict[int, List], t: int) -> Optional[str]:
 
 
 def hard_tags(rows, kinds: Dict[int, List], t: int, poses: Dict[int, str], near: int = NEAR) -> List[str]:
-    """Why a q1 "no" pair is hard: blink (a fireball's slot on at t but hidden), before_spawn / after_impact (a
-    fireball flight starts within t + 1 .. t + near / ended within t - near .. t - 1, slot off at t), pose (a fighter
-    in its throwing pose), yoga_flame (a yoga flame drawn at t), prev_drawn (a fireball drawn at t - 4)."""
+    """Why a q1 "no" pair (no fireball active at t - 4 nor t) is hard: before_spawn / after_impact (a fireball flight
+    starts within t + 1 .. t + near / ended within t - near .. t - 5), pose (a fighter in its throwing pose, e.g.
+    Guile's windup swoosh), yoga_flame (a yoga flame drawn in either frame)."""
     tags = []
     for s in (1, 2):
         k = kinds[s]
-        if k[t] == "fireball" and not drawn(rows[t], s):
-            tags.append("blink")
-        if k[t] is None and any(k[u] == "fireball" for u in range(t + 1, min(len(rows), t + near + 1))):
+        if any(k[u] == "fireball" for u in range(t + 1, min(len(rows), t + near + 1))):
             tags.append("before_spawn")
-        if k[t] is None and any(k[u] == "fireball" for u in range(max(0, t - near), t)):
+        if any(k[u] == "fireball" for u in range(max(0, t - near), t - GAP)):
             tags.append("after_impact")
-        if k[t] == "yoga_flame" and drawn(rows[t], s):
+        if any(k[u] == "yoga_flame" and drawn(rows[u], s) for u in (t - GAP, t)):
             tags.append("yoga_flame")
-        if k[t - GAP] == "fireball" and drawn(rows[t - GAP], s):
-            tags.append("prev_drawn")
     if "projectile" in poses.values():
         tags.append("pose")
     return sorted(set(tags))
@@ -179,7 +186,7 @@ def facts(rows, t: int, chars: Dict[int, str], words: Dict[int, List], classes: 
     poses = {s: fs[s]["pose"] for s in (1, 2)}
     fire, why = fire_why(rows, kinds, t)
     return {"t": t, "fighters": fs, "shots": {s: shot(rows, kinds[s], t, s) for s in (1, 2)}, "fire": fire,
-            "fire_why": why,
+            "fire_why": why, "fire_frames": fire_frames(rows, kinds, t) if fire == "yes" else [],
             "hard": hard_tags(rows, kinds, t, poses) if fire == "no" else [],
             "dist": dist_answer(rows[t], band), "gap": abs(rows[t]["p1_x"] - rows[t]["p2_x"]),
             "hide": all("shot%d_hide" % s in rows[t] for s in (1, 2))}

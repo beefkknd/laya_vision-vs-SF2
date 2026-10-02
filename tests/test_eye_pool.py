@@ -66,28 +66,32 @@ def _kinds(rows, presses, chars=CHARS):
     return P.flight_kinds(rows, words_with(len(rows), presses), chars)
 
 
-def test_fire_answer_yes_only_when_a_fireball_is_drawn_at_t():
-    rows = rows_with(40, flights=[(1, 10, 30)], hide={15})
+def test_fire_answer_over_both_shown_frames():
+    rows = rows_with(40, flights=[(1, 10, 30)], hide={11, 15, 19})
     kinds = _kinds(rows, [(1, "hadoken", 9, 10)])
     assert P.fire_answer(rows, kinds, 12) == "yes"
-    assert P.fire_answer(rows, kinds, 15) == "no"          # blink: the slot is on, nothing drawn
-    assert P.fire_answer(rows, kinds, 5) == "no" and P.fire_answer(rows, kinds, 35) == "no"
+    assert P.fire_why(rows, kinds, 15) == (None, "hidden_both")    # active, blinked off in rows 11 and 15
+    assert P.fire_frames(rows, kinds, 19) == [] and P.fire_answer(rows, kinds, 19) is None
+    assert P.fire_answer(rows, kinds, 16) == "yes" and P.fire_frames(rows, kinds, 16) == ["n-4", "n"]
+    assert P.fire_frames(rows, kinds, 23) == ["n"]
+    assert P.fire_frames(rows, kinds, 34) == ["n-4"] and P.fire_answer(rows, kinds, 34) == "yes"   # gone at 34
+    assert P.fire_answer(rows, kinds, 9) == "no"                     # spawns at row 10: rows 5 / 9 show none
+    assert P.fire_answer(rows, kinds, 39) == "no" and P.fire_answer(rows, kinds, 5) == "no"
     other = _kinds(rows, [(1, "shoryuken", 9, 10)])
-    assert P.fire_answer(rows, other, 12) is None           # something unknown drawn: neither answer
+    assert P.fire_why(rows, other, 12) == (None, "unknown_active")
     flame = _kinds(rows, [(1, "yoga_flame", 9, 10)], {1: "dhalsim", 2: "ken"})
     assert P.fire_answer(rows, flame, 12) == "no"            # yoga flame is not a fireball
     old = rows_with(40, flights=[(1, 10, 30)], hide_bytes=False)
-    assert P.fire_answer(old, kinds, 12) is None and P.fire_answer(old, kinds, 35) is None
+    assert P.fire_answer(old, kinds, 12) is None and P.fire_answer(old, kinds, 39) is None
 
 
-def test_hard_tags_blink_before_spawn_after_impact_pose_yoga_flame_prev_drawn():
-    rows = rows_with(80, flights=[(1, 20, 40)], hide={26, 30})
+def test_hard_tags_before_spawn_after_impact_pose_yoga_flame():
+    rows = rows_with(80, flights=[(1, 20, 40)])
     kinds = _kinds(rows, [(1, "hadoken", 18, 20)])
     none = {1: "moving", 2: "moving"}
-    assert P.hard_tags(rows, kinds, 30, none) == ["blink"]
     assert P.hard_tags(rows, kinds, 12, none) == ["before_spawn"]
     assert P.hard_tags(rows, kinds, 7, none) == []                 # 13 rows before: not near
-    assert P.hard_tags(rows, kinds, 44, none) == ["after_impact", "prev_drawn"]
+    assert P.hard_tags(rows, kinds, 50, none) == ["after_impact"]  # flight ended at 40, rows 46 / 50 off
     assert P.hard_tags(rows, kinds, 52, none) == ["after_impact"]
     assert P.hard_tags(rows, kinds, 53, none) == []
     assert P.hard_tags(rows, kinds, 60, {1: "projectile", 2: "moving"}) == ["pose"]

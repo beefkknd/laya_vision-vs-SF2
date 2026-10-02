@@ -60,7 +60,7 @@ matters far more"); no test_data_eye_q2_* was built. Four datasets.
   movement). The first pass matched on the coarse act class and FAILED the shortcut check (q1 0.643, q3 0.427, q5
   0.679 balanced vs chance 0.5 / 0.333 / 0.5); matching on the grid movement fixed it. q1 "no" rows are taken hard
   first (blink, before spawn, after impact within 12 rows, throwing pose); q3 only pairs inside one episode.
-- Rows (train / val / test, per answer, equal): q1 yes / no 666 / 147 / 418; q3 moving / attack / special
+- Rows (train / val / test, per answer, equal): q1 v1 (superseded, see "q1 v1.1" below) yes / no 666 / 147 / 418; q3 moving / attack / special
   3,575 / 692 / 2,194; q4 ground / air 9,160 / 1,791 / 5,609; q5 close / far 4,144 / 889 / 2,525.
 - Hard cases: q1 "no" hard negatives 410 / 76 / 238 (tags over all splits: throwing pose 697 = the "yes" rows in
   throwing pose, before spawn 343, blink 269, after impact 55, fireball drawn in the n-4 frame 62, yoga flame 0);
@@ -78,3 +78,22 @@ matters far more"); no test_data_eye_q2_* was built. Four datasets.
 - train.py: q3 / q4 / q5 pass the coverage / sampling checks at the defaults; q1 needs --min-sampled-train 600 (666
   per dir; val 147 >= 100). A combined run (step 3) has 7,730 val rows: needs --val-limit above the 4,000 default.
 - Tests: tests/test_eye_pool.py, tests/test_eye_data.py; seeded faults tests/faults/eye_faults.py 38 of 38.
+
+### q1 v1.1 (orchestrator review of the q1 contact sheet, same day): the label looks at BOTH shown frames
+v1 labelled "no" when the fireball blinked off in frame n although it was drawn in frame n-4 ("no: blink" /
+"no: prev_drawn" rows): that teaches the eye to miss an incoming fireball whenever it flickers. New rule (builder
+sf2.data.eye_pool.fire_why and the gate's independent eye_gate.fire_at):
+- yes = a fireball slot on (not yoga flame), drawn AND on the screen (>= 8 px inside) in at least one of frames n-4, n;
+- no = no fireball (nor unknown projectile) slot on in either frame (windup / before spawn, after impact / gone,
+  normal play; yoga flame = no);
+- neither (dropped, counted) = on but drawn on the screen in neither frame (hidden in both 305; off / at the edge
+  217), unknown projectile on 13, no blink byte 46,488.
+Only test_data_eye_q1_fireball was rebuilt (q3-q5 unchanged). Rows yes / no 571 / 135 / 356 (train / val / test),
+matches 283 / 45 / 177, 683 strata. "yes" drawn in both frames 804, n-4 only 101, n only 157. Hard negatives (no rows)
+279 / 56 / 152; tags: throwing pose 467 (= the yes rows in throwing pose), before spawn 356, after impact (gone in
+both frames, ended within 12 rows) 54, yoga flame 0. Shortcut check: best 0.521 (lookup:game, +0.021) - PASS. Gate
+PASS: labels 2,124 / 2,124; lag 1 1.000 (400 and 257 discriminating vs 0.46 / 0.54); drawn (matches of Ryu / Ken /
+Blanka / Zangief with a hadoken thrower - no blue fighter): yes 126 / 126 blue in every frame RAM says it is drawn,
+no 126 / 126 clear in both frames (85 / 85 hard). Contact sheet test_data_eye_contact/q1_fireball.png looked at
+(bands: yes, throwing pose, drawn in n-4 only, drawn in n only, the no tags). train.py: q1 needs
+--min-sampled-train 500 (571 per dir; val 135 >= 100). Seeded faults 41 of 41.
