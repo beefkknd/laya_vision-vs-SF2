@@ -7,7 +7,7 @@ One question per fine-tune, never mixed. Labels from RAM (lag 1).
 | # | question | answers | label from RAM |
 |---|---|---|---|
 | 1 | Is there a fireball on the screen? | yes / no | a projectile slot active AND drawn at the frame (hide bit off); yoga flame is not a fireball |
-| 2 | Who threw the fireball? (only frames where #1 = yes) | left / right | the slot's owner, side by x at the frame |
+| 2 | Which way is the fireball moving? (only frames where #1 = yes) | toward the left / toward the right | the projectile's x change between the two frames (owner 2026-10-02: "not who threw it - where it goes") |
 | 3 | What is the fighter on the <side> doing? | moving / attack / special | movement label; attack = normal, jump attack, throw; special = pressed special, RAM-confirmed |
 | 4 | Is the fighter on the <side> on the ground or in the air? | ground / air | y |
 | 5 | Are the two fighters close or far? | close / far | gap vs the calibrated poke band |
