@@ -1,0 +1,761 @@
+[
+ {
+  "game": "a/ken_vs_ryu",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "ken",
+   "ryu"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "ken/beffb21777ed678d",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "ryu/8098a7b7e032dbb8",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/zangief_vs_dhalsim",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "zangief",
+   "dhalsim"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "zangief/668edd85ed90c4db",
+    "facing": "right",
+    "action": "jump",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "dhalsim/b92728dda5545be7",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/chunli_vs_dhalsim",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "chunli",
+   "dhalsim"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "dhalsim/b92728dda5545be7",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_honda_r0",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "chunli",
+   "honda"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "honda/1068efcfbe41005a",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_guile_r1",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "chunli",
+   "guile"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "guile/eefe5c099ceaba01",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_zangief_r3",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "chunli",
+   "zangief"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "zangief/ccabbe108b40ef04",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/guile_vs_ryu",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "guile",
+   "ryu"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "guile/eefe5c099ceaba01",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "ryu/8098a7b7e032dbb8",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/blanka_vs_guile",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "blanka",
+   "guile"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "blanka/58f1760f42207ae5",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "guile/eefe5c099ceaba01",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_dhalsim_r1",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "chunli",
+   "dhalsim"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "dhalsim/3c4ad9fa73589977",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_ryu_r2",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "chunli",
+   "ryu"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "ryu/8098a7b7e032dbb8",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/dhalsim_vs_ken",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "dhalsim",
+   "ken"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "dhalsim/b92728dda5545be7",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "ken/beffb21777ed678d",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/ryu_vs_chunli",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "ryu",
+   "chunli"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "ryu/8098a7b7e032dbb8",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_ken_r0",
+  "what": "start",
+  "k": 1,
+  "chars": [
+   "chunli",
+   "ken"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 80,
+    "key": "chunli/7cc35c0f1ed5d514",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 176,
+    "key": "ken/beffb21777ed678d",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/ken_vs_ryu",
+  "what": "apart",
+  "k": 301,
+  "chars": [
+   "ken",
+   "ryu"
+  ],
+  "health": [
+   0.9034090909090909,
+   0.8295454545454546
+  ],
+  "clock": 90,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 75,
+    "key": "ken/f8f86cfd0097eaef",
+    "facing": "right",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   },
+   "2": {
+    "x": 148,
+    "key": "ryu/5f3948db8ca4aa7a",
+    "facing": "left",
+    "action": "attack",
+    "air_label": "air",
+    "ram_air": true
+   }
+  }
+ },
+ {
+  "game": "a/chunli_vs_dhalsim",
+  "what": "apart",
+  "k": 301,
+  "chars": [
+   "chunli",
+   "dhalsim"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 90,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 235,
+    "key": "chunli/84e1a1f17d269a43",
+    "facing": "left",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   },
+   "2": {
+    "x": 75,
+    "key": "dhalsim/f4f52d2c87964cdf",
+    "facing": "right",
+    "action": "special attack",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_zangief_r3",
+  "what": "apart",
+  "k": 380,
+  "chars": [
+   "chunli",
+   "zangief"
+  ],
+  "health": [
+   1.0,
+   0.9034090909090909
+  ],
+  "clock": 87,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 109,
+    "key": "chunli/211413ff794042b6",
+    "facing": "right",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 192,
+    "key": "zangief/668edd85ed90c4db",
+    "facing": "left",
+    "action": "jump",
+    "air_label": "ground",
+    "ram_air": true
+   }
+  }
+ },
+ {
+  "game": "a/guile_vs_ryu",
+  "what": "p1_air",
+  "k": 38,
+  "chars": [
+   "guile",
+   "ryu"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 99,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 77,
+    "key": "guile/c23c39015fbd29fd",
+    "facing": "right",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   },
+   "2": {
+    "x": 176,
+    "key": "ryu/12ec6dd70a4b5f22",
+    "facing": "left",
+    "action": "attack",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/blanka_vs_guile",
+  "what": "crossed",
+  "k": 341,
+  "chars": [
+   "blanka",
+   "guile"
+  ],
+  "health": [
+   1.0,
+   1.0
+  ],
+  "clock": 89,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 128,
+    "key": "blanka/88041a8759a4d30d",
+    "facing": "right",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   },
+   "2": {
+    "x": 66,
+    "key": "guile/1b56eb80052818ca",
+    "facing": "right",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_dhalsim_r1",
+  "what": "apart",
+  "k": 339,
+  "chars": [
+   "chunli",
+   "dhalsim"
+  ],
+  "health": [
+   0.8920454545454546,
+   0.9090909090909091
+  ],
+  "clock": 89,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 21,
+    "key": "chunli/edd6cacf54694c9e",
+    "facing": "right",
+    "action": "jump",
+    "air_label": "ground",
+    "ram_air": true
+   },
+   "2": {
+    "x": 172,
+    "key": "dhalsim/b92728dda5545be7",
+    "facing": "left",
+    "action": "stand",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_ryu_r2",
+  "what": "shot",
+  "k": 504,
+  "chars": [
+   "chunli",
+   "ryu"
+  ],
+  "health": [
+   0.8693181818181818,
+   0.8522727272727273
+  ],
+  "clock": 83,
+  "shot_drawn": true,
+  "p": {
+   "1": {
+    "x": 198,
+    "key": "chunli/17bb8b8095305f66",
+    "facing": "left",
+    "action": "attack",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 104,
+    "key": "ryu/e09c788b828cf63e",
+    "facing": "right",
+    "action": "special attack",
+    "air_label": "ground",
+    "ram_air": false
+   }
+  }
+ },
+ {
+  "game": "a/dhalsim_vs_ken",
+  "what": "shot",
+  "k": 1115,
+  "chars": [
+   "dhalsim",
+   "ken"
+  ],
+  "health": [
+   0.7159090909090909,
+   0.9261363636363636
+  ],
+  "clock": 63,
+  "shot_drawn": true,
+  "p": {
+   "1": {
+    "x": 23,
+    "key": "dhalsim/7685c7287ccda961",
+    "facing": "right",
+    "action": "special attack",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 131,
+    "key": "ken/f8f86cfd0097eaef",
+    "facing": "left",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   }
+  }
+ },
+ {
+  "game": "a/ryu_vs_chunli",
+  "what": "clock00",
+  "k": 2981,
+  "chars": [
+   "ryu",
+   "chunli"
+  ],
+  "health": [
+   0.5454545454545454,
+   0.5795454545454546
+  ],
+  "clock": 0,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 89,
+    "key": "ryu/0adb9fba1afd457f",
+    "facing": "right",
+    "action": "jump",
+    "air_label": "ground",
+    "ram_air": false
+   },
+   "2": {
+    "x": 235,
+    "key": "chunli/4cf32eb10e6836af",
+    "facing": "left",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   }
+  }
+ },
+ {
+  "game": "b/chunli_vs_ken_r0",
+  "what": "bar_empty",
+  "k": 2366,
+  "chars": [
+   "chunli",
+   "ken"
+  ],
+  "health": [
+   0.0,
+   0.3465909090909091
+  ],
+  "clock": 21,
+  "shot_drawn": false,
+  "p": {
+   "1": {
+    "x": 235,
+    "key": "chunli/4ee2d81f14868a1b",
+    "facing": "left",
+    "action": "jump",
+    "air_label": "air",
+    "ram_air": true
+   },
+   "2": {
+    "x": 200,
+    "key": "ken/be2c9650657b680d",
+    "facing": "right",
+    "action": "special attack",
+    "air_label": "air",
+    "ram_air": true
+   }
+  }
+ }
+]
