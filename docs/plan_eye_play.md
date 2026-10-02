@@ -50,3 +50,10 @@ One predict call, six questions (laya answers several questions at once):
    needs no Qwen.
 2. Zangief in the opponent list (the locked 2x2 used 6 opponents).
 3. Seeds: 2 (exploratory, like the U look) or 3+ (the minimum for a verdict).
+
+## Owner decision (2026-10-02): two checkpoints
+"The action uses its own checkpoint and the rest use the combined."
+- Action questions (#2, #3: left / right fighter doing what) -> runs/eye2_q3/best (separate run, test 0.351 vs
+  combined 0.319).
+- Fireball (#1), position (#4, #5), distance (#6) -> runs/eye2_all/best (combined: 0.741 / 0.622 / 0.700).
+- Two predict calls per decision (eye2_q3 with 2 questions, eye2_all with 4); latency measured in the pre-game check.
