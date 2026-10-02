@@ -97,3 +97,19 @@ Blanka / Zangief with a hadoken thrower - no blue fighter): yes 126 / 126 blue i
 no 126 / 126 clear in both frames (85 / 85 hard). Contact sheet test_data_eye_contact/q1_fireball.png looked at
 (bands: yes, throwing pose, drawn in n-4 only, drawn in n only, the no tags). train.py: q1 needs
 --min-sampled-train 500 (571 per dir; val 135 >= 100). Seeded faults 41 of 41.
+
+## Training pre-registration (owner: "journal and start", 2026-10-02)
+On threebody (RTX 4090; Qwen stays off; base model from the local HF cache, HF_HUB_OFFLINE=1), all from BASE, LoRA
+r16/a32, batch 8, lr head 1e-4 / adapters 2e-4, seed 0, eval every 250, select on validation NLL, patience 10,
+--max-minutes 180, --balance sampling. One run at a time.
+| run | data | budget |
+|---|---|---|
+| eye_q1 | test_data_eye_q1_fireball (yes/no; --min-sampled-train 500) | 10 epochs (~1,430 steps) |
+| eye_q3 | test_data_eye_q3_act | 6,000 steps |
+| eye_q4 | test_data_eye_q4_air | 6,000 steps |
+| eye_q5 | test_data_eye_q5_dist | 6,000 steps |
+| eye_all | all four; each QUESTION an equal 25% share of draws, answers equal within a question | 12,000 steps (--val-limit 8000) |
+Judged on the held-out test matches against RAM: balanced accuracy, 2.5% lower bound (1,000 resamples by match),
+"learned" = lower bound above majority and chance; per answer, side, character; accuracy weighted to real play
+(fireball 3.5% of frames; moving 71.5% / attacking 28.5%; air 28% - from the old U collection's RAM). eye_all kept
+only if every question's balanced accuracy is within 0.02 of its separate run; otherwise separate adapters.
