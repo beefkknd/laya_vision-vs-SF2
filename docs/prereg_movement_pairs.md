@@ -148,3 +148,16 @@ we are f***ed."
 - Quality check after the fix: (a) RAM gate; (b) blind visual audit by a separate Claude agent (240 pairs, stratified);
   (c) codex (different engine) blind on a random stratified subset; agreement per movement reported, disagreements
   shown to the owner. No training until the owner accepts the data.
+
+## Episode fix and final build (2026-10-01)
+Fix: a pair is kept only if every row t-4..t of its fighter has the final grid movement of row t (after the pressed
+rule): pairs_labels.same_episode; the builder drops the rest (build.json dropped_episode), the sampler now samples only
+where t-4 is inside the episode, and the gate has a new independent "episode" check. 65 of 65 seeded faults.
+Rebuild of rounds 1-4 under the fix: 95.4%, 41 cells not full (worst: zangief crouch R 46%, ken crouch L 48%).
+Top-up: round 5 (142 s) 99.8%, 2 cells not full (honda walk away R 59, zangief crouch R 46); round 6 (142 s) 100%,
+0 cells not full. 6 games per pair in all (limit 8).
+Final build: 27,355 pairs collected; 5,582 dropped outside an episode, all from rounds 1-4 (crouch 1,216, stand 1,164,
+walk away 689, attack 547, walk toward 479, jump 456, block 348, hit 304, down 209, special 170); 21,760 eligible;
+9,600 selected = every one of the 320 (split, cell) caps full (40 train / 20 test). Gate PASS: labels 38,400/38,400,
+episode 9,600/9,600 inside, caps, lag 1 (0.97 on discriminating pairs vs 0.54 / 0.47), disk 1.17 GB. Attack-state rows:
+0 fallbacks. Stopped for the owner's visual audits (blind Claude + codex); no training.
