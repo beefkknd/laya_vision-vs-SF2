@@ -86,3 +86,46 @@ character by character, also may be confused about who am I. Try a different rou
 - Four runs again, identical settings to round 1 (from BASE, r16/a32, batch 8, lr 1e-4 / 2e-4, seed 0, 3 epochs,
   eval every 250, select val NLL, patience 5, MPS), runs/mv2_{move,face,air,dist}; same held-out evaluation and
   "learned" rule, reported side by side with round 1, plus per side (left / right).
+
+## Round 2 result (2026-10-02)
+
+### Data
+- sf2.data.pairs_train ask="side" (scripts/build_mv_data.py --ask side -> test_data_mv2_<q>): side = smaller x at the
+  displayed RAM row t (lag 1; never t - 4, never the capture row); equal x dropped and counted; the question names no
+  character, no note. Tests first (tests/test_pairs_train_side.py, 24 of 24 red before the code: exact texts, either
+  slot, equal x, a one-pixel crossing, a crossover between the two frames, the independent problems() re-derivation).
+  Seeded faults: pairs suite 97 of 97 (+13 side), mv_eval 9 of 9 (+2 per-side breakdown). Head tokens max 107.
+- Same source build, labels, splits and dirs. Dropped for equal x: 6 rows (all train) in every dataset. Rows
+  (train / val / test): move 5,255 / 1,093 / 3,163; face 5,255 / 1,093 / 3,163; air ground 4,044 / 818 / 2,424, air
+  1,211 / 275 / 739; dist close 1,402 / 321 / 896, far 3,853 / 772 / 2,267. Sides: train 2,620 L / 2,635 R, val
+  549 / 544, test 1,580 / 1,583. train.py's coverage gate passed for all four.
+- Found in the data before training: the side fixes the facing on 99.2% of rows (test 3,137 of 3,163: the fighter on
+  the left faces right). The face question now carries its answer in its text.
+
+### Training (round 1's settings exactly; one at a time on MPS, free memory 96-97% before each, no other training)
+| run | steps (of 1,972) | best step | best val NLL | minutes | stop |
+|---|---|---|---|---|---|
+| mv2_move | 1,970 | 1,250 | 2.046 (step 0: 4.003) | ~10 | 3 epochs done |
+| mv2_face | 1,500 | 250 | 0.118 (val acc 0.99) | ~7 | early stop (patience 5) |
+| mv2_air  | 1,970 | 750 | 0.505 | ~9 | 3 epochs done (final eval the 5th without gain) |
+| mv2_dist | 1,750 | 500 | 0.648 | ~8 | early stop (patience 5) |
+
+### Held-out test, round 1 (by name) vs round 2 (by side); runs/mv{,2}_<q>/eval.json
+| run | balanced acc | 2.5% lb | majority (bal / acc) | chance | per-answer recall | learned |
+|---|---|---|---|---|---|---|
+| mv_move  | 0.265 | 0.251 | special 0.100 / 0.101 | 0.100 | stand .75, walk tw .07, walk aw .36, crouch .21, jump .44, attack .29, special .16, block .04, hit .06, down .28 | YES |
+| mv2_move | 0.274 | 0.260 | special 0.100 / 0.101 | 0.100 | stand .74, walk tw .28, walk aw .12, crouch .16, jump .26, attack .35, special .15, block .03, hit .21, down .45 | YES |
+| mv_face  | 0.515 | 0.498 | left 0.500 / 0.498 | 0.500 | left .74, right .29 | NO |
+| mv2_face | 0.992 | 0.988 | left 0.500 / 0.498 | 0.500 | left .99, right .99 | YES (see below) |
+| mv_air   | 0.706 | 0.687 | ground 0.500 / 0.766 | 0.500 | ground .81, air .60 | YES |
+| mv2_air  | 0.741 | 0.723 | ground 0.500 / 0.766 | 0.500 | ground .83, air .66 | YES |
+| mv_dist  | 0.645 | 0.628 | far 0.500 / 0.717 | 0.500 | close .41, far .88 | YES |
+| mv2_dist | 0.649 | 0.630 | far 0.500 / 0.717 | 0.500 | close .63, far .66 | YES |
+Per side (balanced, left / right; n 1,580 / 1,583): move 0.277 / 0.272, face 0.500 / 0.500, air 0.744 / 0.739,
+dist 0.652 / 0.645. Per character (balanced): move 0.23-0.30, face 0.98-1.00, air 0.68-0.78, dist 0.58-0.74. Plain
+accuracy: air 0.786 (majority 0.766), dist 0.655 (majority 0.717).
+- mv2_face passes the registered rule, but within each side it scores exactly 0.500: it answers the facing that goes
+  with the side named in the question and never the 26 test rows where they disagree. The pass is read from the
+  question text, not the frames; it is no evidence that laya-vision sees facing.
+- move, air, dist: small gains (move +0.009, air +0.035, dist +0.004 balanced; all lower bounds above round 1's
+  point estimates only for air); dist traded far recall for close recall (.41 -> .63). Equal per side throughout.
