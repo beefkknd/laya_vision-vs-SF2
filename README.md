@@ -1,4 +1,4 @@
-# The self-learning loop: Qwen + text laya, screen only (plan, 2026-10-02, for the owner's review)
+# laya text vs SF2: a self-learning loop (Qwen + text laya, screen only)
 
 ## What this project is
 A self-learning loop. Qwen (System 2) writes the knowledge; text laya (System 1) turns it into moves; the game is seen
