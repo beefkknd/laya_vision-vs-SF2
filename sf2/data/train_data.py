@@ -33,9 +33,12 @@ V3_NOTE = re.compile(r"^me=[a-z]+$")    # the U arm's note (sf2.data.u_data.eye_
 
 def position(ex: Dict) -> Tuple:
     """The screen position a row was asked about: its dataset and current frame, a mirrored frame counted as its
-    source. Every action asked at one position, and its mirrored twin, share this key."""
-    now = os.path.basename(ex["state"]["images"][-1]).replace("mirror_", "")
-    return ex.get("dataset"), now
+    source. Every action asked at one position, and its mirrored twin, share this key. The frame's folder is part of
+    it: the movement pairs keep one folder per match (frames/<A>_vs_<B>/g0000_k00009.png), the same basename in
+    different folders is a different screen (a flat frames/ folder: the same key as the basename alone)."""
+    path = ex["state"]["images"][-1]
+    now = os.path.basename(path).replace("mirror_", "")
+    return ex.get("dataset"), now, os.path.basename(os.path.dirname(path))
 
 
 def _kind(key: Tuple) -> str:
@@ -175,7 +178,7 @@ def coverage_table(train: List[Dict], val: List[Dict], dirs: Sequence[str]) -> s
     names = [os.path.basename(os.path.normpath(d)) for d in dirs]
     nt = collections.Counter(ex.get("dataset") for ex in train)
     nv = collections.Counter(ex.get("dataset") for ex in val)
-    pv = collections.Counter(d for d, _ in {position(ex) for ex in val})
+    pv = collections.Counter(k[0] for k in {position(ex) for ex in val})
     return "\n".join("  %-8s train %5d  val %4d rows (%d positions)" % (n, nt[n], nv[n], pv[n]) for n in names)
 
 

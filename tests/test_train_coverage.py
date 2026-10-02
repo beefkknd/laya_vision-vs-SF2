@@ -76,3 +76,20 @@ def test_split_never_shares_a_position_and_is_per_dataset():
     assert not {position(x) for x in tr} & {position(x) for x in va}
     per = {c: len({position(x) for x in va if x["dataset"] == c}) for c in ("ryu", "ken")}
     assert per["ryu"] == per["ken"] >= 1
+
+
+def _ex(path, ds="move"):
+    return {"dataset": ds, "id": path, "state": {"images": ["/d/%s/frames/%s" % (ds, path.replace("k9", "k5")),
+                                                            "/d/%s/frames/%s" % (ds, path)]}}
+
+
+def test_a_position_is_its_frame_file_in_its_folder_not_only_the_basename():
+    """The movement pairs (docs/prereg_movement_finetunes.md) keep frames/<A>_vs_<B>/g0000_k00009.png: the same
+    basename in 56 match folders is 56 different screens; train.py's gate called them shared (a false stop)."""
+    a, b = _ex("ryu_vs_ken/g0000_k9.png"), _ex("ken_vs_ryu/g0000_k9.png")
+    assert position(a) != position(b)
+    assert position(a) == position(_ex("ryu_vs_ken/g0000_k9.png"))
+    assert position(_ex("ryu_vs_ken/mirror_g0000_k9.png")) == position(a)
+    assert not [p for p in coverage_problems([a], [b], ["/d/move"], share_check=False) if "also in train" in p]
+    assert [p for p in coverage_problems([a], [_ex("ryu_vs_ken/g0000_k9.png")], ["/d/move"], share_check=False)
+            if "also in train" in p]
