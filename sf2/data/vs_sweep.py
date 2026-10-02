@@ -18,69 +18,20 @@ from typing import Dict, List, Sequence, Tuple
 from ..vocab import FULL_LIFE, bar, range_of
 from ..emu.vs import GROUND_Y, Step
 from .vs_moves import BLOCK_REACTS, GUARD, HIT, SPECIAL, THROWN, JUMP, ATTACK
+# The RAM-free action vocabulary (movement, normals, specials, the 20 static actions) lives in sf2.data.actions_free
+# so the screen-only play path can import it with no RAM; re-exported here, where the RAM half (notes, outcome
+# labels, the two blocks whose steps are in sf2.data.vs_defense) is built on top of it.
+from .actions_free import MOVEMENT, NORMALS, SPECIALS, _crouch, static_actions  # noqa: F401
 
 LEAD = 8        # idle frames before the action; the images are frames LEAD - 4 ("a moment ago") and LEAD ("now")
 PREV_GAP = 4
-_T = 2          # frames a button is held, then released
 
-MOVEMENT: Dict[str, Tuple[Step, ...]] = {
-    "idle": (((), 4),), "forward": ((("F",), 4),), "back": ((("B",), 4),), "jump": ((("U",), 4),),
-    "jump_forward": ((("U", "F"), 4),), "jump_back": ((("U", "B"), 4),), "crouch": ((("D",), 4),),
-}
-NORMALS: Dict[str, Tuple[Step, ...]] = {b: (((b,), _T), ((), _T)) for b in ("lp", "mp", "hp", "lk", "mk", "hk")}
-
-
-def _crouch(b: str) -> Tuple[Step, ...]:
-    return ((("D", b), _T), (("D",), _T))
-
-
-SPECIALS: Dict[str, Dict[str, Tuple[Step, ...]]] = {
-    # ROM-verified timings (laya_two_system sf2/actions.py; tests/test_rom_moves.py there)
-    "ryu": {"c.lk": _crouch("lk"), "c.mk": _crouch("mk"), "sweep": _crouch("hk"),
-            "throw": ((("F", "hp"), _T), (("F",), _T)),
-            "hadoken": ((("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2)),
-            "shoryuken": ((("F",), 2), (("D",), 2), (("D", "F", "hp"), 2), ((), 2)),
-            "tatsumaki": ((("D",), 2), (("D", "B"), 2), (("B", "hk"), 2), ((), 2))},
-    "chunli": {"c.lk": _crouch("lk"), "c.mk": _crouch("mk"), "sweep": _crouch("hk"), "c.hp": _crouch("hp"),
-               "throw": ((("F", "hp"), _T), (("F",), _T)),
-               "lightning_legs": ((("lk",), 1), ((), 1)) * 12,
-               "spinning_bird_kick": ((("D",), 64), (("U", "hk"), 2), ((), 2))},
-}
-SPECIALS["ken"] = SPECIALS["ryu"]
-_CHARGE = 64    # frames a charge is held (61 needed on the ROM for Guile, + a margin)
-_MASH = ((("lp",), 1), ((), 1)) * 12      # ~5+ presses of one punch: Hundred Hand Slap, Electricity
-_BASE = {"c.lk": _crouch("lk"), "c.mk": _crouch("mk"), "sweep": _crouch("hk"), "c.hp": _crouch("hp"),
-         "throw": ((("F", "hp"), _T), (("F",), _T))}
-
-
-def _back_charge(button: str) -> Tuple[Step, ...]:
-    # down-back charges "back" too and does not walk away, so the gap being measured stays put
-    return ((("D", "B"), _CHARGE), (("F", button), 2), ((), 2))
-
-
-SPECIALS["guile"] = dict(_BASE, sonic_boom=_back_charge("hp"),
-                         flash_kick=((("D",), _CHARGE), (("U", "hk"), 2), ((), 2)))
-SPECIALS["honda"] = dict(_BASE, hundred_hand_slap=_MASH, sumo_headbutt=_back_charge("hp"))
-SPECIALS["blanka"] = dict(_BASE, electricity=_MASH, rolling_attack=_back_charge("hp"))
-SPECIALS["zangief"] = dict(_BASE, spinning_piledriver=((("F",), 2), (("D", "F"), 2), (("D",), 2), (("D", "B"), 2),
-                                                       (("B",), 2), (("U", "lp"), 2), ((), 2)),  # ROM-verified
-                           clothesline=((("lp", "mp", "hp"), 2), ((), 2)))
-SPECIALS["dhalsim"] = dict(_BASE, yoga_fire=((("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2)),
-                           yoga_flame=((("B",), 2), (("D", "B"), 2), (("D",), 2), (("D", "F"), 2), (("F", "hp"), 2),
-                                       ((), 2)))
 # Specials that must show state 0C to count as done. Not here: the clothesline (a 0A attack), the pile driver (out
 # of grab range Zangief advances and grabs, still 0C, but checked by outcome), and the mash moves (Hundred Hand
 # Slap, Electricity, Lightning Legs): up close the first jab of the mash hits and its hit stun stops the special from starting,
 # which is what the ROM does; ``special_state`` records whether it started.
 SPECIAL_STATE = {"hadoken", "shoryuken", "tatsumaki", "spinning_bird_kick", "sonic_boom",
                  "flash_kick", "sumo_headbutt", "rolling_attack", "yoga_fire", "yoga_flame"}
-
-
-def static_actions(char: str) -> Dict[str, Tuple[Step, ...]]:
-    """The 20 actions tried against the still opponent (their outcome is what they do to him)."""
-    out = dict(MOVEMENT, **NORMALS, **SPECIALS[char])
-    assert len(out) == 20, (char, len(out))
-    return out
 
 
 def actions(char: str) -> Dict[str, Tuple[Step, ...]]:

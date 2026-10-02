@@ -5,17 +5,27 @@ input timings from its ROM-verified macros).
 
 A Move's ``check`` is a mechanical yes/no over the recorded rows (a_ = the fighter doing the move, d_ = the other);
 the measurements (sf2/data/vs_metrics.py) are data, not a gate.
+
+The RAM-FREE half of this module -- the move names, kinds, setup gaps and button-step scripts -- lives in
+sf2.moves_free (which imports no RAM), so the screen-only play runner can import the move menu without pulling RAM in.
+Here each RAM-free ``MoveSteps`` descriptor (``_free_*``) gets its ``check`` / ``expect`` attached (``_attach``); the
+fact predicates (seen, life_drops, connected, gap, toward, combo, _special, _fireball) stay here: they read RAM rows.
 """
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Sequence, Tuple
 
-from ..emu.vs import GROUND_Y, Step
+from ..emu.vs import GROUND_Y
+from ..moves_free import (BIRD, BUTTONS, GAPS, HADOKEN, JUMP_IN, LEGS, MoveSteps, REACH_GAPS,  # noqa: F401
+                          SHORYUKEN, Step, TATSUMAKI)
+from ..moves_free import blocks as _free_blocks
+from ..moves_free import chunli as _free_chunli
+from ..moves_free import movement as _free_movement
+from ..moves_free import normals as _free_normals
+from ..moves_free import ryu as _free_ryu
+from ..moves_free import throws as _free_throws
 
 ATTACK, SPECIAL, HIT, GUARD, THROWN, JUMP = 0x0A, 0x0C, 0x0E, 0x08, 0x14, 0x04
 BLOCK_REACTS = (0x06, 0x08)
-BUTTONS = ("lp", "mp", "hp", "lk", "mk", "hk")
-# Gaps (|x1 - x2|, world px) the setups use. Fight start is 96.
-GAPS = {"close": 36, "mid": 70, "far": 96, "wide": 150}
 Rows = List[Dict[str, int]]
 
 
@@ -77,61 +87,8 @@ def _blocked(rows: Rows) -> bool:
     return guard and not life_drops(rows)
 
 
-# ---------------------------------------------------------------------------------------------------- builders
-def _btn(b: str, n: int = 2) -> Tuple[Step, ...]:
-    return (((b,), n),)
-
-
-def movement() -> List[Move]:
-    j = lambda d: (((("U",) + d), 4),)  # noqa: E731
-    return [
-        Move("walk_forward", "movement", "wide", ((("F",), 40),), lambda r: toward(r) >= 20, "moves >=20 px toward"),
-        Move("walk_back", "movement", "far", ((("B",), 40),), lambda r: toward(r) <= -20, "moves >=20 px away"),
-        Move("crouch", "movement", "far", ((("D",), 30),), lambda r: seen(r, a_state=2), "state 02 crouch"),
-        Move("jump_up", "movement", "wide", j(()),
-             lambda r: min(x["a_y"] for x in r) < GROUND_Y - 30 and abs(toward(r)) < 4, "rises >30 px, lands in place"),
-        Move("jump_forward", "movement", "wide", j(("F",)),
-             lambda r: min(x["a_y"] for x in r) < GROUND_Y - 30 and toward(r) > 10, "rises, lands >10 px toward"),
-        Move("jump_back", "movement", "far", j(("B",)),
-             lambda r: min(x["a_y"] for x in r) < GROUND_Y - 30 and toward(r) < -10, "rises, lands >10 px away"),
-    ]
-
-
-def normals() -> List[Move]:
-    out: List[Move] = []
-    for b in BUTTONS:
-        out.append(Move("s." + b, "normal", "far", _btn(b), _attack_seen, "attack state 0A", sweep=True))
-        out.append(Move("cl." + b, "normal", "close", _btn(b), lambda r: _attack_seen(r) and connected(r),
-                        "attack state 0A and it connects"))
-        out.append(Move("c." + b, "normal", "close", ((("D", b), 2), (("D",), 14)),
-                        lambda r: _attack_seen(r) and connected(r) and seen(r, a_state=ATTACK),
-                        "crouching attack connects", sweep=True))
-        out.append(Move("j." + b, "normal", "close", ((("U",), 4), ((), 14), ((b,), 2)),
-                        lambda r: _attack_seen(r) and min(x["a_y"] for x in r) < GROUND_Y - 30,
-                        "air attack (0A or 04/06) in a neutral jump"))
-        out.append(Move("jf." + b, "normal", "far", ((("U", "F"), 4), ((), 16), ((b,), 2)),
-                        _attack_seen, "air attack in a forward jump (jump-in)"))
-    return out
-
-
-def blocks() -> List[Move]:
-    hp = (((), 2), (("hp",), 2))
-    low = (((), 2), (("D", "mk"), 2), (("D",), 12))
-    return [
-        Move("block_high", "block", "close", ((("B",), 40),), _blocked, "guards the standing fierce, no life lost",
-             other=hp, defends=True),
-        Move("block_low", "block", "close", ((("D", "B"), 40),), _blocked, "guards the crouching forward, no damage",
-             other=low, defends=True),
-    ]
-
-
-def throws(buttons: Sequence[str]) -> List[Move]:
-    return [Move("throw_F+" + b, "throw", "close", ((("F", b), 2), (("F",), 2)), lambda r: seen(r, d_state=THROWN),
-                 "defender state 14 (thrown)", sweep=True) for b in buttons]
-
-
-def _special(sid: Optional[int]) -> Callable[[Rows], bool]:
-    """State 0C seen; for player 1 also the special id (0x0D80) — player 2's id byte is not verified."""
+def _special(sid):
+    """State 0C seen; for player 1 also the special id (0x0D80) -- player 2's id byte is not verified."""
     def check(rows: Rows) -> bool:
         hits = [r for r in rows if r["a_state"] == SPECIAL]
         return bool(hits) and (sid is None or rows[0]["attacker"] != 1 or hits[0]["a_special"] == sid)
@@ -142,45 +99,84 @@ def _fireball(rows: Rows) -> bool:
     return _special(0x00)(rows) and any(r["shot1"] or r["shot2"] for r in rows)
 
 
-HADOKEN = ((("D",), 2), (("D", "F"), 2), (("F", "hp"), 2), ((), 2))
-SHORYUKEN = ((("F",), 2), (("D",), 2), (("D", "F", "hp"), 2), ((), 2))
-TATSUMAKI = ((("D",), 2), (("D", "B"), 2), (("B", "hk"), 2), ((), 2))
-LEGS = ((("lk",), 1), ((), 1)) * 12
-BIRD = ((("D",), 64), (("U", "hk"), 2), ((), 2))
-JUMP_IN = ((("U", "F"), 4), ((), 18), (("hk",), 2), ("until", "landed", (), 60))
+# ---------------------------------------------------------------------------------------------------- builders
+# Each RAM-free descriptor (sf2.moves_free) gets its RAM check / expect words attached here.
+def _attach(ms: MoveSteps, check: Callable[[Rows], bool], expect: str) -> Move:
+    return Move(ms.name, ms.kind, ms.gap, ms.steps, check, expect,
+                other=ms.other, defends=ms.defends, sweep=ms.sweep, hits=ms.hits)
+
+
+def movement() -> List[Move]:
+    checks: Dict[str, Tuple[Callable[[Rows], bool], str]] = {
+        "walk_forward": (lambda r: toward(r) >= 20, "moves >=20 px toward"),
+        "walk_back": (lambda r: toward(r) <= -20, "moves >=20 px away"),
+        "crouch": (lambda r: seen(r, a_state=2), "state 02 crouch"),
+        "jump_up": (lambda r: min(x["a_y"] for x in r) < GROUND_Y - 30 and abs(toward(r)) < 4,
+                    "rises >30 px, lands in place"),
+        "jump_forward": (lambda r: min(x["a_y"] for x in r) < GROUND_Y - 30 and toward(r) > 10,
+                         "rises, lands >10 px toward"),
+        "jump_back": (lambda r: min(x["a_y"] for x in r) < GROUND_Y - 30 and toward(r) < -10,
+                      "rises, lands >10 px away"),
+    }
+    return [_attach(ms, *checks[ms.name]) for ms in _free_movement()]
+
+
+def normals() -> List[Move]:
+    out: List[Move] = []
+    for ms in _free_normals():
+        prefix = ms.name.split(".", 1)[0]
+        if prefix == "s":
+            chk, exp = _attack_seen, "attack state 0A"
+        elif prefix == "cl":
+            chk, exp = (lambda r: _attack_seen(r) and connected(r)), "attack state 0A and it connects"
+        elif prefix == "c":
+            chk = lambda r: _attack_seen(r) and connected(r) and seen(r, a_state=ATTACK)  # noqa: E731
+            exp = "crouching attack connects"
+        elif prefix == "j":
+            chk = lambda r: _attack_seen(r) and min(x["a_y"] for x in r) < GROUND_Y - 30  # noqa: E731
+            exp = "air attack (0A or 04/06) in a neutral jump"
+        else:  # jf
+            chk, exp = _attack_seen, "air attack in a forward jump (jump-in)"
+        out.append(_attach(ms, chk, exp))
+    return out
+
+
+def blocks() -> List[Move]:
+    exp = {"block_high": "guards the standing fierce, no life lost",
+           "block_low": "guards the crouching forward, no damage"}
+    return [_attach(ms, _blocked, exp[ms.name]) for ms in _free_blocks()]
+
+
+def throws(buttons: Sequence[str]) -> List[Move]:
+    return [_attach(ms, lambda r: seen(r, d_state=THROWN), "defender state 14 (thrown)")
+            for ms in _free_throws(buttons)]
 
 
 def ryu() -> List[Move]:
-    lp_fb = ((("D",), 2), (("D", "F"), 2), (("F", "lp"), 2), ((), 2))
-    return movement() + normals() + blocks() + throws(["hp", "hk"]) + [
-        Move("hadoken_lp", "special", "far", lp_fb, _fireball, "state 0C, special 00, projectile slot active"),
-        Move("hadoken_hp", "special", "far", HADOKEN, _fireball, "state 0C, special 00, projectile slot active",
-             sweep=True),
-        Move("shoryuken_hp", "special", "close", SHORYUKEN,
-             lambda r: _special(0x04)(r) and min(x["a_y"] for x in r) < GROUND_Y - 30, "state 0C, special 04, rises",
-             sweep=True),
-        Move("tatsumaki_hk", "special", "mid", TATSUMAKI, _special(0x02), "state 0C, special 02", sweep=True),
-        Move("c.mk_xx_hadoken", "combo", "close", ((("D", "mk"), 2), (("D",), 2), (("D", "F"), 2), (("F", "hp"), 2),
-                                                   ((), 2)), lambda r: combo(r, 2), "2 hits, no gap", hits=2),
-        Move("c.mk_xx_shoryuken", "combo", "close", ((("D", "mk"), 2), (("F",), 2), (("D",), 2),
-                                                     (("D", "F", "hp"), 2), ((), 2)),
-             lambda r: combo(r, 2), "2+ hits, no gap", hits=2),
-        Move("jf.hk_cl.hp_xx_hadoken", "combo", "far", JUMP_IN + ((("hp",), 2),) + HADOKEN,
-             lambda r: combo(r, 3), "3 hits, no gap", hits=3),
-    ]
+    specials: Dict[str, Tuple[Callable[[Rows], bool], str]] = {
+        "hadoken_lp": (_fireball, "state 0C, special 00, projectile slot active"),
+        "hadoken_hp": (_fireball, "state 0C, special 00, projectile slot active"),
+        "shoryuken_hp": (lambda r: _special(0x04)(r) and min(x["a_y"] for x in r) < GROUND_Y - 30,
+                         "state 0C, special 04, rises"),
+        "tatsumaki_hk": (_special(0x02), "state 0C, special 02"),
+        "c.mk_xx_hadoken": (lambda r: combo(r, 2), "2 hits, no gap"),
+        "c.mk_xx_shoryuken": (lambda r: combo(r, 2), "2+ hits, no gap"),
+        "jf.hk_cl.hp_xx_hadoken": (lambda r: combo(r, 3), "3 hits, no gap"),
+    }
+    base = movement() + normals() + blocks() + throws(["hp", "hk"])
+    return base + [_attach(ms, *specials[ms.name]) for ms in _free_ryu() if ms.name in specials]
 
 
 def chunli() -> List[Move]:
-    return movement() + normals() + blocks() + throws(["hp", "mp"]) + [
-        Move("lightning_legs", "special", "close", LEGS, _special(0x02), "state 0C, special 02", sweep=True),
-        Move("spinning_bird_kick", "special", "mid", BIRD, _special(0x00), "state 0C, special 00", sweep=True),
-        Move("jf.hk_s.mp_s.hp", "combo", "far", JUMP_IN + ((("mp",), 2), ((), 8), (("hp",), 2)),
-             lambda r: combo(r, 3), "3 hits, no gap", hits=3),
-        Move("jf.mk_legs", "combo", "far", ((("U", "F"), 4), ((), 18), (("mk",), 2), ("until", "landed", (), 60))
-             + LEGS, lambda r: combo(r, 2), "jump-in then Lightning Legs, no gap", hits=2),
-    ]
+    specials: Dict[str, Tuple[Callable[[Rows], bool], str]] = {
+        "lightning_legs": (_special(0x02), "state 0C, special 02"),
+        "spinning_bird_kick": (_special(0x00), "state 0C, special 00"),
+        "jf.hk_s.mp_s.hp": (lambda r: combo(r, 3), "3 hits, no gap"),
+        "jf.mk_legs": (lambda r: combo(r, 2), "jump-in then Lightning Legs, no gap"),
+    }
+    base = movement() + normals() + blocks() + throws(["hp", "mp"])
+    return base + [_attach(ms, *specials[ms.name]) for ms in _free_chunli() if ms.name in specials]
 
 
 MOVESETS: Dict[str, Callable[[], List[Move]]] = {"ryu": ryu, "ken": ryu, "chunli": chunli}
 CONDS = {"landed": lambda now, start: now["a_y"] == GROUND_Y and now["a_state"] != JUMP}
-REACH_GAPS = list(range(16, 204, 6))

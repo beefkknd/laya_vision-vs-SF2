@@ -32,7 +32,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from ..data.perception import Q8_ANSWERS, QUESTIONS
-from ..data.u_data import NOTE_VERSION, Q8_KEY, argmax, eye_note, hud_frame, q8_moves, questions
+from ..data.frames_free import eye_note, hud_frame     # RAM-free frame helpers (the play path's source)
+from ..data.u_data import NOTE_VERSION, Q8_KEY, argmax, q8_moves, questions
 from .advice import FAILS, FORWARD, MAY, RATING, WORKS, answers, prompt, question, read, situation_text
 from .advisor import SHORTLIST, applicable
 
