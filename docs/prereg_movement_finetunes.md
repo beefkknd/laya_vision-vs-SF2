@@ -73,3 +73,16 @@ accuracy (1,000 resamples by whole match) above both. Reported for every run, pa
 Per character (balanced): move 0.24-0.30, face 0.48-0.56, air 0.64-0.77, dist 0.61-0.69; per facing: move 0.26 / 0.27,
 air 0.70 / 0.71, dist 0.62 / 0.67 (left / right). Plain accuracy: air 0.763 and dist 0.749 vs always-majority 0.766
 / 0.717. Confusions in the eval.json files (move: walk toward mostly answered walk away; block / hit spread).
+
+## Round 2 (owner, 2026-10-02): ask by screen side, not by name
+Owner: "Change question for all, ask left and right, this clears the context. Vision may find it hard to tell
+character by character, also may be confused about who am I. Try a different round, give left/right in the question."
+- Same frames, same labels, same splits (no new collection). Each question names the fighter by screen side:
+  "the fighter on the left" / "the fighter on the right", side = which fighter has the smaller x at the displayed
+  frame t (lag 1); pairs where the two x are equal (crossing) are dropped and counted. No character names, no note.
+- Questions: "What is the fighter on the <side> doing?", "Which way is the fighter on the <side> facing?", "Is the
+  fighter on the <side> on the ground or in the air?", "Is the fighter on the <side> close to or far from the other
+  fighter?" (distance is symmetric; asked the same way for consistency).
+- Four runs again, identical settings to round 1 (from BASE, r16/a32, batch 8, lr 1e-4 / 2e-4, seed 0, 3 epochs,
+  eval every 250, select val NLL, patience 5, MPS), runs/mv2_{move,face,air,dist}; same held-out evaluation and
+  "learned" rule, reported side by side with round 1, plus per side (left / right).
