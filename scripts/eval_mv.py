@@ -6,7 +6,11 @@ every --data dir's test.jsonl (never trained or validated on), scored against th
 The model scores each row exactly as validation did in scripts/train.py (laya.vlm_train.collect_logits, the options
 in label order); the answer is the arg-max. Reports balanced accuracy, per-answer recall, the confusion, per character
 and per facing; vs always the most common TRAINING answer and vs chance; "learned" = the 2.5% lower bound of balanced
-accuracy (1,000 resamples by whole match) above both. Writes --out (default <model>/../eval.json).
+accuracy (1,000 resamples by whole match) above both. Writes --out (default <model>/../eval.json), with every test
+row's id, truth and answer.
+
+Round 3: the answers come from the dataset's build.json "answers" when it has them (act, fireball); --collapse act
+scores a 10-movement model (mv2_move) on act's three answers (sf2.data.mv3_act mapping, truth and answer both).
 """
 import argparse
 import json
@@ -58,10 +62,11 @@ def main(argv=None) -> int:
     ap.add_argument("--out")
     ap.add_argument("--device", default=None)
     ap.add_argument("--batch-size", type=int, default=16)
+    ap.add_argument("--collapse", choices=("act",), help="score the answers mapped to round 3's act answers")
     args = ap.parse_args(argv)
     meta = json.load(open(os.path.join(args.data, "build.json")))
     q = meta["question"]
-    answers = list(T.CRITERIA[q])
+    answers = list(meta.get("answers") or T.CRITERIA[q])
     exs, recs = load_rows(args.data, "test")
     train_answers = [r["answer"] for r in T.all_rows(args.data, "train")]
     import laya
@@ -73,8 +78,16 @@ def main(argv=None) -> int:
     preds = [answers[int(o["logits"].argmax())] for o in out]
     if any(o["label"] != answers.index(r["answer"]) for o, r in zip(out, recs)):
         raise SystemExit("label order mismatch between laya and the records")
+    raw = [{"id": r["id"], "truth": r["answer"], "answer": p} for r, p in zip(recs, preds)]
+    if args.collapse:
+        from sf2.data import mv3_act as A
+        mapping = {m: A.act_of(m) for m in answers}
+        recs, preds = E.collapsed(recs, preds, mapping)
+        train_answers = [mapping[a] for a in train_answers]
+        answers = list(A.ACT_ANSWERS)
     res = E.evaluate(recs, preds, answers, train_answers)
-    res.update({"checkpoint": args.model, "data": args.data, "question": q, "seconds": round(time.time() - t0, 1)})
+    res.update({"checkpoint": args.model, "data": args.data, "question": q, "seconds": round(time.time() - t0, 1),
+                "collapse": args.collapse, "rows": raw})
     path = args.out or os.path.join(os.path.dirname(os.path.normpath(args.model)), "eval.json")
     with open(path, "w") as f:
         json.dump(res, f, indent=1)

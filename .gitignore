@@ -56,3 +56,6 @@ test_data_mv2_move/
 test_data_mv2_face/
 test_data_mv2_air/
 test_data_mv2_dist/
+test_data_mv3_act/
+test_data_mv3_fireball/
+test_data_mv3_fireball_contact/

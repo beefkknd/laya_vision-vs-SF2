@@ -36,8 +36,9 @@ def committed(base: str) -> List[Dict]:
 
 
 def next_game(base: str) -> int:
-    seen = {g["game"] for g in committed(base)} | {p["game"] for p in read_jsonl(os.path.join(base, "pairs.jsonl"))
-                                                   if "game" in p} | MIO._games_on_disk(base)
+    seen = {g["game"] for g in committed(base)} | {p["game"] for f in ("pairs.jsonl", "shots.jsonl")
+                                                   for p in read_jsonl(os.path.join(base, f)) if "game" in p} | \
+        MIO._games_on_disk(base)
     return max(seen) + 1 if seen else 0
 
 
@@ -55,25 +56,30 @@ def move_log(chars: Dict[int, str], moves: List[List], rows: List[Dict[str, int]
 def collect_pair(base: str, play: Callable[[int, PairSampler], Dict], a: str, b: str, games: int, seed: int,
                  bands: Dict[str, int], ring: int = RING, per_game: int = PER_GAME, mem_cap_gb: float = MEM_CAP_GB,
                  rss_gb: Callable[[], float] = peak_rss_gb, log: Callable[..., None] = print,
-                 controllers: Dict[int, str] = SLOTS) -> Dict:
+                 controllers: Dict[int, str] = SLOTS, sampler_cls=PairSampler) -> Dict:
     """Play games (``play(game, sampler)`` feeds every stream row to the sampler and returns the summary with
-    "moves") until ``games`` are committed; the stop record."""
+    "moves") until ``games`` are committed; the stop record. A sampler with ``shots`` (sf2.data.pairs_shots.ShotSampler)
+    also writes shots.jsonl and lists its flights in the game's record, before the commit."""
     if games < 0:
         raise ValueError("games %r must be >= 0" % games)
     os.makedirs(base, exist_ok=True)
     while len(committed(base)) < games:
         game = next_game(base)
-        sampler = PairSampler(game, {1: a, 2: b}, random.Random("%d:%s:%s:%d" % (seed, a, b, game)),
+        sampler = sampler_cls(game, {1: a, 2: b}, random.Random("%d:%s:%s:%d" % (seed, a, b, game)),
                               ImageSaver(os.path.join(base, "images"), game), bands, ring, per_game, controllers)
         t0 = time.time()
         summary = play(game, sampler)
         pairs = sampler.finish()
         write_ram(os.path.join(base, "ram"), game, sampler.rows)
         MIO._append(os.path.join(base, "pairs.jsonl"), pairs)
+        extra = {}
+        if hasattr(sampler, "shots"):
+            MIO._append(os.path.join(base, "shots.jsonl"), sampler.shots)
+            extra = {"shots": len(sampler.shots), "flights": sampler.flights}
         moves = move_log({1: a, 2: b}, summary.get("moves", []), sampler.rows)
         rss = rss_gb()
         rec = dict(summary, game=game, pair=[a, b], rows=len(sampler.rows), pairs=len(pairs), moves=moves,
-                   seconds=round(time.time() - t0, 2), rss_gb=round(rss, 2))
+                   seconds=round(time.time() - t0, 2), rss_gb=round(rss, 2), **extra)
         MIO._append(os.path.join(base, "games.jsonl"), [rec])
         done = sum(m[3] == "done" for m in moves)
         log("%s vs %s game %d: %s, %d rows, %d pairs, %d moves (%d done), %.0f s, rss %.1f GB" % (

@@ -146,3 +146,57 @@ should be it. Another problem is the fireball in the air. That is a real bug. We
   from the existing data.
 - Two runs (act, fireball), same settings as rounds 1-2, from BASE; same held-out evaluation and "learned" rule;
   per answer, per side, per character.
+
+## Round 3 data (2026-10-02; training moved to threebody by the owner - not run here)
+
+### act (test_data_mv3_act)
+- sf2.data.mv3_act (scripts/build_mv3_data.py act): round 2's movement rows (same frames, sides, splits; 6 equal-x rows
+  dropped as before), answer moving / attack / special (attack = the grid's attack, special = the grid's special,
+  the other 8 movements = moving), one dir per answer. Tests first (tests/test_mv3_act.py); independent check
+  problems_act 0. Rows (train / val / test): moving 4,195 / 874 / 2,523; attack 526 / 114 / 320; special 534 / 105 /
+  320. Matches 307 / 65 / 188 (round 2's).
+
+### fireball: the slots, the blink, the trigger
+- Ownership confirmed before trusting it: in round 2's games 0-3, 255 of 258 projectile flights started while their
+  own slot's player pressed a projectile word (shot1 = player 1, shot2 = player 2); frames (scripts/probe_shots.py, a
+  scratch probe: one player throws, the other idles) show each player's hadoken / sonic boom / yoga fire leaving that
+  player. New rounds: 463 flights, 376 with the slot's own player pressing hadoken / sonic boom / yoga fire, 1 where
+  only the other player did, 86 neither (all Dhalsim's yoga flame, which also uses the slot).
+- Found: the game BLINKS projectiles. While the slot is on, byte +0x3A of the slot (0x103A / 0x108A) bit 0 set = not
+  drawn on that frame: hadoken 2 on / 2 off, yoga fire 1 frame in 4 hidden, sonic boom never. Probe: a blue-pixel
+  detector agreed with the bit on 102/102 hadoken frames of player 2 (196/200 of player 1); the first "on" row is
+  drawn in the next capture (lag 1). A label from the slot alone would be wrong on ~half the hadoken frames, so a
+  fireball row needs the projectile DRAWN at the displayed row t (slot on, bit clear). Recorded as two new RAM vars
+  (shot1_hide / shot2_hide) in the new rounds only.
+- Trigger (sf2.data.pairs_shots.ShotSampler; scripts/collect_pairs.py --mode vs --shots --per-game 0 --pairs
+  throwers): every flight is cut in thirds (start / middle / end), one drawn row per third at random, at most 3 per
+  (slot, stage) per game; images = captures t - 3, t + 1. No movement pairs in these games (per-game 0).
+- Caps (proposed and used): 40 train / 20 test per (thrower, side, flight stage) = 24 cells per split; hard limit 6
+  new games per pair (games 10-15) on the 44 ordered pairs with ryu / ken / guile / dhalsim. rollouts/pairs2p/run.json
+  saved first as run_before_g10_shots.json. One line per round (~1 min each, 0 failed workers):
+  games 11: 13.5% filled, 48 of 48 cells not full | 12: 25.1%, 48 | 13: 37.7%, 48 | 14: 51.1%, 46 | 15: 64.3%, 46 |
+  16: 75.0%, 37 not full. Hard limit reached; never padded. Shortest: train ken left end 15/40, ken left 19-20/40,
+  ryu right 19/40, dhalsim right 25-28/40; test dhalsim right 10/20, guile right 12/20.
+
+### fireball dataset (test_data_mv3_fireball)
+- sf2.data.mv3_fireball (scripts/build_mv3_data.py fireball): 1,367 trigger samples of committed games; dropped 261
+  not a projectile word (yoga flame), 5 with the other slot also on at t, 0 not drawn, 0 equal x; 1,101 eligible;
+  capped per (split, thrower, side, stage). "none": round 2's pairs build rows (one per image pair) with both slots off
+  over t - 8 .. t (no projectile, no impact spark), 9,171 in the pool, sampled per split to the larger fireball
+  answer. Split by match as before (new games the same crc32 rule). Question "Is there a fireball on the screen?",
+  answers none / left / right (thrown by the fighter on the left / right; side by x at t). Head tokens 56.
+  Rows (train / val / test): none 295 / 75 / 234; left 295 / 38 / 234; right 270 / 75 / 168. Matches 319 / 72 / 224.
+  Caveat: fireball rows come from games 10-15 and none rows from games 0-9 (same matches' pairs, same stage).
+- Gate (scripts/gate_mv3_fireball.py) PASS: labels 1,684/1,684 rows re-derived from RAM and the move log (0
+  problems); alignment lag 1: 1.000 (400 random) and 1.000 on 186 discriminating pairs vs 0.53 / 0.47 at lag 0 / 2 -
+  pairs with the HUD clock <= 20 s are left out (237): the clock blinks there, and all 114 disagreements of a first
+  run were such pairs; drawn: 525/546 hadoken rows show >= 200 blue pixels in the labelled frame, 21/21 none rows of
+  Ryu-vs-Ken matches none; disk 1.94 GB. Contact sheets test_data_mv3_fireball_contact/fireball_{ryu,ken,guile,
+  dhalsim,none}.png looked at: every sampled "now" frame shows a projectile on the labelled side (some at impact or
+  at the screen edge), none frames show none.
+- Tests first + seeded faults: tests/test_pairs_shots.py, test_mv3_fireball.py, test_mv3_fireball_gate.py; faults
+  tests/faults/mv3_faults.py 38 of 38 (4 were green on the first run and got tests); pairs 97 of 97, mv_eval 9 of 9.
+- Blocker for training (not changed here): scripts/train.py's --balance sampling gate requires >= 1,000 train and
+  >= 100 val rows per dir (sf2.data.train_data MIN_SAMPLED_TRAIN / MIN_SAMPLED_VAL). act attack 526 / special 534
+  train and every fireball dir (270-295 train; val 38-75) are below it, so both registered runs stop at the
+  coverage check. Owner decision needed (lower the minimum for these runs, or more data).

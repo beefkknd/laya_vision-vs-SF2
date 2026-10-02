@@ -9,7 +9,8 @@ the held-out test matches"; scripts/eval_mv.py). Pure functions, any answer set.
   matches ((pair_name, game)), seeded.
 - learned: that lower bound above BOTH the majority baseline's and chance's balanced accuracy.
 - breakdown: the same metrics per character and per facing (the row's own facing label); per screen side when
-  the rows were asked by side (round 2).
+  the rows were asked by side (round 2); per flight stage for the fireball rows (round 3).
+- collapsed: rows and answers mapped to a coarser answer set (round 3: mv2_move's ten movements as act's three).
 """
 import collections
 from typing import Dict, List, Optional, Sequence
@@ -98,4 +99,13 @@ def evaluate(rows: Sequence[Dict], preds: Sequence[str], answers: Sequence[str],
            "by_char": breakdown(rows, preds, "char", answers), "by_facing": breakdown(rows, preds, "facing", answers)}
     if rows and all("side" in r for r in rows):          # round 2: asked by screen side
         res["by_side"] = breakdown(rows, preds, "side", answers)
+    if rows and all("flight_stage" in r for r in rows):  # round 3: the fireball's flight stage
+        res["by_flight_stage"] = breakdown(rows, preds, "flight_stage", answers)
     return res
+
+
+def collapsed(rows: Sequence[Dict], preds: Sequence[str], mapping: Dict[str, str]):
+    """(rows with answer mapped and the original kept as movement10, preds mapped): e.g. round 2's ten movements
+    scored as round 3's act answers (moving / attack / special)."""
+    return ([dict(r, answer=mapping[r["answer"]], movement10=r["answer"]) for r in rows],
+            [mapping[p] for p in preds])

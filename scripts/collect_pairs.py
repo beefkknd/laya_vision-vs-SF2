@@ -7,6 +7,12 @@ once as the memory budget allows.
     python scripts/collect_pairs.py --out rollouts/pairs --games 3                       # all 56 pairs
     python scripts/collect_pairs.py --out /tmp/x --games 1 --pairs ryu:ken,ken:ryu        # a smoke
     python scripts/collect_pairs.py --mode vs --out rollouts/pairs2p --games 1           # Plan B round 1
+    python scripts/collect_pairs.py --mode vs --shots --per-game 0 --pairs throwers --out rollouts/pairs2p --games 11
+                                                                    # round 3: projectile trigger, one more round
+
+--shots (round 3, sf2.data.pairs_shots): also record the shot slots' blink bytes and sample every projectile flight at
+start / middle / end (<pair>/shots.jsonl, the flights in games.jsonl); --pairs throwers = every ordered pair with
+ryu, ken, guile or dhalsim on either side.
 
 --mode vs (Plan B): 2P versus, BOTH controllers ours, each driven by its own character's list and seeded cycle
 (sf2.data.pairs_collect.play_both); rows record controller p1 / p2. Needs states/vs_<A>_vs_<B>.state
@@ -31,6 +37,7 @@ from sf2.data import pairs_collect as PC
 from sf2.data import pairs_collect_io as IO
 from sf2.data import pairs_labels as L
 from sf2.data import pairs_moves as PM
+from sf2.data import pairs_shots as S
 from sf2.data.action_codes import EXTRA_NAMES, EXTRA_VARS
 from sf2.emu.vs import NAMES, VARS
 from sf2.eval.budget import Budget
@@ -52,6 +59,8 @@ def all_pairs():
 def parse_pairs(text: str):
     if text == "all":
         return all_pairs()
+    if text == "throwers":
+        return [(a, b) for a, b in all_pairs() if a in S.THROWERS or b in S.THROWERS]
     out = []
     for item in text.split(","):
         a, _, b = item.partition(":")
@@ -79,8 +88,9 @@ def play_one(args, a: str, b: str, port: int) -> int:
     words = {p: list(PM.moves(c)) for p, c in chars.items()}
     t0 = time.time()
     with open_fight(a, b, port, args.rom, state=state_path(args.mode, a, b)) as (br, state):
-        br.set_vars(VARS + EXTRA_VARS)
-        proxy = C.CapturingBridge(br, ALL_NAMES)
+        names = ALL_NAMES + (S.SHOT_NAMES if args.shots else [])
+        br.set_vars(VARS + EXTRA_VARS + (S.SHOT_VARS if args.shots else []))
+        proxy = C.CapturingBridge(br, names)
 
         def play(game: int, sampler) -> dict:
             proxy.sink = sampler.feed
@@ -88,11 +98,11 @@ def play_one(args, a: str, b: str, port: int) -> int:
             if args.mode == "vs":
                 cycles = {p: PM.Cycle(words[p], random.Random("cycle%d:%d:%s:%s:%d" % (p, args.seed, a, b, game)))
                           for p in chars}
-                out = PC.play_both(proxy, ALL_NAMES, chars, cycles, state, start, lambda: len(sampler.rows),
+                out = PC.play_both(proxy, names, chars, cycles, state, start, lambda: len(sampler.rows),
                                    on_word=sampler.press)
             else:
                 cycle = PM.Cycle(words[1], random.Random("cycle:%d:%s:%s:%d" % (args.seed, a, b, game)))
-                out = PC.play_directed(proxy, ALL_NAMES, a, cycle, state, start, lambda: len(sampler.rows))
+                out = PC.play_directed(proxy, names, a, cycle, state, start, lambda: len(sampler.rows))
             proxy.sink = None
             return out
 
@@ -103,7 +113,8 @@ def play_one(args, a: str, b: str, port: int) -> int:
             stop = IO.collect_pair(base, play, a, b, args.games, args.seed, bands, ring=args.ring,
                                    per_game=args.per_game, mem_cap_gb=args.mem_cap_gb, rss_gb=rss,
                                    log=lambda m: print(m, flush=True),
-                                   controllers=PC.VS_SLOTS if args.mode == "vs" else PC.SLOTS)
+                                   controllers=PC.VS_SLOTS if args.mode == "vs" else PC.SLOTS,
+                                   sampler_cls=S.ShotSampler if args.shots else PC.PairSampler)
         except IO.MemoryCapExceeded as e:
             print("STOP:", e, flush=True)
             return 3
@@ -116,7 +127,8 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join("rollouts", "pairs"))
     ap.add_argument("--mode", choices=("directed", "vs"), default="directed",
                     help="directed: player 1 ours vs the CPU; vs: Plan B, 2P versus, both ours")
-    ap.add_argument("--pairs", default="all", help="all, or A:B,A:B,... (A = player 1, directed)")
+    ap.add_argument("--pairs", default="all", help="all, throwers, or A:B,A:B,... (A = player 1, directed)")
+    ap.add_argument("--shots", action="store_true", help="round 3: the projectile sampling trigger")
     ap.add_argument("--games", type=int, default=GAMES, help="games per ordered pair (the fixed budget)")
     ap.add_argument("--per-game", type=int, default=PC.PER_GAME)
     ap.add_argument("--ring", type=int, default=C.RING)
@@ -142,11 +154,11 @@ def main() -> int:
         raise SystemExit("--workers must be >= 1 and at most %d pairs (one port each)" % PORTS["pairs"][1])
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "run.json"), "w") as f:
-        json.dump({"mode": args.mode, "pairs": ["%s:%s" % p for p in pairs], "games": args.games, "per_game": args.per_game,
+        json.dump({"mode": args.mode, "shots": args.shots, "shot_per_game": S.SHOT_PER_GAME, "pairs": ["%s:%s" % p for p in pairs], "games": args.games, "per_game": args.per_game,
                    "ring": args.ring, "seed": args.seed, "short": C.SHORT, "lag": C.LAG,
                    "moves": {c: list(PM.moves(c)) for c in sorted({c for p in pairs for c in p})},
                    "started": time.strftime("%Y-%m-%d %H:%M:%S")}, f, indent=1)
-    common = ["--mode", args.mode, "--out", args.out, "--games", str(args.games), "--per-game", str(args.per_game), "--ring",
+    common = (["--shots"] if args.shots else []) + ["--mode", args.mode, "--out", args.out, "--games", str(args.games), "--per-game", str(args.per_game), "--ring",
               str(args.ring), "--seed", str(args.seed), "--mem-cap-gb", str(args.mem_cap_gb)] + (
               ["--rom", args.rom] if args.rom else [])
     # one port per pair (never shared); at most ``workers`` at once (the budget's job_gb * workers)

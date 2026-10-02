@@ -83,3 +83,22 @@ def test_breakdown_per_side_when_the_rows_ask_by_side_and_none_otherwise():
     assert res["by_side"]["left"]["balanced_accuracy"] == 1.0
     assert res["by_side"]["right"]["balanced_accuracy"] == 0.0
     assert "by_side" not in E.evaluate(rows, preds, ANS, ["ground"])
+
+
+def test_collapsed_maps_the_truth_and_the_answer_through_one_mapping():
+    """Round 3: mv2_move's ten answers collapsed to act's three (moving / attack / special)."""
+    m = {"stand": "moving", "hit": "moving", "attack": "attack", "special": "special"}
+    rows = [{"answer": "stand", "id": 1}, {"answer": "attack", "id": 2}, {"answer": "special", "id": 3}]
+    rows2, preds2 = E.collapsed(rows, ["hit", "special", "special"], m)
+    assert [r["answer"] for r in rows2] == ["moving", "attack", "special"] and preds2 == ["moving", "special", "special"]
+    assert rows[0]["answer"] == "stand" and rows2[0]["movement10"] == "stand"      # the input rows are not changed
+    res = E.evaluate([dict(r, pair_name="a", game=0, facing="-", char="ryu") for r in rows2], preds2,
+                     ("moving", "attack", "special"), ["moving"])
+    assert res["model"]["recall"] == {"moving": 1.0, "attack": 0.0, "special": 1.0}
+
+
+def test_breakdown_per_flight_stage_when_the_rows_have_one():
+    rows, preds = _spec(4, lambda i, r: True)
+    staged = [dict(r, flight_stage="start" if i % 2 else "end") for i, r in enumerate(rows)]
+    assert set(E.evaluate(staged, preds, ANS, ["ground"])["by_flight_stage"]) == {"start", "end"}
+    assert "by_flight_stage" not in E.evaluate(rows, preds, ANS, ["ground"])
