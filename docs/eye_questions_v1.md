@@ -174,3 +174,12 @@ in the pool's ratio 41,995 : 23,609 (build.json candidates - an assumption, the 
 - Keep rule (mechanical, margin 0.02): q1 +0.198, q3 +0.011 within; q4 -0.077 and q5 -0.035 lose more ->
   **eye_all NOT kept; separate adapters for q4 and q5** (eye_all is the better checkpoint for q1 and within margin
   for q3).
+
+## Next: more fireball data (owner, 2026-10-02: "you can start collecting more fireball data")
+- Why: q1 has 571 train rows per answer; the separate run overfit (selection kept a flat "yes" model) and the combined
+  run caught 66% of fireballs. Target >= 2,000 train rows per answer (yes / no) under the SAME q1 rules (yes = drawn in
+  either frame, >= 8 px on screen; no = no projectile in either frame; hard negatives; matching; shortcut check).
+- How: more 2P rounds (games 32+) on the 44 ordered pairs that include a thrower (ryu, ken, guile, dhalsim), with the
+  projectile sampling trigger; fireball cap per (thrower x side x flight stage) raised as needed; the "no" side drawn
+  from the same new games (matching keeps it aligned). Hard limit 80 games per pair in total; report fill per round.
+- Then rebuild q1 only (q3-q5 unchanged), gate, shortcut check, contact sheet. No training in this step.
