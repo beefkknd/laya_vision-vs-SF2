@@ -109,3 +109,11 @@ discriminating pairs vs 0.48 / 0.52 at lag 0 / 2), disk 0.19 GB. Fill 46.2% of t
 state 0x0A without move class 0x08, so the shared rule labels them "attack" (owner decision). Block: 2.4-3.4% of each
 character's rows, 29-55 episodes per character over 11-14 of its 14 matches. Lowest cells (walk toward, ~25-35%)
 need ~4 rounds; estimate 3-4 rounds in all (limit 5). Stopped after round 1 for the owner.
+
+## Owner after round 1 (2026-10-01): "Fix and keep on"
+- Fix: since both controllers are ours, "attack" vs "special" is taken from the move WE pressed (its kind in the
+  hardcoded list: normal / jump attack / throw -> attack; the character's special -> special), confirmed by RAM
+  (the side is in an attack state 0x0A/0x0C while the box or the move runs); other movements stay from RAM. Rule
+  applies to all characters. Round 1 is relabelled under the fix (same frames, RAM unchanged).
+- Keep one stage (Ryu's, the 2P versus default) for this first test; stated as a limitation.
+- Rounds 2-4, then report the fill matrix; stop at 5 rounds hard limit or when every cell is full.
