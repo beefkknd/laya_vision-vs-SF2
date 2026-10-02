@@ -96,7 +96,8 @@ class PairSampler:
         lo = max(FIRST_T, oldest + 4 - LAG)            # the prev image u - 3 must still be in the ring
         hi = newest - LAG                               # the now image u + 1 must exist
         n = len(self.rows)
-        for u in sample_positions(s, e, lo, hi, self.rng):
+        # both frames inside the episode (owner fix after the label quality check): t - 4 >= its first row
+        for u in sample_positions(s, e, max(lo, s + L.GAP), hi, self.rng):
             if self.taken.get((p, key), 0) >= self.per_game or u + LAG >= n:
                 break
             self.taken[(p, key)] = self.taken.get((p, key), 0) + 1

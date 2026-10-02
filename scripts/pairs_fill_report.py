@@ -65,14 +65,20 @@ def main(argv=None) -> int:
     ap.add_argument("--root", required=True)
     ap.add_argument("--cap", type=int, default=D.CAP)
     ap.add_argument("--json")
+    ap.add_argument("--quick", action="store_true", help="skip the per-row block / source scan")
     args = ap.parse_args(argv)
     pairs, dropped, names = D.collection_pairs(args.root)
-    pairs = D.cap_per_game(D.relabel(args.root, pairs, L.poke_bands()))      # the labels as the builder makes them
+    # the labels and the episode filter as the builder makes them
+    pairs, dropped_ep = D.in_episode_only(D.relabel(args.root, pairs, L.poke_bands()))
+    pairs = D.cap_per_game(pairs)
     chars = sorted({c for n in names for c in n.split("_vs_")})
     rep = dict(D.fill_report(pairs, chars, args.cap), pair_dirs=len(names), pairs=len(pairs), dropped=dropped)
-    rep["block"] = block_stats(args.root, names)
-    print("%d pair dirs, %d pairs; %d cells x cap %d; overall %.1f%%" % (
-        len(names), len(pairs), rep["cells"], args.cap, rep["overall_pct"]))
+    rep["block"] = block_stats(args.root, names) if not args.quick else {}
+    rep["dropped_episode"] = dropped_ep
+    rep["not_full"] = sorted(k for k, n in rep["counts"].items() if n < args.cap)
+    print("%d pair dirs, %d pairs; %d cells x cap %d; overall %.1f%%; %d cells not full; dropped outside an "
+          "episode: %s" % (len(names), len(pairs), rep["cells"], args.cap, rep["overall_pct"], len(rep["not_full"]),
+                           json.dumps(dropped_ep)))
     short = {"walk toward": "walk tw", "walk away": "walk aw"}
     print("%-8s %s  %6s" % ("char", " ".join("%-9s" % short.get(m, m) for m in L.MOVEMENTS10), "total"))
     for c in chars:

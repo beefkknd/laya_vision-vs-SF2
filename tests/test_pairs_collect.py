@@ -96,11 +96,14 @@ def test_at_most_per_game_pairs_per_slot_and_key(per_game):
         assert max(counts.values()) == per_game          # the synthetic game repeats every key many times
 
 
-def test_pairs_spread_over_start_middle_end_of_long_episodes():
+def test_pairs_spread_over_the_thirds_of_the_sampleable_part_of_long_episodes():
+    # owner fix: t - 4 must be inside the episode, so sampling starts 4 rows in: with synth's 9 / 13-row episodes the
+    # whole-episode "start" bin (the first third) is out of reach; middle and end are spread over
     s = make(per_game=3)
     feed(s, 200)
-    bins = {p["stage_bin"] for p in s.finish() if p["length"] >= C.SHORT}
-    assert bins == {"start", "middle", "end"}
+    pairs = [p for p in s.finish() if p["length"] >= C.SHORT]
+    assert {p["stage_bin"] for p in pairs} == {"middle", "end"}
+    assert all(p["pos"] >= 4 for p in pairs)
 
 
 def test_unknown_keys_are_never_sampled():

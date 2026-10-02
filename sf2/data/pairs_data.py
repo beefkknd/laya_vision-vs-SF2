@@ -137,6 +137,11 @@ def collection_pairs(root: str) -> Tuple[List[Dict], Dict[str, int], List[str]]:
     return pairs, dropped, names
 
 
+def pressed_classes(char: str, moves: Sequence, n: int, slot: int) -> List[Optional[str]]:
+    """The pressed class (attack / special / None) of ``slot`` for each of ``n`` RAM rows, from the move log."""
+    return [PM.pressed_class(char, w) for w in PM.pressed_words(moves, n)[slot]]
+
+
 def relabel(root: str, pairs: Sequence[Dict], bands: Dict[str, int]) -> List[Dict]:
     """Every pair's labels re-derived from its game's stored RAM and move log (owner after round 1: attack vs special
     from the move we pressed, sf2.data.pairs_labels.movement_pressed), with the pressed word, its class and the
@@ -150,13 +155,26 @@ def relabel(root: str, pairs: Sequence[Dict], bands: Dict[str, int]) -> List[Dic
     for (n, game), mine in sorted(by_game.items()):
         rows = MIO.read_ram(os.path.join(root, n, "ram", "g%04d.json.gz" % game))
         words = PM.pressed_words(logs[n][game], len(rows))
+        classes = {}
         for p in mine:
-            w = words[p["slot"]][p["t"]]
-            cls = PM.pressed_class(p["char"], w)
-            lab = L.labels(rows, p["t"], p["slot"], bands, cls)
+            s = p["slot"]
+            if s not in classes:
+                classes[s] = [PM.pressed_class(p["char"], w) for w in words[s]]
+            w = words[s][p["t"]]
+            cls = classes[s][p["t"]]
+            lab = L.labels(rows, p["t"], s, bands, cls)
             out.append(dict(p, **lab, pressed=w, pressed_class=cls,
-                            mv_source=L.movement_pressed(rows, p["t"], p["slot"], cls)[1]))
+                            mv_source=L.movement_pressed(rows, p["t"], s, cls)[1],
+                            in_episode=L.same_episode(rows, p["t"], s, classes[s])))
     return out
+
+
+def in_episode_only(pairs: Sequence[Dict]) -> Tuple[List[Dict], Dict[str, int]]:
+    """The relabelled pairs whose two frames lie inside one movement episode, and the dropped ones per grid
+    movement (owner fix after the label quality check)."""
+    kept = [p for p in pairs if p["in_episode"]]
+    dropped = collections.Counter(L.movement10(p["movement"], p["direction"]) for p in pairs if not p["in_episode"])
+    return kept, dict(sorted(dropped.items()))
 
 
 def cap_per_game(pairs: Sequence[Dict], per_game: int = PER_GAME, seed: int = 0) -> List[Dict]:
@@ -192,10 +210,12 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
     if bad or not controllers:
         raise ValueError("controllers must be a non-empty subset of %s, got %s" % (CONTROLLERS, controllers))
     pairs, dropped, names = collection_pairs(root)
+    dropped_ep: Dict[str, int] = {}
     pairs = [p for p in pairs if p["controller"] in controllers]
     problems = [x for p in pairs for x in pair_problems(p, os.path.join(root, p["pair_name"], "images"))]
     if not problems:            # as collected, then as relabelled
-        pairs = cap_per_game(relabel(root, pairs, L.poke_bands() if bands is None else bands), PER_GAME, seed)
+        pairs, dropped_ep = in_episode_only(relabel(root, pairs, L.poke_bands() if bands is None else bands))
+        pairs = cap_per_game(pairs, PER_GAME, seed)
         problems = [x for p in pairs for x in pair_problems(p, os.path.join(root, p["pair_name"], "images"))]
     if problems:
         raise ValueError("%d bad pairs, e.g. %s" % (len(problems), problems[:5]))
@@ -224,6 +244,7 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
             "controllers": list(controllers),
             "split": "crc32(pair:game) %% %d == %d test" % (SPLIT_MOD, TEST_REST), "collected": len(pairs),
             "selected": len(chosen), "dropped_uncommitted": dropped, "mv_sources": mv_sources(pairs),
+            "dropped_episode": dropped_ep,
             "mv_sources_selected": mv_sources(chosen),
             "cells": {"|".join(k): n for k, n in sorted(counts.items())}, "short": short, "questions": per_q}
     with open(os.path.join(out, "build.json"), "w") as f:

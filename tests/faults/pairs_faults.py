@@ -10,7 +10,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS = ["tests/test_pairs_labels.py", "tests/test_pairs_moves.py", "tests/test_pairs_collect.py",
-         "tests/test_pairs_data.py", "tests/test_pairs_pressed.py"]
+         "tests/test_pairs_data.py", "tests/test_pairs_pressed.py", "tests/test_pairs_episode.py"]
 VS = "sf2/emu/vs.py"
 LAB, MOV, COL, IOF, DAT, GAT = ("sf2/data/pairs_labels.py", "sf2/data/pairs_moves.py", "sf2/data/pairs_collect.py",
                                 "sf2/data/pairs_collect_io.py", "sf2/data/pairs_data.py", "sf2/data/pairs_gate.py")
@@ -125,12 +125,27 @@ FAULTS += [
     ("P collect: the sampler labels without the pressed move", COL,
      "lab = L.labels(self.rows, u, p, self.bands, cls)", "lab = L.labels(self.rows, u, p, self.bands)"),
     ("P data: the builder does not relabel", DAT,
-     "pairs = cap_per_game(relabel(root, pairs, L.poke_bands() if bands is None else bands), PER_GAME, seed)",
-     "pairs = cap_per_game(pairs, PER_GAME, seed)"),
+     "pairs, dropped_ep = in_episode_only(relabel(root, pairs, L.poke_bands() if bands is None else bands))",
+     "pairs, dropped_ep = in_episode_only([dict(p, in_episode=True) for p in pairs])"),
     ("P data: no per-game cap after the relabel", DAT, "        if len(g) > per_game:", "        if False:"),
     ("P gate: the independent pressed move ignored", GAT, "        mv = pressed  ", "        mv = mv  "),
     ("P gate: the pressed word not compared", GAT, 'r.get("pressed") == word and ', ""),
     ("P gate: the independent interval off by one", GAT, "m[1] < t <= m[2]", "m[1] <= t < m[2]"),
+]
+
+
+# the fix after the label quality check: both frames inside one movement episode
+FAULTS += [
+    ("E label: t - 4 not checked", LAB, "for u in range(t - gap, t))", "for u in range(t - gap + 1, t))"),
+    ("E label: the episode ignores the pressed rule", LAB, "grid_movement(rows, u, p, pressed[u]) == m",
+     "grid_movement(rows, u, p, None) == m"),
+    ("E label: an unknown run counts as an episode", LAB, "return m != UNKNOWN and all(", "return all("),
+    ("E data: the builder keeps pairs outside their episode", DAT, 'kept = [p for p in pairs if p["in_episode"]]',
+     "kept = list(pairs)"),
+    ("E collect: the sampler samples from the episode's first row", COL, "max(lo, s + L.GAP)", "lo"),
+    ("E gate: the episode check never fails", GAT, 'if "unknown" in seq or len(set(seq)) != 1:', "if False:"),
+    ("E gate: the episode check starts at t - 3", GAT, "for u in range(t - gap, t + 1)]",
+     "for u in range(t - gap + 1, t + 1)]"),
 ]
 
 

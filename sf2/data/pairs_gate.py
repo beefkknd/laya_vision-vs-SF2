@@ -25,7 +25,7 @@ from .pairs_data import FILES, QUESTION_ANSWERS, answer, cell, split_of_game
 
 CONTROLLER_OF = ({1: "directed", 2: "cpu"}, {1: "p1", 2: "p2"})   # P1 vs CPU, or Plan B (both ours)
 
-GATES = ("labels", "caps", "alignment", "disk")
+GATES = ("labels", "episode", "caps", "alignment", "disk")
 MAX_GB = 10.0
 LAG = 1
 
@@ -157,6 +157,33 @@ def label_check(d: Dict, bands: Dict[str, int]) -> Dict:
             "missing_ram": sorted(missing), "examples": examples}
 
 
+def _grid(lab: Dict[str, str]) -> str:
+    if lab["movement"] == "walk":
+        return "walk " + lab["direction"] if lab["direction"] in ("toward", "away") else "unknown"
+    return lab["movement"]
+
+
+def episode_check(d: Dict, bands: Dict[str, int], gap: int = 4) -> Dict:
+    """Every selected pair: rows t - gap .. t of its fighter all have the final grid movement of row t (re-derived
+    here from RAM + the move log), so both frames lie inside one movement episode (owner fix)."""
+    root, cache, logs = d["meta"]["root"], {}, {}
+    rows = d["files"]["movement"]["train"] + d["files"]["movement"]["test"]
+    checked, bad, examples = 0, 0, []
+    for r in sorted(rows, key=lambda x: (x["pair_name"], x["game"])):
+        ram = _ram(root, r["pair_name"], r["game"], cache)
+        moves = _moves(root, r["pair_name"], r["game"], logs)
+        t, p = r["t"], r["slot"]
+        seq = [_grid(independent_labels(ram, u, p, bands, independent_class(r["char"],
+                                                                            independent_pressed(moves, u, p))))
+               if ram is not None and 0 <= u < len(ram) else "unknown" for u in range(t - gap, t + 1)]
+        checked += 1
+        if "unknown" in seq or len(set(seq)) != 1:
+            bad += 1
+            if len(examples) < 10:
+                examples.append({"id": r["id"], "rows_t4_to_t": seq})
+    return {"pass": checked > 0 and bad == 0, "checked": checked, "outside": bad, "examples": examples}
+
+
 def cap_check(d: Dict) -> Dict:
     caps = d["meta"]["caps"]
     rows = d["files"]["movement"]["train"] + d["files"]["movement"]["test"]
@@ -233,7 +260,7 @@ def counts_table(d: Dict) -> Dict:
 def run_gates(data: str, bands: Dict[str, int], max_gb: float = MAX_GB, sample: int = SAMPLE,
               min_disc: int = MIN_DISC, seed: int = 0) -> Dict:
     d = load(data)
-    gates = {"labels": label_check(d, bands), "caps": cap_check(d),
+    gates = {"labels": label_check(d, bands), "episode": episode_check(d, bands), "caps": cap_check(d),
              "alignment": alignment_check(data, d, sample, min_disc, seed=seed),
              "disk": disk_check(d["meta"]["root"], d["meta"]["pairs"], max_gb)}
     return {"pass": all(g["pass"] for g in gates.values()), "gates": gates, "counts": counts_table(d)}

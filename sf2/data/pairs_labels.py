@@ -28,7 +28,7 @@ Every label that reads an x is unknown when an x is impossible (perception.STAGE
 """
 import json
 import os
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 from ..config import REPO
 from ..emu.vs import GROUND_Y
@@ -183,3 +183,21 @@ def episode_key(rows: Rows, t: int, p: int, pressed: Optional[str] = None) -> Op
 def labels_at(rows: Rows, n: int, p: int, bands: Dict[str, int], lag: int = LAG) -> Dict[str, str]:
     """The answers for the image captured at row ``n``: it shows row n - ``lag``."""
     return labels(rows, n - lag, p, bands)
+
+
+def grid_movement(rows: Rows, t: int, p: int, pressed: Optional[str] = None) -> str:
+    """The final grid movement (movement10, after the pressed-word rule) of fighter ``p`` at row ``t``."""
+    if not 0 <= t < len(rows):
+        return UNKNOWN
+    mv = movement_pressed(rows, t, p, pressed)[0]
+    return movement10(mv, direction(rows, t, p, mv)) if mv != UNKNOWN else UNKNOWN
+
+
+def same_episode(rows: Rows, t: int, p: int, pressed: Sequence[Optional[str]], gap: int = GAP) -> bool:
+    """Owner fix after the label quality check: both displayed frames of a pair (rows t - gap and t) lie inside ONE
+    movement episode of fighter ``p``: every row t - gap .. t has the same final grid movement, not unknown.
+    ``pressed``: the pressed class per row (sf2.data.pairs_data.pressed_classes; None entries = the RAM rule)."""
+    if t - gap < 0 or t >= len(rows):
+        return False
+    m = grid_movement(rows, t, p, pressed[t])
+    return m != UNKNOWN and all(grid_movement(rows, u, p, pressed[u]) == m for u in range(t - gap, t))
