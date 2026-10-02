@@ -134,3 +134,17 @@ toward L 3, chunli walk toward L 2, chunli block L 1, chunli walk away L 1, dhal
 0 fallbacks for every character; special words confirmed by RAM 120-203 per character, not confirmed 1-13 (guile 13).
 Caveat: Zangief's spinning piledriver pressed far away whiffs as a punch-like move; under the rule it is "special".
 Stopped before round 5 for the owner.
+
+## Label quality check (2026-10-01) and owner decision
+RAM consistency 100%, but a blind visual check (separate agent, 240 pairs, 3 per character x movement) agreed 42%.
+Diagnosis: (1) 1-3 frame RAM episodes from special-move inputs read as walk / crouch / stand (34% of crouch, 31% of
+stand, 25% of walk away pairs) - nothing visible; (2) walking moves few px in 4 frames (kept); (3) "down" includes
+being knocked into the air (kept); (4) fighters partly off the top of the screen in high knockdowns (kept).
+Owner: "Yes run quality check after this and use codex also to random confirm the finding. If training data is wrong
+we are f***ed."
+- Fix: a pair is kept only if both its frames (t-4 and t) lie inside the same movement episode of that fighter
+  (so the episode is >= 5 frames long at the sampled point). Top-up rounds until every cell is full again (hard
+  limit: 8 rounds total).
+- Quality check after the fix: (a) RAM gate; (b) blind visual audit by a separate Claude agent (240 pairs, stratified);
+  (c) codex (different engine) blind on a random stratified subset; agreement per movement reported, disagreements
+  shown to the owner. No training until the owner accepts the data.
