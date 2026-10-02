@@ -197,3 +197,6 @@ position is a separate question replacing ground/air.
   (crouch, crouching attack, crouching block - from the state / move); normal = standing on the ground otherwise.
 - Relabel from the same frame pool and RAM (no new games); same alignment rules (matching, equal draws per answer,
   shortcut check, gate, contact sheets). q1 fireball and q5 distance unchanged.
+- Amendment (owner, same day: "attack and attack label as 'special attack'"): q3 v2 keeps specials as their own answer.
+  Answers: attack / special attack / block / walk / jump / stand / hit (7). attack = normals (standing, crouching,
+  jumping) and throws; special attack = the character's special (pressed-move rule, RAM-confirmed).

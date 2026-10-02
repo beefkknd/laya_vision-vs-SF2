@@ -12,7 +12,8 @@ once as the memory budget allows.
 
 --shots (round 3, sf2.data.pairs_shots): also record the shot slots' blink bytes and sample every projectile flight at
 start / middle / end (<pair>/shots.jsonl, the flights in games.jsonl); --pairs throwers = every ordered pair with
-ryu, ken, guile or dhalsim on either side.
+ryu, ken, guile or dhalsim on either side. --shot-per-game N raises the per-game cap per (slot, flight stage)
+(default sf2.data.pairs_shots.SHOT_PER_GAME = 3; recorded in run.json and forwarded to every worker).
 
 --mode vs (Plan B): 2P versus, BOTH controllers ours, each driven by its own character's list and seeded cycle
 (sf2.data.pairs_collect.play_both); rows record controller p1 / p2. Needs states/vs_<A>_vs_<B>.state
@@ -23,6 +24,7 @@ Writes <out>/<A>_vs_<B>/{images/, ram/, pairs.jsonl, games.jsonl, stop.json} (sf
 Needs states/p1_<A>_vs_<B>.state (scripts/make_pair_states.py).
 """
 import argparse
+import functools
 import json
 import os
 import random
@@ -81,6 +83,15 @@ def state_path(mode: str, a: str, b: str) -> str:
     return vs_state(a, b) if mode == "vs" else savestate(a, b)
 
 
+def sampler_of(shots: bool, shot_per_game: int = S.SHOT_PER_GAME):
+    """The sampler class: the projectile trigger with its per-game cap per (slot, stage), else movement pairs only."""
+    if not shots:
+        return PC.PairSampler
+    if shot_per_game < 0:
+        raise SystemExit("--shot-per-game %d < 0" % shot_per_game)
+    return functools.partial(S.ShotSampler, shot_per_game=shot_per_game)
+
+
 def play_one(args, a: str, b: str, port: int) -> int:
     base = os.path.join(args.out, IO.pair_name(a, b))
     bands = L.poke_bands()
@@ -114,7 +125,7 @@ def play_one(args, a: str, b: str, port: int) -> int:
                                    per_game=args.per_game, mem_cap_gb=args.mem_cap_gb, rss_gb=rss,
                                    log=lambda m: print(m, flush=True),
                                    controllers=PC.VS_SLOTS if args.mode == "vs" else PC.SLOTS,
-                                   sampler_cls=S.ShotSampler if args.shots else PC.PairSampler)
+                                   sampler_cls=sampler_of(args.shots, args.shot_per_game))
         except IO.MemoryCapExceeded as e:
             print("STOP:", e, flush=True)
             return 3
@@ -122,13 +133,15 @@ def play_one(args, a: str, b: str, port: int) -> int:
     return 0
 
 
-def main() -> int:
+def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=os.path.join("rollouts", "pairs"))
     ap.add_argument("--mode", choices=("directed", "vs"), default="directed",
                     help="directed: player 1 ours vs the CPU; vs: Plan B, 2P versus, both ours")
     ap.add_argument("--pairs", default="all", help="all, throwers, or A:B,A:B,... (A = player 1, directed)")
     ap.add_argument("--shots", action="store_true", help="round 3: the projectile sampling trigger")
+    ap.add_argument("--shot-per-game", type=int, default=S.SHOT_PER_GAME,
+                    help="--shots: projectile samples per (slot, flight stage) per game")
     ap.add_argument("--games", type=int, default=GAMES, help="games per ordered pair (the fixed budget)")
     ap.add_argument("--per-game", type=int, default=PC.PER_GAME)
     ap.add_argument("--ring", type=int, default=C.RING)
@@ -141,7 +154,27 @@ def main() -> int:
     ap.add_argument("--mem-cap-gb", type=float, default=IO.MEM_CAP_GB)
     ap.add_argument("--log-dir", default=os.path.join("logs", "pairs"))
     ap.add_argument("--one", nargs=3, metavar=("A", "B", "PORT"), help=argparse.SUPPRESS)
-    args = ap.parse_args()
+    return ap
+
+
+def run_record(args, pairs) -> dict:
+    return {"mode": args.mode, "shots": args.shots, "shot_per_game": args.shot_per_game,
+            "pairs": ["%s:%s" % p for p in pairs], "games": args.games, "per_game": args.per_game,
+            "ring": args.ring, "seed": args.seed, "short": C.SHORT, "lag": C.LAG,
+            "moves": {c: list(PM.moves(c)) for c in sorted({c for p in pairs for c in p})},
+            "started": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+
+def common_args(args) -> list:
+    """The flags every worker gets."""
+    return (["--shots", "--shot-per-game", str(args.shot_per_game)] if args.shots else []) + [
+        "--mode", args.mode, "--out", args.out, "--games", str(args.games), "--per-game", str(args.per_game),
+        "--ring", str(args.ring), "--seed", str(args.seed), "--mem-cap-gb", str(args.mem_cap_gb)] + (
+        ["--rom", args.rom] if args.rom else [])
+
+
+def main() -> int:
+    args = parser().parse_args()
     exit_on_sigterm()
     if args.one:
         return play_one(args, args.one[0], args.one[1], int(args.one[2]))
@@ -154,13 +187,8 @@ def main() -> int:
         raise SystemExit("--workers must be >= 1 and at most %d pairs (one port each)" % PORTS["pairs"][1])
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "run.json"), "w") as f:
-        json.dump({"mode": args.mode, "shots": args.shots, "shot_per_game": S.SHOT_PER_GAME, "pairs": ["%s:%s" % p for p in pairs], "games": args.games, "per_game": args.per_game,
-                   "ring": args.ring, "seed": args.seed, "short": C.SHORT, "lag": C.LAG,
-                   "moves": {c: list(PM.moves(c)) for c in sorted({c for p in pairs for c in p})},
-                   "started": time.strftime("%Y-%m-%d %H:%M:%S")}, f, indent=1)
-    common = (["--shots"] if args.shots else []) + ["--mode", args.mode, "--out", args.out, "--games", str(args.games), "--per-game", str(args.per_game), "--ring",
-              str(args.ring), "--seed", str(args.seed), "--mem-cap-gb", str(args.mem_cap_gb)] + (
-              ["--rom", args.rom] if args.rom else [])
+        json.dump(run_record(args, pairs), f, indent=1)
+    common = common_args(args)
     # one port per pair (never shared); at most ``workers`` at once (the budget's job_gb * workers)
     budget = Budget(total_gb=min(args.budget_gb, args.job_gb * args.workers))
     cmds = [((IO.pair_name(a, b),), [sys.executable, os.path.abspath(__file__), "--one", a, b,
