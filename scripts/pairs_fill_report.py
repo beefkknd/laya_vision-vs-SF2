@@ -1,6 +1,6 @@
 """How full the movement-pairs grid is after a collection round (sf2.data.pairs_data.fill_report): per cell
 (character, movement10, facing) min(collected, cap) / cap over both splits and both players, as a matrix (rows =
-characters, columns = the 10 movements, each cell "R%/L%" = facing right / left), per character, overall, the empty
+characters, columns = the 10 movements; labels re-derived from RAM + the move log as the builder does, each cell "R%/L%" = facing right / left), per character, overall, the empty
 cells by name, and how often each fighter actually blocks (RAM rows whose movement label is block, and block episodes).
 
     python scripts/pairs_fill_report.py --root rollouts/pairs2p [--cap 60] [--json out.json]
@@ -15,18 +15,37 @@ from sf2.data import movement_collect_io as MIO
 from sf2.data import pairs_collect_io as IO
 from sf2.data import pairs_data as D
 from sf2.data import pairs_labels as L
+from sf2.data import pairs_moves as PM
 from sf2.data.movement_collect import FIRST_T
 
 
 def block_stats(root: str, names) -> dict:
-    """Per character: RAM rows labelled block / all rows, and block episodes (runs of block rows), both slots."""
+    """Per character: RAM rows labelled block / all rows, and block episodes (runs of block rows), both slots. And
+    the attack-vs-special source (owner after round 1) over the RAM rows in an attack state: "special pressed" /
+    "attack pressed" (our word decided, RAM confirmed), "fallback <label>" (no attack word pressed: the RAM rule);
+    and per special WORD we pressed: "special words confirmed" (RAM in an attack state in its rows) / "not"."""
     out = {}
     for n in names:
         chars = dict(enumerate(n.split("_vs_"), 1))
         for g in IO.committed(os.path.join(root, n)):
             rows = MIO.read_ram(os.path.join(root, n, "ram", "g%04d.json.gz" % g["game"]))
+            words = PM.pressed_words(g["moves"], len(rows))
             for p, c in chars.items():
-                s = out.setdefault(c, {"rows": 0, "block_rows": 0, "episodes": 0, "games_with_block": 0})
+                src = out.setdefault(c, {}).setdefault("sources", {})
+                for t in range(FIRST_T, len(rows)):
+                    cls = PM.pressed_class(c, words[p][t])
+                    mv, how = L.movement_pressed(rows, t, p, cls)
+                    if how != "ram":
+                        key = "%s %s" % (mv, how) if how == "pressed" else "fallback %s" % mv
+                        src[key] = src.get(key, 0) + 1
+                for m in g["moves"]:
+                    if PM.slot_of(m) == p and PM.pressed_class(c, m[0]) == "special":
+                        ok = any(L.movement(rows, t, p) in L.ATTACK_MOVES for t in range(m[1] + 1, m[2] + 1))
+                        key = "special words confirmed" if ok else "special words not confirmed"
+                        src[key] = src.get(key, 0) + 1
+                s = out[c]
+                for k in ("rows", "block_rows", "episodes", "games_with_block"):
+                    s.setdefault(k, 0)
                 prev, mine = False, 0
                 for t in range(FIRST_T, len(rows)):
                     b = L.movement(rows, t, p) == "block"
@@ -48,6 +67,7 @@ def main(argv=None) -> int:
     ap.add_argument("--json")
     args = ap.parse_args(argv)
     pairs, dropped, names = D.collection_pairs(args.root)
+    pairs = D.cap_per_game(D.relabel(args.root, pairs, L.poke_bands()))      # the labels as the builder makes them
     chars = sorted({c for n in names for c in n.split("_vs_")})
     rep = dict(D.fill_report(pairs, chars, args.cap), pair_dirs=len(names), pairs=len(pairs), dropped=dropped)
     rep["block"] = block_stats(args.root, names)
@@ -65,6 +85,8 @@ def main(argv=None) -> int:
     for c, s in sorted(rep["block"].items()):
         print("block %-8s %.2f%% of rows, %d episodes, in %d games" % (c, s["block_pct"], s["episodes"],
                                                                       s["games_with_block"]))
+    for c, s in sorted(rep["block"].items()):
+        print("source %-8s %s" % (c, json.dumps(dict(sorted(s["sources"].items())))))
     if args.json:
         with open(args.json, "w") as f:
             json.dump(rep, f, indent=1)

@@ -56,6 +56,17 @@ class PairSampler:
         self.taken: Dict[Tuple[int, Tuple[str, str]], int] = {}
         self.cur: Dict[int, Optional[Tuple[str, str]]] = {1: None, 2: None}
         self.start: Dict[int, int] = {1: 0, 2: 0}
+        self.word: Dict[int, Optional[Tuple[str, int]]] = {1: None, 2: None}     # (word, k0) pressed now
+        self.pressed: Dict[int, List[Optional[str]]] = {1: [], 2: []}           # the pressed word per row
+
+    def press(self, p: int, word: str, k0: int) -> None:
+        """Slot ``p`` starts ``word`` on row ``k0``: it owns rows k0 + 1 on (sf2.data.pairs_moves.pressed_words)."""
+        if k0 != len(self.rows) - 1:
+            raise ValueError("a word starts on the last row fed (%d), not %d" % (len(self.rows) - 1, k0))
+        self.word[p] = (word, k0)
+
+    def _cls(self, p: int, t: int) -> Optional[str]:
+        return PM.pressed_class(self.chars[p], self.pressed[p][t])
 
     def feed(self, row: Dict[str, int], image: Optional[np.ndarray]) -> None:
         k = len(self.rows)
@@ -65,7 +76,8 @@ class PairSampler:
         if image is not None:
             self.ring.append((k, image))
         for p in SLOTS:
-            key = L.episode_key(self.rows, k, p) if k >= FIRST_T else None
+            self.pressed[p].append(self.word[p][0] if self.word[p] and k > self.word[p][1] else None)
+            key = L.episode_key(self.rows, k, p, self._cls(p, k)) if k >= FIRST_T else None
             if key != self.cur[p]:
                 self._close(p, k - 1, cut_end=False)
                 self.cur[p], self.start[p] = key, k
@@ -88,13 +100,16 @@ class PairSampler:
             if self.taken.get((p, key), 0) >= self.per_game or u + LAG >= n:
                 break
             self.taken[(p, key)] = self.taken.get((p, key), 0) + 1
-            lab = L.labels(self.rows, u, p, self.bands)
+            cls = self._cls(p, u)
+            lab = L.labels(self.rows, u, p, self.bands, cls)
             k_prev, k_now = u - 4 + LAG, u + LAG
             self.pairs.append(dict(
                 lab, game=self.game, slot=p, controller=self.controllers[p], char=self.chars[p], opp=self.chars[3 - p],
                 t=u, k_prev=k_prev, k_now=k_now, pos=u - s, length=e - s + 1,
                 stage=round((u - s) / (e - s + 1), 4), stage_bin=stage_bin(u - s, e - s + 1), episode=[s, e],
-                long=s < lo, cut_end=cut_end, images=[self._image(k_prev), self._image(k_now)]))
+                long=s < lo, cut_end=cut_end, images=[self._image(k_prev), self._image(k_now)],
+                pressed=self.pressed[p][u], pressed_class=cls,
+                mv_source=L.movement_pressed(self.rows, u, p, cls)[1]))
 
     def _image(self, k: int) -> str:
         if k not in self.names:
@@ -160,12 +175,14 @@ def play_directed(bridge, names: List[str], char: str, cycle: PM.Cycle, state: b
 
 
 def play_both(bridge, names: List[str], chars: Dict[int, str], cycles: Dict[int, PM.Cycle], state: bytes,
-              rng: random.Random, stream_len: Callable[[], int], max_frames: int = MAX_FRAMES) -> Dict:
+              rng: random.Random, stream_len: Callable[[], int], max_frames: int = MAX_FRAMES,
+              on_word: Optional[Callable[[int, str, int], None]] = None) -> Dict:
     """Plan B: one game (a round) of 2P versus from ``state``, BOTH controllers ours. The game runs in WAIT-frame
     chunks; at each chunk start, a player whose queue is empty and who can act (standing or crouching, on the ground)
     gets the next word of its own cycle, its whole input queued (press_frames from that row): every word is executed
     in full, then the next. Each move is logged as [word, k_start, k_end, slot], k_end = the row its next word starts
-    on (or the game's last row). No CPU: an empty queue sends nothing."""
+    on (or the game's last row). No CPU: an empty queue sends nothing. ``on_word(slot, word, k_start)`` is told each
+    word as it starts (the sampler's press: the pressed move per row)."""
     def run(f1, f2):
         return [dict(zip(names, x)) for x in bridge.run(f1, p2=f2).rams]
 
@@ -186,6 +203,8 @@ def play_both(bridge, names: List[str], chars: Dict[int, str], cycles: Dict[int,
                     log.append(current[p][:2] + [k, p])
                 word = cycles[p].next()
                 current[p] = [word, k]
+                if on_word:
+                    on_word(p, word, k)
                 queues[p] = press_frames(chars[p], word, r, p)
         chunk = {p: queues[p][:WAIT] + [[]] * (WAIT - len(queues[p][:WAIT])) for p in (1, 2)}
         queues = {p: queues[p][WAIT:] for p in (1, 2)}

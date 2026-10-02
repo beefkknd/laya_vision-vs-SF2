@@ -48,7 +48,7 @@ def collection(root, lag=1, games=4, pairs=(("ryu", "ken"), ("ken", "ryu"))):
 def built(tmp_path):
     root, out = str(tmp_path / "col"), str(tmp_path / "data")
     collection(root)
-    meta = D.build(root, out, {"train": 4, "test": 2})
+    meta = D.build(root, out, {"train": 4, "test": 2}, bands=BANDS)
     return root, out, meta
 
 
@@ -160,7 +160,7 @@ def test_an_over_full_cell_fails_the_cap_gate(built):
 def test_images_at_lag_zero_fail_the_alignment_gate(tmp_path):
     root, out = str(tmp_path / "col"), str(tmp_path / "data")
     collection(root, lag=0)
-    D.build(root, out, {"train": 4, "test": 2})
+    D.build(root, out, {"train": 4, "test": 2}, bands=BANDS)
     assert not G.run_gates(out, BANDS, sample=50, min_disc=5)["gates"]["alignment"]["pass"]
 
 
@@ -188,7 +188,7 @@ def test_build_refuses_bad_pairs(tmp_path):
 def test_build_only_the_controlled_player(tmp_path):
     root, out = str(tmp_path / "col"), str(tmp_path / "data")
     collection(root)
-    meta = D.build(root, out, {"train": 4, "test": 2}, controllers=("directed",))
+    meta = D.build(root, out, {"train": 4, "test": 2}, controllers=("directed",), bands=BANDS)
     rows = [r for q in D.QUESTION_ANSWERS for f in ("train", "test")
             for r in IO.read_jsonl(os.path.join(out, q, f + ".jsonl"))]
     assert rows and {r["controller"] for r in rows} == {"directed"} and {r["slot"] for r in rows} == {1}

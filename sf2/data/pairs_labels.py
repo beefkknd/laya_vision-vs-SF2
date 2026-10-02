@@ -102,6 +102,22 @@ def movement(rows: Rows, t: int, p: int) -> str:
     return UNKNOWN
 
 
+ATTACK_MOVES = ("attack", "special")
+
+
+def movement_pressed(rows: Rows, t: int, p: int, pressed: Optional[str]) -> Tuple[str, str]:
+    """(movement, source) with attack vs special from the move WE pressed (owner after round 1): when RAM shows an
+    attack state (the RAM rule says attack or special), ``pressed`` ('attack' / 'special', the class of our pressed
+    word, sf2.data.pairs_moves.pressed_class) decides -> source 'pressed'; with no attack word pressed the RAM rule
+    stays -> 'fallback'; any other movement is RAM's -> 'ram'."""
+    mv = movement(rows, t, p)
+    if mv not in ATTACK_MOVES:
+        return mv, "ram"
+    if pressed in ATTACK_MOVES:
+        return pressed, "pressed"
+    return mv, "fallback"
+
+
 def direction(rows: Rows, t: int, p: int, mv: Optional[str] = None) -> str:
     mv = movement(rows, t, p) if mv is None else mv
     if mv == UNKNOWN:
@@ -140,9 +156,10 @@ def distance(rows: Rows, t: int, p: int, bands: Dict[str, int]) -> str:
     return "close" if abs(r["p1_x"] - r["p2_x"]) <= band else "far"
 
 
-def labels(rows: Rows, t: int, p: int, bands: Dict[str, int]) -> Dict[str, str]:
-    """All five answers for fighter ``p`` at displayed row ``t``."""
-    mv = movement(rows, t, p)
+def labels(rows: Rows, t: int, p: int, bands: Dict[str, int], pressed: Optional[str] = None) -> Dict[str, str]:
+    """All five answers for fighter ``p`` at displayed row ``t``; ``pressed``: the class of our pressed word there
+    (movement_pressed), None = the RAM rule."""
+    mv = movement_pressed(rows, t, p, pressed)[0]
     return {"movement": mv, "direction": direction(rows, t, p, mv), "facing": facing(rows, t, p),
             "air": air(rows, t, p), "distance": distance(rows, t, p, bands)}
 
@@ -155,10 +172,10 @@ def movement10(mv: str, direction_: str) -> str:
     return mv
 
 
-def episode_key(rows: Rows, t: int, p: int) -> Optional[Tuple[str, str]]:
+def episode_key(rows: Rows, t: int, p: int, pressed: Optional[str] = None) -> Optional[Tuple[str, str]]:
     """(movement10, facing): what an episode is a run of, and (with the character) the grid cell a cap counts; None if
     either is unknown."""
-    mv = movement(rows, t, p)
+    mv = movement_pressed(rows, t, p, pressed)[0]
     key = (movement10(mv, direction(rows, t, p, mv)), facing(rows, t, p))
     return None if UNKNOWN in key else key
 

@@ -18,6 +18,7 @@ import random
 from typing import Dict, List, Optional, Sequence
 
 from . import movement_collect_io as MIO
+from . import pairs_moves as PM
 from .movement_gate import LAGS, MIN_AGREE, MIN_AGREE_DISC, MIN_DISC, SAMPLE, alignment_verdict, digits_changed
 from .pairs_collect import PER_GAME
 from .pairs_data import FILES, QUESTION_ANSWERS, answer, cell, split_of_game
@@ -31,7 +32,28 @@ LAG = 1
 
 # ---- the independent labels (from the prereg's rules; deliberately not sf2.data.pairs_labels) ----------------------
 
-def independent_labels(rows: List[Dict[str, int]], t: int, p: int, bands: Dict[str, int]) -> Dict[str, str]:
+def independent_pressed(moves: List[list], t: int, p: int) -> Optional[str]:
+    """The word slot ``p`` pressed for row ``t``: the logged move with k0 < t <= k1 (games.jsonl rows are
+    [word, k0, k1, status, slot]; an old 3/4-field log is player 1's)."""
+    for m in moves:
+        slot = m[4] if len(m) >= 5 else 1
+        if slot == p and m[1] < t <= m[2]:
+            return m[0]
+    return None
+
+
+def independent_class(char: str, word: Optional[str]) -> Optional[str]:
+    """Owner after round 1: normal / crouching normal / jump attack / throw -> attack, the character's special ->
+    special (the kinds of the hardcoded list), anything else (walks, jumps, blocks) -> None."""
+    if word is None:
+        return None
+    k = PM.kind(char, word)
+    return {"normal": "attack", "crouch_normal": "attack", "jump_attack": "attack", "throw": "attack",
+            "special": "special"}.get(k)
+
+
+def independent_labels(rows: List[Dict[str, int]], t: int, p: int, bands: Dict[str, int],
+                       pressed: Optional[str] = None) -> Dict[str, str]:
     me, him = "p%d_" % p, "p%d_" % (3 - p)
     if not 0 <= t < len(rows):
         return dict.fromkeys(("movement", "direction", "facing", "air", "distance"), "unknown")
@@ -59,6 +81,8 @@ def independent_labels(rows: List[Dict[str, int]], t: int, p: int, bands: Dict[s
         mv = "stand" if -2 < moved < 2 else "walk"
     else:
         mv = "unknown"
+    if mv in ("attack", "special") and pressed in ("attack", "special"):
+        mv = pressed                                    # the move we pressed decides, RAM confirmed the attack
     if mv == "unknown":
         d = "unknown"
     elif mv in ("walk", "jump"):
@@ -98,8 +122,15 @@ def _ram(root: str, pair: str, game: int, cache: Dict) -> Optional[List[Dict[str
     return cache[key]
 
 
+def _moves(root: str, pair: str, game: int, cache: Dict) -> List[list]:
+    if (pair, "log") not in cache:
+        cache[(pair, "log")] = {g["game"]: g.get("moves", []) for g in
+                                MIO.read_jsonl(os.path.join(root, pair, "games.jsonl"))}
+    return cache[(pair, "log")].get(game, [])
+
+
 def label_check(d: Dict, bands: Dict[str, int]) -> Dict:
-    root, cache = d["meta"]["root"], {}
+    root, cache, logs = d["meta"]["root"], {}, {}
     checked, bad, missing, examples = 0, 0, set(), []
     for q, fs in sorted(d["files"].items()):
         for f, rows in fs.items():
@@ -109,11 +140,12 @@ def label_check(d: Dict, bands: Dict[str, int]) -> Dict:
                     missing.add("%s g%d" % (r["pair_name"], r["game"]))
                     continue
                 t = r["t"]
-                got = independent_labels(ram, t, r["slot"], bands)
+                word = independent_pressed(_moves(root, r["pair_name"], r["game"], logs), t, r["slot"])
+                got = independent_labels(ram, t, r["slot"], bands, independent_class(r["char"], word))
                 want_imgs = ["frames/%s/g%04d_k%05d.png" % (r["pair_name"], r["game"], k) for k in (t - 4 + LAG,
                                                                                                    t + LAG)]
                 checked += 1
-                ok = (all(got[k] == r[k] for k in got) and r["answer"] == answer(q, got)
+                ok = (all(got[k] == r[k] for k in got) and r.get("pressed") == word and r["answer"] == answer(q, got)
                       and QUESTION_ANSWERS[q][r["label"]] == r["answer"] and r["images"] == want_imgs
                       and r["split"] == f == split_of_game(r["pair_name"], r["game"])
                       and any(r["controller"] == m[r["slot"]] for m in CONTROLLER_OF))

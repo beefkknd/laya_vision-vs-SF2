@@ -88,7 +88,8 @@ def play_one(args, a: str, b: str, port: int) -> int:
             if args.mode == "vs":
                 cycles = {p: PM.Cycle(words[p], random.Random("cycle%d:%d:%s:%s:%d" % (p, args.seed, a, b, game)))
                           for p in chars}
-                out = PC.play_both(proxy, ALL_NAMES, chars, cycles, state, start, lambda: len(sampler.rows))
+                out = PC.play_both(proxy, ALL_NAMES, chars, cycles, state, start, lambda: len(sampler.rows),
+                                   on_word=sampler.press)
             else:
                 cycle = PM.Cycle(words[1], random.Random("cycle:%d:%s:%s:%d" % (args.seed, a, b, game)))
                 out = PC.play_directed(proxy, ALL_NAMES, a, cycle, state, start, lambda: len(sampler.rows))

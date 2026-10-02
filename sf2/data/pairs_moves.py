@@ -191,3 +191,43 @@ def executed(char: str, word: str, rows: Sequence[Dict[str, int]], p: int = 1) -
     else:
         status = "missed"
     return {"status": status, "aids": sorted({r["p1_aid"] for r in rows if r["p1_aid"]})}
+
+
+# ---- the move WE pressed, per row (docs/prereg_movement_pairs.md, "Owner after round 1") ------------------------
+ATTACK_KINDS = (KIND_NORMAL, KIND_CROUCH, KIND_JUMP_ATTACK, KIND_THROW)
+
+
+def slot_of(m: Sequence) -> int:
+    """A logged move's slot: [word, k0, k1, status, slot] (games.jsonl), [word, k0, k1, slot] (play_both), or the
+    old player-1 log [word, k0, k1(, status)]."""
+    if len(m) >= 5:
+        return int(m[4])
+    if len(m) == 4 and isinstance(m[3], int):
+        return m[3]
+    return 1
+
+
+def pressed_words(moves: Sequence[Sequence], n: int) -> Dict[int, List]:
+    """Per slot, the word pressed for each of ``n`` RAM rows: a word started on row k0 (its first input frame makes
+    row k0 + 1) owns rows k0 + 1 .. k1 (k1 = the row its slot's next word starts on); None before the first word.
+    The move log IS the per-frame record of what we pressed."""
+    out: Dict[int, List] = {1: [None] * n, 2: [None] * n}
+    for m in moves:
+        w, k0, k1, p = m[0], int(m[1]), int(m[2]), slot_of(m)
+        if not 0 <= k0 <= k1 < n:
+            raise ValueError("move %s rows %d..%d outside 0..%d" % (w, k0, k1, n - 1))
+        for t in range(k0 + 1, k1 + 1):
+            if out[p][t] is not None:
+                raise ValueError("slot %d row %d pressed twice (%s, %s)" % (p, t, out[p][t], w))
+            out[p][t] = w
+    return out
+
+
+def pressed_class(char: str, word) -> object:
+    """'attack' (normal, crouching normal, jump attack, throw), 'special' (the character's special), else None."""
+    if word is None:
+        return None
+    k = kind(char, word)
+    if k in ATTACK_KINDS:
+        return "attack"
+    return "special" if k == KIND_SPECIAL else None

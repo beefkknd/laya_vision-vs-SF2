@@ -22,10 +22,13 @@ import json
 import os
 import random
 import zlib
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+from . import movement_collect_io as MIO
 from . import pairs_collect_io as IO
 from . import pairs_labels as L
+from . import pairs_moves as PM
+from .pairs_collect import PER_GAME
 from .movement_collect import LAG
 
 CAP = 60
@@ -104,7 +107,8 @@ def row_of(question: str, p: Dict) -> Dict:
                  "pair": [p["pair_name"].split("_vs_")[0], p["pair_name"].split("_vs_")[1]],
                  "pair_name": p["pair_name"], "images": ["frames/%s/%s" % (p["pair_name"], n) for n in p["images"]]},
                 **{k: p[k] for k in ("game", "slot", "controller", "char", "opp", "t", "k_prev", "k_now", "stage",
-                                     "stage_bin", "pos", "length", "episode", "long", "cut_end") + LABEL_KEYS})
+                                     "stage_bin", "pos", "length", "episode", "long", "cut_end", "pressed",
+                                     "pressed_class", "mv_source") + LABEL_KEYS})
 
 
 def pair_problems(p: Dict, img_dir: str) -> List[str]:
@@ -133,8 +137,55 @@ def collection_pairs(root: str) -> Tuple[List[Dict], Dict[str, int], List[str]]:
     return pairs, dropped, names
 
 
+def relabel(root: str, pairs: Sequence[Dict], bands: Dict[str, int]) -> List[Dict]:
+    """Every pair's labels re-derived from its game's stored RAM and move log (owner after round 1: attack vs special
+    from the move we pressed, sf2.data.pairs_labels.movement_pressed), with the pressed word, its class and the
+    movement's source recorded. Same frames; collections written before the fix (round 1) get the fixed labels."""
+    by_game: Dict[Tuple[str, int], List[Dict]] = collections.defaultdict(list)
+    for p in pairs:
+        by_game[(p["pair_name"], p["game"])].append(p)
+    logs = {n: {g["game"]: g.get("moves", []) for g in IO.committed(os.path.join(root, n))}
+            for n in {n for n, _ in by_game}}
+    out = []
+    for (n, game), mine in sorted(by_game.items()):
+        rows = MIO.read_ram(os.path.join(root, n, "ram", "g%04d.json.gz" % game))
+        words = PM.pressed_words(logs[n][game], len(rows))
+        for p in mine:
+            w = words[p["slot"]][p["t"]]
+            cls = PM.pressed_class(p["char"], w)
+            lab = L.labels(rows, p["t"], p["slot"], bands, cls)
+            out.append(dict(p, **lab, pressed=w, pressed_class=cls,
+                            mv_source=L.movement_pressed(rows, p["t"], p["slot"], cls)[1]))
+    return out
+
+
+def cap_per_game(pairs: Sequence[Dict], per_game: int = PER_GAME, seed: int = 0) -> List[Dict]:
+    """At most ``per_game`` pairs per (pair, game, slot, grid cell) after a relabel (a cell may have gained pairs from
+    another), a seeded choice."""
+    groups: Dict[Tuple, List[Dict]] = collections.defaultdict(list)
+    for p in pairs:
+        groups[(p["pair_name"], p["game"], p["slot"]) + cell(p)].append(p)
+    out = []
+    for key in sorted(groups):
+        g = sorted(groups[key], key=lambda p: p["t"])
+        if len(g) > per_game:
+            g = sorted(random.Random("%d:%s" % (seed, "|".join(map(str, key)))).sample(g, per_game),
+                       key=lambda p: p["t"])
+        out += g
+    return out
+
+
+def mv_sources(pairs: Sequence[Dict]) -> Dict[str, Dict[str, int]]:
+    """Per character: how each pair's movement was decided ("<movement> <source>": pressed / fallback / ram)."""
+    out: Dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for p in pairs:
+        out[p["char"]]["%s %s" % (p["movement"], p.get("mv_source", "ram"))] += 1
+        out[p["char"]][p.get("mv_source", "ram")] += 1
+    return {c: dict(v) for c, v in sorted(out.items())}
+
+
 def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
-          controllers: Sequence[str] = CONTROLLERS) -> Dict:
+          controllers: Sequence[str] = CONTROLLERS, bands: Optional[Dict[str, int]] = None) -> Dict:
     """controllers: whose rows to keep (owner 2026-10-01: label only the player we control -> ("directed",); Plan B
     controls both: ("p1", "p2"), the default keeps every row)."""
     bad = set(controllers) - set(CONTROLLERS)
@@ -143,6 +194,9 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
     pairs, dropped, names = collection_pairs(root)
     pairs = [p for p in pairs if p["controller"] in controllers]
     problems = [x for p in pairs for x in pair_problems(p, os.path.join(root, p["pair_name"], "images"))]
+    if not problems:            # as collected, then as relabelled
+        pairs = cap_per_game(relabel(root, pairs, L.poke_bands() if bands is None else bands), PER_GAME, seed)
+        problems = [x for p in pairs for x in pair_problems(p, os.path.join(root, p["pair_name"], "images"))]
     if problems:
         raise ValueError("%d bad pairs, e.g. %s" % (len(problems), problems[:5]))
     chosen = select(pairs, caps, seed)
@@ -169,7 +223,8 @@ def build(root: str, out: str, caps: Dict[str, int] = CAPS, seed: int = 0,
     meta = {"root": os.path.abspath(root), "pairs": names, "caps": caps, "seed": seed, "lag": LAG,
             "controllers": list(controllers),
             "split": "crc32(pair:game) %% %d == %d test" % (SPLIT_MOD, TEST_REST), "collected": len(pairs),
-            "selected": len(chosen), "dropped_uncommitted": dropped,
+            "selected": len(chosen), "dropped_uncommitted": dropped, "mv_sources": mv_sources(pairs),
+            "mv_sources_selected": mv_sources(chosen),
             "cells": {"|".join(k): n for k, n in sorted(counts.items())}, "short": short, "questions": per_q}
     with open(os.path.join(out, "build.json"), "w") as f:
         json.dump(meta, f, indent=1, sort_keys=True)

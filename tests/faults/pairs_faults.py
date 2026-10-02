@@ -10,7 +10,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS = ["tests/test_pairs_labels.py", "tests/test_pairs_moves.py", "tests/test_pairs_collect.py",
-         "tests/test_pairs_data.py"]
+         "tests/test_pairs_data.py", "tests/test_pairs_pressed.py"]
 VS = "sf2/emu/vs.py"
 LAB, MOV, COL, IOF, DAT, GAT = ("sf2/data/pairs_labels.py", "sf2/data/pairs_moves.py", "sf2/data/pairs_collect.py",
                                 "sf2/data/pairs_collect_io.py", "sf2/data/pairs_data.py", "sf2/data/pairs_gate.py")
@@ -52,7 +52,8 @@ FAULTS = [
      "k_prev, k_now = u - 4, u"),
     ("collect: controllers swapped", COL, 'SLOTS = {1: "directed", 2: "cpu"}', 'SLOTS = {1: "cpu", 2: "directed"}'),
     ("collect: only player 1 sampled", COL,
-     "        for p in SLOTS:\n            key = L.episode_key", "        for p in (1,):\n            key = L.episode_key"),
+     "        for p in SLOTS:\n            self.pressed[p].append",
+     "        for p in (1,):\n            self.pressed[p].append"),
     ("collect: one game over the budget", IOF, "while len(committed(base)) < games:",
      "while len(committed(base)) <= games:"),
     # 4 the builder and the gate
@@ -99,6 +100,37 @@ FAULTS += [
      'per_game = collections.Counter((r["pair_name"], r["game"], r["slot"], grid(r), r["facing"]) for r in rows)',
      'per_game = collections.Counter((r["pair_name"], r["game"], r["slot"], grid(r)) for r in rows)'),
     ("B vs: no parked plan for the cursor swap", VS, "    plans += [[(2, c), (1, t1), (2, t2)] for c in parks]\n", ""),
+]
+
+
+# the fix after round 1: attack vs special from the move we pressed, confirmed by RAM
+FAULTS += [
+    ("P label: the pressed move ignored", LAB, '    if pressed in ATTACK_MOVES:\n        return pressed, "pressed"\n', ""),
+    ("P label: the pressed move without RAM confirmation", LAB, '    if mv not in ATTACK_MOVES:\n        return mv, "ram"\n',
+     ""),
+    ("P label: labels() ignores the pressed move", LAB,
+     'None = the RAM rule."""\n    mv = movement_pressed(rows, t, p, pressed)[0]',
+     'None = the RAM rule."""\n    mv = movement_pressed(rows, t, p, None)[0]'),
+    ("P moves: pressed rows off by one", MOV, "for t in range(k0 + 1, k1 + 1):", "for t in range(k0, k1):"),
+    ("P moves: a throw counted as no attack", MOV,
+     "ATTACK_KINDS = (KIND_NORMAL, KIND_CROUCH, KIND_JUMP_ATTACK, KIND_THROW)",
+     "ATTACK_KINDS = (KIND_NORMAL, KIND_CROUCH, KIND_JUMP_ATTACK)"),
+    ("P moves: a jump attack counted as no attack", MOV,
+     "ATTACK_KINDS = (KIND_NORMAL, KIND_CROUCH, KIND_JUMP_ATTACK, KIND_THROW)",
+     "ATTACK_KINDS = (KIND_NORMAL, KIND_CROUCH, KIND_THROW)"),
+    ("P moves: the log's slot ignored", MOV, "        return int(m[4])", "        return 1"),
+    ("P collect: the live record off by one", COL, "k > self.word[p][1] else None", "k > self.word[p][1] + 1 else None"),
+    ("P collect: play_both never announces a word", COL, "                    on_word(p, word, k)",
+     "                    pass"),
+    ("P collect: the sampler labels without the pressed move", COL,
+     "lab = L.labels(self.rows, u, p, self.bands, cls)", "lab = L.labels(self.rows, u, p, self.bands)"),
+    ("P data: the builder does not relabel", DAT,
+     "pairs = cap_per_game(relabel(root, pairs, L.poke_bands() if bands is None else bands), PER_GAME, seed)",
+     "pairs = cap_per_game(pairs, PER_GAME, seed)"),
+    ("P data: no per-game cap after the relabel", DAT, "        if len(g) > per_game:", "        if False:"),
+    ("P gate: the independent pressed move ignored", GAT, "        mv = pressed  ", "        mv = mv  "),
+    ("P gate: the pressed word not compared", GAT, 'r.get("pressed") == word and ', ""),
+    ("P gate: the independent interval off by one", GAT, "m[1] < t <= m[2]", "m[1] <= t < m[2]"),
 ]
 
 
