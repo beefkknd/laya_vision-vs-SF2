@@ -44,3 +44,26 @@ Plus: how the model takes the two images (encoded together or separately) from t
 docs/eye_questions_v1.md gets a results section; the per-row audit and eval files in runs/eye2_q3/seeable/. Then a
 proposal to the owner: the action answer set that is actually seeable (and what would need a change to the input,
 e.g. a wider gap or a difference image) - nothing changed without the owner.
+
+## Results (2026-10-02)
+### A. Blind codex audit (221 rows, 13 per kind; files runs/eye2_q3/seeable/audit/, score.json)
+A2 agreement overall 0.697 (laya eye2_q3 on the full test: 0.351); codex never said "cannot tell".
+- SEEABLE (>= 0.70): down 1.00, standing attack .92, jump in air .92, crouch .92, crouching block .85, hit on ground .85,
+  jump on ground .85, standing still .77.
+- unclear: jump attack .69 (-> jump), air special .69 (-> jump), walk away .61, walk toward .54 (-> stand), ground
+  special .54 (-> attack).
+- NOT SEEABLE (< 0.50): hit in air .46 (-> jump), throw .46 (-> stand), crouching attack .39 (-> stand), standing block
+  .39 (-> stand).
+- A1 open facts vs RAM: in the air .906, being hit .906, moving .738; codex called real walks "not moving" ~40-45%.
+- Deviation: all 15 A1 batches re-run once (first launch used an old codex CLI, every call failed with 400; no answers).
+### B. Does laya use the change? (eval_dup.json, eval_swap.json)
+- Balanced acc: B0 (n-4, n) 0.351; B1 duplicated (n, n) 0.331 (-0.020); B2 swapped (n, n-4) 0.346 (-0.005).
+- Same answer as B0: B1 71.3%, B2 85.7%. Walk recall 0.56 -> 0.47 under B1 (-0.09).
+- Per the pre-registered reading (B1 within 0.02 AND walk drop < 0.10): the eye does NOT use the change - it reads one
+  pose. With no change at all it still says "walk" for 47% of walks and 41% of standing-still rows (a walking pose).
+  Time reversal changes almost nothing: it does not know which frame is first.
+### Reading
+- Labels are right to RAM, but four kinds are not visible in two frames even to codex; the answer set must shrink.
+- laya's gap to codex is mostly NOT motion: on single-pose kinds codex sees well and laya does not (standing attack
+  .92 vs .31, jump in air .92 vs .44, down 1.00 vs .44). The likely limit is the input: 16 tokens per 256 px frame
+  (a 4x4 grid of 64 px patches; subagent report, laya preprocess.py:103-105).
