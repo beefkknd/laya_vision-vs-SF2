@@ -72,3 +72,23 @@ decision per 16 frames.
 
 ## Not now
 Crop (owner: no crop), difference images, new laya-vision training.
+
+## Step 1-2 pre-registration: the screen reader and its gate (owner 2026-10-02: "input is image, everything comes from
+## this image ... RAM can confirm this conversion func is good or not, but it is NOT needed for game play")
+Reader: one screen frame (256x224 RGB, HUD visible; optionally the frame before) -> ScreenFacts, nothing else as input
+(no RAM, no OAM, no emulator state; the catalog + fixed HUD geometry are files it loads):
+- per fighter, named by screen side: character (identified from the catalog at round start, then locked), x, y /
+  in the air, facing, sprite id, action (the catalog's majority label; 7 answers), confidence, "unknown" if no match;
+- projectiles: present, x, owner side; both health bars as a fraction (HUD bar length); round state
+  (fighting / over: a bar empty, KO, timer 00).
+Gate (script, exit code decides; RAM only as referee, read at collection time or by replay):
+- Held-out frames: (a) new 2P games (seed not used by the catalog) on Ryu's stage; (b) Chun-Li vs the CPU, each of the
+  6 opponents on his own stage (the real play setting: other backgrounds, CPU moves our lists never did).
+- Bars: character identity 100% of rounds; x within 4 px of RAM x on >= 95% of frames (non-overlap); health fraction
+  within 0.03 of life/176 on >= 99%; round over detected within 10 frames of RAM's result on 100% of rounds; in the
+  air (RAM y != 192) >= 97%; facing >= 97%; action vs RAM's 7-answer label: reported per character, with the
+  catalog's own lookup ceiling (86-95%) next to it - pass if within 0.05 of that ceiling overall; "unknown" rate
+  reported (CPU sprites not in the catalog); near contact (gap < 40 px) reported separately (owner: ~80% fine).
+- Speed: median ms per frame on the Mac, reported; must fit the decision loop (target < 20 ms).
+- If (b) fails on unknown sprites: add CPU games to the catalog (collection time, RAM labels) - a catalog fix, not a
+  reader change - and re-gate on new held-out games.
