@@ -29,7 +29,8 @@ import _path  # noqa: F401
 from sf2.data import lora
 from sf2.config import BASE_MODEL, IMAGE_CFG
 from sf2.data import train_data as TD
-from sf2.data.train_data import checkpoint_tags, coverage_problems, coverage_table, load_data, sampling_problems
+from sf2.data.train_data import (MIN_SAMPLED_TRAIN, MIN_SAMPLED_VAL, checkpoint_tags, coverage_problems, coverage_table,
+                                 load_data, sampling_problems)
 from sf2.data.train_select import EarlyStop, Selection, out_problem
 
 
@@ -55,6 +56,10 @@ def parse_args(argv=None):
     ap.add_argument("--init", default=None,
                     help="continue from this checkpoint (saved by this script) instead of BASE (docs/prereg_u_round2.md)")
     ap.add_argument("--max-minutes", type=float, default=None)
+    ap.add_argument("--min-sampled-train", type=int, default=MIN_SAMPLED_TRAIN,
+                    help="--balance sampling: train rows needed per dir (lowered only by a pre-registered decision)")
+    ap.add_argument("--min-sampled-val", type=int, default=MIN_SAMPLED_VAL,
+                    help="--balance sampling: validation rows needed per dir")
     ap.add_argument("--device", default=None, help="default: mps on Apple silicon")
     ap.add_argument("--seed", type=int, default=0)
     return ap.parse_args(argv)
@@ -93,7 +98,8 @@ def init_record(path):
 def data_problems(train, val, args):
     """The coverage gate for --balance rows (the default) or sampling."""
     if args.balance == "sampling":
-        return coverage_problems(train, val, args.data, share_check=False) + sampling_problems(train, val, args.data)
+        return coverage_problems(train, val, args.data, share_check=False) + sampling_problems(
+            train, val, args.data, args.min_sampled_train, args.min_sampled_val)
     return coverage_problems(train, val, args.data)
 
 

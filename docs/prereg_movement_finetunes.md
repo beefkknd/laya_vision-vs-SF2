@@ -200,3 +200,15 @@ should be it. Another problem is the fireball in the air. That is a real bug. We
   >= 100 val rows per dir (sf2.data.train_data MIN_SAMPLED_TRAIN / MIN_SAMPLED_VAL). act attack 526 / special 534
   train and every fireball dir (270-295 train; val 38-75) are below it, so both registered runs stop at the
   coverage check. Owner decision needed (lower the minimum for these runs, or more data).
+
+## Round 3 training decision (owner: "help me decide ... everything I see on the screen is fair"; "ok fine approved")
+- Option C: the eye is trained balanced (each answer drawn equally) - it reports what is on the screen; what matters
+  for play (holes, exploits, what beats what) is decided by text laya / Qwen / the table, never by filtering the eye's
+  training data.
+- Data as built (7ef6768). train.py gets --min-sampled-train / --min-sampled-val (defaults unchanged 1000 / 100); these
+  two runs use 250 / 35 (attack 526, special 534, fireball answers 270-295 train; fireball left val 38), recorded in
+  train_log.json. Runs on threebody (RTX 4090, Qwen stays off), settings otherwise as rounds 1-2, --device cuda.
+- Judged two ways on held-out matches: balanced accuracy (the pre-registered "learned" rule) and accuracy weighted
+  to real-play frequency. Real-play frequencies (CPU: moving / attack / special; fireball on screen or not) come from
+  the old U collection's RAM (rollouts/u_perception), read-only - owner approved reading it. Plus a per-game check
+  of the fireball run (fireball rows come from games 10-15, none rows from games 0-9).
