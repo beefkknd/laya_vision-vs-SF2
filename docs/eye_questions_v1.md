@@ -12,7 +12,8 @@ One question per fine-tune, never mixed. Labels from RAM (lag 1).
 | 4 | Is the fighter on the <side> on the ground or in the air? | ground / air | y |
 | 5 | Are the two fighters close or far? | close / far | gap vs the calibrated poke band |
 
-Dropped: facing (the side gives the answer).
+Dropped: facing (the side gives the answer); #2 for this round (owner 2026-10-02: the fireball's presence matters
+much more than its direction - "not too keen on the fireball movement, don't get lost there"). Four questions: 1, 3, 4, 5.
 
 ## Alignment rules for the training data (all five questions)
 1. One frame pool: the same 2P matches, games and whole-match splits (train / val / test) for every question.
