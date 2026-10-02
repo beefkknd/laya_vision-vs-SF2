@@ -117,7 +117,8 @@ def pair_problems(p: Dict, img_dir: str) -> List[str]:
     if L.movement10(p.get("movement", ""), p.get("direction", "")) not in L.MOVEMENTS10:
         out.append("%s: movement %r / direction %r is no grid cell" % (where, p.get("movement"), p.get("direction")))
     for k, answers in L.QUESTIONS.items():
-        if p.get(k) not in answers and not (k == "distance" and p.get(k) == L.UNKNOWN):
+        if p.get(k) not in answers and not (k == "distance" and p.get(k) == L.UNKNOWN) and not (
+                k == "direction" and p.get(k) == L.UNKNOWN and p.get("movement") == "jump"):     # a jump over him
             out.append("%s: %s %r is not an answer" % (where, k, p.get(k)))
     want = ["g%04d_k%05d.png" % (p["game"], k) for k in (p["t"] - 4 + LAG, p["t"] + LAG)]
     if p["images"] != want:

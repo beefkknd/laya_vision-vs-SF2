@@ -162,3 +162,17 @@ def test_the_second_fact_gate_alone_fails_a_down_row_in_the_air():
     bad = G.second_fact_check(d, BANDS, ram_of=lambda pair, game: lifted)
     assert ok["pass"] and ok["down"]["on_ground"] == 1
     assert not bad["pass"] and bad["down"]["on_ground"] == 0 and bad["down"]["examples"]
+
+
+def test_a_jump_over_the_other_fighter_keeps_its_pair_direction_unknown_but_a_walk_does_not(tmp_path):
+    """Round 7 (2026-10-01): ken_vs_dhalsim g6 t96, a jump crossing the other fighter's x: direction unknown (same x),
+    movement "jump" - a grid cell without a direction, so the pair is fine; a walk without a direction is no cell."""
+    img = tmp_path / "images"
+    img.mkdir()
+    for k in (93, 97):
+        (img / ("g0006_k%05d.png" % k)).write_bytes(b"x")
+    base = {"pair_name": "ken_vs_dhalsim", "game": 6, "slot": 1, "t": 96, "facing": "right", "air": "air",
+            "distance": "close", "images": ["g0006_k00093.png", "g0006_k00097.png"]}
+    assert D.pair_problems(dict(base, movement="jump", direction="unknown"), str(img)) == []
+    assert D.pair_problems(dict(base, movement="walk", direction="unknown"), str(img))
+    assert D.pair_problems(dict(base, movement="stand", direction="unknown"), str(img))

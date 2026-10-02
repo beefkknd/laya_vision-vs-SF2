@@ -183,6 +183,9 @@ FAULTS += [
     ("M data: the question names the other fighter", TRN, '"question": question(q, r["char"])',
      '"question": question(q, r["opp"])'),
     ("M data: no frames link", TRN, "        os.symlink(frames, os.path.join(base, \"frames\"))\n", ""),
+    ("J data: a jump over the other fighter (direction unknown) refused", DAT,
+     ' and not (\n                k == "direction" and p.get(k) == L.UNKNOWN and p.get("movement") == "jump")', ""),
+    ("J data: any movement may lack its direction", DAT, 'and p.get("movement") == "jump"):', "):"),
     ("M check: the split never checked", TRN, 'if r["split"] != f or f != want:', "if False:"),
 ]
 
