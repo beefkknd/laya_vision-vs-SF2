@@ -1,5 +1,5 @@
 """The log of fighter sprites the reader could not match confidently (owner decision 2026-10-02, the last section of
-docs/laya_text_only_plan.md): the reader answers with a default ("stand") and the sprite is saved here for a later
+docs/laya_text_only_plan.md): the reader answers with a default ("block") and the sprite is saved here for a later
 catalog top-up. Images only (the crop of the frame), never RAM.
 
 <dir>/crops/<sha1 of the crop>.png   each distinct crop once (the best match's box, padded; the whole frame when the

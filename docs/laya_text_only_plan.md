@@ -112,3 +112,10 @@ Gate (script, exit code decides; RAM only as referee, read at collection time or
 - Unknown sprite -> default + log lives in the screen-only play loop, not in the reader (the reader stays a pure
   function: it reports unknown, the loop defaults to "stand" and logs the crop).
 - Re-gate on a NEW seed (303), both sets; the seed-202 run was looked at, so it is not the clean number any more.
+
+## Gate result, seed 303 (2026-10-02) - reader final
+All bars pass on both sets except round_over on set a: 12 time-over rounds where the clock shows 00 one frame before
+RAM's result row (display vs RAM timing; the amendment already said time-over at clock 00 is exact). Accepted as a
+gate-wording defect, not tuned (owner: "move on"). KO rounds: detected 28 frames after RAM's next-round row (the screen
+is black for the first 29). Health vs drawn hp 1.0 / 1.0; action .893 (ceiling .899) / .832 (ceiling .831); x .99 /
+.98; unknown 1.1% / 2.5%; 6.95 ms per frame. Unknown default = "block" (owner).

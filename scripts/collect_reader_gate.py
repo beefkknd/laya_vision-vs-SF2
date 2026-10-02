@@ -14,7 +14,9 @@ Sets:
   b  Chun-Li (player 1, a scripted cycle of her move list, sf2.data.pairs_collect.play_directed) vs the arcade CPU,
      each of 6 opponents on his own stage (states/p1_chunli_vs_<opp>.state), ROUNDS rounds each (another random start).
 Every frame is stepped one at a time: the raw screen (RUN caps=[1]) and the sprite snapshot (VIDEO). After the ROM's
-round result, TAIL more idle frames (so "round over" can be checked after it).
+round result, idle frames until RAM shows the NEXT round starting (result 0, both hp full, x 208 / 304, camera 128:
+meta next_k) and POST_NEXT more (so "round over" = the next round visibly starting can be checked; gate amendment
+2026-10-02); at most MAX_TAIL idle frames.
 
 <out>/<set>/<name>/
   frames.npz   frames (n, 224, 256, 3) uint8; frames[k] = the screen captured at stream row k (row 0: none, zeros).
@@ -48,12 +50,14 @@ from sf2.sprites.catalog import canonical, key_of
 from sf2.sprites.collect import oam_facing
 from sf2.sprites.emu import open_mesen, video
 from sf2.sprites.oam import render_groups
-from sf2.vocab import IDS
+from sf2.vocab import FULL_LIFE, IDS
 
 OUT = os.path.join(REPO, "out", "screen_gate", "data")
 BASE_PORT = 53301
 SEED = 101
-TAIL = 120
+MAX_TAIL = 1500           # idle frames after the result at most (probe 2026-10-02: the next round starts ~650 after)
+POST_NEXT = 330          # idle frames after the next round's start (the gate allows 300)
+NEXT_START = dict(result=0, p1_x=208, p2_x=304, cam_x=128)     # + both hp full: RAM's "next round starts" row
 ROUNDS = 4
 CHARS = ("blanka", "chunli", "dhalsim", "guile", "honda", "ken", "ryu", "zangief")
 OPPONENTS = ("ryu", "ken", "honda", "zangief", "guile", "dhalsim")
@@ -116,6 +120,33 @@ class Recorder:
         return len(self.rows)
 
 
+def is_next_start(r: Dict[str, int]) -> bool:
+    """RAM row ``r`` shows a round's start (NEXT_START, both hp full); used on the rows after a result."""
+    return all(r[n] == v for n, v in NEXT_START.items()) and r["p1_hp"] == r["p2_hp"] == FULL_LIFE
+
+
+def run_tail(rec: "Recorder", two_pads: bool) -> Optional[int]:
+    """Idle frames, one at a time, until RAM's next round start + POST_NEXT (or MAX_TAIL); returns that start row."""
+    names = ALL_NAMES
+    rows = [dict(zip(names, r)) for r in rec.rows]
+    result_k = next((k for k, r in enumerate(rows) if r["result"]), None)
+    nxt, ran = None, 0
+    while ran < MAX_TAIL + POST_NEXT:
+        rec.run([[]], p2=[[]] if two_pads else None)
+        ran += 1
+        r = dict(zip(names, rec.rows[-1]))
+        rows.append(r)
+        if result_k is None and r["result"]:
+            result_k = len(rows) - 1
+        if nxt is None and result_k is not None and is_next_start(r):
+            nxt = len(rows) - 1
+        if nxt is not None and len(rows) - 1 >= nxt + POST_NEXT:
+            break
+        if nxt is None and ran >= MAX_TAIL:
+            break
+    return nxt
+
+
 def truth(snap) -> Dict[str, list]:
     out = {}
     for pal, g in render_groups(snap, pals=set(PALS)).items():
@@ -145,7 +176,7 @@ def play(job: Dict, port: int, rom: Optional[str]) -> Dict:
             cyc = PM.Cycle(list(PM.moves("chunli")), random.Random("cycle1:" + key))
             summary = PC.play_directed(rec, ALL_NAMES, "chunli", cyc, state, start, rec.__len__)
             summary["moves"] = [m[:3] + [1] for m in summary["moves"]]
-        rec.run([[]] * TAIL, p2=[[]] * TAIL if job["set"] == "a" else None)
+        summary["next_k"] = run_tail(rec, job["set"] == "a")
     summary["seconds"] = round(time.time() - t0, 1)
     return write(job, rec, summary)
 
@@ -167,7 +198,8 @@ def write(job: Dict, rec: Recorder, summary: Dict) -> Dict:
     meta = dict(set=job["set"], name=job["name"], p1=job["p1"], p2=job["p2"], game=job["game"],
                 seed=job.get("seed", SEED),
                 stage="ryu" if job["set"] == "a" else job["p2"], state=job["state"], n=n,
-                result=summary["result"], result_k=int(nz[0]) if len(nz) else None, tail=TAIL,
+                result=summary["result"], result_k=int(nz[0]) if len(nz) else None,
+                next_k=summary.get("next_k"), tail=n - 1 - int(nz[0]) if len(nz) else None,
                 moves=summary["moves"], seconds=summary["seconds"])
     np.savez_compressed(os.path.join(base, "frames.npz"), frames=np.stack(rec.frames))
     with open(os.path.join(base, "meta.json"), "w") as f:
@@ -351,6 +383,47 @@ def fixture_frames(data: str = OUT, out: str = FIXTURES) -> List[Dict]:
     return expected
 
 
+ROUND_FIXTURE = os.path.join(FIXTURES, "round_seq")
+ROUND_PICKS = ("start", "hit", "ko_empty", "winner", "black", "pre_start", "next_start", "after5", "after200")
+
+
+def round_fixture(game_dirs: List[str], out: str = ROUND_FIXTURE) -> List[Dict]:
+    """A sparse frame sequence per game across a round's end and the next round's start (gate amendment 2026-10-02),
+    for the round-over tests (tests/test_screen_reader.py). Games with the long tail (meta next_k). Picks: the round's
+    first frame; the first frame showing a hit (RAM hp below full); the first showing a bar at 0 (KO; RAM result already
+    set); result + 300; the first black frame (RAM x 0); the frame before / at / 5 and 200 after the first frame whose
+    HUD shows both bars full again. Writes <out>.npz (frames, game index) and <out>.json (picks, RAM result_k /
+    next_k per game)."""
+    from sf2.screen.hud import bar_fraction
+    frames, gidx, expected = [], [], []
+    for gi, base in enumerate(game_dirs):
+        with open(os.path.join(base, "meta.json")) as f:
+            meta = json.load(f)
+        z = np.load(os.path.join(base, "rows.npz"))
+        names = [str(n) for n in z["names"]]
+        rows = [dict(zip(names, map(int, r))) for r in z["rows"]]
+        fr = np.load(os.path.join(base, "frames.npz"))["frames"]
+        rk, nk = meta["result_k"], meta["next_k"]
+        if rk is None or nk is None:
+            raise SystemExit("%s: no result / next round (collect with the long tail)" % base)
+        full = next(k for k in range(rk + 1, len(fr)) if all(bar_fraction(fr[k], p)[0] == 1.0 for p in (0, 1)))
+        ks = dict(start=1, hit=1 + next(k for k in range(1, rk) if min(rows[k]["p1_hp"], rows[k]["p2_hp"]) < FULL_LIFE),
+                  ko_empty=1 + next(k for k in range(rk, len(rows)) if min(rows[k]["p1_hp"], rows[k]["p2_hp"]) == 0),
+                  winner=rk + 300, black=1 + next(k for k in range(rk, len(rows)) if rows[k]["p1_x"] == 0),
+                  pre_start=full - 1, next_start=full, after5=full + 5, after200=full + 200)
+        for what in ROUND_PICKS:
+            frames.append(fr[ks[what]])
+            gidx.append(gi)
+            expected.append(dict(game=os.path.relpath(base, os.path.dirname(os.path.dirname(base))), what=what,
+                                 k=ks[what], result_k=rk, next_k=nk, chars=[meta["p1"], meta["p2"]],
+                                 seed=meta["seed"]))
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    np.savez_compressed(out + ".npz", frames=np.stack(frames), game=np.array(gidx))
+    with open(out + ".json", "w") as f:
+        json.dump(expected, f, indent=1)
+    return expected
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=OUT)
@@ -362,6 +435,8 @@ def main() -> int:
     ap.add_argument("--calib-hud", action="store_true", help="write the HUD calibration frames (%s)" % HUD_CALIB)
     ap.add_argument("--anchors", action="store_true", help="write the sprite anchor table (%s)" % ANCHORS)
     ap.add_argument("--fixtures", action="store_true", help="write the reader's frozen test frames (%s)" % FIXTURES)
+    ap.add_argument("--round-fixture", nargs="+", metavar="GAME_DIR",
+                    help="write the round-over test sequence (%s.npz/.json) from these long-tail games" % ROUND_FIXTURE)
     ap.add_argument("--seed", type=int, default=SEED, help="the games' random starts / move cycles (catalog: 0)")
     ap.add_argument("--one", type=int, help=argparse.SUPPRESS)
     ap.add_argument("--port", type=int, help=argparse.SUPPRESS)
@@ -375,6 +450,10 @@ def main() -> int:
         np.savez_compressed(DIGITS, digits=build_digits(z["frames"], z["clock"]))
         print("%s (%d calibration frames) -> %s" % (HUD_CALIB, len(z["clock"]), DIGITS))
         return 0
+    if args.round_fixture:
+        for e in round_fixture(args.round_fixture):
+            print("%-24s %-10s k=%d" % (e["game"], e["what"], e["k"]))
+        return 0
     if args.fixtures:
         for e in fixture_frames(args.out):
             print("%-26s %-9s k=%d" % (e["game"], e["what"], e["k"]))
@@ -387,8 +466,9 @@ def main() -> int:
     all_jobs = [dict(j, out=args.out, seed=args.seed) for j in jobs()]
     if args.one is not None:
         m = play(all_jobs[args.one], args.port, args.rom)
-        print("%s: %s, %d rows, result at %s, %.0f s" % (m["name"], m["result"], m["n"], m["result_k"], m["seconds"]))
-        return 0 if m["result_k"] is not None else 1
+        print("%s: %s, %d rows, result at %s, next round at %s, %.0f s" % (m["name"], m["result"], m["n"],
+                                                                          m["result_k"], m["next_k"], m["seconds"]))
+        return 0 if m["result_k"] is not None and m["next_k"] is not None else 1
     sets = args.sets.split(",")
     todo, per = [], {}
     for i, j in enumerate(all_jobs):

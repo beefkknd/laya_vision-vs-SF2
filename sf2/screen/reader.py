@@ -3,16 +3,24 @@ frame before) plus fixed files (sf2.screen.assets, sf2.screen.hud). No RAM, no O
 
     lock = lock_round(first_frame)            # identify both characters among all 8 catalogs, lock them
     facts = read_screen(frame, lock)          # pure: same inputs, same facts
-    rr = RoundReader(); facts = rr.feed(frame) # convenience: locks at a round start, tracks round over
+    facts, track = step_round(facts, track)   # pure: round over across frames (track: a RoundTrack, None at first)
+    rr = RoundReader(); facts = rr.feed(frame) # convenience: locks at a round start, tracks round over, re-locks
 
 Round start: the frame a round begins on (both fighters standing at their start places). identify() matches every
 character's own colours on the left and the right half; the best character per half (two different characters) wins.
 lock_round() also drops from each character's LOCATING colours the other fighter's colours and every colour common in
 the background of that frame (>= BG_SHARE of the pixels outside both fighters): the stage's own palette.
 
-Round over (single frame): a life bar empty, or the clock reads 00. RoundReader adds the game's rule seen on the
-screen: a time-over ends the round TIME_OVER_FRAMES frames after the clock first shows 00 (and a bar empty ends it at
-once); it stays over until both bars are full again (the next round), which re-locks.
+Round over (gate amendment, owner 2026-10-02): a bar that looks empty is NOT a cue (2 hp per bar pixel: 1 hp looks
+empty). read_screen (single frame): "over" when the clock reads 00. step_round (pure, the state is a RoundTrack passed in
+and returned) / RoundReader: the round is over when
+  - the clock has read 00 for TIME_OVER_FRAMES frames (time over), or
+  - the NEXT round visibly starts: both bars full and both fighters within START_TOL px of their start places
+    (START_X), after the round progressed: a bar below full or a non-fight screen (no bars: the black between two
+    rounds) since the last start. Not the clock: in a new round both fighters stand at their places while it runs.
+That frame carries new_round=True and round_state "over" (the played round ended); RoundReader re-locks on it, and
+the frames after it are "fighting" again. A KO is therefore reported when the next round starts (inputs after a KO do
+nothing, so late is free).
 """
 from collections import Counter
 from dataclasses import dataclass, replace
@@ -23,16 +31,20 @@ import numpy as np
 from . import assets as A
 from .facts import FighterFacts, ProjectileFacts, ScreenFacts
 from .hud import load_digits, read_hud
+from .unknown_log import UnknownLog
 from .match import Match, centroids, locate, match, padded_codes, padded_mask
 
 COMMON_SHARE = 4           # a colour in >= this many other characters' palettes is shared (hit flash): never locates
 BG_SHARE = 0.002
 BG_ROW0 = 16               # rows above are blank (the HUD below it counts as background: never a fighter colour)
+DEFAULT_ACTION = "block"   # owner 2026-10-02: no confident match -> answer "block", flag unknown, log it
 UNKNOWN_SCORE = 0.3          # below: the true sprite is mostly not in the catalog (gate set b, 2026-10-02)
 PROJ_SCORE = 0.7
 PROJ_MIN_PEAK = 6
 AIR_Y = -1                 # (off) a sprite whose feet are above this screen row is in the air whatever its label says
 TIME_OVER_FRAMES = 30
+START_X = (80, 176)        # screen x of player 1 / player 2 at a round start (RAM x 208 / 304, camera 128; probe 2026-10-02)
+START_TOL = 8              # px: "back near the start place"
 START_FREE_X, START_HEAD_Y = 40, 105
 MIN_ON_SCREEN = 0.8
 HALF = A.W // 2
@@ -140,14 +152,15 @@ def lock_round(frame: np.ndarray, banks: Optional[Dict[str, A.Bank]] = None) -> 
 
 def _fighter(ch: str, player: int, m: Optional[Match], banks, health) -> FighterFacts:
     if m is None:
-        return FighterFacts("?", ch, False, None, None, None, None, None, None, 0.0, True, None, health, player)
+        return FighterFacts("?", ch, False, None, None, None, None, None, DEFAULT_ACTION, 0.0, True, None, health,
+                            player)
     t = banks[ch].templates[m.t]
     x = int(round(m.ox - t.dx))
     feet = m.oy + t.h
     unknown = m.score < UNKNOWN_SCORE or t.act2 is None
     in_air = (t.air == "air") or feet < AIR_Y
     return FighterFacts("?", ch, True, x, int(feet), bool(in_air), "right" if t.face == A.FACE_RIGHT else "left",
-                        t.ck, None if unknown else t.act2, round(m.score, 4), unknown,
+                        t.ck, DEFAULT_ACTION if unknown else t.act2, round(m.score, 4), unknown,
                         (m.ox, m.oy, m.ox + t.w, m.oy + t.h), health, player)
 
 
@@ -208,31 +221,74 @@ def read_screen(frame: np.ndarray, lock: RoundLock, prev: Optional[np.ndarray] =
     left, right = by_side(*fs)
     sides = {left.character: "left", right.character: "right"}
     proj = _projectiles(lock, banks, codes, code_pad, sides, [f.box for f in (left, right) if f.box is not None])
-    over = any(hud.facts.bar_empty) or hud.facts.timer == 0
+    over = hud.facts.timer == 0             # single frame: the clock at 00 (a bar that looks empty is not a cue)
     gap = right.x - left.x if left.found and right.found else None
     return ScreenFacts(left, right, proj, hud.facts, "over" if over else "fighting", gap)
 
 
+@dataclass(frozen=True)
+class RoundTrack:
+    """What step_round carries from frame to frame (immutable: step_round returns a new one)."""
+    zeros: int = 0                  # consecutive frames the clock has read 00
+    time_over: bool = False         # the time-over rule fired: "over" until the next round starts
+    progressed: bool = False        # a bar below full / no bars since the round's start (bars never refill in a round)
+
+
+def is_round_start(facts: ScreenFacts) -> bool:
+    """Both bars full and both fighters found within START_TOL px of their start places (player 1 on the left)."""
+    if facts.hud.health != (1.0, 1.0):
+        return False
+    for f in (facts.left, facts.right):
+        if not f.found or f.player not in (1, 2) or abs(f.x - START_X[f.player - 1]) > START_TOL:
+            return False
+    return True
+
+
+def step_round(facts: ScreenFacts, track: Optional[RoundTrack] = None) -> Tuple[ScreenFacts, RoundTrack]:
+    """Pure: (this frame's facts from read_screen, the track so far) -> (the facts with round_state / new_round over
+    frames, the next track). ``track`` None: the first frame seen (a round start there is the CURRENT round)."""
+    track = track or RoundTrack()
+    hud = facts.hud
+    if track.progressed and is_round_start(facts):
+        return replace(facts, round_state="over", new_round=True), RoundTrack()
+    bars_moved = any(h is None or h < 1.0 for h in hud.health)
+    zeros = track.zeros + 1 if hud.timer == 0 else 0
+    nxt = RoundTrack(zeros=zeros, time_over=track.time_over or zeros >= TIME_OVER_FRAMES,
+                     progressed=track.progressed or bars_moved)
+    return replace(facts, round_state="over" if nxt.time_over else "fighting", new_round=False), nxt
+
+
 class RoundReader:
     """Locks the characters on the first frame of a round and reads every frame after; tracks round over across
-    frames (time-over rule) and re-locks when a new round starts (both bars full again after an over)."""
+    frames with step_round (time-over rule, the next round visibly starting) and re-locks on a new round. Unknown
+    fighters (answered DEFAULT_ACTION, "block") are saved to ``log`` for a later catalog top-up."""
 
-    def __init__(self, banks: Optional[Dict[str, A.Bank]] = None):
+    def __init__(self, banks: Optional[Dict[str, A.Bank]] = None, log: Optional[UnknownLog] = None):
+        """``log``: where unknown fighters are saved (sf2.screen.unknown_log; None: not logged)."""
         self.banks = banks or A.load_banks()
+        self.log = log
+        self.frames = 0
         self.lock: Optional[RoundLock] = None
-        self.zeros = 0
-        self.over = False
+        self.track = RoundTrack()
         self.prev: Optional[np.ndarray] = None
+
+    @property
+    def over(self) -> bool:
+        return self.track.time_over
+
+    @property
+    def zeros(self) -> int:
+        return self.track.zeros
 
     def feed(self, frame: np.ndarray) -> ScreenFacts:
         if self.lock is None:
             self.lock = lock_round(frame, self.banks)
         facts = read_screen(frame, self.lock, self.prev, self.banks)
+        if self.log is not None:
+            self.log.add(frame, facts, self.frames)
+        self.frames += 1
         self.prev = frame
-        hud = facts.hud
-        self.zeros = self.zeros + 1 if hud.timer == 0 else 0
-        if any(hud.bar_empty) or self.zeros >= TIME_OVER_FRAMES:
-            self.over = True
-        elif self.over and hud.health == (1.0, 1.0) and hud.timer not in (0, None):
-            self.over, self.lock, self.zeros = False, None, 0
-        return replace(facts, round_state="over" if self.over else "fighting")
+        facts, self.track = step_round(facts, self.track)
+        if facts.new_round:
+            self.lock = lock_round(frame, self.banks)
+        return facts

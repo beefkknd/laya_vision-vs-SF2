@@ -17,9 +17,9 @@ class FighterFacts:
     in_air: Optional[bool]
     facing: Optional[str]           # "left" / "right": the drawn sprite's orientation
     sprite: Optional[str]           # catalog key ("<char>/<key>") of the best match
-    action: Optional[str]           # the catalog's majority 7-answer label of that sprite; None when unknown
+    action: Optional[str]           # the catalog's majority 7-answer label; "block" (the default) when unknown
     confidence: float               # match score of the best sprite, 0..1
-    unknown: bool                   # no sprite matched well enough (or the matched sprite has no label)
+    unknown: bool                   # no confident match (or no label): action is the default, the frame is logged
     box: Optional[Tuple[int, int, int, int]] = None     # x0, y0, x1, y1 (exclusive) of the matched sprite
     health: Optional[float] = None  # this fighter's HUD bar (player 1's bar is the left one), 0..1
     player: Optional[int] = None    # 1 / 2: the side the character started the round on (HUD bar, name)
@@ -38,7 +38,7 @@ class ProjectileFacts:
 class HudFacts:
     health: Tuple[Optional[float], Optional[float]]     # left bar (player 1's), right bar (player 2's): 0..1
     timer: Optional[int]                                # the clock read from the digits, 0-99; None if unread
-    bar_empty: Tuple[bool, bool]
+    bar_empty: Tuple[bool, bool]                        # no yellow px (1 hp looks empty): NOT a round-over cue
 
 
 @dataclass(frozen=True)
@@ -47,9 +47,12 @@ class ScreenFacts:
     right: FighterFacts
     projectiles: Tuple[ProjectileFacts, ...]
     hud: HudFacts
-    round_state: str                # "fighting" / "over"
+    round_state: str                # "fighting" / "over" (read_screen: the clock at 00; RoundReader / step_round: the
+                                    # time-over rule, or the NEXT round visibly starting - sf2.screen.reader)
     gap: Optional[int] = None       # right.x - left.x when both found
     notes: Tuple[str, ...] = field(default_factory=tuple)
+    new_round: bool = False         # step_round / RoundReader only: this frame is the first of a new round (both bars
+                                    # refilled, both fighters back at their start places) after a played round
 
     @property
     def projectile_present(self) -> bool:

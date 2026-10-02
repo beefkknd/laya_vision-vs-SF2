@@ -12,16 +12,24 @@ boxes, the camera and RAM x agree at row k (lag 0, as the anchor table); state l
 Bars (per set a / b, frames 1 .. the RAM result row unless said):
   identity      locked (player 1, player 2) characters == RAM's, 100% of rounds
   x             |reader x - (RAM x - camera x)| <= 4 px on >= 95% of frames with RAM gap >= 40 (non-overlap)
-  health        |bar - life / 176| <= 0.03 on >= 99% of frames (life >= 200 = 0, the KO wrap)
-  round_over    the reader's first "over" frame (minus LAG) within 10 frames of RAM's result row, 100% of rounds
-  air           reader in_air == (RAM y != 192), >= 97%
-  facing        reader facing == RAM facing byte (0x40 right), >= 97%
-  action        accuracy vs RAM's 7-answer label >= the catalog ceiling - 0.05 (ceiling: the catalog majority label of
+  health        |bar - drawn hp / 176| <= 0.03 on >= 99% of frames. Drawn hp = RAM 0x0D12 (+0x200 player 2), the
+                game's displayed-hp field (it drains 1 hp a frame after a hit; RAM life 0x0C35 drops at once); verified
+                vs the HUD on the seed-999 probe: bar px == hp / 2 on 100% of frames (life / 2: 81-89%). Gate
+                amendment 2026-10-02.
+  round_over    the reader's first "over" frame (minus LAG) no earlier than RAM's result row and no later than RAM's
+                next-round-start row (meta next_k) + 300, on 100% of rounds (gate amendment 2026-10-02: round over = the
+                next round visibly starting, or the time-over clock 00)
+  air           reader in_air == (RAM y != 192), >= the air ceiling - 0.01 (ceiling: the catalog's air label of the
+                true sprite vs RAM, same frames, per set; gate amendment 2026-10-02)
+  facing        reader facing == RAM facing byte (0x40 right), >= the facing ceiling - 0.01 (ceiling: the drawn facing
+                - OAM - vs RAM's byte, same frames, per set)
+  action        accuracy vs RAM's 7-answer label (an unknown sprite answers the default "block", owner 2026-10-02)
+                >= the catalog ceiling - 0.05 (ceiling: the catalog majority label of
                 the TRUE sprite - the OAM key - on the same frames; a key not in the catalog counts as a miss)
   speed         median ms per frame (one process, sequential) < 20
-Reported, not gated: unknown rate, true sprites missing from the catalog, near contact (gap < 40), projectiles (vs the
-RAM shot slots, and vs a shot sprite actually drawn - OAM), health vs the drawn bar value (hp), the ceilings of air
-(the catalog's air label of the true sprite) and facing (the drawn facing vs RAM's byte), per character / per stage.
+Reported, not gated: unknown rate (not a failure by itself; logged under out/screen_reader_unknown/gate/), true sprites missing from the catalog, near contact (gap < 40), projectiles (vs the
+RAM shot slots, and vs a shot sprite actually drawn - OAM), health vs RAM life (the old truth), per character / per
+stage. The reader's unknown-sprite default action ("block", owner 2026-10-02) is written in gate.json.
 """
 import argparse
 import glob
@@ -46,9 +54,15 @@ DATA = os.path.join(REPO, "out", "screen_gate", "data")
 OUT = os.path.join(REPO, "out", "screen_gate")
 LAG = 1
 NEAR = 40
-BARS = dict(identity=1.0, x=0.95, health=0.99, round_over=1.0, air=0.97, facing=0.97, action_margin=0.05,
+BARS = dict(identity=1.0, x=0.95, health=0.99, round_over=1.0, ceiling_margin=0.01, action_margin=0.05,
             speed_ms=20.0)
-X_TOL, HEALTH_TOL, OVER_TOL = 4, 0.03, 10
+X_TOL, HEALTH_TOL, NEXT_WINDOW = 4, 0.03, 300
+HEALTH_TRUTH = "hp"          # the drawn hp (gate amendment 2026-10-02); "life" was the first gate's truth
+
+
+def ceiling_bar(ceiling: Optional[float]) -> float:
+    """Air / facing bar: the measured ceiling minus BARS["ceiling_margin"] (gate amendment 2026-10-02)."""
+    return round((ceiling or 0.0) - BARS["ceiling_margin"], 4)
 
 
 # ---------------------------------------------------------------------------------------------- truth (referee)
@@ -85,15 +99,18 @@ def load_truth(game_dir: str) -> Dict:
                          key="%s/%s" % (chars[p], g[0]) if g else None,
                          drawn={0x40: "right", 0x00: "left"}.get(g[5]) if g else None)
         frames.append(fr)
-    return dict(meta=meta, frames=frames, result_k=meta["result_k"])
+    return dict(meta=meta, frames=frames, result_k=meta["result_k"], next_k=meta.get("next_k"))
 
 
 # ---------------------------------------------------------------------------------------------- the reader's output
 def run_reader(game_dir: str) -> Dict:
     """The reader's facts per frame (k >= 1), as plain dicts, plus the lock."""
     from sf2.screen.reader import RoundReader
+    from sf2.screen.unknown_log import UNKNOWN_DIR, UnknownLog
     frames = np.load(os.path.join(game_dir, "frames.npz"))["frames"]
-    rr = RoundReader()
+    tail = os.path.relpath(game_dir, os.path.dirname(os.path.dirname(game_dir)))      # <data dir>/<set>/<game>
+    rr = RoundReader(log=UnknownLog(os.path.join(UNKNOWN_DIR, "gate", os.path.basename(os.path.dirname(
+        os.path.dirname(game_dir))), tail)))
     out, locks = [], []
     for k in range(1, len(frames)):
         f = rr.feed(frames[k])
@@ -131,8 +148,10 @@ def compare(truth: Dict, reader: Dict, majority: Dict[str, Optional[str]],
     c["round"]["n"] += 1
     c["round"]["identity"] += lock == [chars[1], chars[2]]
     first_over = next((f["k"] for f in reader["frames"] if f["over"]), None)
-    c["round"]["over_ok"] += first_over is not None and abs(first_over - LAG - rk) <= OVER_TOL
-    c["round"]["over_delay_sum"] += (first_over - LAG - rk) if first_over is not None else 9999
+    nk = truth.get("next_k")
+    c["round"]["no_next_start"] += nk is None
+    c["round"]["over_ok"] += first_over is not None and nk is not None and rk <= first_over - LAG <= nk + NEXT_WINDOW
+    c["round"]["over_early"] += first_over is not None and first_over - LAG < rk
     for f in reader["frames"]:
         k = f["k"]
         if k > rk:
@@ -156,8 +175,8 @@ def compare(truth: Dict, reader: Dict, majority: Dict[str, Optional[str]],
                 xok = r["x"] is not None and abs(r["x"] - t["x"]) <= X_TOL
                 g["x_ok_far"] += far and xok
                 g["x_ok_lag1_far"] += far and r["x"] is not None and abs(r["x"] - t["x_lag1"]) <= X_TOL
-                g["health_ok"] += r["health"] is not None and abs(r["health"] - t["life"]) <= HEALTH_TOL
-                g["health_hp_ok"] += r["health"] is not None and abs(r["health"] - t["hp"]) <= HEALTH_TOL
+                g["health_ok"] += r["health"] is not None and abs(r["health"] - t[HEALTH_TRUTH]) <= HEALTH_TOL
+                g["health_life_ok"] += r["health"] is not None and abs(r["health"] - t["life"]) <= HEALTH_TOL
                 g["health_hp0_ok"] += r["health"] is not None and abs(r["health"] - t["hp0"]) <= HEALTH_TOL
                 g["air_ok"] += r["air"] is not None and r["air"] == t["air"]
                 g["air0_ok"] += r["air"] is not None and r["air"] == t["air0"]
@@ -205,8 +224,9 @@ def summarize(c: Dict[str, Counter]) -> Dict:
     rd, pj = c["round"], c["proj"]
     return dict(
         rounds=rd["n"], identity=_r(rd["identity"], rd["n"]), round_over=_r(rd["over_ok"], rd["n"]),
+        round_over_early=rd["over_early"], rounds_without_next_start=rd["no_next_start"],
         frames=a["n"] // 1, x=_r(a["x_ok_far"], a["far"]), x_lag1=_r(a["x_ok_lag1_far"], a["far"]),
-        health=_r(a["health_ok"], a["n"]), health_vs_drawn_hp=_r(a["health_hp_ok"], a["n"]),
+        health=_r(a["health_ok"], a["n"]), health_vs_ram_life=_r(a["health_life_ok"], a["n"]),
         health_vs_hp_lag0=_r(a["health_hp0_ok"], a["n"]),
         air=_r(a["air_ok"], a["n"]), air_lag0=_r(a["air0_ok"], a["n"]),
         facing=_r(a["facing_ok"], a["facing_n"]), facing_lag0=_r(a["facing0_ok"], a["facing_n"]),
@@ -244,11 +264,13 @@ def bars(s: Dict, speed_ms: Optional[float]) -> Dict[str, Dict]:
         "x": (s["x"], BARS["x"]),
         "health": (s["health"], BARS["health"]),
         "round_over": (s["round_over"], BARS["round_over"]),
-        "air": (s["air"], BARS["air"]),
-        "facing": (s["facing"], BARS["facing"]),
+        "air": (s["air"], ceiling_bar(s["air_ceiling"])),
+        "facing": (s["facing"], ceiling_bar(s["facing_ceiling_drawn_vs_ram"])),
         "action": (s["action"], round(ceil - BARS["action_margin"], 4)),
     }
     res = {k: dict(value=v, threshold=t, ok=v is not None and v >= t) for k, (v, t) in out.items()}
+    for k, ce in (("air", s["air_ceiling"]), ("facing", s["facing_ceiling_drawn_vs_ram"]), ("action", ceil)):
+        res[k]["ceiling"] = ce
     if speed_ms is not None:
         res["speed_ms"] = dict(value=speed_ms, threshold=BARS["speed_ms"], ok=speed_ms < BARS["speed_ms"])
     return res
@@ -261,6 +283,7 @@ def one_game(game_dir: str) -> Dict:
     return dict(name=truth["meta"]["name"], set=truth["meta"]["set"], stage=truth["meta"]["stage"],
                 counts=compare(truth, reader, _catalog_majority(), _catalog_majority("air")),
                 over_first=next((f["k"] for f in reader["frames"] if f["over"]), None), result_k=truth["result_k"],
+                next_k=truth["next_k"],
                 result=truth["meta"]["result"], locks=reader["locks"])
 
 
@@ -295,7 +318,9 @@ def main() -> int:
     with ProcessPoolExecutor(args.workers) as ex:
         games = list(ex.map(one_game, dirs))
     ms = speed(args.data)
-    report = dict(lag=dict(x="row k (lag 0)", labels="row k - %d" % LAG), speed_median_ms=ms, sets={})
+    from sf2.screen.reader import DEFAULT_ACTION
+    report = dict(lag=dict(x="row k (lag 0)", labels="row k - %d" % LAG), speed_median_ms=ms,
+                  unknown_default_action=DEFAULT_ACTION, health_truth=HEALTH_TRUTH, sets={})
     ok_all = True
     for st in sorted({g["set"] for g in games}):
         gs = [g for g in games if g["set"] == st]
@@ -308,7 +333,10 @@ def main() -> int:
         report["sets"][st] = dict(bars=b, summary=s, per_char=per_char(c), per_stage=by_stage,
                                   rounds=[dict(name=g["name"], lock=g["locks"][0]["chars"] if g["locks"] else None,
                                                over_delay=(g["over_first"] - LAG - g["result_k"])
-                                               if g["over_first"] is not None else None, result=g["result"])
+                                               if g["over_first"] is not None else None,
+                                               after_next_start=(g["over_first"] - LAG - g["next_k"])
+                                               if g["over_first"] is not None and g["next_k"] is not None else None,
+                                               result=g["result"])
                                           for g in gs])
     report["pass"] = bool(ok_all)
     os.makedirs(args.out, exist_ok=True)
@@ -317,6 +345,7 @@ def main() -> int:
     for st, r in report["sets"].items():
         print("set %s: %s" % (st, "  ".join("%s %s/%s %s" % (k, v["value"], v["threshold"], "ok" if v["ok"] else "FAIL")
                                             for k, v in r["bars"].items())))
+    print("unknown sprite -> action %r (owner 2026-10-02); health truth: %s" % (DEFAULT_ACTION, HEALTH_TRUTH))
     print("gate %s -> %s" % ("PASS" if ok_all else "FAIL", os.path.join(args.out, "gate.json")))
     return 0 if ok_all else 1
 
