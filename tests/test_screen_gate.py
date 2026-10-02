@@ -105,6 +105,38 @@ def test_round_without_next_start_fails():
     assert not G.bars(s, 5.0)["round_over"]["ok"] and s["rounds_without_next_start"] == 1
 
 
+def _round_over_bar(truth, first):
+    """round_over bar for a reader whose first "over" frame is ``first`` (raw reader row k)."""
+    r = _perfect(truth)
+    for f in r["frames"]:
+        f["over"] = f["k"] >= first
+    s = G.summarize(G.merge([G.compare(truth, r, MAJORITY, AIR)]))
+    return G.bars(s, 5.0)["round_over"], s["round_over_early"]
+
+
+def test_time_over_round_one_frame_early_passes():
+    """Owner 2026-10-02: on a TIME-OVER round (RAM timer 0 at the result row, truth["time_over"]) the screen clock
+    reads 00 one frame before RAM's result row. A detection within TIME_OVER_TOL frames before RAM's result is inside
+    the window (the measured defect: exactly 1 frame early on 12 of 16 set-a rounds, seed 303)."""
+    t = dict(_truth(), time_over=True)
+    b, early = _round_over_bar(t, RK + G.LAG - 1)          # one frame before RAM's result row
+    assert b["ok"] and early == 0, (b, early)
+
+
+def test_ko_round_one_frame_early_still_fails():
+    """A KO round (RAM timer != 0 at the result row: time_over absent/False) gets NO tolerance: a detection one frame
+    before RAM's result still fails, so the time-over waiver cannot mask an early KO detection."""
+    b, early = _round_over_bar(_truth(), RK + G.LAG - 1)   # KO path (no time_over)
+    assert not b["ok"] and early == 1, (b, early)
+
+
+def test_time_over_beyond_tolerance_fails():
+    """The waiver is bounded: a time-over round detected more than TIME_OVER_TOL frames before RAM's result fails."""
+    t = dict(_truth(), time_over=True)
+    b, _ = _round_over_bar(t, RK + G.LAG - (G.TIME_OVER_TOL + 1))
+    assert not b["ok"], b
+
+
 def test_fault_health_vs_life_fails_where_drawn_passes(monkeypatch):
     """Seeded fault: the first gate's truth (RAM life) fails the reader that shows the drawn hp exactly."""
     assert _bars(_perfect(_truth()))["health"]["ok"]

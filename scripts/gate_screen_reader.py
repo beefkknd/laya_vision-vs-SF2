@@ -18,7 +18,10 @@ Bars (per set a / b, frames 1 .. the RAM result row unless said):
                 amendment 2026-10-02.
   round_over    the reader's first "over" frame (minus LAG) no earlier than RAM's result row and no later than RAM's
                 next-round-start row (meta next_k) + 300, on 100% of rounds (gate amendment 2026-10-02: round over = the
-                next round visibly starting, or the time-over clock 00)
+                next round visibly starting, or the time-over clock 00). TIME-OVER rounds only (RAM timer 0 at the
+                result row): the screen clock reads 00 up to TIME_OVER_TOL frames before RAM's result (display vs RAM
+                timing; owner accepted clock 00 as exact), so the lower edge is result row - TIME_OVER_TOL for them.
+                KO rounds keep the strict result-row lower edge.
   air           reader in_air == (RAM y != 192), >= the air ceiling - 0.01 (ceiling: the catalog's air label of the
                 true sprite vs RAM, same frames, per set; gate amendment 2026-10-02)
   facing        reader facing == RAM facing byte (0x40 right), >= the facing ceiling - 0.01 (ceiling: the drawn facing
@@ -57,6 +60,11 @@ NEAR = 40
 BARS = dict(identity=1.0, x=0.95, health=0.99, round_over=1.0, ceiling_margin=0.01, action_margin=0.05,
             speed_ms=20.0)
 X_TOL, HEALTH_TOL, NEXT_WINDOW = 4, 0.03, 300
+TIME_OVER_TOL = 2            # frames: on a TIME-OVER round (RAM timer 0 at the result row) the screen clock reads 00
+                             # up to this many frames before RAM's result row, so the time-over rule may fire that
+                             # early. Display-vs-RAM timing; owner 2026-10-02 accepted clock 00 as exact. Measured
+                             # defect, seed 303: exactly 1 frame early on 12 of 16 set-a rounds; 2 leaves a 1-frame
+                             # cushion. KO rounds (timer != 0) get NO tolerance: strictly no earlier than the result.
 HEALTH_TRUTH = "hp"          # the drawn hp (gate amendment 2026-10-02); "life" was the first gate's truth
 
 
@@ -99,7 +107,9 @@ def load_truth(game_dir: str) -> Dict:
                          key="%s/%s" % (chars[p], g[0]) if g else None,
                          drawn={0x40: "right", 0x00: "left"}.get(g[5]) if g else None)
         frames.append(fr)
-    return dict(meta=meta, frames=frames, result_k=meta["result_k"], next_k=meta.get("next_k"))
+    rk = meta["result_k"]
+    time_over = bool(0 <= rk < len(rows) and rows[rk]["timer"] == 0)   # RAM clock 00 at the result row = time over
+    return dict(meta=meta, frames=frames, result_k=rk, next_k=meta.get("next_k"), time_over=time_over)
 
 
 # ---------------------------------------------------------------------------------------------- the reader's output
@@ -149,9 +159,10 @@ def compare(truth: Dict, reader: Dict, majority: Dict[str, Optional[str]],
     c["round"]["identity"] += lock == [chars[1], chars[2]]
     first_over = next((f["k"] for f in reader["frames"] if f["over"]), None)
     nk = truth.get("next_k")
+    lo = rk - TIME_OVER_TOL if truth.get("time_over") else rk   # TIME-OVER rounds only: clock 00 is a touch early
     c["round"]["no_next_start"] += nk is None
-    c["round"]["over_ok"] += first_over is not None and nk is not None and rk <= first_over - LAG <= nk + NEXT_WINDOW
-    c["round"]["over_early"] += first_over is not None and first_over - LAG < rk
+    c["round"]["over_ok"] += first_over is not None and nk is not None and lo <= first_over - LAG <= nk + NEXT_WINDOW
+    c["round"]["over_early"] += first_over is not None and first_over - LAG < lo
     for f in reader["frames"]:
         k = f["k"]
         if k > rk:
