@@ -46,3 +46,9 @@ test_data_dist/
 test_data_act_cpu/
 test_data_act_common/
 test_data_act_cpu_common/
+# Movement fine-tune datasets (scripts/build_mv_data.py, docs/prereg_movement_finetunes.md) and their pairs build; local only
+test_data_mv_move/
+test_data_mv_face/
+test_data_mv_air/
+test_data_mv_dist/
+test_data_pairs2p_down/

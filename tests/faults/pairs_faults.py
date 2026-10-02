@@ -10,10 +10,12 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS = ["tests/test_pairs_labels.py", "tests/test_pairs_moves.py", "tests/test_pairs_collect.py",
-         "tests/test_pairs_data.py", "tests/test_pairs_pressed.py", "tests/test_pairs_episode.py"]
+         "tests/test_pairs_data.py", "tests/test_pairs_pressed.py", "tests/test_pairs_episode.py",
+         "tests/test_pairs_down.py", "tests/test_pairs_train.py"]
 VS = "sf2/emu/vs.py"
 LAB, MOV, COL, IOF, DAT, GAT = ("sf2/data/pairs_labels.py", "sf2/data/pairs_moves.py", "sf2/data/pairs_collect.py",
                                 "sf2/data/pairs_collect_io.py", "sf2/data/pairs_data.py", "sf2/data/pairs_gate.py")
+TRN = "sf2/data/pairs_train.py"
 FAULTS = [
     # 1 the labels
     ("label: facing byte read the wrong way", LAB, 'FACING = {0x40: "right", 0x00: "left"}',
@@ -146,6 +148,42 @@ FAULTS += [
     ("E gate: the episode check never fails", GAT, 'if "unknown" in seq or len(set(seq)) != 1:', "if False:"),
     ("E gate: the episode check starts at t - 3", GAT, "for u in range(t - gap, t + 1)]",
      "for u in range(t - gap + 1, t + 1)]"),
+]
+
+
+# docs/prereg_movement_finetunes.md: down only once back on the ground; second facts; the four fine-tune datasets
+FAULTS += [
+    ("D label: down in the air kept as down", LAB,
+     'return "down" if _f(r, p, "y") == GROUND_Y else "hit"', 'return "down"'),
+    ("D label: down on the ground called hit", LAB,
+     'return "down" if _f(r, p, "y") == GROUND_Y else "hit"', 'return "hit"'),
+    ("D label: down in the air called jump", LAB,
+     'return "down" if _f(r, p, "y") == GROUND_Y else "hit"', 'return "down" if _f(r, p, "y") == GROUND_Y else "jump"'),
+    ("D gate: independent down in the air kept as down", GAT,
+     'mv = "down" if r[me + "y"] == 192 else "hit"', 'mv = "down"'),
+    ("D gate: second-fact down check never fails", GAT,
+     'return {"pass": down["on_ground"] == down["total"], "down": down, "hit": hit}',
+     'return {"pass": True, "down": down, "hit": hit}'),
+    ("D gate: down on the ground checks only row t", GAT,
+     'all(rows[u]["p%d_y" % p] == 192 for u in range(t - gap, t + 1))', 'rows[t]["p%d_y" % p] == 192'),
+    ("D gate: hit health read after the episode start", GAT,
+     "< _health(rows[s - 1][hp])", "< _health(rows[s][hp])"),
+    ("D gate: hit health of the other fighter", GAT, 'hp = "p%d_hp" % p', 'hp = "p%d_hp" % (3 - p)'),
+    ("D gate: second facts not in the gates", GAT, '"second_fact": second_fact_check(d, bands)}',
+     '"second_fact": {"pass": True, "down": {"total": 0, "on_ground": 0}, "hit": {"total": 0, "health_lost": 0, "pct": None}}}'),
+    ("M data: val from test matches", TRN, 'if D.split_of_game(pair_name, game) != "train":\n        return False',
+     'if False:\n        return False'),
+    ("M data: no val (val matches stay train)", TRN, 'return "val" if is_val_match(pair_name, game) else "train"',
+     'return "train"'),
+    ("M data: val by row, not by match", TRN, 'zlib.crc32(("val:%s:%d" % (pair_name, game)).encode())',
+     'zlib.crc32(("val:%s:%d" % (pair_name, game + 1)).encode())'),
+    ("M data: answer dirs pooled", TRN, 'return rec["answer"] if DATASETS[dataset][1] else dataset', "return dataset"),
+    ("M data: label off the criteria order", TRN, '"label": list(crit).index(r["answer"])',
+     '"label": sorted(crit).index(r["answer"])'),
+    ("M data: the question names the other fighter", TRN, '"question": question(q, r["char"])',
+     '"question": question(q, r["opp"])'),
+    ("M data: no frames link", TRN, "        os.symlink(frames, os.path.join(base, \"frames\"))\n", ""),
+    ("M check: the split never checked", TRN, 'if r["split"] != f or f != want:', "if False:"),
 ]
 
 

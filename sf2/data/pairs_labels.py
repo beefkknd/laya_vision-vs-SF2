@@ -2,7 +2,10 @@
 each read from RAM at the DISPLAYED row t = n - LAG (perception.LAG = 1). Pure functions; no emulator, no files.
 
 movement (from the state byte, 9 answers; precedence top to bottom):
-  0x14 (thrown), or 0x0E with sub 0x04 (the knock-down landing, sf2.data.perception)  -> down   (thrown / knocked down)
+  0x14 (thrown), or 0x0E with sub 0x04 (the knock-down landing, sf2.data.perception), ON THE GROUND (y == GROUND_Y)
+                                                                                        -> down   (lying / getting up)
+     the same in the air (flying / falling after the hit, being thrown; owner 2026-10-01: "down is after landed")
+                                                                                        -> hit
   0x0E with a block react (06 / 08), or 0x08 (guard)                                    -> block
   0x0E otherwise                                                                        -> hit    (being hit)
   0x0C, or 0x0A with MOVE_CLASS 0x08 (the CPU's specials run in 0x0A, sf2.data.action_probe) -> special (incl. projectile)
@@ -81,7 +84,7 @@ def movement(rows: Rows, t: int, p: int) -> str:
     r = rows[t]
     st, sub = _f(r, p, "state"), _f(r, p, "sub")
     if st == THROWN or (st == HIT and sub == KNOCKDOWN_SUB and _f(r, p, "react") not in BLOCK_REACTS):
-        return "down"
+        return "down" if _f(r, p, "y") == GROUND_Y else "hit"      # owner: down only once back on the ground
     if st == GUARD or (st == HIT and _f(r, p, "react") in BLOCK_REACTS):
         return "block"
     if st == HIT:

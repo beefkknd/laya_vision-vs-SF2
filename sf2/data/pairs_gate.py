@@ -9,6 +9,8 @@ caps       per (split, char, movement10, facing) - the owner's grid cell - at mo
 alignment  RAM-to-image lag 1 on a sample: the HUD clock digits change between a pair's two images iff the RAM timer
            changed between the rows they show (sf2.data.movement_gate.digits_changed / alignment_verdict).
 disk       every image file the collection wrote < max_gb (10 GB).
+second_fact (docs/prereg_movement_finetunes.md) each "down" pair on the ground (y == 192) at t - 4 .. t: 100%; "hit"
+           pairs: health lost within the hit episode (reported, not gated).
 The counts table (per cell and per question) and the shortfalls are reported, not gated (never padded).
 """
 import collections
@@ -22,10 +24,11 @@ from . import pairs_moves as PM
 from .movement_gate import LAGS, MIN_AGREE, MIN_AGREE_DISC, MIN_DISC, SAMPLE, alignment_verdict, digits_changed
 from .pairs_collect import PER_GAME
 from .pairs_data import FILES, QUESTION_ANSWERS, answer, cell, split_of_game
+from ..vocab import FULL_LIFE
 
 CONTROLLER_OF = ({1: "directed", 2: "cpu"}, {1: "p1", 2: "p2"})   # P1 vs CPU, or Plan B (both ours)
 
-GATES = ("labels", "episode", "caps", "alignment", "disk")
+GATES = ("labels", "episode", "caps", "alignment", "disk", "second_fact")
 MAX_GB = 10.0
 LAG = 1
 
@@ -64,7 +67,7 @@ def independent_labels(rows: List[Dict[str, int]], t: int, p: int, bands: Dict[s
     old = rows[t - 4] if t >= 4 else None
     moved = r[me + "x"] - old[me + "x"] if old is not None and xs_ok and 0 <= old[me + "x"] <= 512 else None
     if state == 20 or (state == 14 and sub == 4 and not blocked):
-        mv = "down"
+        mv = "down" if r[me + "y"] == 192 else "hit"           # down only once back on the ground (owner)
     elif state == 8 or (state == 14 and blocked):
         mv = "block"
     elif state == 14:
@@ -184,6 +187,75 @@ def episode_check(d: Dict, bands: Dict[str, int], gap: int = 4) -> Dict:
     return {"pass": checked > 0 and bad == 0, "checked": checked, "outside": bad, "examples": examples}
 
 
+# ---- second facts (docs/prereg_movement_finetunes.md): each label against a different RAM field -------------------
+
+def down_on_ground(rows: List[Dict[str, int]], t: int, p: int, gap: int = 4) -> bool:
+    """A "down" pair: fighter ``p`` on the ground (y == 192) at every row t - gap .. t (both displayed frames)."""
+    return t - gap >= 0 and t < len(rows) and all(rows[u]["p%d_y" % p] == 192 for u in range(t - gap, t + 1))
+
+
+def hit_episode(rows: List[Dict[str, int]], t: int, p: int, bands: Dict[str, int]):
+    """(first, last) row of the run of independent "hit" rows of fighter ``p`` around ``t`` (None if t is no hit)."""
+    def is_hit(u):
+        return 0 <= u < len(rows) and _grid(independent_labels(rows, u, p, bands)) == "hit"
+    if not is_hit(t):
+        return None
+    s, e = t, t
+    while is_hit(s - 1):
+        s -= 1
+    while is_hit(e + 1):
+        e += 1
+    return s, e
+
+
+def _health(v: int) -> int:
+    return v if 0 <= v <= FULL_LIFE else 0          # a KO under-runs the 2-byte health: count it as 0
+
+
+def hit_health_lost(rows: List[Dict[str, int]], t: int, p: int, bands: Dict[str, int]) -> bool:
+    """A "hit" pair: fighter ``p``'s health (hp) somewhere in its hit episode is below the row before the episode."""
+    ep = hit_episode(rows, t, p, bands)
+    if ep is None or ep[0] == 0:
+        return False
+    s, e = ep
+    hp = "p%d_hp" % p
+    return min(_health(rows[u][hp]) for u in range(s, e + 1)) < _health(rows[s - 1][hp])
+
+
+def second_fact_check(d: Dict, bands: Dict[str, int], ram_of=None) -> Dict:
+    """Every "down" pair on the ground at t - 4 .. t (gated: 100%); "hit" pairs with health lost in their hit episode
+    (reported, not gated: a hit can be a throw's or a combo's later frames). ``ram_of(pair, game)``: the RAM rows
+    (default: the collection's)."""
+    if ram_of is None:
+        cache: Dict = {}
+        root = d["meta"]["root"]
+
+        def ram_of(pair, game):
+            return _ram(root, pair, game, cache)
+    rows = d["files"]["movement"]["train"] + d["files"]["movement"]["test"]
+    down = {"total": 0, "on_ground": 0, "examples": []}
+    hit = {"total": 0, "health_lost": 0, "examples": []}
+    for r in sorted(rows, key=lambda x: (x["pair_name"], x["game"])):
+        if r["answer"] not in ("down", "hit"):
+            continue
+        ram = ram_of(r["pair_name"], r["game"])
+        if r["answer"] == "down":
+            ok = ram is not None and down_on_ground(ram, r["t"], r["slot"])
+            down["total"] += 1
+            down["on_ground"] += ok
+            if not ok and len(down["examples"]) < 10:
+                down["examples"].append(r.get("id", "%s g%s t%s" % (r["pair_name"], r["game"], r["t"])))
+        else:
+            ok = ram is not None and hit_health_lost(ram, r["t"], r["slot"], bands)
+            hit["total"] += 1
+            hit["health_lost"] += ok
+            if not ok and len(hit["examples"]) < 10:
+                hit["examples"].append(r.get("id", "%s g%s t%s" % (r["pair_name"], r["game"], r["t"])))
+    for x, k in ((down, "on_ground"), (hit, "health_lost")):
+        x["pct"] = round(100.0 * x[k] / x["total"], 1) if x["total"] else None
+    return {"pass": down["on_ground"] == down["total"], "down": down, "hit": hit}
+
+
 def cap_check(d: Dict) -> Dict:
     caps = d["meta"]["caps"]
     rows = d["files"]["movement"]["train"] + d["files"]["movement"]["test"]
@@ -262,7 +334,8 @@ def run_gates(data: str, bands: Dict[str, int], max_gb: float = MAX_GB, sample: 
     d = load(data)
     gates = {"labels": label_check(d, bands), "episode": episode_check(d, bands), "caps": cap_check(d),
              "alignment": alignment_check(data, d, sample, min_disc, seed=seed),
-             "disk": disk_check(d["meta"]["root"], d["meta"]["pairs"], max_gb)}
+             "disk": disk_check(d["meta"]["root"], d["meta"]["pairs"], max_gb),
+             "second_fact": second_fact_check(d, bands)}
     return {"pass": all(g["pass"] for g in gates.values()), "gates": gates, "counts": counts_table(d)}
 
 
