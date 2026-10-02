@@ -38,3 +38,43 @@ much more than its direction - "not too keen on the fireball movement, don't get
 4. Decision, mechanical: keep the combined checkpoint if every question's balanced accuracy is within 0.02 of its
    separate run on the same held-out test; otherwise separate adapters for the questions that lose more.
 Run lengths, patience and the time limit are fixed in a pre-registration before step 2.
+
+## Datasets v1 (2026-10-02; data only - no training, no new games)
+Owner during the build: q2 changed to "which way is the fireball moving", then DROPPED for this round ("presence
+matters far more"); no test_data_eye_q2_* was built. Four datasets.
+
+- Pool (sf2.data.eye_pool): every image pair on disk in rollouts/pairs2p (committed games 0-30; the movement samples,
+  the projectile samples and any pair the saved images form): 123,732 pairs, labelled from RAM at the displayed row t
+  (lag 1). One split table (pairs_train.split3: test crc32 % 3 == 2 - round 3's test matches stay test; val 1 in 6
+  training matches): 910 train / 173 val / 556 test matches over the four datasets, no match in two splits.
+- q1 label: a fireball flight's slot on AND drawn (blink bit clear) AND on the screen. Found while gating: the slot
+  stays on while the projectile flies off the edge of the screen (36 of 557 hadoken "yes" pairs showed no projectile).
+  No scroll byte is recorded, so the screen is estimated from RAM: left edge = clamp((x1 + x2) / 2 - 128, 32, 224)
+  (fitted on 2,318 drawn hadoken pairs, 97.6% agree with the blue-pixel test); "yes" needs the projectile >= 8 px
+  inside; a drawn fireball off / at the edge is neither answer (310 pairs dropped). Games < 10 have no blink byte
+  (46,488 pairs: not in q1). Yoga flame = "no".
+- Alignment (sf2.data.eye_data): within each stratum every answer gets the same count (q3 / q5 at most 2, q4 at most 1
+  per answer per stratum, q1 uncapped). Strata: q1 (split, match, game range 10-15 / 16-23 / 24-31, player 1's pose,
+  player 2's pose; pose = "projectile" (attack state with the projectile word pressed) else the grid movement);
+  q3 / q4 (split, match, game, side, the other fighter's grid movement); q5 (split, match, game, left and right grid
+  movement). The first pass matched on the coarse act class and FAILED the shortcut check (q1 0.643, q3 0.427, q5
+  0.679 balanced vs chance 0.5 / 0.333 / 0.5); matching on the grid movement fixed it. q1 "no" rows are taken hard
+  first (blink, before spawn, after impact within 12 rows, throwing pose); q3 only pairs inside one episode.
+- Rows (train / val / test, per answer, equal): q1 yes / no 666 / 147 / 418; q3 moving / attack / special
+  3,575 / 692 / 2,194; q4 ground / air 9,160 / 1,791 / 5,609; q5 close / far 4,144 / 889 / 2,525.
+- Hard cases: q1 "no" hard negatives 410 / 76 / 238 (tags over all splits: throwing pose 697 = the "yes" rows in
+  throwing pose, before spawn 343, blink 269, after impact 55, fireball drawn in the n-4 frame 62, yoga flame 0);
+  q3 jump attacks 1,741 / 368 / 1,056 (attack), plain jumps 1,338 / 263 / 738 (moving); q4 take-off 1,091 / 234 / 651
+  (air), landing 721 / 157 / 467 (ground). Round 3's test rows kept: q3 865 of 3,163 (all in test); q1 0 of 636 -
+  their games have no blink byte (none rows, games 0-9) or no "no" frame on disk (games 10-15 of the thrower pairs).
+- Shortcut check (sf2.data.eye_shortcut; lookups per feature + logistic regression on metadata, fit on train, balanced
+  accuracy on test, margin 0.05): q1 best 0.524 (+0.024, logreg), q3 0.333 (+0.000), q4 0.500, q5 0.500 - PASS.
+- Gate (scripts/gate_eye_data.py, exit 0): labels re-derived 2,462 / 19,383 / 33,120 / 15,116 rows, 0 mismatches;
+  q3 episode 19,383 / 19,383; splits one table; q1 drawn: hadoken "yes" 480 / 481 blue, Ryu/Ken-only "no" 66 / 66 clear
+  (52 / 52 hard); lag 1: 1.000 (400) and 1.000 on discriminating pairs vs ~0.5 at lag 0 / 2 for every dataset; disk
+  5.04 GB. Contact sheets test_data_eye_contact/q{1,3,4,5}_*.png; q1 looked at: projectiles in the "yes" frames,
+  none in the hard "no" frames. Caveat seen there: Guile's sonic-boom windup draws a swoosh arc around his arms
+  before the slot turns on (label "no", correct by RAM and frames, but it looks like a crescent).
+- train.py: q3 / q4 / q5 pass the coverage / sampling checks at the defaults; q1 needs --min-sampled-train 600 (666
+  per dir; val 147 >= 100). A combined run (step 3) has 7,730 val rows: needs --val-limit above the 4,000 default.
+- Tests: tests/test_eye_pool.py, tests/test_eye_data.py; seeded faults tests/faults/eye_faults.py 38 of 38.

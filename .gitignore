@@ -64,3 +64,9 @@ test_data_pairs2p_mv4/
 test_data_mv4_act/
 test_data_mv4_fireball/
 test_data_mv4_fireball_contact/
+# The eye's aligned datasets v1 (docs/eye_questions_v1.md "Datasets v1"; scripts/build_eye_data.py / gate_eye_data.py)
+test_data_eye_q1_fireball/
+test_data_eye_q3_act/
+test_data_eye_q4_air/
+test_data_eye_q5_dist/
+test_data_eye_contact/
