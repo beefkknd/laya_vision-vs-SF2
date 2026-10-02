@@ -81,12 +81,14 @@ collection/gate tooling. See "Known debt" - the gate is RED today on purpose.
 ## Gaps to fix before the loop runs - checklist
 Each: what breaks if not fixed, and the fix.
 
-- [ ] **G1. Text laya's options without the table.** Today text laya is handed the table's shortlist + rating words
+- [x] **M5 (done 33ac6ef).** RAM-free move menu / action vocab / frame helpers carved out (sf2/moves_free.py, sf2/data/actions_free.py, frames_free.py) so the runner imports no RAM.
+
+- [x] **G1. (done 649460d) Text laya's options without the table.** Today text laya is handed the table's shortlist + rating words
       ("likely works"); `advice.answers` needs every option to carry a rating. Breaks: with the table out of play
       there are no ratings. Fix: options = Chun-Li's move list (plain); text laya follows a lesson if one applies,
       else the default. This is a RETRAIN of text laya on a new question shape (unrated options), not just rewiring.
       Decide the default when no rule applies (walk in? block?).
-- [ ] **G2. Starting rules.** Breaks: with a blank start, every decision is the default until Qwen has written
+- [x] **G2. (done 5737a79) Starting rules.** Breaks: with a blank start, every decision is the default until Qwen has written
       something. Fix (owner's preference): web research -> starting rules, written in text laya's grammar, admitted
       through the normal checks (`advice.read`), tagged "web" so they rotate like any rule. No "web" source exists yet.
 - [ ] **G3. What Qwen observes, with no RAM (UNDERSTATED before).** Qwen's whole evidence path is RAM: damage
@@ -95,7 +97,7 @@ Each: what breaks if not fixed, and the fix.
       damage from health-bar drops, his action (7 labels + fireball) from the reader, round result from the reader -
       and REBUILD the lesson evidence/threat/`cause` paths on it (not a re-feed: the screen gives no hit/whiff/blocked
       or named special yet). Test: screen record vs replay RAM, at DECISION granularity (M3).
-- [ ] **G4. Text laya's grammar is too small.** It knows "when he jumps / crouches / attacks / stands / is stunned" +
+- [x] **G4. (done 649460d) Text laya's grammar is too small.** It knows "when he jumps / crouches / attacks / stands / is stunned" +
       a range; no fireball, no specific move of his. The reader DOES see fireballs but the words never say so. Fix:
       extend the advice grammar + text laya's training data (reading rules only), for the fireball now and more when
       Qwen needs it.
@@ -109,7 +111,7 @@ Each: what breaks if not fixed, and the fix.
       one per-game report. No code yet.
 - [ ] **G8. The loop test pre-registered** before any game: opponents, games per opponent, starting rules, what counts
       as "better" (hp/round trend over games, per opponent), stop rules.
-- [ ] **M2. Gate round-over waiver.** The reader gate FAILS on time-over rounds ending 1 frame early; state the waiver
+- [x] **M2. (done 3203552) Gate round-over waiver.** The reader gate FAILS on time-over rounds ending 1 frame early; state the waiver
       or fix the wording so the gate exits 0.
 - [ ] **M4. Lesson retirement on the screen record.** `lessons.review/stop` keys on per-game RAM hp; move it to the
       screen/replay record.
