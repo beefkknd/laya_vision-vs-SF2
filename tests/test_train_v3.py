@@ -77,7 +77,8 @@ def test_default_coverage_check_still_compares_row_counts():
 def test_training_passes_the_checked_sampling_arguments():
     """train.py hands vt.train exactly the arguments the check read (no silent divergence)."""
     src = open(TRAIN).read()
-    for arg in ("balance_key=TD.BALANCE_KEY", "mix_weights=TD.MIX_WEIGHTS", "mix_alpha=TD.MIX_ALPHA"):
+    for arg in ("balance_key=TD.BALANCE_KEY", "mix_weights=mix_weights(args)", "mix_alpha=TD.MIX_ALPHA",
+                "TD.question_weights(args.data) if args.balance == \"question\" else TD.MIX_WEIGHTS"):
         assert arg in src, arg
 
 

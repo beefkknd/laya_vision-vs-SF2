@@ -17,6 +17,8 @@ the first runs' recipe:
     --select nll         keep best and early-stop on validation NLL over all rows (default acc: pooled accuracy)
     --balance sampling   check that laya samples every dir in equal shares (and has enough rows) instead of equal
                          row counts (default rows: MIN_SHARE_RATIO)
+    --balance question   the eye's combined run (docs/eye_questions_v1.md): each question (the --data dir's parent
+                         folder) an equal share of draws, its answer dirs equal within it; row minimums as sampling
     --resume-guard       (on by default) refuse to start if --out exists; --no-resume-guard to allow it
 Every eval logs, per character, the value questions' cross-entropy next to its prior's (train_log.json value_xent).
 """
@@ -48,8 +50,9 @@ def parse_args(argv=None):
     ap.add_argument("--patience", type=int, default=3, help="evals without a gain in --select before stopping")
     ap.add_argument("--select", choices=["acc", "nll"], default="acc",
                     help="keep best / early-stop on pooled val accuracy (acc) or val NLL over all rows (nll)")
-    ap.add_argument("--balance", choices=["rows", "sampling"], default="rows",
-                    help="rows: equal row counts per dir (MIN_SHARE_RATIO); sampling: equal sampling shares instead")
+    ap.add_argument("--balance", choices=["rows", "sampling", "question"], default="rows",
+                    help="rows: equal row counts per dir (MIN_SHARE_RATIO); sampling: equal sampling shares instead; "
+                         "question: every question (a dir's parent folder) an equal share, its answer dirs equal")
     ap.add_argument("--resume-guard", action=argparse.BooleanOptionalAction, default=True,
                     help="refuse to start if --out exists (default on)")
     ap.add_argument("--val-limit", type=int, default=4000, help="stop if validation is larger (it is not cut at random)")
@@ -100,7 +103,15 @@ def data_problems(train, val, args):
     if args.balance == "sampling":
         return coverage_problems(train, val, args.data, share_check=False) + sampling_problems(
             train, val, args.data, args.min_sampled_train, args.min_sampled_val)
+    if args.balance == "question":
+        return coverage_problems(train, val, args.data, share_check=False) + sampling_problems(
+            train, val, args.data, args.min_sampled_train, args.min_sampled_val, by_question=True)
     return coverage_problems(train, val, args.data)
+
+
+def mix_weights(args):
+    """The laya mix weights: per-question shares for --balance question, else the default (every dir equal)."""
+    return TD.question_weights(args.data) if args.balance == "question" else TD.MIX_WEIGHTS
 
 
 def selection(args, evaluate, save_best) -> Selection:
@@ -191,7 +202,7 @@ def main():
                  n_last=4, lr_head=args.lr_head, lr_backbone=args.lr_backbone, device=str(agent.device),
                  seed=args.seed, log_every=25, max_minutes=args.max_minutes, num_workers=0,
                  warmup=min(100, steps // 10), eval_fn=eval_fn, eval_every=args.eval_every,
-                 balance_key=TD.BALANCE_KEY, mix_weights=TD.MIX_WEIGHTS, mix_alpha=TD.MIX_ALPHA)
+                 balance_key=TD.BALANCE_KEY, mix_weights=mix_weights(args), mix_alpha=TD.MIX_ALPHA)
         eval_fn(steps)
     except EarlyStop:
         print("early stop: no val gain in %d evals" % args.patience)

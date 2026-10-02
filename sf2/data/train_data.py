@@ -89,7 +89,26 @@ def _records(dirs: Sequence[str]) -> Dict[Tuple[str, str], Dict]:
     return out
 
 
-def sampling_shares(train: List[Dict]) -> Dict[str, float]:
+def _questions(dirs: Sequence[str]) -> Dict[str, List[str]]:
+    """--balance question: the question of a --data dir is its parent folder (test_data_eye_q3_act/moving -> q3)."""
+    by_q: Dict[str, List[str]] = {}
+    for d in dirs:
+        p = os.path.normpath(d)
+        by_q.setdefault(os.path.basename(os.path.dirname(p)), []).append(os.path.basename(p))
+    return by_q
+
+
+def question_weights(dirs: Sequence[str]) -> Dict[str, float]:
+    """--balance question: laya mix weights giving every question an equal share of draws and its answer dirs equal
+    shares within it (sampled groups are the dirs' basenames, so they must not collide)."""
+    by_q = _questions(dirs)
+    names = [n for ns in by_q.values() for n in ns]
+    if len(set(names)) != len(names):
+        raise ValueError("answer dir names collide across questions: %s" % sorted(names))
+    return {n: 1.0 / (len(by_q) * len(ns)) for ns in by_q.values() for n in ns}
+
+
+def sampling_shares(train: List[Dict], weights=MIX_WEIGHTS) -> Dict[str, float]:
     """The share of training draws each group gets: laya's own mix (grouped as its ItemStream groups, by
     BALANCE_KEY) with the weights and alpha train.py passes."""
     import laya.vlm_train as vt
@@ -97,20 +116,30 @@ def sampling_shares(train: List[Dict]) -> Dict[str, float]:
     groups: Dict[str, List[Dict]] = {}
     for ex in train:
         groups.setdefault(ex.get(BALANCE_KEY, "_"), []).append(ex)
-    return vt.mix_probabilities(groups, MIX_WEIGHTS, MIX_ALPHA)
+    return vt.mix_probabilities(groups, weights, MIX_ALPHA)
 
 
 def sampling_problems(train: List[Dict], val: List[Dict], dirs: Sequence[str], min_train: int = MIN_SAMPLED_TRAIN,
-                      min_val: int = MIN_SAMPLED_VAL) -> List[str]:
+                      min_val: int = MIN_SAMPLED_VAL, by_question: bool = False) -> List[str]:
     """``--balance sampling``: every dir is sampled in the same share, no group that is not a dir, and every dir has
-    at least ``min_train`` train and ``min_val`` validation rows; empty = OK."""
+    at least ``min_train`` train and ``min_val`` validation rows; empty = OK. ``by_question`` (``--balance
+    question``): instead, every question (parent folder) has the same share and its answer dirs equal shares within
+    it, read from laya's mix with ``question_weights``."""
     names = [os.path.basename(os.path.normpath(d)) for d in dirs]
-    shares = sampling_shares(train)
+    shares = sampling_shares(train, question_weights(dirs) if by_question else MIX_WEIGHTS)
     problems = ["%s: sampled group is not a --data dir" % k for k in sorted(set(shares) - set(names))]
     problems += ["%s is not sampled (no train rows)" % n for n in names if n not in shares]
-    got = [shares[n] for n in names if n in shares]
-    if got and max(got) - min(got) > SHARE_TOLERANCE:
-        problems.append("sampling shares unequal across datasets: %s" % {k: round(v, 4) for k, v in shares.items()})
+    if by_question:
+        by_q = {q: [shares.get(n, 0.0) for n in ns] for q, ns in _questions(dirs).items()}
+        totals = {q: sum(v) for q, v in by_q.items()}
+        if max(totals.values()) - min(totals.values()) > SHARE_TOLERANCE:
+            problems.append("question shares unequal: %s" % {q: round(v, 4) for q, v in totals.items()})
+        problems += ["answer shares unequal within %s: %s" % (q, [round(x, 4) for x in v])
+                     for q, v in by_q.items() if max(v) - min(v) > SHARE_TOLERANCE]
+    else:
+        got = [shares[n] for n in names if n in shares]
+        if got and max(got) - min(got) > SHARE_TOLERANCE:
+            problems.append("sampling shares unequal across datasets: %s" % {k: round(v, 4) for k, v in shares.items()})
     for split, rows_, need in (("train", train, min_train), ("val", val, min_val)):
         n = collections.Counter(ex.get("dataset") for ex in rows_)
         problems += ["%s has %d %s rows < %d" % (x, n[x], split, need) for x in names if n[x] < need]
