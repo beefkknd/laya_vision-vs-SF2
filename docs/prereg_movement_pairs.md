@@ -161,3 +161,15 @@ walk away 689, attack 547, walk toward 479, jump 456, block 348, hit 304, down 2
 9,600 selected = every one of the 320 (split, cell) caps full (40 train / 20 test). Gate PASS: labels 38,400/38,400,
 episode 9,600/9,600 inside, caps, lag 1 (0.97 on discriminating pairs vs 0.54 / 0.47), disk 1.17 GB. Attack-state rows:
 0 fallbacks. Stopped for the owner's visual audits (blind Claude + codex); no training.
+
+## Quality check after the episode fix (2026-10-01; build pairs2p_final, 9,600 pairs)
+- RAM gate: labels 38,400/38,400, episode 9,600/9,600, lag 1, caps, disk - PASS.
+- Second-fact RAM checks (each label against a different RAM field): down in the air 749/758 lost health (knocked out
+  of the air), down on the ground = lying / getting up; hit 933/960 lost health; block 956/960 with an attack or
+  projectile incoming (attack-ID byte or state 0x0A/0x0C or shot slots, within 30 frames); walk toward / away
+  moved >= 3 px in 951/960 and 931/960; stand still 941/960, crouch still 959/960, both on the ground 100%; jump in
+  the air 843/960 (the rest take-off / landing frames).
+- Blind visual (advisory, [LLM]): Claude 115/240 (48%), codex 59/80 (74%; 53/66 when confident). Both engines
+  agree with each other against our label on 8 of 80: 4 airborne knockdowns (RAM: health lost - label right, looks
+  like a jump), 1 sweep's crouch-looking recovery, 1 flash kick high in the air, 1 hit, 1 one-frame crouch-to-stand.
+  Hardest to see in two 256-px frames: walking (a few px), down in the air, special vs attack, hit.
