@@ -83,3 +83,14 @@ A2 agreement overall 0.697 (laya eye2_q3 on the full test: 0.351); codex never s
   crouch, crouching block, hit on ground) separately - that is where more detail should show first. If it stops
   before 6,000 steps, both are compared at the same step too (eye2_q3's eval log).
 - Not in this run: answer-set shrink, difference image (each its own run afterwards, owner's choice). Crop: dropped by the owner ("no crop", 2026-10-02).
+
+## C. Results (2026-10-02): 512 HELPS
+- runs/eye3_q3_512 (threebody, 6,000 steps, ~35 min - no slower than 256; best val acc 0.636 at the last step, still
+  rising). Test balanced accuracy **0.644** (lower bound 0.635) vs eye2_q3 0.351 (+0.293; bar was +0.03) - HELPS.
+- Recall 256 -> 512: attack .30 -> .42, special .34 -> .57, block .14 -> .65, walk .56 -> .84, jump .40 -> .71,
+  stand .24 -> .68, hit .48 -> .63. Precision now .60-.74 for every answer (was .31-.46).
+- Codex-seeable kinds: down .44 -> .88, crouch .31 -> .85, jump in air .44 -> .75, crouching block .16 -> .62, hit on
+  ground .26 -> .31, standing attack .31 -> .39. Kinds codex could NOT see: standing block .11 -> .68 (codex .39),
+  hit in air .57 -> .64, throw .36 -> .47, crouching attack .29 -> .36. Overall 0.644 vs codex 0.697 on its sample.
+- B1 at 512 (frames duplicated): 0.644 -> 0.582 (-0.062), walk .84 -> .62 (-0.22), same answer 76.3%: by the
+  pre-registered reading the 512 eye DOES use the change between the frames (at 256 it did not).
