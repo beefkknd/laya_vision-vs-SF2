@@ -345,6 +345,9 @@ Give her OFFENSE that applies in COMMON situations - the ones that happen every 
 keyed on a rare or narrow moment almost never fires and she falls back to block. Prefer a condition that is range-only
 or a common state of his (he attacks, he stands), NOT a rare one. Good, broad shapes:
 - a baseline poke or approach at mid range to control space and close the distance (range-only is fine),
+- MOVEMENT to fix her spacing - she can now reliably walk: "walk_forward" to CLOSE IN on a passive opponent (e.g.
+  walk_forward when he stands), "walk_back" to make space when he attacks. Movement is a valid GROUNDED answer; use it
+  to reach the range where her offense actually lands, then punish.
 - a punish when he attacks - hit him out of or right after his attack,
 - an anti-air when he jumps that she can do while GROUNDED: an uppercut / Shoryuken (e.g. shoryuken_hp for Ryu/Ken), a
   standing or crouching heavy, or Chun-Li's spinning_bird_kick or lightning_legs.
