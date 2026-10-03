@@ -25,18 +25,29 @@ def welch_delta(base, cand):
     return d, d - 1.96 * se, d + 1.96 * se
 
 
+def assemble(base, cand):
+    """Pure stat assembly. base/cand are equal-length lists of (hp_margin, win, decisions), one per
+    seed. Returns a BlockStat for candidate-minus-incumbent. fire_rate/follows are pooled over ALL
+    candidate decision frames. Separated from the runner so the CLI can run games in parallel and
+    still feed this one tested assembler."""
+    if not base or not cand:
+        raise ValueError("need at least one sample in each arm")
+    if len(base) != len(cand):
+        raise ValueError("arms must have the same number of seeds: %d vs %d" % (len(base), len(cand)))
+    bh = [b[0] for b in base]
+    ch = [c[0] for c in cand]
+    cw = sum(c[1] for c in cand)
+    fire, follows = coverage([d for c in cand for d in c[2]])
+    d, lo, hi = welch_delta(bh, ch)
+    return BlockStat(delta=d, lo=lo, hi=hi, cand_wins=cw, n=len(cand), fire_rate=fire, follows=follows)
+
+
 def measure_block(incumbent_rules, candidate_rules, seeds, run_arm):
-    """Run both arms over `seeds` with run_arm(rules, seed) -> (hp, win, decisions); return a BlockStat
-    (candidate vs incumbent). fire_rate/follows are pooled over ALL candidate decision frames."""
+    """Serial convenience: run both arms over `seeds` with run_arm(rules, seed) -> (hp, win, decisions)
+    and assemble() the BlockStat. The CLI uses a parallel runner + assemble() directly instead."""
     seeds = list(seeds)
     if not seeds:
         raise ValueError("need at least one seed")
     base = [run_arm(tuple(incumbent_rules), s) for s in seeds]
     cand = [run_arm(tuple(candidate_rules), s) for s in seeds]
-    bh = [b[0] for b in base]
-    ch = [c[0] for c in cand]
-    cw = sum(c[1] for c in cand)
-    cand_decisions = [d for c in cand for d in c[2]]
-    fire, follows = coverage(cand_decisions)
-    d, lo, hi = welch_delta(bh, ch)
-    return BlockStat(delta=d, lo=lo, hi=hi, cand_wins=cw, n=len(seeds), fire_rate=fire, follows=follows)
+    return assemble(base, cand)
