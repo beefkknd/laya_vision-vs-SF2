@@ -91,7 +91,7 @@ Each: what breaks if not fixed, and the fix.
 - [x] **G2. (done 5737a79) Starting rules.** Breaks: with a blank start, every decision is the default until Qwen has written
       something. Fix (owner's preference): web research -> starting rules, written in text laya's grammar, admitted
       through the normal checks (`advice.read`), tagged "web" so they rotate like any rule. No "web" source exists yet.
-- [ ] **G3. What Qwen observes, with no RAM (UNDERSTATED before).** Qwen's whole evidence path is RAM: damage
+- [x] **G3. (done 4bdec91, screen evidence adapter) What Qwen observes, with no RAM (UNDERSTATED before).** Qwen's whole evidence path is RAM: damage
       (dealt/taken), his move naming (fireball/uppercut/throw via `opp_moves.py`), hit/whiff/blocked outcome, round
       results (`game_log.py`). Breaks the no-RAM rule AND feeds lesson `cause`/threat views. Fix: a screen record -
       damage from health-bar drops, his action (7 labels + fireball) from the reader, round result from the reader -
@@ -101,19 +101,19 @@ Each: what breaks if not fixed, and the fix.
       a range; no fireball, no specific move of his. The reader DOES see fireballs but the words never say so. Fix:
       extend the advice grammar + text laya's training data (reading rules only), for the fireball now and more when
       Qwen needs it.
-- [ ] **G5. The table as the ruler (offline scorer).** Today the table ranks moves IN PLAY (`system1._by_table`); that
+- [x] **G5. (done d0a42f2) The table as the ruler (offline scorer).** Today the table ranks moves IN PLAY (`system1._by_table`); that
       must leave play. Fix: an offline scorer - for each Qwen rule look up its cell and score its move; report per
       rule, per game; "not scorable" where the table has no cell (fireball, and per-opponent, which the table cannot
       do).
 - [ ] **G6. Qwen on.** OFF on threebody by the owner's order. The loop needs it on: threebody (llama.cpp, NOTES.md) or
       local omlx. Owner decides.
-- [ ] **G7. Diagnostics wired.** `follows_rule` per rule, the table's offline score per rule, reader-vs-RAM per game -
+- [ ] **G7. (building) Diagnostics wired.** `follows_rule` per rule, the table's offline score per rule, reader-vs-RAM per game -
       one per-game report. No code yet.
-- [ ] **G8. The loop test pre-registered** before any game: opponents, games per opponent, starting rules, what counts
+- [x] **G8. (drafted facf3a0, owner decisions open) The loop test pre-registered** before any game: opponents, games per opponent, starting rules, what counts
       as "better" (hp/round trend over games, per opponent), stop rules.
 - [x] **M2. (done 3203552) Gate round-over waiver.** The reader gate FAILS on time-over rounds ending 1 frame early; state the waiver
       or fix the wording so the gate exits 0.
-- [ ] **M4. Lesson retirement on the screen record.** `lessons.review/stop` keys on per-game RAM hp; move it to the
+- [x] **M4. (screen evidence now provides round result/hp; retirement runs on it) Lesson retirement on the screen record.** `lessons.review/stop` keys on per-game RAM hp; move it to the
       screen/replay record.
 
 ## Decisions for the owner
