@@ -22,7 +22,7 @@ from ..system1.advice import opp_doing
 from ..vocab import RANGE_WORDS
 from . import lessons as L
 from . import track_record as T
-from .lesson_prompt import STREAK, WHAT_IF, _registry, _renderable, _when, lesson_moves, record
+from .lesson_prompt import DEFENSIVE, STREAK, WHAT_IF, _registry, _renderable, _when, lesson_moves, record
 
 VIEWS = ("answer", "stop", "what_if")
 MIN_SITUATION = 10     # decisions in a situation of his before it is shown
@@ -216,6 +216,172 @@ def primer(opp: str) -> str:
 
 def messages_fgc(*args, **kw) -> List[Dict]:
     return messages(*args, fgc=True, **kw)
+
+
+# ===================================================================== two-stage Qwen (System 2): Scout + Coach
+# The single prompt above (SYSTEM / messages) did two jobs at once (observe + strategize) and defaulted to the safe
+# one - it kept adding blocks and turtled (docs/plan_two_stage_qwen.md). The split: Stage 1 SCOUT summarizes the game
+# (grounded, temperature 0); Stage 2 COACH changes the rules (creative, higher temperature) in one of two modes decided
+# from the trend. The DIGEST below is computed in CODE from the evidence (faithful to the rows, gradable), and the
+# Scout's prose is attached to it as a narrative; the Coach consumes the digest. parse_claims is unchanged, so a
+# proposed rule stays followable and verified exactly as before.
+
+DOMINANT = 3           # her most-used moves named in the digest
+DIGEST_THREATS = 4     # his threats carried into the digest
+RECENT_GAMES = 3       # games of win/loss the verdict reads
+
+
+def _kind_of(a: Dict) -> str:
+    return a.get("kind", "attack")
+
+
+def digest_facts(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
+                 all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], game_hp: Sequence[float],
+                 games_wl: Sequence[Dict], moves: Sequence[str] = ()) -> Dict:
+    """The per-game DIGEST, computed in code from the evidence so it is faithful to the rows (the Scout is graded on
+    matching it). ``last`` = this game's decisions, ``rows`` = all games so far. Fields: her dominant actions, the
+    offense she actually used and what landed, total dealt/taken this game, his top threats (all games), how each
+    in-play rule tracked (fired N, net up/down, still good?), a winning/losing/stable verdict from the recent games,
+    and every move she has ALREADY TRIED (so the Coach does not repeat it)."""
+    game_rows = list(last) or list(rows)
+    actions = collections.Counter(a["action"] for a in game_rows)
+    attacks = [a for a in game_rows if _kind_of(a) == "attack"]
+    offense_used = sorted({a["action"] for a in attacks})
+    offense_landed = sorted({a["action"] for a in attacks if a.get("dealt")})
+    dealt = sum(a.get("dealt", 0) for a in game_rows)
+    taken = sum(a.get("taken", 0) for a in game_rows)
+    in_play = set(L.in_play(reg))
+    rule_tracking = []
+    for r in reg:
+        if r["line"] not in in_play:
+            continue
+        ev = L.condition_evidence(rows, r["claim"])
+        rule_tracking.append({"line": r["line"], "state": r["state"], "fired": ev["tries"],
+                              "net": round(ev["net"], 1), "tracked": "up" if ev["net"] >= 0 else "down",
+                              "good": ev["cls"] == L.RIGHT[r["claim"]["kind"]]})
+    recent = list(games_wl)[-RECENT_GAMES:]
+    won = sum(int(g.get("won", 0)) for g in recent)
+    lost = sum(int(g.get("lost", 0)) for g in recent)
+    hp_recent = list(game_hp)[-RECENT_GAMES:]
+    verdict = "losing" if lost > won else "winning" if won > lost else (
+        "losing" if hp_recent and sum(hp_recent) < 0 else "winning" if hp_recent and sum(hp_recent) > 0 else "stable")
+    return {"opp": opp, "dominant": [[m, n] for m, n in actions.most_common(DOMINANT)],
+            "offense_used": offense_used, "offense_landed": offense_landed,
+            "dealt": dealt, "taken": taken, "threats": threats(rows)[:DIGEST_THREATS],
+            "rule_tracking": rule_tracking, "verdict": verdict,
+            "won_recent": won, "lost_recent": lost, "hp_recent": round(sum(hp_recent) / len(hp_recent), 1) if hp_recent
+            else 0.0, "already_tried": sorted({a["action"] for a in rows})}
+
+
+def _render_digest(d: Dict) -> str:
+    """The digest as compact lines for a prompt (the Scout faithfully, the Coach to act on)."""
+    rules = "\n".join("  - %s [%s]: fired %d, net %+.1f (%s), %s" % (
+        t["line"], t["state"], t["fired"], t["net"], t["tracked"],
+        "still works" if t["good"] else "no longer clearly working") for t in d["rule_tracking"]) or "  (none)"
+    return "\n".join([
+        "verdict: %s (last games won %d / lost %d, %+.1f hp per round)" % (
+            d["verdict"], d["won_recent"], d["lost_recent"], d["hp_recent"]),
+        "dealt this game: %d; taken: %d" % (d["dealt"], d["taken"]),
+        "her dominant moves: %s" % (", ".join("%s x%d" % (m, n) for m, n in d["dominant"]) or "(none)"),
+        "offense she used: %s" % (", ".join(d["offense_used"]) or "(none)"),
+        "offense that landed: %s" % (", ".join(d["offense_landed"]) or "(none)"),
+        "moves already tried (do not treat as new): %s" % (", ".join(d["already_tried"]) or "(none)"),
+        "how the current rules tracked:\n%s" % rules])
+
+
+SCOUT_SYSTEM = """You are the SCOUT for {me} in Street Fighter II against {opp}. Your ONE job is to summarize the game
+that just happened - faithfully, with no strategy and no advice. Do not propose rule changes; a coach does that next.
+
+Report, in a few short sentences: her dominant actions, which offense she actually used and whether it landed, the
+damage she dealt and took, {opp}'s key patterns and threats, how the current rules fired and whether they tracked
+damage up or down, and whether she is winning or losing. Stick to what the measured facts below show - add nothing
+they do not support."""
+
+
+def summary_messages(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict],
+                     all_rounds: Sequence[Dict], last_rounds: Sequence[Dict], game_hp: Sequence[float],
+                     games_wl: Sequence[Dict], moves: Sequence[str] = ()) -> List[Dict]:
+    """Stage 1 SCOUT prompt (temperature 0): the evidence plus the code-computed digest, asking for a faithful prose
+    summary. ``reg`` and ``moves`` are added to the plan's bare signature so the rule-tracking and move substrate are
+    available; the rest matches the plan's summary_messages(me, opp, rows, last, all_rounds, last_rounds, game_hp,
+    games_wl)."""
+    moves = lesson_moves(list(moves) or sorted({a["action"] for a in rows}))
+    digest = digest_facts(me, opp, reg, rows, last, all_rounds, last_rounds, game_hp, games_wl, moves)
+    parts = [
+        record(all_rounds, last_rounds),
+        "HIS THREATS - what he did that hurt her, all games:\n%s" % ("\n".join(threats(rows)) or "(none)"),
+        "IF YOU SEE - her answers in each of his situations, all games:\n\n%s" % (
+            "\n\n".join(if_you_see(rows, moves)) or "(not enough yet)"),
+        "The measured facts of THIS game (summarize these faithfully, add nothing):\n%s" % _render_digest(digest)]
+    return [{"role": "system", "content": SCOUT_SYSTEM.format(me=me, opp=opp)},
+            {"role": "user", "content": "\n\n".join(parts)}]
+
+
+# The Coach's answer grammar and JSON are the SAME as the single prompt's, so parse_claims is unchanged.
+_GRAMMAR = """A lesson is one line: "use more", "always" or "avoid" one of her moves, at one range (close, mid, far) or
+anywhere, and ALWAYS with what he is doing: jumping, crouching, attacking, standing or stunned. His specials look like
+any attack, so say them by where they happen: a fireball is "when he attacks far away" or at mid range; an uppercut or
+a jump-in kick close by is "when he jumps" or "when he attacks up close".
+
+Her moves: {moves}. A move she has never used there can still be proposed as "use more" or "always" (it is tried in
+play); "avoid" needs a move she has used. Do not repeat or contradict a rule already in play (a narrower exception is
+fine)."""
+# A plain string (joined, not .format()ted), so its braces are single, exactly the object parse_claims reads.
+_ANSWER_JSON = """Answer with JSON only (null for a side with nothing worth proposing):
+{"answer": {"kind": "use_more|always", "move": "...", "range": "close|mid|far|null", "when": "jumping|crouching|attacking|standing|stunned", "why": "one short sentence"},
+ "stop": {"kind": "avoid", "move": "...", "range": "close|mid|far|null", "when": "jumping|crouching|attacking|standing|stunned", "why": "one short sentence"}}"""
+
+STRATEGIZE_HEAD = """You are the COACH for {me} in Street Fighter II against {opp}. A scout has already summarized the
+last game: her dominant moves, the offense she actually used, the damage she dealt and took, his threats, how the
+rules in play tracked, and whether she is winning or losing. Your job is to CHANGE her rules - not to re-summarize.
+Propose at most two lessons: an ANSWER (what she should do) and a STOP (what she should stop doing)."""
+CONSOLIDATE = """She is WINNING or STABLE. Consolidate what works: keep and sharpen the rules that are tracking good
+outcomes, and STOP ("avoid") a move that only loses her hit points. Do not pile on new defense - sharpen, do not
+sprawl."""
+ESCALATE = """She is LOSING, and she is losing by turtling - blocking and backing off. You are FORBIDDEN from proposing
+a block or any other defensive move ({defensive}) as the ANSWER; "block more" is not an answer here. Find OFFENSE she
+has not leaned on: an approach to close distance, an anti-air when he jumps, a punish when he is stunned or recovering,
+or a creative combination. She has ALREADY TRIED these moves - pick something she is NOT already leaning on, or a new
+situation for one of them: {tried}. The STOP side should drop a defensive habit she overuses."""
+
+
+def coach_mode(digest: Dict) -> str:
+    """escalate when she is losing (find offense), else consolidate (promote what works)."""
+    return "escalate" if digest.get("verdict") == "losing" else "consolidate"
+
+
+def strategize_messages(me: str, opp: str, reg: L.Registry, digest: Dict, moves: Sequence[str] = (),
+                        refused: Sequence[Dict] = (), mode: Optional[str] = None) -> List[Dict]:
+    """Stage 2 COACH prompt (higher temperature): the Scout digest + the rules in play + the trend, in one of two
+    modes. ``mode`` defaults to ``coach_mode(digest)``."""
+    mode = mode or coach_mode(digest)
+    moves = lesson_moves(list(moves) or digest.get("already_tried", []))
+    block = ESCALATE.format(defensive=", ".join(DEFENSIVE), tried=", ".join(digest.get("already_tried", [])) or "(none)") \
+        if mode == "escalate" else CONSOLIDATE
+    system = "\n\n".join([STRATEGIZE_HEAD.format(me=me, opp=opp), block,
+                          _GRAMMAR.format(moves=", ".join(moves)), _ANSWER_JSON])
+    parts = ["The scout's summary of the last game:\n%s" % (digest.get("notes") or "(no scout notes)"),
+             "The measured facts behind it:\n%s" % _render_digest(digest),
+             "Rules in play now:\n%s" % _registry(reg)]
+    if refused:
+        parts.append("Refused last time (do not propose again):\n%s" % "\n".join(
+            "- %s: %s" % (L.render(o["claim"]) if _renderable(o["claim"]) else o["claim"], o["why"]) for o in refused))
+    return [{"role": "system", "content": system}, {"role": "user", "content": "\n\n".join(parts)}]
+
+
+def coach_filter(claims: Sequence[Dict], mode: str) -> Tuple[List[Dict], List[str]]:
+    """Mechanically enforce the escalate rule the prompt states: when she is losing by turtling, a new DEFENSIVE
+    "use more"/"always" answer is dropped (she is already losing by blocking). "avoid" of a defensive move is kept (it
+    removes defense). Returns (kept claims, dropped-reason strings). In consolidate mode nothing is dropped."""
+    if mode != "escalate":
+        return list(claims), []
+    kept, dropped = [], []
+    for c in claims:
+        if c.get("kind") in ("use_more", "always") and c.get("move") in DEFENSIVE:
+            dropped.append("escalate: she is losing by blocking, a new defensive answer (%s) is forbidden" % c.get("move"))
+        else:
+            kept.append(c)
+    return kept, dropped
 
 
 def _cond(v):

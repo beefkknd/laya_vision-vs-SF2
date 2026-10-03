@@ -101,16 +101,47 @@ def starting_registry(carry: Optional[str], opp: str, book: Optional[str],
 QwenCaller = Callable[[List[Dict], str], str]      # (messages, task) -> raw reply text
 
 
+def summarize_game(opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict], all_rounds: Sequence[Dict],
+                   last_rounds: Sequence[Dict], game_hp: Sequence[float], games_wl: Sequence[Dict],
+                   ask_qwen: QwenCaller, me: str = ME) -> Dict:
+    """STAGE 1 SCOUT: the code-computed per-game digest (faithful to the rows), with the Scout's prose summary attached
+    as ``notes``. The facts are queryable (sf2.system2.character_prompt.digest_facts); the model only narrates them, so
+    a down/garbled Scout leaves the facts intact (``notes`` empty, ``scout_error`` set)."""
+    digest = character_prompt.digest_facts(me, opp, reg, rows, last, all_rounds, last_rounds, game_hp, games_wl,
+                                           char_menu_moves(me))
+    msgs = character_prompt.summary_messages(me, opp, reg, rows, last, all_rounds, last_rounds, game_hp, games_wl,
+                                             char_menu_moves(me))
+    try:
+        notes = ask_qwen(msgs, "scout_%s" % opp).strip()
+        return dict(digest, notes=notes)
+    except Exception as e:                       # Scout down / cut off: the facts still stand, no prose
+        return dict(digest, notes="", scout_error="%s: %s" % (type(e).__name__, e))
+
+
 def ask_claims(opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[Dict], all_rounds: Sequence[Dict],
                last_rounds: Sequence[Dict], refused: Sequence[Dict], stable: Optional[str],
-               ask_qwen: QwenCaller, me: str = ME) -> Tuple[List[Dict], List[str], Optional[str]]:
-    """Qwen's claims for this game (sf2.system2.character_prompt); ([], [problem], None) if the call or parse fails."""
+               ask_qwen: QwenCaller, me: str = ME, qwen_mode: str = "two",
+               digest: Optional[Dict] = None) -> Tuple[List[Dict], List[str], Optional[str]]:
+    """STAGE 2 COACH's claims for this game. ``qwen_mode`` "two" (default) feeds the Scout digest into a strategize
+    prompt in one of two modes (escalate when losing: offense only, a defensive answer is dropped mechanically;
+    consolidate otherwise); "one" is the OLD single prompt, the A/B fallback. ([], [problem], None) if the call or
+    parse fails. parse_claims is unchanged either way."""
     from sf2.system2.qwen import json_reply
-    msgs = character_prompt.messages(me, opp, reg, rows, last, all_rounds, last_rounds, char_menu_moves(me), refused,
-                                     stable)
+    two = qwen_mode == "two" and digest is not None
+    mode = character_prompt.coach_mode(digest) if two else None
+    if two:
+        msgs = character_prompt.strategize_messages(me, opp, reg, digest, char_menu_moves(me), refused, mode)
+        task = "coach_%s" % opp
+    else:
+        msgs = character_prompt.messages(me, opp, reg, rows, last, all_rounds, last_rounds, char_menu_moves(me),
+                                         refused, stable)
+        task = "loop_%s" % opp
     try:
-        raw = ask_qwen(msgs, "loop_%s" % opp)
+        raw = ask_qwen(msgs, task)
         claims, problems = character_prompt.parse_claims(json_reply(raw))
+        if two:
+            claims, dropped = character_prompt.coach_filter(claims, mode)
+            problems = list(problems) + dropped
     except Exception as e:                       # Qwen down / cut off / not JSON: no claims this game
         return [], ["%s: %s" % (type(e).__name__, e)], None
     return claims, problems, raw
@@ -118,22 +149,31 @@ def ask_claims(opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[D
 
 def update(reg: L.Registry, rows: List[Dict], game: int, game_hp: List[float], games: List[Dict],
            changed: List[bool], opp: str, last: List[Dict], all_rounds: List[Dict], last_rounds: List[Dict],
-           refused: List[Dict], ask_qwen: QwenCaller, me: str = ME) -> Tuple[L.Registry, Dict]:
-    """One System-2 step: review the registry on the evidence so far, ask Qwen, judge its claims. ``rows`` = all her
-    decisions so far, ``last`` = last game's decisions, ``all_rounds`` / ``last_rounds`` = the round summaries.
-    Returns the new registry and a trace record (claims, verdicts, the short-memory diff)."""
+           refused: List[Dict], ask_qwen: QwenCaller, me: str = ME, qwen_mode: str = "two") -> Tuple[L.Registry, Dict]:
+    """One System-2 step: review the registry on the evidence so far, scout the game, coach the rule changes, judge
+    them. ``rows`` = all her decisions so far, ``last`` = last game's decisions, ``games`` = the per-game win/loss list.
+    Returns the new registry and a trace record (the scout digest, claims, verdicts, and the churn: added / removed /
+    promoted / retired). ``qwen_mode`` "two" (default) = Scout + Coach; "one" = the old single prompt."""
     before = L.in_play(reg)
-    reg = L.review(reg, rows, game, game_hp)
+    pre_state = {r["line"]: r["state"] for r in reg}
+    reg = L.review(reg, rows, game, game_hp, games_wl=games)        # churn fix: round outcomes promote/retire registered
     stable = streak(games, changed)
+    digest = summarize_game(opp, reg, rows, last, all_rounds, last_rounds, game_hp, games, ask_qwen, me) \
+        if qwen_mode == "two" else None
     claims, problems, raw = ask_claims(opp, reg, rows, last, all_rounds, last_rounds, refused, stable,
-                                       ask_qwen, me)
+                                       ask_qwen, me, qwen_mode, digest)
     reg, outcome = L.propose(reg, claims, rows, game, moves=char_menu_moves(me))
     after = L.in_play(reg)
-    trace = {"game": game, "stable": stable, "claims": claims, "problems": problems,
+    promoted = [r["line"] for r in reg if r["state"] == "sticky" and pre_state.get(r["line"]) == "registered"]
+    retired = [r["line"] for r in reg if r["state"] in ("retired", "rejected")
+               and pre_state.get(r["line"]) in ("registered", "sticky")]
+    trace = {"game": game, "mode": character_prompt.coach_mode(digest) if digest else "one", "stable": stable,
+             "scout": digest, "claims": claims, "problems": problems,
              "outcome": [{"line": o.get("line", o.get("claim")), "state": o["state"], "why": o.get("why")}
                          for o in outcome],
              "in_play_before": before, "in_play_after": after,
              "added": [l for l in after if l not in before], "removed": [l for l in before if l not in after],
+             "promoted": promoted, "retired": retired,
              "violations": L.violations(reg, rows), "reply": raw}
     new_refused = [o for o in outcome if o["state"] == "refused"]
     return reg, dict(trace, refused=new_refused)
@@ -146,7 +186,8 @@ ScoreFn = Callable[[str], Optional[Dict]]    # a round dir -> its offline replay
 
 def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games: int, rounds: int,
              seed_lines: L.Registry, out: str, play_round_fn: PlayFn, state: bytes, state_id: Dict, emu,
-             score_fn: Optional[ScoreFn] = None, reader=None, seed_rng: int = 0, me: str = ME, log=None) -> Dict:
+             score_fn: Optional[ScoreFn] = None, reader=None, seed_rng: int = 0, me: str = ME, log=None,
+             qwen_mode: str = "two") -> Dict:
     """Play ``games`` games, rotating the short memory through System 2 after each. Everything heavy is injected:
     ``cat_advisor`` / ``move_advisor`` (the two text laya checkpoints: round-1 category, round-2 move), ``ask_qwen``,
     ``play_round_fn`` (plays one round, writes its record), ``emu`` (a handle with ``new_round()``), ``score_fn`` (the
@@ -199,9 +240,11 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
         games_wl.append({"won": sum(s["result"] == "win" for s in this_rounds),
                          "lost": sum(s["result"] != "win" for s in this_rounds)})
         reg, qtrace = update(reg, all_rows, g, game_hp, games_wl, changed, opp, this_rows, all_rounds, this_rounds,
-                             refused, ask_qwen, me)
+                             refused, ask_qwen, me, qwen_mode)
         refused = qtrace.pop("refused")
-        changed.append(bool(qtrace["added"] or qtrace["removed"]))
+        changed.append(bool(qtrace["added"] or qtrace["removed"] or qtrace["promoted"] or qtrace["retired"]))
+        if qtrace.get("scout") is not None:
+            trace.write(json.dumps(dict(qtrace["scout"], event="scout", game=g)) + "\n")
         trace.write(json.dumps(dict(qtrace, event="qwen")) + "\n")
         trace.flush()
     verdict = {"opp": opp, "games": games, "rounds": rounds, "seed_lines": [r["line"] for r in seed_lines],
@@ -215,9 +258,19 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
 
 
 # ------------------------------------------------------------------ live wiring (main)
+COACH_TEMPERATURE = 0.7      # Stage 2 Coach is creative (strategize); Stage 1 Scout stays at config's 0.0 (grounded)
+
+
 def _real_qwen() -> QwenCaller:
+    """The live Qwen caller. The Coach (task "coach_*") runs hotter so it explores offense; the Scout ("scout_*") and
+    the old single prompt ("loop_*") keep the config temperature (0.0), so the summary stays grounded."""
     from sf2.system2.qwen import chat
-    return lambda messages, task: chat(messages, task)
+
+    def call(messages: List[Dict], task: str) -> str:
+        if task.startswith("coach"):
+            return chat(messages, task, temperature=COACH_TEMPERATURE)
+        return chat(messages, task)
+    return call
 
 
 def _real_score(port: int, rom: Optional[str]) -> ScoreFn:
@@ -255,6 +308,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v1"),
                     help="round-2 MOVE checkpoint (point BOTH flags at runs/text_laya/advice_v2 to compare the old "
                          "single model)")
+    ap.add_argument("--qwen-mode", dest="qwen_mode", default="two", choices=("one", "two"),
+                    help="two (default): Stage 1 Scout summarizes, Stage 2 Coach strategizes (escalate when losing); "
+                         "one: the OLD single prompt, kept as the A/B fallback")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -283,7 +339,7 @@ def main() -> int:
                    "seed": args.seed, "state": state_id, "book": args.book,
                    "carry": args.carry, "save_registry": args.save_registry, "seed_source": seed_source,
                    "cat_advisor": args.cat_advisor, "move_advisor": args.move_advisor,
-                   "qwen": "on"}, f, indent=1)
+                   "qwen": "on", "qwen_mode": args.qwen_mode}, f, indent=1)
     shared = {"shared": True} if args.shared_text_laya else {}
     score_fn = None if args.no_score else _real_score(args.replay_port, args.rom)
     # Two Advisor instances - one per checkpoint. In shared mode each gets its own socket (shared_laya.socket_path keys
@@ -292,7 +348,8 @@ def main() -> int:
             open_screen(args.port, args.rom) as emu:
         verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
                            seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
-                           state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me)
+                           state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
+                           qwen_mode=args.qwen_mode)
     if args.save_registry:
         save_registry(verdict["registry_end"], args.save_registry)
         print("saved registry", args.save_registry)

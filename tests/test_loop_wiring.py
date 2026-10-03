@@ -42,12 +42,16 @@ def fake_score(round_dir):
 
 
 class MockQwen:
-    """Returns a canned ANSWER claim after game 0, nothing after. Records how it was called."""
+    """Two-stage aware: the Scout call (task "scout_*") gets a prose summary; the Coach call (task "coach_*", or the
+    old single prompt "loop_*") returns a canned ANSWER claim on the first game, nothing after. ``calls`` counts only
+    the Coach/single calls, so the "claim after game 0" wiring is unchanged by the Scout step."""
 
     def __init__(self):
         self.calls = 0
 
     def __call__(self, messages, task):
+        if task.startswith("scout"):
+            return "She blocked most of the game and lost; her offense barely landed."
         self.calls += 1
         if self.calls == 1:
             return json.dumps({"answer": {"kind": "always", "move": "cl.hp", "range": "close",

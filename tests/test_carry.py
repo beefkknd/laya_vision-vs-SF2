@@ -50,12 +50,15 @@ def fake_score(round_dir):
 
 
 class MockQwen:
-    """Adds one ANSWER claim after game 0 (so the registry ends with a learned rule), nothing afterwards."""
+    """Adds one ANSWER claim after game 0 (so the registry ends with a learned rule), nothing afterwards. Two-stage
+    aware: the Scout call (task "scout_*") gets prose; ``calls`` counts only the Coach/single calls."""
 
     def __init__(self):
         self.calls = 0
 
     def __call__(self, messages, task):
+        if task.startswith("scout"):
+            return "She blocked most of the game and lost; her offense barely landed."
         self.calls += 1
         if self.calls == 1:
             return json.dumps({"answer": {"kind": "always", "move": "cl.hp", "range": "close",

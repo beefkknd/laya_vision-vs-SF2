@@ -44,6 +44,13 @@ WHEN_WORDS = {"jumping": "when he jumps", "crouching": "when he crouches", "atta
 MAX_LINES = 5          # text laya reads at most 5 advice lines
 MAX_TESTS = 2          # claims being tried at once (+1 for a "what if" when she is stuck in a streak)
 TEST_GAMES = 3         # games a "use more" claim is tried before it is judged
+# Churn fix (docs/plan_two_stage_qwen.md): a registered rule that has survived PROMOTE_GAMES games, still tracks good
+# per-decision outcomes AND is correlated with winning becomes "sticky" (verified by play) so a single per-decision CI
+# flip no longer drops it; a registered/sticky rule correlated with LOSING games is retired on the round outcomes, not
+# the per-decision yardstick. Both fire ONLY when the loop passes ``games_wl`` to ``review``; without it (the unit
+# tests that pin the per-decision behaviour), review is byte-identical to before.
+PROMOTE_GAMES = 3      # games a registered rule must survive before it can stick
+STICK_WINDOW = 2       # games of win/loss outcome needed before a trend can promote or retire a rule
 # Early stop. Calibrated on the 89 finished no-advice arms (lock lesson_loop_v1 + rollouts/qwen_lessons, 2026-09-29):
 # a game's mean hp per round varies by SD ~36 between games of one arm, so a 40 drop is crossed by chance in 10% of
 # the checks a test would get; 60 in 4.4% (per 3-game test 8.3%). tests/test_early_stop.py holds it under 5%.
@@ -52,7 +59,7 @@ STOP_BEFORE = 2        # games before the claim began, at least
 
 UNFOLLOWABLE = (FORWARD,)
 UNFOLLOWABLE_WHY = "System 1 cannot follow lessons naming %s (text laya untrained, docs/component_boundaries.md)"
-LIVE = ("verified", "testing", "registered")      # the states a new claim must not repeat or contradict
+LIVE = ("verified", "testing", "registered", "sticky")   # the states a new claim must not repeat or contradict
 VERIFIED_NOTE = ("(A verified lesson is a players' tip proven in play against him, vs no advice: it stays in play. "
                  "Do not repeat or contradict it.)")
 
@@ -222,16 +229,51 @@ def stop(game_hp: Sequence[float], since: int, game: int) -> Optional[str]:
         a, len(after), b, len(before))
 
 
-def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Sequence[float]] = None) -> Registry:
+def _trend(games_wl: Sequence[Dict], since: int, game: int) -> Tuple[int, int, int]:
+    """(won, lost, games) over the games played AFTER a rule began (games_wl[since + 1 : game + 1]). ``games_wl`` is
+    the loop's per-game {"won", "lost"} list, by game number."""
+    window = list(games_wl[since + 1: game + 1])
+    won = sum(int(g.get("won", 0)) for g in window)
+    lost = sum(int(g.get("lost", 0)) for g in window)
+    return won, lost, len(window)
+
+
+def losing_since(games_wl: Optional[Sequence[Dict]], since: int, game: int) -> Optional[str]:
+    """Why a registered/sticky rule is retired because the games since it began went to losses (round outcomes, not the
+    per-decision yardstick), or None. Needs at least STICK_WINDOW games of outcome."""
+    if games_wl is None:
+        return None
+    won, lost, n = _trend(games_wl, since, game)
+    if n < STICK_WINDOW or lost <= won:
+        return None
+    return ("retired: correlated with losing - %d rounds lost vs %d won in the %d games since it began "
+            "(round outcomes, not the per-decision yardstick)" % (lost, won, n))
+
+
+def _promotable(r: Dict, ev: Dict, right: str, games_wl: Optional[Sequence[Dict]], game: int) -> bool:
+    """A registered rule sticks when it has survived PROMOTE_GAMES games, still tracks clearly good per-decision
+    outcomes, and the games since it began are won at least as often as lost."""
+    if games_wl is None or game - r["since"] < PROMOTE_GAMES or ev["cls"] != right:
+        return False
+    won, lost, n = _trend(games_wl, r["since"], game)
+    return n >= STICK_WINDOW and won >= lost
+
+
+def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Sequence[float]] = None,
+           games_wl: Optional[Sequence[Dict]] = None) -> Registry:
     """After a game: judge the claims in test, retire registered lessons whose evidence stopped holding. ``game_hp``
     (her mean hp per round per game of this run, see ``stop``): a claim in test is stopped first when its rounds
-    tanked; without it, no claim is stopped."""
+    tanked; without it, no claim is stopped. ``games_wl`` (the per-game {"won", "lost"} list): with it, a surviving
+    registered lesson that keeps tracking good outcomes and is winning STICKS (verified by play), and a
+    registered/sticky lesson correlated with losing games is retired - the churn fix. Without it, registered lessons
+    follow only the per-decision CI flip (byte-identical to before)."""
     out = []
     for r in reg:
         r = dict(r)
         ev = condition_evidence(rows, r["claim"])
         right = RIGHT[r["claim"]["kind"]]
         halt = stop(game_hp, r["since"], game) if game_hp and r["state"] == "testing" else None
+        lose = losing_since(games_wl, r["since"], game) if r["state"] in ("registered", "sticky") else None
         if halt:
             r.update(state="rejected", why=halt, evidence=ev)
         elif r["state"] == "testing":
@@ -241,10 +283,15 @@ def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Seq
                     "too few tries after %d games (%d): may be proposed again" % (TEST_GAMES, ev["tries"])
                     if ev["cls"] == "few" else "not shown after %d games: %s" % (TEST_GAMES, _vs(ev)))
             r.update(state=state, why=why, evidence=ev)
+        elif lose:
+            r.update(state="retired", why=lose, evidence=ev)                       # losing: drop it on the round outcomes
         elif r["state"] == "registered" and ev["cls"] != right:
             r.update(state="retired", why="no longer clearly %s: %s" % (right, _vs(ev)), evidence=ev)
-        elif r["state"] == "registered":
-            r["evidence"] = ev
+        elif r["state"] == "registered" and _promotable(r, ev, right, games_wl, game):
+            r.update(state="sticky", why="promoted (verified by play): still clearly %s since game %d and winning: %s"
+                     % (right, r["since"], _vs(ev)), evidence=ev)
+        elif r["state"] in ("registered", "sticky"):
+            r["evidence"] = ev                       # sticky survives a per-decision CI flip; only losing retires it
         # verified: kept as it is - its evidence is the A/B in play, which her per-situation history cannot judge
         out.append(r)
     return out
@@ -252,9 +299,10 @@ def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Seq
 
 def in_play(reg: Registry) -> List[str]:
     verified = [r["line"] for r in reg if r["state"] == "verified"]
+    sticky = [r["line"] for r in reg if r["state"] == "sticky"]          # promoted: stays in play like a verified line
     tests = [r["line"] for r in reg if r["state"] == "testing"][:MAX_TESTS + 1]
     lessons = sorted((r for r in reg if r["state"] == "registered"), key=lambda r: -strength(r))
-    return (verified + tests + [r["line"] for r in lessons])[:MAX_LINES]
+    return (verified + sticky + tests + [r["line"] for r in lessons])[:MAX_LINES]
 
 
 def violations(reg: Registry, rows: Sequence[Dict]) -> List[str]:
