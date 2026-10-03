@@ -49,3 +49,23 @@ a saner block-vs-attack mix once the Qwen layer is pushing offense - otherwise e
    a short live session (does she attack more / win more?).
 2. Per-visit seed variation (exploration) in the session driver.
 3. (Later) rebalance cat_v1; grade Scout faithfulness + Coach quality as the two tuning signals.
+
+## Positional intent in the advice grammar (owner, 2026-10-03)
+Diagnosis that motivates this: across 6024 play decisions Chun-Li chose `walk_forward` **0 times** (77% block).
+`walk_forward` is NOT broken - it is in the menu, in the `move` category, reachable in every grounded stance, and the
+facing->button mapping is correct both sides (verified). She simply has ONE gear: block = hold-back, which on screen
+looks like endless backpedaling. The grammar can only say "use_more walk_forward", a low-level token the text-laya
+models learned to ignore - so strategy has no handle on SPACING.
+
+Owner's fix: give the Coach first-class POSITIONAL/TACTICAL intents, not just per-move tokens:
+- **approach** (close the gap), **retreat** (make space), **stand_ground / hold** (keep current range, stay reactive),
+  **jump** (up / forward / back as an option).
+These are a movement-intent vocabulary keyed by range + opponent state (e.g. "approach when far & opp standing",
+"stand_ground when mid", "retreat when opp throwing fireball"). They must map down to movement the text-laya can
+actually execute (bias round-1 toward `move`, round-2 toward the right walk/jump for the range), so they need: (1) the
+Coach prompt vocabulary, (2) advice-grammar tokens + validation, (3) positional-intent examples in the text-laya
+training data so the models stop defaulting to block.
+
+Where it fits: these become a new CLASS of testable rule in the outcome-driven loop - a spacing lever the loop can keep
+or drop by measured damage/win delta, instead of the current all-or-nothing block. Queued; build AFTER the noise-floor
+measurement proves our numbers are signal (don't add a lever we can't yet measure).

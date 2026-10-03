@@ -17,11 +17,13 @@ from sf2.moves_free.menu for ryu/ken/chunli, and from sf2.data.actions_free.SPEC
 the other five. char_categories("chunli") is byte-identical to action_menu.CATEGORIES (the old default), so Chun-Li's
 labels are unchanged.
 
-    .venv/bin/python scripts/build_advice_data.py                 # -> test_data/advice_v4/{train,val,test}.jsonl
+    .venv/bin/python scripts/build_advice_data.py                 # -> test_data/advice_v5/{train,val,test}.jsonl
     .venv/bin/python scripts/build_advice_data.py --per-char 2000
 
+advice_v5 (2026-10-03) adds the "move" follow-case so text-laya learns to FOLLOW movement advice (v4 never did:
+walk_* was the answer in 0.3% of move rows); v4 is kept for the old-vs-new fidelity A/B.
 Held-out polarity wordings (TEST_WORDS) appear ONLY in the test split, so test measures following the MEANING of a
-phrasing never trained on. Log: logs/advice/build_v4.log.
+phrasing never trained on. Log: logs/advice/build_v5.log.
 """
 import argparse
 import collections
@@ -44,7 +46,7 @@ from sf2.system1.advice import (available_moves, category_question, move_questio
                                  situation_text, stance_of, two_stage)
 from sf2.vocab import BARS, FIGHTERS, OPP_STATES, RANGES
 
-OUT = "test_data/advice_v4"
+OUT = "test_data/advice_v5"
 POSTURES = ("stand", "crouch", "air")
 # the five OFFENSE categories (move + block are defensive); the generator balances condition-ON offense rules across
 # these so the category model learns to FOLLOW the offense category when an offense rule applies, instead of defaulting
@@ -129,9 +131,14 @@ GENERIC_THROW = ["throw", "throw him", "grab", "grab him", "throw him down"]
 # category model then defaulted to block even when a soft offense rule applied). Here the default (block) share is cut
 # to ~40%: still heavy enough to keep condition_off strong (the spam fix), but no longer dominating. The freed weight
 # goes to condition-ON offense rules (hard/soft), which now target the 5 offense categories balanced (see _pick_offense).
-CASES = {"hard": 0.14, "soft": 0.40, "fireball": 0.10, "plain": 0.03, "neg": 0.06, "default": 0.05, "condition_off": 0.22}
-EXPECT = {"hard": {"hard"}, "soft": {"soft"}, "neg": {"default"}, "condition_off": {"default"}, "plain": {"default"},
-          "default": {"default"}, "fireball": {"hard", "soft", "default"}}
+# "move" (added 2026-10-03): movement advice that APPLIES, so text-laya learns to FOLLOW it. Movement was absent from
+# the offense balance (OFFENSE_CATS) and from the follow cases, so the move model never learned to walk (walk_* was the
+# answer in ~0.3% of move rows) and ignored any "approach/retreat" rule in play - the root cause of the turtle. Its
+# share is carved from soft/hard; block stays strong via condition_off+default+neg+plain (~0.36 -> default).
+CASES = {"hard": 0.12, "soft": 0.28, "move": 0.14, "fireball": 0.10, "plain": 0.03, "neg": 0.06, "default": 0.05,
+         "condition_off": 0.22}
+EXPECT = {"hard": {"hard"}, "soft": {"soft"}, "move": {"soft", "hard"}, "neg": {"default"}, "condition_off": {"default"},
+          "plain": {"default"}, "default": {"default"}, "fireball": {"hard", "soft", "default"}}
 
 
 def HAS_GENERIC_THROW(line: str) -> bool:
@@ -225,6 +232,17 @@ def _pick_offense(rng: random.Random, cats: Dict[str, List[str]], rng_: str) -> 
     return cat, posture, rng_, rng.choice(pool), False
 
 
+def _pick_movement(rng: random.Random, cats: Dict[str, List[str]], stance: str) -> str:
+    """A movement move available in this (grounded) stance, biased toward the walks (the approach/retreat spacing
+    lever the loop needs) over crouch/jumps. Movement was never a follow target, so text-laya ignored movement advice;
+    this feeds the "move" case so the model learns to FOLLOW it (docs/plan_two_stage_qwen.md, positional intent)."""
+    pool = moves_in_stance("move", stance, cats)
+    walks = [m for m in pool if m.startswith("walk_")]
+    if walks and rng.random() < 0.6:
+        return rng.choice(walks)
+    return rng.choice(pool) if pool else DEFAULT_MOVE
+
+
 def make(rng: random.Random, char: str, cats: Dict[str, List[str]], moves: List[str], case: str, hold_p: float) -> Dict:
     """One decision for ``char`` realised as the intended ``case``: situation, stance, fireball flag, advice lines.
     For condition-ON offense cases (hard/soft/fireball) the target is a BALANCED offense category 85% of the time,
@@ -250,6 +268,8 @@ def make(rng: random.Random, char: str, cats: Dict[str, List[str]], moves: List[
             stance = "crouch"
         else:
             stance = stance_of("stand", rng_)
+    elif case == "move":                                     # movement advice needs a GROUNDED stance so the walk/jump applies
+        stance = stance_of(rng.choice(("stand", "crouch")), rng_)
     else:
         stance = stance_of(rng.choice(POSTURES), rng_)
     avail = sorted(available_moves(stance, cats))
@@ -296,6 +316,14 @@ def make(rng: random.Random, char: str, cats: Dict[str, List[str]], moves: List[
         target = rng.choice(off) if off else rng.choice(avail)
         pol = rng.choice(["soft", "hard"])
         lessons = [line(rng, target, pol, words_of(), where=rng_ if rng.random() < 0.5 else None)]
+        lessons += distractors(rng, moves, target)
+        fire_sit = rng.random() < 0.15
+    elif case == "move":                                     # movement advice that APPLIES -> FOLLOW it (walk / jump)
+        target = _pick_movement(rng, cats, stance)
+        pol = rng.choice(["soft", "soft", "hard"])           # mostly soft; some hard ("always walk_back")
+        where = rng_ if rng.random() < 0.5 else None         # a condition that HOLDS (current range / his state), so it applies
+        when = doing if rng.random() < 0.5 else None
+        lessons = [line(rng, target, pol, words_of(), where=where, when=when)]
         lessons += distractors(rng, moves, target)
         fire_sit = rng.random() < 0.15
     else:                                                    # condition_off: a positive line whose range/state does not hold
@@ -420,7 +448,7 @@ def main() -> None:
     os.makedirs("logs/advice", exist_ok=True)
     allrows = [r for rs in splits.values() for r in rs]
     cat_chance, cat_meta, move_chance, move_meta = shortcut_scores(splits)
-    with open("logs/advice/build_v4.log", "w") as log:
+    with open("logs/advice/build_v5.log", "w") as log:
         def emit(s: str) -> None:
             print(s)
             log.write(s + "\n")
