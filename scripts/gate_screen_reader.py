@@ -57,7 +57,7 @@ DATA = os.path.join(REPO, "out", "screen_gate", "data")
 OUT = os.path.join(REPO, "out", "screen_gate")
 LAG = 1
 NEAR = 40
-BARS = dict(identity=1.0, x=0.95, health=0.99, round_over=1.0, ceiling_margin=0.01, action_margin=0.05,
+THRESHOLDS = dict(identity=1.0, x=0.95, health=0.99, round_over=1.0, ceiling_margin=0.01, action_margin=0.05,
             speed_ms=20.0)
 X_TOL, HEALTH_TOL, NEXT_WINDOW = 4, 0.03, 300
 TIME_OVER_TOL = 2            # frames: on a TIME-OVER round (RAM timer 0 at the result row) the screen clock reads 00
@@ -69,8 +69,8 @@ HEALTH_TRUTH = "hp"          # the drawn hp (gate amendment 2026-10-02); "life" 
 
 
 def ceiling_bar(ceiling: Optional[float]) -> float:
-    """Air / facing bar: the measured ceiling minus BARS["ceiling_margin"] (gate amendment 2026-10-02)."""
-    return round((ceiling or 0.0) - BARS["ceiling_margin"], 4)
+    """Air / facing bar: the measured ceiling minus THRESHOLDS["ceiling_margin"] (gate amendment 2026-10-02)."""
+    return round((ceiling or 0.0) - THRESHOLDS["ceiling_margin"], 4)
 
 
 # ---------------------------------------------------------------------------------------------- truth (referee)
@@ -271,19 +271,19 @@ def bars(s: Dict, speed_ms: Optional[float]) -> Dict[str, Dict]:
     """Each pre-registered bar: value, threshold, pass."""
     ceil = s["action_ceiling"] or 0.0
     out = {
-        "identity": (s["identity"], BARS["identity"]),
-        "x": (s["x"], BARS["x"]),
-        "health": (s["health"], BARS["health"]),
-        "round_over": (s["round_over"], BARS["round_over"]),
+        "identity": (s["identity"], THRESHOLDS["identity"]),
+        "x": (s["x"], THRESHOLDS["x"]),
+        "health": (s["health"], THRESHOLDS["health"]),
+        "round_over": (s["round_over"], THRESHOLDS["round_over"]),
         "air": (s["air"], ceiling_bar(s["air_ceiling"])),
         "facing": (s["facing"], ceiling_bar(s["facing_ceiling_drawn_vs_ram"])),
-        "action": (s["action"], round(ceil - BARS["action_margin"], 4)),
+        "action": (s["action"], round(ceil - THRESHOLDS["action_margin"], 4)),
     }
     res = {k: dict(value=v, threshold=t, ok=v is not None and v >= t) for k, (v, t) in out.items()}
     for k, ce in (("air", s["air_ceiling"]), ("facing", s["facing_ceiling_drawn_vs_ram"]), ("action", ceil)):
         res[k]["ceiling"] = ce
     if speed_ms is not None:
-        res["speed_ms"] = dict(value=speed_ms, threshold=BARS["speed_ms"], ok=speed_ms < BARS["speed_ms"])
+        res["speed_ms"] = dict(value=speed_ms, threshold=THRESHOLDS["speed_ms"], ok=speed_ms < THRESHOLDS["speed_ms"])
     return res
 
 
