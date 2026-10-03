@@ -206,12 +206,13 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
     games_wl: List[Dict] = []
     changed: List[bool] = []
     refused: List[Dict] = []
+    round_hp: List[float] = []        # per-ROUND margin / win-loss drive per-round reflection
+    round_wl: List[Dict] = []
+    idx = 0                           # monotonic reflection unit (one per round) for churn timing
     for g in range(games):
-        lines = L.in_play(reg)
-        round_dirs, replays = [], []
-        this_rows: List[Dict] = []
         this_rounds: List[Dict] = []
         for r in range(rounds):
+            lines = L.in_play(reg)                       # FRESH each round: play with the latest short memory
             rd = os.path.join(out, "g%02d_r%d" % (g, r))
             delay = DELAY_MIN + rng.randrange(DELAY_SPAN)
             play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
@@ -219,10 +220,9 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
             replay = score_fn(rd) if score_fn else None
             decisions = screen_evidence.read_decisions(rd)
             drows, summary = screen_evidence.round_evidence(g, me, opp, decisions, replay)
-            this_rows += drows
+            all_rows += drows
+            all_rounds.append(summary)
             this_rounds.append(summary)
-            round_dirs.append(rd)
-            replays.append(replay)
             for d, row in zip(decisions, drows):
                 trace.write(json.dumps({"event": "decision", "game": g, "round": r, "k": d.get("k"),
                                         "words": d.get("advice_text"), "situation": d.get("situation"),
@@ -234,19 +234,22 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                                     "hp": summary["hp"], "dealt": summary["dealt"], "taken": summary["taken"],
                                     "source": summary["source"]}) + "\n")
             trace.flush()
-        all_rows += this_rows
-        all_rounds += this_rounds
+            # SYSTEM 2 AFTER EACH ROUND: reflect and rotate the short memory so the NEXT round can adapt.
+            round_hp.append(summary["dealt"] - summary["taken"])
+            round_wl.append({"won": 1 if summary["result"] == "win" else 0,
+                             "lost": 0 if summary["result"] == "win" else 1})
+            reg, qtrace = update(reg, all_rows, idx, round_hp, round_wl, changed, opp, drows, all_rounds,
+                                 [summary], refused, ask_qwen, me, qwen_mode)
+            refused = qtrace.pop("refused")
+            changed.append(bool(qtrace["added"] or qtrace["removed"] or qtrace["promoted"] or qtrace["retired"]))
+            if qtrace.get("scout") is not None:
+                trace.write(json.dumps(dict(qtrace["scout"], event="scout", game=g, round=r)) + "\n")
+            trace.write(json.dumps(dict(qtrace, event="qwen", game=g, round=r)) + "\n")
+            trace.flush()
+            idx += 1
         game_hp.append(sum(s["dealt"] - s["taken"] for s in this_rounds) / max(1, len(this_rounds)))
         games_wl.append({"won": sum(s["result"] == "win" for s in this_rounds),
                          "lost": sum(s["result"] != "win" for s in this_rounds)})
-        reg, qtrace = update(reg, all_rows, g, game_hp, games_wl, changed, opp, this_rows, all_rounds, this_rounds,
-                             refused, ask_qwen, me, qwen_mode)
-        refused = qtrace.pop("refused")
-        changed.append(bool(qtrace["added"] or qtrace["removed"] or qtrace["promoted"] or qtrace["retired"]))
-        if qtrace.get("scout") is not None:
-            trace.write(json.dumps(dict(qtrace["scout"], event="scout", game=g)) + "\n")
-        trace.write(json.dumps(dict(qtrace, event="qwen")) + "\n")
-        trace.flush()
     verdict = {"opp": opp, "games": games, "rounds": rounds, "seed_lines": [r["line"] for r in seed_lines],
                "in_play_end": L.in_play(reg), "registry_end": reg, "decisions": len(all_rows),
                "game_hp": game_hp, "games": games_wl, "violations": L.violations(reg, all_rows)}

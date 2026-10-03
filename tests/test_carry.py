@@ -121,3 +121,19 @@ def test_carry_missing_file_falls_back_to_book_seed():
     reg_none, src_none = driver.starting_registry(None, OPP, BOOK, ME)
     assert src_none == "book"
     assert reg_none == book_seed
+
+
+def test_qwen_reflects_after_each_round_not_each_game(tmp_path):
+    """BUGFIX: System 2 must run per ROUND (so the short memory can adapt mid-match), not once per game.
+    A 1-game, 3-round run must produce 3 qwen reflections, and the memory is re-read each round."""
+    driver = load_driver()
+    out = str(tmp_path / "pr")
+    driver.run_loop(OPP, FollowerLaya(), FollowerLaya(), MockQwen(), games=1, rounds=3,
+                    seed_lines=[], out=out, play_round_fn=fake_play,
+                    state=b"x", state_id={"path": "p", "sha256": "0"},
+                    emu=FakeEmu(), score_fn=fake_score, seed_rng=1)
+    events = [json.loads(l) for l in open(os.path.join(out, "trace.jsonl"))]
+    qwen = [e for e in events if e.get("event") == "qwen"]
+    assert len(qwen) == 3, "expected one qwen reflection per round, got %d" % len(qwen)
+    assert all("round" in e for e in qwen), "qwen events must be labelled by round"
+    assert {e["round"] for e in qwen} == {0, 1, 2}
