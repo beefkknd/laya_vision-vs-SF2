@@ -57,6 +57,46 @@ def seed(opp: str, book: Optional[str], me: str = ME) -> L.Registry:
     return seed_rules.seed_lessons(book, opp, me)
 
 
+# ------------------------------------------------------------------ registry carryover (multi-round play)
+def save_registry(reg: L.Registry, path: str) -> None:
+    """Write the FULL registry (the loop's ``L.Registry`` -- the verdict's ``registry_end`` / in-play state) so a
+    later round can ``--carry`` it and learn ON TOP of these rules. Reuses ``sf2.system2.lessons.dump`` if that ever
+    exists; otherwise JSON of the registry list (the registry is a plain list of entry dicts, so this round-trips)."""
+    dump = getattr(L, "dump", None)
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
+    if callable(dump):
+        dump(reg, path)
+        return
+    with open(path, "w") as f:
+        json.dump(list(reg), f, indent=1)
+
+
+def load_registry(path: str) -> L.Registry:
+    """Read a registry written by ``save_registry`` back into the loop's ``L.Registry`` (list of entry dicts).
+    The inverse of ``save_registry``; raises ``ValueError`` if the file is not a list of entries."""
+    load = getattr(L, "load", None)
+    if callable(load):
+        return load(path)
+    with open(path) as f:
+        reg = json.load(f)
+    if not isinstance(reg, list):
+        raise ValueError("carry registry %s must be a JSON list of entries, got %s" % (path, type(reg).__name__))
+    return reg
+
+
+def starting_registry(carry: Optional[str], opp: str, book: Optional[str],
+                      me: str = ME) -> Tuple[L.Registry, str]:
+    """The registry the loop STARTS from. With ``--carry`` and the file present, carry it (learn on top of those
+    rules); a missing carry file falls back to the normal book seed (logged). Returns ``(registry, source)`` where
+    source is "carry" or "book"."""
+    if carry and os.path.exists(carry):
+        return load_registry(carry), "carry"
+    if carry:
+        print("carry file %s absent, seeding from book instead" % carry, file=sys.stderr)
+    return seed(opp, book, me), "book"
+
+
 # ------------------------------------------------------------------ the Qwen update (System 2)
 QwenCaller = Callable[[List[Dict], str], str]      # (messages, task) -> raw reply text
 
@@ -205,6 +245,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--rounds", type=int, default=3)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--book", default=os.path.join("lessons", "book.json"))
+    ap.add_argument("--carry", default=None,
+                    help="start from this saved registry (learn ON TOP of it) instead of seeding from the book; "
+                         "if the file is absent, fall back to the book seed")
+    ap.add_argument("--save-registry", dest="save_registry", default=None,
+                    help="after the run, write the final registry here so the next round can --carry it")
     ap.add_argument("--cat-advisor", default=os.path.join("runs", "text_laya", "cat_v1"),
                     help="round-1 CATEGORY checkpoint")
     ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v1"),
@@ -232,9 +277,11 @@ def main() -> int:
     out = args.out or os.path.join("rollouts", "loop_screen", "%s_%s_vs_%s" % (time.strftime("%Y%m%d_%H%M%S"), me,
                                                                                args.opp))
     os.makedirs(out, exist_ok=True)
+    seed_lines, seed_source = starting_registry(args.carry, args.opp, args.book, me)
     with open(os.path.join(out, "run.json"), "w") as f:
         json.dump({"arm": "loop", "me": me, "opp": args.opp, "games": args.games, "rounds": args.rounds,
                    "seed": args.seed, "state": state_id, "book": args.book,
+                   "carry": args.carry, "save_registry": args.save_registry, "seed_source": seed_source,
                    "cat_advisor": args.cat_advisor, "move_advisor": args.move_advisor,
                    "qwen": "on"}, f, indent=1)
     shared = {"shared": True} if args.shared_text_laya else {}
@@ -244,8 +291,11 @@ def main() -> int:
     with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
             open_screen(args.port, args.rom) as emu:
         verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
-                           seed_lines=seed(args.opp, args.book, me), out=out, play_round_fn=play_screen_round,
+                           seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
                            state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me)
+    if args.save_registry:
+        save_registry(verdict["registry_end"], args.save_registry)
+        print("saved registry", args.save_registry)
     print(json.dumps(verdict, indent=1))
     print("saved", out)
     return 0

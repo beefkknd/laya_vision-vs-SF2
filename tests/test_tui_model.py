@@ -418,3 +418,127 @@ def test_once_render_subprocess_crafted(tmp_path):
                          capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
     assert "chunli" in out.stdout
+
+
+# --------------------------------------------------------------------------- session (multi-round) layer (NEW)
+
+def _round_event(game, rnd, result):
+    return {"event": "round", "game": game, "round": rnd, "result": result,
+            "hp": 10, "dealt": 50, "taken": 40}
+
+
+def _write_session_round(session, num, opp, game_results, games=None, rounds=1):
+    """A session round subdir 'round_<NN>_<opp>/' that is itself a normal run dir. ``game_results`` is one
+    result ('win'/'loss') per game (one SF2 round per game here), driving per_game_wl for that round."""
+    rdir = os.path.join(session, "round_%02d_%s" % (num, opp))
+    os.makedirs(rdir, exist_ok=True)
+    with open(os.path.join(rdir, "run.json"), "w") as fh:
+        json.dump({"me": "chunli", "opp": opp, "games": games or len(game_results), "rounds": rounds}, fh)
+    events = [{"event": "seed", "lines": ["use more throw up close"]}]
+    for g, res in enumerate(game_results):
+        _write_round(rdir, g, 0, [_decision_record(1, 1.0, 0.5 if res == "win" else 0.9)])
+        events.append(_round_event(g, 0, res))
+    with open(os.path.join(rdir, "trace.jsonl"), "w") as fh:
+        for e in events:
+            fh.write(json.dumps(e) + "\n")
+    return rdir
+
+
+def _crafted_session(tmp_path):
+    """Round 0 vs honda: 2 games 1W/1L. Round 1 vs ken: 2 games 2W. -> cumulative series W,L,W,W (win rate 3/4)."""
+    session = str(tmp_path / "session")
+    os.makedirs(session, exist_ok=True)
+    with open(os.path.join(session, "session.json"), "w") as fh:
+        json.dump({"rounds": 2, "opp_order": ["honda", "ken"]}, fh)
+    _write_session_round(session, 0, "honda", ["win", "loss"])
+    _write_session_round(session, 1, "ken", ["win", "win"])
+    return session
+
+
+def test_session_model_aggregates_two_rounds(tmp_path):
+    """Cumulative per-game W/L across both rounds is [W,L,W,W]; win rate 3/4; per-round cum% is 50 then 75.
+
+    Seen RED first: against a twin of build_session_model that reset the cumulative series each round (used only
+    the last round's per_game_wl) -> per_game_wl == ('W','W') and win_rate 2/2, so the [W,L,W,W] / 3-of-4 asserts
+    fail. Also red against the pre-change module (build_session_model does not exist -> AttributeError).
+    """
+    session = _crafted_session(tmp_path)
+    sm = T.build_session_model(session, grade_qwen=False)
+
+    assert sm.rounds_planned == 2
+    assert sm.opp_order == ("honda", "ken")
+    assert sm.per_game_wl == ("W", "L", "W", "W")
+    assert (sm.cum_wins, sm.cum_played, sm.cum_pct) == (3, 4, 75)
+
+    assert len(sm.rounds) == 2
+    r0, r1 = sm.rounds
+    assert (r0.num, r0.opp, r0.wins, r0.losses) == (0, "honda", 1, 1)
+    assert r0.cum_pct == 50 and r0.cum_played == 2
+    assert (r1.num, r1.opp, r1.wins, r1.losses) == (1, "ken", 2, 0)
+    assert r1.cum_pct == 75 and r1.cum_played == 4
+
+
+def test_session_active_is_latest_round(tmp_path):
+    """The live view is the newest round dir's single-run model (round 1 vs ken here)."""
+    session = _crafted_session(tmp_path)
+    sm = T.build_session_model(session, grade_qwen=False)
+    assert sm.active_num == 1 and sm.active_opp == "ken"
+    assert sm.active is not None
+    assert sm.active.opp == "ken"
+    assert sm.active.run_dir.endswith("round_01_ken")
+
+
+def test_session_tolerates_missing_session_json(tmp_path):
+    """No session.json: opp_order empty, rounds_planned falls back to the count of round dirs present."""
+    session = str(tmp_path / "s2")
+    os.makedirs(session, exist_ok=True)
+    _write_session_round(session, 0, "honda", ["win", "win"])
+    sm = T.build_session_model(session, grade_qwen=False)
+    assert sm.opp_order == ()
+    assert sm.rounds_planned == 1
+    assert sm.per_game_wl == ("W", "W")
+
+
+def test_session_empty_dir(tmp_path):
+    session = str(tmp_path / "empty_session")
+    os.makedirs(session, exist_ok=True)
+    sm = T.build_session_model(session, grade_qwen=False)
+    assert sm.status == "empty"
+    assert sm.active is None and sm.per_game_wl == ()
+    assert sm.error is not None
+
+
+def test_parse_session_round_dir():
+    assert T.parse_session_round_dir("round_00_honda") == (0, "honda")
+    assert T.parse_session_round_dir("round_12_ken") == (12, "ken")
+    assert T.parse_session_round_dir("g00_r0") is None
+    assert T.parse_session_round_dir("session.json") is None
+
+
+def test_session_once_renders(tmp_path):
+    """monitor_tui.py --session --once renders the growing win-rate meter (block glyph + 'win rate') headless.
+
+    Seen RED first: before --session existed, argparse had no such flag, so the process either errored (no
+    run dir resolved) or never showed 'win rate' from the SESSION view -> the grep asserts fail.
+    """
+    session = _crafted_session(tmp_path)
+    script = os.path.join(REPO, "scripts", "monitor_tui.py")
+    out = subprocess.run([sys.executable, script, "--session", session, "--once"],
+                         capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert "█" in out.stdout                      # the history strip / win-rate meter block glyph
+    assert "win rate" in out.stdout.lower()
+    assert "SESSION" in out.stdout
+    assert "ken" in out.stdout                    # the live round's opponent
+
+
+def test_session_save_svg(tmp_path):
+    """--session with --save writes an SVG with a block glyph (the export is reused for the session view)."""
+    session = _crafted_session(tmp_path)
+    out_svg = str(tmp_path / "session.svg")
+    script = os.path.join(REPO, "scripts", "monitor_tui.py")
+    out = subprocess.run([sys.executable, script, "--session", session, "--save", out_svg],
+                         capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert os.path.isfile(out_svg)
+    assert "█" in open(out_svg, encoding="utf-8").read()

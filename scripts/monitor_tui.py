@@ -15,6 +15,9 @@ Layout (owner's design):
 
 Modes:
   --watch <run_dir>   attach to an existing/active run dir and render live.
+  --session <dir>     aggregate across all round_<NN>_<opp>/ subdirs of a multi-round play session: the
+                      cumulative win-rate meter (every game of every round), the per-round summary, and the
+                      latest round's live gameplay (the single-run view, reused). Supports --once / --save too.
   --latest            watch the newest rollouts/loop_screen/* dir.
   --run "<me> <opp> <games> <rounds>"
                       launch play_loop_screen.py (with the text-laya advisors + --no-score, passing
@@ -200,6 +203,61 @@ def render(m: T.DashboardModel) -> Layout:
     return layout
 
 
+# --------------------------------------------------------------------------- session (multi-round) view
+
+def _session_trend_line(sm: T.SessionModel) -> Text:
+    """The 'watch it grow' history strip: one cell per GAME across the WHOLE session, left->right in order
+    (green win / red loss / yellow tie)."""
+    cell = {"W": "[green]█[/green]", "L": "[red]█[/red]", "T": "[yellow]█[/yellow]"}
+    played = "".join(cell[v] for v in sm.per_game_wl)
+    return Text.from_markup(f"[bold]history [/bold]{played or '[dim](no games yet)[/dim]'}")
+
+
+def _session_winrate_line(sm: T.SessionModel) -> Text:
+    """Cumulative win-rate meter across every game of every round so far."""
+    bar = T.shaded_bar((sm.cum_pct / 100.0) if sm.cum_played else 0.0, TREND_W, color="green")
+    return Text.from_markup(f"[bold]winrate [/bold]{bar}  "
+                            f"[green]win rate {sm.cum_wins}/{sm.cum_played} {sm.cum_pct}%[/green]")
+
+
+def _session_panel(sm: T.SessionModel) -> Panel:
+    live = Text.from_markup(
+        f"[bold]SESSION[/bold]  live: [bold cyan]round {sm.active_num} vs "
+        f"{escape(sm.active_opp)}[/bold cyan]  "
+        f"[white]round {len(sm.rounds)}/{sm.rounds_planned or len(sm.rounds)}[/white]"
+        + (f"   [dim]plan: {escape(' -> '.join(sm.opp_order))}[/dim]" if sm.opp_order else "")
+    )
+    rounds = Table.grid(padding=(0, 1))
+    rounds.add_column(no_wrap=True)
+    if not sm.rounds:
+        rounds.add_row(Text("(no rounds yet)", style="dim"))
+    for rsum in sm.rounds:
+        marker = " [cyan](live)[/cyan]" if rsum.num == sm.active_num else ""
+        rounds.add_row(Text.from_markup(
+            f"round [bold]{rsum.num:>2}[/bold] vs [red]{escape(rsum.opp)}[/red]  "
+            f"[green]{rsum.wins}[/green]-[red]{rsum.losses}[/red]"
+            + (f"-[yellow]{rsum.ties}T[/yellow]" if rsum.ties else "")
+            + f"   [dim]cum {rsum.cum_wins}/{rsum.cum_played} {rsum.cum_pct}%[/dim]{marker}"
+        ))
+    body = Group(live, Text(""), _session_trend_line(sm), _session_winrate_line(sm), Text(""), rounds)
+    return Panel(body, title="SESSION (all rounds)", border_style="cyan")
+
+
+def render_session(sm: T.SessionModel) -> Layout:
+    """Session view: the cumulative summary on top, the latest round's live single-run view below (reused)."""
+    layout = Layout()
+    layout.split_column(
+        Layout(_session_panel(sm), name="session", ratio=2),
+        Layout(name="active", ratio=3),
+    )
+    if sm.active is not None:
+        layout["active"].update(render(sm.active))
+    else:
+        layout["active"].update(Panel(Text("(no active round yet)", style="dim"),
+                                      title="LIVE GAMEPLAY", border_style="cyan"))
+    return layout
+
+
 # --------------------------------------------------------------------------- run modes
 
 def _resolve_run_dir(args) -> str:
@@ -232,7 +290,15 @@ def _launch_loop(spec: str):
     return proc, run_dir
 
 
-def _save_frame(run_dir: str, path: str, grade: bool) -> int:
+def _renderable(run_dir: str, grade: bool, session: bool):
+    """Build the frame for ``run_dir``: the session view (aggregated across round dirs) when ``session``,
+    else the single-run view. Both reuse the same single-run rendering for the live gameplay."""
+    if session:
+        return render_session(T.build_session_model(run_dir, grade_qwen=grade))
+    return render(T.build_model(run_dir, grade_qwen=grade))
+
+
+def _save_frame(run_dir: str, path: str, grade: bool, session: bool = False) -> int:
     """Render ONE frame to an image file, fully headless (no live terminal).
 
     A recording Console at a fixed 120-col width with a dark background captures the frame, then
@@ -243,10 +309,10 @@ def _save_frame(run_dir: str, path: str, grade: bool) -> int:
     if ext not in (".svg", ".html", ".htm"):
         print(f"--save: unsupported extension '{ext}' (use .svg or .html)", file=sys.stderr)
         return 2
-    m = T.build_model(run_dir, grade_qwen=grade)
+    frame = _renderable(run_dir, grade, session)
     with open(os.devnull, "w") as sink:
         console = Console(record=True, width=120, file=sink)   # fixed width, headless
-        console.print(render(m))
+        console.print(frame)
         try:
             if ext == ".svg":
                 console.save_svg(path, title="SF2 loop monitor")
@@ -261,6 +327,9 @@ def _save_frame(run_dir: str, path: str, grade: bool) -> int:
 def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(description="Read-only live monitor for the self-learning loop.")
     ap.add_argument("--watch", metavar="RUN_DIR", help="attach to this run dir")
+    ap.add_argument("--session", metavar="SESSION_DIR",
+                    help="aggregate across all round_<NN>_<opp>/ subdirs of a multi-round play session dir "
+                         "(cumulative win rate + per-round summary + the live round's gameplay)")
     ap.add_argument("--latest", action="store_true", help="watch the newest rollouts/loop_screen/*")
     ap.add_argument("--run", metavar="SPEC", help='launch play_loop_screen.py "<me> <opp> <games> <rounds>" and watch')
     ap.add_argument("--once", action="store_true", help="render a single frame and exit")
@@ -270,6 +339,7 @@ def main(argv: Optional[list] = None) -> int:
     args = ap.parse_args(argv)
 
     proc = None
+    session = bool(args.session)
     if args.run:
         proc, run_dir = _launch_loop(args.run)
         # wait briefly for the run dir to appear
@@ -277,33 +347,34 @@ def main(argv: Optional[list] = None) -> int:
             if os.path.isdir(run_dir):
                 break
             time.sleep(0.25)
+    elif session:
+        run_dir = args.session
     else:
         run_dir = _resolve_run_dir(args)
 
     grade = not args.no_grade
 
     if args.save:
-        rc = _save_frame(run_dir, args.save, grade)
+        rc = _save_frame(run_dir, args.save, grade, session)
         if proc is not None:
             proc.terminate()
         return rc
 
     if args.once:
-        m = T.build_model(run_dir, grade_qwen=grade)
-        Console().print(render(m))
+        Console().print(_renderable(run_dir, grade, session))
         if proc is not None:
             proc.terminate()
         return 0
 
     console = Console()
     try:
-        with Live(render(T.build_model(run_dir, grade_qwen=grade)),
+        with Live(_renderable(run_dir, grade, session),
                   console=console, refresh_per_second=REFRESH_HZ, screen=True) as live:
             while True:
-                m = T.build_model(run_dir, grade_qwen=grade)
-                live.update(render(m))
-                if proc is not None and proc.poll() is not None and m.status in ("done", "empty"):
-                    live.update(render(m))
+                status = (T.build_session_model(run_dir, grade_qwen=grade).status if session
+                          else T.build_model(run_dir, grade_qwen=grade).status)
+                live.update(_renderable(run_dir, grade, session))
+                if proc is not None and proc.poll() is not None and status in ("done", "empty"):
                     break
                 time.sleep(1.0 / REFRESH_HZ)
     except KeyboardInterrupt:

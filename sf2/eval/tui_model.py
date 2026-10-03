@@ -26,6 +26,9 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 HP_MAX = 176                       # full health bar in SF2 hp units; facts healths are 0..1 fractions
 ROUND_DIR_RE = re.compile(r"^g(\d+)_r(\d+)$")
+# a session groups many play ROUNDS (one opponent matchup each), laid out as round_<NN>_<opp>/ -- each itself a
+# normal run dir (run.json, trace.jsonl, gNN_rM/). NB "round" here is a whole matchup, not an SF2 round.
+SESSION_ROUND_RE = re.compile(r"^round_(\d+)_(.+)$")
 
 GradeFn = Callable[[str], Dict]    # a line -> {verdict, value, forward, scorable, ...} scorer
 
@@ -116,6 +119,42 @@ class DashboardModel:
     qwen_thinking: bool
     status: str                              # "running" / "thinking" / "done" / "empty"
     error: Optional[str] = None              # a parse note (never raised at the caller)
+
+
+@dataclass(frozen=True)
+class RoundSummary:
+    """One play ROUND (one opponent matchup) within a session: its per-game W/L and the CUMULATIVE win rate
+    across the whole session up to and including this round -- the 'round NN vs opp -> W-L, cum win%' line."""
+    num: int
+    opp: str
+    run_dir: str
+    per_game_wl: Tuple[str, ...]       # one W/L/T per game of this round, in game order
+    wins: int
+    losses: int
+    ties: int
+    cum_wins: int                      # cumulative wins across all rounds so far
+    cum_played: int                    # cumulative games played across all rounds so far
+    cum_pct: int                       # cumulative win percentage after this round
+
+
+@dataclass(frozen=True)
+class SessionModel:
+    """A whole multi-round play session (``<session>/round_<NN>_<opp>/`` subdirs). ``per_game_wl`` is the history
+    strip -- every game of every round in order, so the win-rate meter 'grows'. ``active`` is the latest round's
+    single-run model (reused by the renderer for the live gameplay). Immutable; ``build_session_model`` never raises."""
+    session_dir: str
+    rounds_planned: int                        # from session.json {rounds}, else the count of round dirs present
+    opp_order: Tuple[str, ...]                 # from session.json {opp_order}, else ()
+    rounds: Tuple[RoundSummary, ...]           # one per round dir, in round order
+    per_game_wl: Tuple[str, ...]               # cumulative, every game of every round, in order
+    cum_wins: int
+    cum_played: int
+    cum_pct: int
+    active_num: int                            # the live (latest) round's number, -1 if none
+    active_opp: str
+    active: Optional[DashboardModel]           # the latest round's single-run model, None if no round dirs
+    status: str                                # "running" / "done" / "empty"
+    error: Optional[str] = None
 
 
 # --------------------------------------------------------------------------- pure helpers
@@ -502,3 +541,87 @@ def latest_run_dir(base: str = os.path.join("rollouts", "loop_screen")) -> Optio
     if not subs:
         return None
     return max(subs, key=lambda d: os.path.getmtime(d))
+
+
+# --------------------------------------------------------------------------- session (multi-round) layer
+
+def parse_session_round_dir(name: str) -> Optional[Tuple[int, str]]:
+    """'round_00_honda' -> (0, 'honda'); anything else -> None."""
+    m = SESSION_ROUND_RE.match(name)
+    if not m:
+        return None
+    return int(m.group(1)), m.group(2)
+
+
+def list_session_round_dirs(session_dir: str) -> List[Tuple[int, str, str]]:
+    """Sorted (num, opp, dirname) for every round_<NN>_<opp> subdir present. Handles a session growing live."""
+    out: List[Tuple[int, str, str]] = []
+    try:
+        names = os.listdir(session_dir)
+    except OSError:
+        return out
+    for name in names:
+        pr = parse_session_round_dir(name)
+        if pr is None:
+            continue
+        if not os.path.isdir(os.path.join(session_dir, name)):
+            continue
+        out.append((pr[0], pr[1], name))
+    out.sort(key=lambda t: (t[0], t[1]))
+    return out
+
+
+def build_session_model(session_dir: str, grader: Optional[GradeFn] = None,
+                        grade_qwen: bool = True, max_decisions: int = 6) -> SessionModel:
+    """Aggregate across all ``round_<NN>_<opp>/`` subdirs of a session dir into a ``SessionModel``: the cumulative
+    per-game W/L history (every game of every round, in order), a per-round summary with the running win rate, and
+    the latest round's single-run ``DashboardModel`` for the live view. Tolerates a missing ``session.json`` and
+    partial/empty rounds; never raises (parse notes go in ``.error``)."""
+    meta = _read_json(os.path.join(session_dir, "session.json"))
+    opp_order = tuple(meta.get("opp_order", []) or [])
+
+    if grade_qwen and grader is None:
+        grader = get_grader()
+
+    round_dirs = list_session_round_dirs(session_dir)
+    rounds_planned = int(meta.get("rounds", len(round_dirs)) or 0)
+
+    summaries: List[RoundSummary] = []
+    cum_series: List[str] = []
+    active: Optional[DashboardModel] = None
+    active_num, active_opp = -1, "?"
+    for num, opp, dirname in round_dirs:
+        rd = os.path.join(session_dir, dirname)
+        dm = build_model(rd, grader=grader, grade_qwen=grade_qwen, max_decisions=max_decisions)
+        wl = list(dm.per_game_wl)
+        cum_series += wl
+        cw, cp, cpct = win_rate(cum_series)
+        summaries.append(RoundSummary(
+            num=num, opp=opp, run_dir=rd, per_game_wl=tuple(wl),
+            wins=sum(1 for v in wl if v == "W"),
+            losses=sum(1 for v in wl if v == "L"),
+            ties=sum(1 for v in wl if v == "T"),
+            cum_wins=cw, cum_played=cp, cum_pct=cpct,
+        ))
+        active, active_num, active_opp = dm, num, opp     # last iteration -> the live round
+
+    cum_wins, cum_played, cum_pct = win_rate(cum_series)
+
+    if not round_dirs:
+        status = "empty"
+    elif active is not None and active.status == "done" and rounds_planned and len(round_dirs) >= rounds_planned:
+        status = "done"
+    else:
+        status = "running"
+
+    error = None
+    if not round_dirs:
+        error = "no round_<NN>_<opp> subdirs under %s" % session_dir
+
+    return SessionModel(
+        session_dir=session_dir, rounds_planned=rounds_planned, opp_order=opp_order,
+        rounds=tuple(summaries), per_game_wl=tuple(cum_series),
+        cum_wins=cum_wins, cum_played=cum_played, cum_pct=cum_pct,
+        active_num=active_num, active_opp=active_opp, active=active,
+        status=status, error=error,
+    )
