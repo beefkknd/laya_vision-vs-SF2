@@ -25,6 +25,8 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sf2.config import QWEN_URL, REPO  # noqa: E402
+from sf2.system1.advice import char_menu_moves  # noqa: E402
+from sf2.system2.rule_entry import carry_entries  # noqa: E402
 from sf2.vocab import FIGHTERS  # noqa: E402
 
 PY = os.path.join(REPO, ".venv", "bin", "python")
@@ -42,6 +44,57 @@ def qwen_alive(url=None, timeout=8):
         return True          # it responded (401/405/...) -> up
     except Exception:
         return False         # connection refused / DNS / timeout -> down
+
+
+# Forced-exploration pool: grounded, situational offensive rules valid for ANY of the 8 (standing
+# normals / movement / throw). When she loses too many rounds in a row WITHOUT changing strategy, the
+# loop injects the next unused one so her behaviour MUST change (escape the losing repetition).
+EXPLORE_POOL = (
+    "use more s.mk at mid range when he stands",
+    "use more walk_forward at mid range when he stands",
+    "use more s.hk up close when he stands",
+    "use more throw up close when he stands",
+    "use more s.mp at mid range when he attacks",
+    "use more walk_back at mid range when he attacks",
+)
+
+
+def trailing_losses(results):
+    """How many of the most recent rounds were losses, in a row (results are 'win'/'loss'/'tie' strings)."""
+    n = 0
+    for r in reversed(list(results)):
+        if r == "loss":
+            n += 1
+        else:
+            break
+    return n
+
+
+def needs_intervention(results, window=3):
+    """True when the last `window` rounds are ALL losses -- a losing streak with no payoff, so the loop
+    must force a strategy change rather than keep failing identically (owner 2026-10-03)."""
+    results = list(results)
+    return len(results) >= window and all(r == "loss" for r in results[-window:])
+
+
+def pick_forced_rule(in_play_lines, rotate):
+    """The next exploration-pool rule NOT already in play (rotating). None only if the pool is exhausted."""
+    in_play = set(in_play_lines)
+    n = len(EXPLORE_POOL)
+    for k in range(n):
+        line = EXPLORE_POOL[(rotate + k) % n]
+        if line not in in_play:
+            return line
+    return None
+
+
+def round_results(out_dir):
+    """The per-round win/loss list from a finished block's trace.jsonl, in order."""
+    try:
+        rows = [json.loads(l) for l in open(os.path.join(out_dir, "trace.jsonl"))]
+    except OSError:
+        return []
+    return [r.get("result") for r in rows if r.get("event") == "round"]
 
 
 def ladder_for(me, opps):
@@ -98,8 +151,9 @@ def main():
     ap = argparse.ArgumentParser(description="Continuous blank-start career / arcade ladder.")
     ap.add_argument("--me", default="chunli")
     ap.add_argument("--opps", default=None, help="comma list; default = every fighter except --me")
-    ap.add_argument("--block", type=int, default=4, help="games per block (a loss just replays next game)")
-    ap.add_argument("--rounds", type=int, default=1, help="SF2 rounds per match")
+    ap.add_argument("--block", type=int, default=4, help="matches per block (a loss just replays next match)")
+    ap.add_argument("--rounds", type=int, default=3, help="rounds per match (a match is best-of-3 = 2-3 rounds)")
+    ap.add_argument("--loss-trigger", type=int, default=3, help="consecutive round losses that force a strategy change")
     ap.add_argument("--win-target", type=float, default=0.60, help="recent win-rate that counts as BEATEN")
     ap.add_argument("--cap", type=int, default=6, help="max blocks on one opponent before moving on anyway")
     ap.add_argument("--laps", type=int, default=0, help="times through the ladder; 0 = forever (Ctrl-C)")
@@ -144,9 +198,12 @@ def main():
     with open(blank_path, "w") as f:
         f.write("[]")
 
+    moves = char_menu_moves(args.me)
     nn = 0
     carry_next = None                      # None -> blank/book; a path -> carry it
     lap = 0
+    streak = []                            # recent round results across turns (for the loss trigger)
+    rotate = 0                             # which exploration-pool rule to inject next
     try:
         while args.laps == 0 or lap < args.laps:
             for opp in ladder:
@@ -163,6 +220,24 @@ def main():
                     nn += 1
                     print("  vs %-8s block %d: win-rate %s  (%s)"
                           % (opp, b, ("%.0f%%" % (100 * wr)) if wr is not None else "n/a", os.path.basename(out)))
+
+                    # FORCED STRATEGY CHANGE: losing N rounds straight across turns with no payoff is
+                    # meaningless repetition -> inject a fresh offensive rule so her behaviour must change.
+                    streak += round_results(out)
+                    if needs_intervention(streak, args.loss_trigger):
+                        try:
+                            entries = json.load(open(save_reg)) if os.path.exists(save_reg) else []
+                        except (OSError, ValueError):
+                            entries = []
+                        line = pick_forced_rule([e.get("line") for e in entries], rotate)
+                        rotate += 1
+                        if line:
+                            entries = list(entries) + carry_entries([line], moves)
+                            json.dump(entries, open(save_reg, "w"), indent=1)
+                            print("  !! %d straight round losses -> FORCED strategy change: + %r"
+                                  % (args.loss_trigger, line))
+                        streak = []          # give the new strategy a clean window before triggering again
+
                     if wr is not None and wr >= args.win_target:
                         beaten = True
                         print("  -> BEATEN %s (>= %.0f%%), moving on" % (opp, 100 * args.win_target))

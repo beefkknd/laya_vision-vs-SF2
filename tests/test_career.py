@@ -43,3 +43,39 @@ def test_block_winrate_from_verdict(tmp_path):
 
 def test_block_winrate_missing_is_none(tmp_path):
     assert C.block_winrate(str(tmp_path)) is None
+
+
+# --- the loss-streak forced-change trigger (owner: 3 straight round losses -> change strategy) ---
+def test_trailing_losses_counts_only_the_streak():
+    assert C.trailing_losses(["win", "loss", "loss", "loss"]) == 3
+    assert C.trailing_losses(["loss", "loss", "win"]) == 0
+    assert C.trailing_losses([]) == 0
+
+
+def test_needs_intervention_on_three_straight():
+    assert C.needs_intervention(["win", "loss", "loss", "loss"], window=3) is True
+    assert C.needs_intervention(["loss", "loss", "win"], window=3) is False      # streak broken by a win
+    assert C.needs_intervention(["loss", "loss"], window=3) is False             # not enough rounds yet
+    assert C.needs_intervention(["loss", "loss"], window=2) is True              # window is configurable
+
+
+def test_pick_forced_rule_skips_rules_already_in_play():
+    first = C.EXPLORE_POOL[0]
+    # with the first pool rule already in play, it must pick a DIFFERENT one
+    got = C.pick_forced_rule([first], rotate=0)
+    assert got and got != first and got in C.EXPLORE_POOL
+
+
+def test_pick_forced_rule_none_when_pool_exhausted():
+    assert C.pick_forced_rule(list(C.EXPLORE_POOL), rotate=0) is None
+
+
+def test_round_results_reads_trace(tmp_path):
+    d = tmp_path / "round_00_ryu"
+    d.mkdir()
+    (d / "trace.jsonl").write_text(
+        '{"event":"seed","opp":"ryu"}\n'
+        '{"event":"round","result":"loss"}\n'
+        '{"event":"round","result":"win"}\n'
+        '{"event":"qwen","added":[]}\n')
+    assert C.round_results(str(d)) == ["loss", "win"]
