@@ -265,8 +265,11 @@ def digest_facts(me: str, opp: str, reg: L.Registry, rows: Sequence[Dict], last:
     hp_recent = list(game_hp)[-RECENT_GAMES:]
     verdict = "losing" if lost > won else "winning" if won > lost else (
         "losing" if hp_recent and sum(hp_recent) < 0 else "winning" if hp_recent and sum(hp_recent) > 0 else "stable")
+    cells = collections.Counter((a["range"], opp_doing(a)) for a in game_rows if a.get("range"))
+    n_cells = sum(cells.values()) or 1
+    his_cells = [["%s/%s" % (r, d), n, round(100 * n / n_cells)] for (r, d), n in cells.most_common(6)]
     return {"opp": opp, "dominant": [[m, n] for m, n in actions.most_common(DOMINANT)],
-            "offense_used": offense_used, "offense_landed": offense_landed,
+            "offense_used": offense_used, "offense_landed": offense_landed, "his_cells": his_cells,
             "dealt": dealt, "taken": taken, "threats": threats(rows)[:DIGEST_THREATS],
             "rule_tracking": rule_tracking, "verdict": verdict,
             "won_recent": won, "lost_recent": lost, "hp_recent": round(sum(hp_recent) / len(hp_recent), 1) if hp_recent
@@ -282,6 +285,8 @@ def _render_digest(d: Dict) -> str:
         "verdict: %s (last games won %d / lost %d, %+.1f hp per round)" % (
             d["verdict"], d["won_recent"], d["lost_recent"], d["hp_recent"]),
         "dealt this game: %d; taken: %d" % (d["dealt"], d["taken"]),
+        "HIS COMMON SITUATIONS (range/state, count, %% of decisions - key each rule to one of these so it FIRES): %s" % (
+            ", ".join("%s x%d (%d%%)" % (c, n, p) for c, n, p in d.get("his_cells", [])) or "(none)"),
         "her dominant moves: %s" % (", ".join("%s x%d" % (m, n) for m, n in d["dominant"]) or "(none)"),
         "offense she used: %s" % (", ".join(d["offense_used"]) or "(none)"),
         "offense that landed: %s" % (", ".join(d["offense_landed"]) or "(none)"),
@@ -334,7 +339,11 @@ _ANSWER_JSON = """Answer with JSON only (null for a side with nothing worth prop
 STRATEGIZE_HEAD = """You are the COACH for {me} in Street Fighter II against {opp}. A scout has already summarized the
 last game: her dominant moves, the offense she actually used, the damage she dealt and took, his threats, how the
 rules in play tracked, and whether she is winning or losing. Your job is to CHANGE her rules - not to re-summarize.
-Propose at most two lessons: an ANSWER (what she should do) and a STOP (what she should stop doing)."""
+Propose at most two lessons: an ANSWER (what she should do) and a STOP (what she should stop doing).
+Every rule MUST key to one of HIS COMMON SITUATIONS the scout lists (a range+state that actually OCCURS, so the rule
+FIRES often) and name a GROUNDED STANDING move - a standing normal (s.*), a special, a throw, or movement. A crouch
+normal (c.*) or a jump attack (j./jf.) voids to block and never fires (she is not reliably crouching or airborne on
+his cue)."""
 CONSOLIDATE = """She is WINNING or STABLE. Consolidate what works: keep and sharpen the rules that are tracking good
 outcomes, and STOP ("avoid") a move that only loses her hit points. Do not pile on new defense - sharpen, do not
 sprawl."""
