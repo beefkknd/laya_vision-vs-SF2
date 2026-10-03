@@ -42,6 +42,13 @@ ROWS = [r for rs in SPLITS.values() for r in rs]
 CAT_ROWS = [r for r in ROWS if r["round"] == "cat"]
 MOVE_ROWS = [r for r in ROWS if r["round"] == "move"]
 
+# The case mix / offense balance / shortcut are STATISTICAL properties of the shipped data (built at per_char=2000).
+# Measuring them on the tiny per_char=120 structural build is under-powered and seed-noisy, so the statistical tests
+# below use a larger, representative build (still well under a second). The structural invariants keep the small one.
+BIG_SPLITS = MOD.build(per_char=400, seed=7)
+BIG_ROWS = [r for rs in BIG_SPLITS.values() for r in rs]
+BIG_CAT_ROWS = [r for r in BIG_ROWS if r["round"] == "cat"]
+
 
 # ---------------------------------------------------------------- the per-character menu
 def test_chunli_categories_equal_action_menu_exactly():
@@ -116,12 +123,48 @@ def test_block_is_always_offered_in_both_rounds():
         assert "block_high" in r["question"]["criteria"], r["id"]
 
 
-def test_condition_off_is_heavy():
-    # the lever: >= 40% of rows teach the default (block) via an off / absent / negated / empty rule
-    block_target = sum(r["rule"] == "default" for r in ROWS) / len(ROWS)
-    assert block_target >= 0.40, block_target
-    cond_off = sum(r["case"] == "condition_off" for r in ROWS) / len(ROWS)
+OFFENSE_CATS = {"punch", "kick", "special", "throw", "combo"}
+
+
+# throw lives only in the close stance and combo on only 3 of 8 fighters, so a perfectly uniform 0.20-each split is
+# not physical; punch/kick/special/throw are the broadly-available categories that must be well-balanced, while combo
+# must merely be present (not starved to zero).
+BROAD_OFFENSE = {"punch", "kick", "special", "throw"}
+
+
+def test_default_share_is_rebalanced_down_to_about_40pct():
+    # the rebalance (advice_v4): default->block is REDUCED from v3's ~66% to about 40% -- still heavy enough to
+    # keep condition_off strong, but no longer dominating and bleeding block into condition-ON offense rows.
+    block_target = sum(r["rule"] == "default" for r in BIG_ROWS) / len(BIG_ROWS)
+    assert 0.33 <= block_target <= 0.47, block_target
+    # condition_off is still a substantial share (the spam fix must not be starved)
+    cond_off = sum(r["case"] == "condition_off" for r in BIG_ROWS) / len(BIG_ROWS)
     assert cond_off >= 0.20, cond_off
+
+
+def _offense_follow_cat_rows():
+    """cat-round rows where a condition-ON OFFENSE rule was FOLLOWED (rule soft/hard, answer an offense category)."""
+    return [r for r in BIG_CAT_ROWS if r["rule"] in ("soft", "hard")
+            and len(r["answers"]) == 1 and r["answers"][0] in OFFENSE_CATS]
+
+
+def test_condition_on_offense_rows_are_well_represented():
+    # the fix for the block-bias: condition-ON offense-rule rows must be a MEANINGFUL fraction of cat rows, so the
+    # category model actually learns to pick the offense category when an offense rule applies (not default to block).
+    share = len(_offense_follow_cat_rows()) / len(BIG_CAT_ROWS)
+    assert share >= 0.30, share
+
+
+def test_offense_rules_balanced_across_offense_categories():
+    # BALANCED across the offense categories: every category is present, the four broadly-available ones are each a
+    # solid share (uniform would be 0.20), and combo -- confined to 3 fighters and one air move each -- is not starved.
+    off = _offense_follow_cat_rows()
+    counts = collections.Counter(r["answers"][0] for r in off)
+    assert set(counts) == OFFENSE_CATS, sorted(OFFENSE_CATS - set(counts))
+    total = sum(counts.values())
+    for cat in BROAD_OFFENSE:
+        assert counts[cat] / total >= 0.12, (cat, counts[cat] / total, dict(counts))
+    assert counts["combo"] / total >= 0.03, (counts["combo"] / total, dict(counts))
 
 
 # ---------------------------------------------------------------- the throw alias
@@ -150,7 +193,8 @@ def test_dataset_contains_a_followed_generic_throw_lesson():
 
 # ---------------------------------------------------------------- the shortcut (no-leakage) checks
 def test_metadata_only_predictor_is_near_chance_for_both_rounds():
-    cat_chance, cat_meta, move_chance, move_meta = MOD.shortcut_scores(SPLITS)
+    # statistical property of the shipped data -> measure on the representative build (the 120-row build is too small)
+    cat_chance, cat_meta, move_chance, move_meta = MOD.shortcut_scores(BIG_SPLITS)
     assert cat_meta <= cat_chance + 0.05, ("cat", cat_chance, cat_meta)
     assert move_meta <= move_chance + 0.05, ("move", move_chance, move_meta)
 

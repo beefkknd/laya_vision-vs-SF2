@@ -17,11 +17,11 @@ from sf2.moves_free.menu for ryu/ken/chunli, and from sf2.data.actions_free.SPEC
 the other five. char_categories("chunli") is byte-identical to action_menu.CATEGORIES (the old default), so Chun-Li's
 labels are unchanged.
 
-    .venv/bin/python scripts/build_advice_data.py                 # -> test_data/advice_v3/{train,val,test}.jsonl
+    .venv/bin/python scripts/build_advice_data.py                 # -> test_data/advice_v4/{train,val,test}.jsonl
     .venv/bin/python scripts/build_advice_data.py --per-char 2000
 
 Held-out polarity wordings (TEST_WORDS) appear ONLY in the test split, so test measures following the MEANING of a
-phrasing never trained on. Log: logs/advice/build_v3.log.
+phrasing never trained on. Log: logs/advice/build_v4.log.
 """
 import argparse
 import collections
@@ -44,8 +44,18 @@ from sf2.system1.advice import (available_moves, category_question, move_questio
                                  situation_text, stance_of, two_stage)
 from sf2.vocab import BARS, FIGHTERS, OPP_STATES, RANGES
 
-OUT = "test_data/advice_v3"
+OUT = "test_data/advice_v4"
 POSTURES = ("stand", "crouch", "air")
+# the five OFFENSE categories (move + block are defensive); the generator balances condition-ON offense rules across
+# these so the category model learns to FOLLOW the offense category when an offense rule applies, instead of defaulting
+# to block. Each offense category's (posture, forced-range) choices are the stances in which that category has moves:
+# a throw needs the close stance (stand + close range); specials are grounded; combos live in crouch/air.
+OFFENSE_CATS = ("punch", "kick", "special", "throw", "combo")
+CAT_CHOICES = {"punch": (("stand", None), ("crouch", None), ("air", None)),
+               "kick": (("stand", None), ("crouch", None), ("air", None)),
+               "special": (("stand", None), ("crouch", None)),
+               "throw": (("stand", "close"),),
+               "combo": (("crouch", None), ("air", None))}
 # moves_free carries the full prefixed menu (incl. specials + combos) for these; the other five it does not.
 FREE_MENU_CHARS = ("ryu", "ken", "chunli")
 # the _BASE normal-ish keys in actions_free.SPECIALS[char] that are NOT specials (crouch normals / sweep / throw)
@@ -115,9 +125,11 @@ HABITS = ["he jumps a lot {w}, be ready", "he crouches a lot {w}", "he attacks a
 # generic throw words a lesson may use instead of the canonical name throw_F+hp (the throw-alias, advice.throw_move)
 GENERIC_THROW = ["throw", "throw him", "grab", "grab him", "throw him down"]
 
-# Condition-off is HEAVY on purpose: condition_off + default + neg + plain all teach the DEFAULT (block). This is the
-# lever the two-fine-tune plan calls for (category model misfires when a rule's condition is off).
-CASES = {"hard": 0.10, "soft": 0.18, "fireball": 0.12, "plain": 0.08, "neg": 0.10, "default": 0.12, "condition_off": 0.30}
+# REBALANCED for advice_v4. v3 was ~66% "default -> block", which bled block into condition-ON offense cases (the
+# category model then defaulted to block even when a soft offense rule applied). Here the default (block) share is cut
+# to ~40%: still heavy enough to keep condition_off strong (the spam fix), but no longer dominating. The freed weight
+# goes to condition-ON offense rules (hard/soft), which now target the 5 offense categories balanced (see _pick_offense).
+CASES = {"hard": 0.14, "soft": 0.40, "fireball": 0.10, "plain": 0.03, "neg": 0.06, "default": 0.05, "condition_off": 0.22}
 EXPECT = {"hard": {"hard"}, "soft": {"soft"}, "neg": {"default"}, "condition_off": {"default"}, "plain": {"default"},
           "default": {"default"}, "fireball": {"hard", "soft", "default"}}
 
@@ -189,10 +201,57 @@ def _cat_and_target(rng: random.Random, cats: Dict[str, List[str]], stance: str)
     return cat, rng.choice(moves_in_stance(cat, stance, cats)), False
 
 
+def _pick_offense(rng: random.Random, cats: Dict[str, List[str]], rng_: str) -> Tuple[str, str, str, str, bool]:
+    """Balanced over the 5 OFFENSE categories: pick a category uniformly, then a posture (and, for a throw, the close
+    range) that makes it available for THIS character. Returns (category, posture, forced-range or rng_, target move,
+    generic-throw flag). Falls back to a punch/kick (always available) if a character lacks the drawn category."""
+    for _ in range(24):
+        # categories are drawn uniformly; a draw the character/stance cannot realise simply re-rolls (so non-combo
+        # characters never produce a combo). combo therefore lands lower than the others -- it exists on only 3 of the
+        # 8 fighters -- and is NOT oversampled on purpose: oversampling it concentrates ryu/ken's single air combo and
+        # lets the metadata shortcut read the move from stance=air (the close/air block dilution below is the pair fix).
+        cat = rng.choice(OFFENSE_CATS)
+        posture, forced = rng.choice(CAT_CHOICES[cat])
+        use_rng = forced if forced is not None else rng_
+        stance = stance_of(posture, use_rng)
+        pool = moves_in_stance(cat, stance, cats)
+        if pool:
+            if cat == "throw" and "throw_F+hp" in pool and rng.random() < 0.5:
+                return cat, posture, use_rng, "throw_F+hp", rng.random() < 0.6
+            return cat, posture, use_rng, rng.choice(pool), False
+    cat = "punch" if rng.random() < 0.5 else "kick"
+    posture = rng.choice(("stand", "crouch", "air"))
+    pool = moves_in_stance(cat, stance_of(posture, rng_), cats)
+    return cat, posture, rng_, rng.choice(pool), False
+
+
 def make(rng: random.Random, char: str, cats: Dict[str, List[str]], moves: List[str], case: str, hold_p: float) -> Dict:
-    """One decision for ``char`` realised as the intended ``case``: situation, stance, fireball flag, advice lines."""
+    """One decision for ``char`` realised as the intended ``case``: situation, stance, fireball flag, advice lines.
+    For condition-ON offense cases (hard/soft/fireball) the target is a BALANCED offense category 85% of the time,
+    with the remaining 15% falling back to any category so move/block stay reachable and legitimate block rules remain.
+    condition_off always names an offense move (offense phrasing, condition off -> still block: the exact spam fix)."""
     rng_, doing, my_bar, opp_bar = rand_sit(rng)
-    stance = stance_of(rng.choice(POSTURES), rng_)
+    offense_case = case in ("hard", "soft", "fireball", "condition_off")
+    use_offense = offense_case and (case == "condition_off" or rng.random() < 0.85)
+    off_target = off_generic = None
+    if use_offense:
+        _ocat, posture, rng_, off_target, off_generic = _pick_offense(rng, cats, rng_)
+        stance = stance_of(posture, rng_)
+    elif case in ("plain", "neg", "default"):
+        # a throw lives ONLY in the close stance and a combo ONLY in crouch/air, so those offense moves would be
+        # readable from the stance alone. Route the block-labelled cases to the SAME leaky stances, so block_high
+        # (the default/global answer) stays the plurality there and the metadata shortcut cannot read the move.
+        roll = rng.random()
+        if roll < 0.45:
+            rng_, stance = "close", "close"
+        elif roll < 0.75:
+            stance = "air"
+        elif roll < 0.90:
+            stance = "crouch"
+        else:
+            stance = stance_of("stand", rng_)
+    else:
+        stance = stance_of(rng.choice(POSTURES), rng_)
     avail = sorted(available_moves(stance, cats))
     if not avail:                                            # degenerate stance (no move) -> retriable
         return make(rng, char, cats, moves, case, hold_p)
@@ -205,11 +264,16 @@ def make(rng: random.Random, char: str, cats: Dict[str, List[str]], moves: List[
         tags.append(tag)
         return w
 
+    def cat_and_target():                                    # the balanced offense target when drawn, else any category
+        if use_offense:
+            return None, off_target, off_generic
+        return _cat_and_target(rng, cats, stance)
+
     if case == "plain":
         lessons = distractors(rng, moves, DEFAULT_MOVE) or [rng.choice(HABITS).format(w=rng.choice(WHERE_WORDS[rng_]))]
         fire_sit = rng.random() < 0.15
     elif case in ("hard", "soft"):
-        _cat, target, generic = _cat_and_target(rng, cats, stance)
+        _cat, target, generic = cat_and_target()
         where = rng_ if rng.random() < 0.5 else None
         when = doing if rng.random() < 0.5 else None
         lessons = [line(rng, target, case, words_of(), where=where, when=when, generic=generic)]
@@ -221,7 +285,7 @@ def make(rng: random.Random, char: str, cats: Dict[str, List[str]], moves: List[
         lessons += distractors(rng, moves, target)
         fire_sit = rng.random() < 0.15
     elif case == "fireball":                                 # a line conditioned on a fireball; present -> follow, else default
-        _cat, target, generic = _cat_and_target(rng, cats, stance)
+        _cat, target, generic = cat_and_target()
         pol = rng.choice(["soft", "hard"])
         fire_sit = rng.random() < 0.5
         where = rng_ if rng.random() < 0.4 else None
@@ -235,7 +299,7 @@ def make(rng: random.Random, char: str, cats: Dict[str, List[str]], moves: List[
         lessons += distractors(rng, moves, target)
         fire_sit = rng.random() < 0.15
     else:                                                    # condition_off: a positive line whose range/state does not hold
-        _cat, target, generic = _cat_and_target(rng, cats, stance)
+        _cat, target, generic = cat_and_target()
         pol = rng.choice(["soft", "hard"])
         where = rng.choice([x for x in RANGES if x != rng_]) if rng.random() < 0.5 else None
         when = rng.choice([x for x in OPP_STATES if x != doing]) if not where else None
@@ -356,7 +420,7 @@ def main() -> None:
     os.makedirs("logs/advice", exist_ok=True)
     allrows = [r for rs in splits.values() for r in rs]
     cat_chance, cat_meta, move_chance, move_meta = shortcut_scores(splits)
-    with open("logs/advice/build_v3.log", "w") as log:
+    with open("logs/advice/build_v4.log", "w") as log:
         def emit(s: str) -> None:
             print(s)
             log.write(s + "\n")
