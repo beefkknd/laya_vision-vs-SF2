@@ -339,10 +339,21 @@ CONSOLIDATE = """She is WINNING or STABLE. Consolidate what works: keep and shar
 outcomes, and STOP ("avoid") a move that only loses her hit points. Do not pile on new defense - sharpen, do not
 sprawl."""
 ESCALATE = """She is LOSING, and she is losing by turtling - blocking and backing off. You are FORBIDDEN from proposing
-a block or any other defensive move ({defensive}) as the ANSWER; "block more" is not an answer here. Find OFFENSE she
-has not leaned on: an approach to close distance, an anti-air when he jumps, a punish when he is stunned or recovering,
-or a creative combination. She has ALREADY TRIED these moves - pick something she is NOT already leaning on, or a new
-situation for one of them: {tried}. The STOP side should drop a defensive habit she overuses."""
+a block or any other defensive move ({defensive}) as the ANSWER; "block more" is not an answer here.
+
+Give her OFFENSE that applies in COMMON situations - the ones that happen every round - so the rule FIRES OFTEN. A rule
+keyed on a rare or narrow moment almost never fires and she falls back to block. Prefer a condition that is range-only
+or a common state of his (he attacks, he stands), NOT a rare one. Good, broad shapes:
+- a baseline poke or approach at mid range to control space and close the distance (range-only is fine),
+- a punish when he attacks - hit him out of or right after his attack,
+- an anti-air when he jumps that she can do while GROUNDED: an uppercut / Shoryuken (e.g. shoryuken_hp for Ryu/Ken), a
+  standing or crouching heavy, or Chun-Li's spinning_bird_kick or lightning_legs.
+Do NOT propose a jump attack (a "j." or "jf." move) as an answer: those need her to ALREADY be airborne, but the "when"
+is about HIS state, so she can almost never be in the air on his cue - she would fall back to block. For an anti-air,
+name a GROUNDED move, not a jump attack.
+
+She has ALREADY TRIED these moves - pick one she is NOT leaning on, or a common new situation for one of them: {tried}.
+The STOP side should drop a defensive habit she overuses."""
 
 
 def coach_mode(digest: Dict) -> str:
@@ -369,18 +380,35 @@ def strategize_messages(me: str, opp: str, reg: L.Registry, digest: Dict, moves:
     return [{"role": "system", "content": system}, {"role": "user", "content": "\n\n".join(parts)}]
 
 
+# Jump-attack prefixes (air stance, sf2.system1.advice.STANCE_PREFIXES["air"]): she must already be airborne to use one.
+JUMP_PREFIXES = ("j.", "jf.")
+
+
+def _is_jump_attack(move) -> bool:
+    """A jump attack (an air normal: "j.*" / "jf.*"). The lesson grammar's "when" names what HE is doing (jumping,
+    attacking, ...), never that SHE is airborne, so a jump attack keyed on his state/range can almost never be done on
+    cue (she is grounded when she decides) - it is stance-invalid and she falls back to block."""
+    return isinstance(move, str) and move.startswith(JUMP_PREFIXES)
+
+
 def coach_filter(claims: Sequence[Dict], mode: str) -> Tuple[List[Dict], List[str]]:
-    """Mechanically enforce the escalate rule the prompt states: when she is losing by turtling, a new DEFENSIVE
-    "use more"/"always" answer is dropped (she is already losing by blocking). "avoid" of a defensive move is kept (it
-    removes defense). Returns (kept claims, dropped-reason strings). In consolidate mode nothing is dropped."""
-    if mode != "escalate":
-        return list(claims), []
+    """Mechanically enforce stance validity and the escalate rule. Returns (kept claims, dropped-reason strings); the
+    reasons are logged in the trace (scripts/play_loop_screen.py folds them into ``problems``).
+    [SCRIPT] STANCE (both modes): a JUMP attack ("j."/"jf.*") is DROPPED - her lessons are keyed on his state/range,
+    never on her own being airborne, so she cannot reliably be in the air to use it (prefer a grounded anti-air).
+    [SCRIPT] ESCALATE: when she is losing by turtling, a new DEFENSIVE "use more"/"always" answer is dropped (she is
+    already losing by blocking); an "avoid" of a defensive move is kept (it removes defense). Consolidate keeps blocks.
+    (A move not in char_menu_moves(me) is refused downstream in lessons.propose - left there, not duplicated here.)"""
     kept, dropped = [], []
     for c in claims:
-        if c.get("kind") in ("use_more", "always") and c.get("move") in DEFENSIVE:
+        if _is_jump_attack(c.get("move")):
+            dropped.append("stance: %s is a jump attack - she must be airborne, but the lesson is keyed on his "
+                           "state/range, so she cannot do it on cue (use a grounded move instead)" % c.get("move"))
+            continue
+        if mode == "escalate" and c.get("kind") in ("use_more", "always") and c.get("move") in DEFENSIVE:
             dropped.append("escalate: she is losing by blocking, a new defensive answer (%s) is forbidden" % c.get("move"))
-        else:
-            kept.append(c)
+            continue
+        kept.append(c)
     return kept, dropped
 
 

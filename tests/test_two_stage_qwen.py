@@ -120,6 +120,40 @@ def test_stage2_answer_grammar_is_the_same_json_parse_claims_reads():
     assert claims and claims[0]["view"] == "answer" and not problems
 
 
+def test_stage2_escalate_prompt_asks_for_common_grounded_offense():
+    """BROADEN: the escalate prompt tells the Coach to propose offense for COMMON situations, that FIRES OFTEN, a
+    GROUNDED anti-air (not a jump attack). Seen RED: the old ESCALATE text asked only for narrow offense ("an anti-air
+    when he jumps") and named none of these strings, so each assert fails against the pre-change prompt."""
+    losing = C.digest_facts(ME, OPP, [], turtling_game(), turtling_game(), [], [], [-120.0], [{"won": 0, "lost": 2}])
+    esc = C.strategize_messages(ME, OPP, [], losing, C.lesson_moves(["sweep", "c.mk", "block_low"]))[0]["content"]
+    assert "COMMON situations" in esc and "FIRES OFTEN" in esc            # broad, common conditions - not rare/narrow
+    assert "GROUNDED" in esc and "jump attack" in esc                    # grounded anti-air; no jump attack on his cue
+    assert "range-only" in esc                                           # prefer range-only / common-state rules
+
+
+def test_stage2_coach_filter_drops_stance_invalid_jump_attacks():
+    """STANCE guard: a jump attack ("j."/"jf.") keyed on HIS state is stance-invalid (she can't be airborne on cue) and
+    is DROPPED with a logged reason; a GROUNDED anti-air (shoryuken_hp when he jumps), a grounded special
+    (spinning_bird_kick when he stands) and a range-only poke (c.mk at mid) all pass. Seen RED: before this change
+    coach_filter had no stance check, so j.hp/jf.hk were KEPT (the assert that they are absent fails)."""
+    jump_air = {"view": "answer", "kind": "use_more", "move": "j.hp", "range": None, "when": "jumping"}
+    jump_fwd = {"view": "answer", "kind": "use_more", "move": "jf.hk", "range": None, "when": "jumping"}
+    grounded_aa = {"view": "answer", "kind": "use_more", "move": "shoryuken_hp", "range": "close", "when": "jumping"}
+    grounded_sp = {"view": "answer", "kind": "use_more", "move": "spinning_bird_kick", "range": "mid",
+                   "when": "standing"}
+    poke = {"view": "answer", "kind": "use_more", "move": "c.mk", "range": "mid", "when": "standing"}
+
+    kept, dropped = C.coach_filter([jump_air, jump_fwd, grounded_aa, grounded_sp, poke], "escalate")
+    moves = [c["move"] for c in kept]
+    assert "j.hp" not in moves and "jf.hk" not in moves                  # stance-invalid jump attacks dropped
+    assert moves == ["shoryuken_hp", "spinning_bird_kick", "c.mk"]       # grounded offense + range-only poke kept
+    assert len(dropped) == 2 and all("stance" in r and "jump attack" in r for r in dropped)  # reason logged for trace
+
+    # the stance guard fires in consolidate mode too (a jump attack is invalid regardless of the trend)
+    kept2, dropped2 = C.coach_filter([jump_air, poke], "consolidate")
+    assert [c["move"] for c in kept2] == ["c.mk"] and len(dropped2) == 1
+
+
 # --------------------------------------------------------------- the churn fix (lessons.py, independent of the split)
 def good_rows():
     """Up close when he attacks: block_low nets -4 (better than her ~-10 average), sweep -18."""
