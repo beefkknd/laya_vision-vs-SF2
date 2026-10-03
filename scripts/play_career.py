@@ -77,6 +77,13 @@ def needs_intervention(results, window=3):
     return len(results) >= window and all(r == "loss" for r in results[-window:])
 
 
+def loss_window(n_rules, early=2, late=3, stage_rules=2):
+    """How many straight losses force a new rule, by STAGE (owner): EARLY stage (short memory still thin,
+    fewer than `stage_rules` rules) explores aggressively at `early` losses; LATER stage (an established
+    playbook) is more patient at `late`. n_rules = rules currently in play."""
+    return early if n_rules < stage_rules else late
+
+
 def pick_forced_rule(in_play_lines, rotate):
     """The next exploration-pool rule NOT already in play (rotating). None only if the pool is exhausted."""
     in_play = set(in_play_lines)
@@ -153,7 +160,9 @@ def main():
     ap.add_argument("--opps", default=None, help="comma list; default = every fighter except --me")
     ap.add_argument("--block", type=int, default=4, help="matches per block (a loss just replays next match)")
     ap.add_argument("--rounds", type=int, default=3, help="rounds per match (a match is best-of-3 = 2-3 rounds)")
-    ap.add_argument("--loss-trigger", type=int, default=3, help="consecutive round losses that force a strategy change")
+    ap.add_argument("--loss-trigger", type=int, default=3, help="LATER-stage straight losses that force a new rule")
+    ap.add_argument("--loss-trigger-early", type=int, default=2, help="EARLY-stage (thin memory) straight losses that force a new rule")
+    ap.add_argument("--stage-rules", type=int, default=2, help="fewer than this many in-play rules = EARLY stage")
     ap.add_argument("--win-target", type=float, default=0.60, help="recent win-rate that counts as BEATEN")
     ap.add_argument("--cap", type=int, default=6, help="max blocks on one opponent before moving on anyway")
     ap.add_argument("--laps", type=int, default=0, help="times through the ladder; 0 = forever (Ctrl-C)")
@@ -221,21 +230,24 @@ def main():
                     print("  vs %-8s block %d: win-rate %s  (%s)"
                           % (opp, b, ("%.0f%%" % (100 * wr)) if wr is not None else "n/a", os.path.basename(out)))
 
-                    # FORCED STRATEGY CHANGE: losing N rounds straight across turns with no payoff is
+                    # FORCED STRATEGY CHANGE: losing straight rounds across turns with no payoff is
                     # meaningless repetition -> inject a fresh offensive rule so her behaviour must change.
+                    # The window ADAPTS by stage: aggressive while her memory is thin, patient once set.
                     streak += round_results(out)
-                    if needs_intervention(streak, args.loss_trigger):
-                        try:
-                            entries = json.load(open(save_reg)) if os.path.exists(save_reg) else []
-                        except (OSError, ValueError):
-                            entries = []
+                    try:
+                        entries = json.load(open(save_reg)) if os.path.exists(save_reg) else []
+                    except (OSError, ValueError):
+                        entries = []
+                    window = loss_window(len(entries), args.loss_trigger_early, args.loss_trigger, args.stage_rules)
+                    if needs_intervention(streak, window):
+                        stage = "EARLY" if len(entries) < args.stage_rules else "LATER"
                         line = pick_forced_rule([e.get("line") for e in entries], rotate)
                         rotate += 1
                         if line:
                             entries = list(entries) + carry_entries([line], moves)
                             json.dump(entries, open(save_reg, "w"), indent=1)
-                            print("  !! %d straight round losses -> FORCED strategy change: + %r"
-                                  % (args.loss_trigger, line))
+                            print("  !! %d straight round losses (%s stage, %d rules) -> FORCED new rule: + %r"
+                                  % (window, stage, len(entries) - 1, line))
                         streak = []          # give the new strategy a clean window before triggering again
 
                     if wr is not None and wr >= args.win_target:

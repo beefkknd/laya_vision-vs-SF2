@@ -59,6 +59,15 @@ def test_needs_intervention_on_three_straight():
     assert C.needs_intervention(["loss", "loss"], window=2) is True              # window is configurable
 
 
+def test_loss_window_adapts_by_stage():
+    # EARLY stage (thin memory, < stage_rules in play): explore aggressively at 2 losses
+    assert C.loss_window(0, early=2, late=3, stage_rules=2) == 2
+    assert C.loss_window(1, early=2, late=3, stage_rules=2) == 2
+    # LATER stage (an established playbook): be patient, 3 losses
+    assert C.loss_window(2, early=2, late=3, stage_rules=2) == 3
+    assert C.loss_window(5, early=2, late=3, stage_rules=2) == 3
+
+
 def test_pick_forced_rule_skips_rules_already_in_play():
     first = C.EXPLORE_POOL[0]
     # with the first pool rule already in play, it must pick a DIFFERENT one
