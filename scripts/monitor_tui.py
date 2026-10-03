@@ -166,7 +166,7 @@ def _qwen_panel(m: T.DashboardModel) -> Panel:
         rows.add_row(Text("...thinking... (reflecting before the next game)",
                           style="bold yellow blink"))
         rows.add_row(Text(""))
-    recent = m.qwen[-4:]
+    recent = m.qwen[-8:]
     if not recent:
         rows.add_row(Text("(no qwen activity yet)", style="dim"))
     for qv in recent:
@@ -257,16 +257,17 @@ def render(m: T.DashboardModel, frame: int = 0, with_footer: bool = True) -> Lay
     """Single-run view. with_footer adds the TREND + DATA FLOW row; the session view sets it False and
     supplies its own career-wide trend and flow instead (so they are not duplicated)."""
     top = Layout()
-    top.split_row(Layout(name="left", ratio=3), Layout(name="right", ratio=2))
+    # wider right column, and SHORT MEMORY is the dominant panel there so more rules show at once
+    top.split_row(Layout(name="left", ratio=1), Layout(name="right", ratio=1))
     top["left"].update(_left_panel(m))
     top["right"].split_column(
-        Layout(_memory_panel(m), name="mem", ratio=1),
+        Layout(_memory_panel(m), name="mem", ratio=3),
         Layout(_qwen_panel(m), name="qwen", ratio=2),
     )
     if not with_footer:
         return top
     layout = Layout()
-    layout.split_column(Layout(top, name="top", ratio=4), Layout(name="bottom", ratio=1))
+    layout.split_column(Layout(top, name="top", ratio=5), Layout(name="bottom", ratio=1))
     layout["bottom"].split_row(
         Layout(_trend_panel(m), name="trend", ratio=2),
         Layout(_pipeline_panel(m.qwen_thinking, frame), name="flow", ratio=3),
