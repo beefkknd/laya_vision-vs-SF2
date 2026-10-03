@@ -24,6 +24,15 @@ laya. For text laya there is nothing to fall back to: the Mac is the only option
 Keeps laya general: category is fully character-agnostic; move learns the pattern across every moveset, not one
 character. A new character needs no category retrain and only its move names added to round 2.
 
+## Default lives in the checkpoint, not in code (owner 2026-10-02)
+The model owns the default. When no rule applies (condition off), the TRAINING TARGET is block (category=block,
+move=block_high) - so the model LEARNS to block, it is not forced by code. Remove the hardcoded default override from
+the runner (loop_runner.two_stage_decide); the model's pick stands. One safety nuance kept: block is always an OFFERED
+option (block category always on the round-1 menu, block_high always in round 2), so the model can always choose it -
+that is making the safe move available, not overriding the model. Text laya scores over the offered options, so it can
+only ever output a valid move (no crash risk). Benefit: follows_rule and the condition_off score then reflect the
+MODEL, not a code floor - which is exactly what we gate on.
+
 ## The real fix: condition-off data (category model)
 The smoke failed because the category model follows a rule whose condition is OFF. So the category data must be HEAVY
 on condition-off negatives: advice says "lightning_legs when he stands" but he is attacking / at far / jumping -> the
@@ -44,9 +53,9 @@ every category and condition (range, his state, fireball). This is the lever; wi
 - [ ] **T4. Train MOVE model on the Mac (MLX)** -> runs/text_laya/move_v1 (one run from base). GATE: move acc within
       category; per-character coverage (every moveset represented); default-to-block correct. (Round 2 is easy - this
       run is small/fast.)
-- [ ] **T5. Wire the runner** (loop_runner.two_stage_decide) to call cat_v1 for round 1 and move_v1 for round 2; the
-      shared text-laya server hosts both checkpoints (or two servers). advice_v2 kept for comparison. Hard gate stays
-      clean (no table/RAM in play). Tests updated.
+- [ ] **T5. Wire the runner** (loop_runner.two_stage_decide) to call cat_v1 for round 1 and move_v1 for round 2;
+      shared server hosts both (or two servers). **Remove the hardcoded default override; keep block always-offered.**
+      advice_v2 kept for comparison. Hard gate stays clean (no table/RAM in play). Tests updated.
 - [ ] **T6. Validate.** Held-out eval of both models (report by round, case, wording, character, condition on/off).
       Then a live re-smoke Chun-Li vs Honda (Qwen on): she must STOP spamming one move - blocks/defaults when a rule's
       condition is off, deals damage when it applies. Compare with the advice_v2 smoke (0 dealt, 170 taken).
