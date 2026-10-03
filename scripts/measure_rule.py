@@ -23,6 +23,7 @@ Examples:
     "use more c.mk far away when he jumps" --dev 0-11
 """
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -66,7 +67,8 @@ def build_carries(opp, me, rules, add):
     moves = char_menu_moves(me)
     base = list(seed_rules.seed_lessons(BOOK, opp, me))
     cand = (list(base) if add else []) + [_entry(claim_of(r, moves)) for r in rules]
-    d = os.path.join(OUT, "%s_%s" % (me, opp))
+    tag = hashlib.sha1((("add:" if add else "repl:") + ";".join(rules)).encode()).hexdigest()[:8]  # per-candidate dir (no overwrite)
+    d = os.path.join(OUT, "%s_%s_%s" % (me, opp, tag))
     os.makedirs(d, exist_ok=True)
     bp, cp = os.path.join(d, "baseline.json"), os.path.join(d, "candidate.json")
     json.dump(base, open(bp, "w"), indent=1)

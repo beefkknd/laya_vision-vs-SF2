@@ -109,7 +109,13 @@ def two_stage_decide(cat_advisor, move_advisor, me: str, m: Moment, lines: Seque
     lessons = [read_lesson(t, menu_moves) for t in lines]
     cats, move_answers, rule = two_stage(rng, doing, stance, lessons, m.fireball, categories)
 
-    text = prompt(sentence(m), list(lines))
+    # Oracle routing (docs/blockages.md B1): show the CATEGORY/MOVE models ONLY the rules that apply to THIS moment.
+    # A range-only applicable positive rule is suppressed to `block` when a non-applicable positive rule is also in the
+    # prompt (confirmed offline on cat_v3: ['throw up close'] -> throw 0.97, but + 'c.mk at mid' -> block 1.00).
+    # Filtering to applicable-only removes the distractor so the model follows; two_stage already ignores the
+    # non-applicable rules, so the oracle answer (cats/move_answers/rule) is unchanged.
+    prompt_lines = [t for t, lsn in zip(lines, lessons) if lsn.applies(rng, doing, m.fireball)]
+    text = prompt(sentence(m), prompt_lines)
     cat_probs = cat_advisor.ask(text, category_question())          # round 1: the CATEGORY model (block always offered)
     category = max(cat_probs, key=cat_probs.get)                    # the model's category pick STANDS (no code floor)
     options = list(moves_in_stance(category, stance, categories))
@@ -120,7 +126,7 @@ def two_stage_decide(cat_advisor, move_advisor, me: str, m: Moment, lines: Seque
     return {"action": pick, "category": category, "cat_probs": cat_probs, "move_options": list(options),
             "move_probs": move_probs, "rule": rule, "rule_cats": cats, "rule_answers": move_answers,
             "follows_rule": pick in move_answers, "follows_cat": category in cats,
-            "advice_text": advice_text(list(lines)), "lines": list(lines)}
+            "advice_text": advice_text(list(lines)), "lines": list(lines), "prompt_lines": prompt_lines}
 
 
 def _jsonable(o):

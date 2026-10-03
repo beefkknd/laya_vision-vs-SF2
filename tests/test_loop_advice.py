@@ -61,3 +61,28 @@ def test_retire_signal_removes_a_rule_and_the_move_changes_back():
     assert any(r["state"] == "retired" and r["line"] == line for r in reg)
     back = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m, L.in_play(reg))
     assert back["action"] == DEFAULT_MOVE and back["rule"] == "default"
+
+
+def test_oracle_routing_hides_non_applicable_rules_from_the_prompt():
+    """docs/blockages.md B1: a non-applicable positive rule in the prompt suppressed a range-only applicable rule to
+    `block` on cat_v3 ('throw up close' -> throw 0.97, but + 'c.mk at mid' -> block 1.00). two_stage_decide now shows
+    the CATEGORY/MOVE models ONLY the rules that apply to this moment (oracle routing). Seen RED before the fix: there
+    was no `prompt_lines` key and both lines went into the prompt (`prompt(sentence(m), list(lines))`)."""
+    m = make_moment(dx=36, doing="standing")                       # up close
+    applicable = "use more throw_F+hp up close"                    # applies here
+    non_applicable = "use more c.mk at mid range"                  # mid-only -> does NOT apply up close
+    d = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m,
+                         [applicable, non_applicable])
+    assert d["prompt_lines"] == [applicable]                       # the non-applicable rule is filtered from the prompt
+    assert d["lines"] == [applicable, non_applicable]              # but both stay in the in-play record
+    assert d["action"] == "throw_F+hp" and d["follows_rule"]       # she follows the applicable rule
+
+
+def test_oracle_routing_keeps_all_applicable_rules():
+    """When several rules DO apply, routing keeps them all (it filters only the non-applicable)."""
+    m = make_moment(dx=36, doing="attacking")                      # up close, he attacks
+    a1 = "use more throw_F+hp up close when he attacks"            # applies
+    a2 = "use more block_low up close"                             # range-only, applies up close
+    far = "use more c.mk far away when he jumps"                   # neither range nor state holds -> filtered
+    d = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m, [a1, a2, far])
+    assert set(d["prompt_lines"]) == {a1, a2} and far not in d["prompt_lines"]
