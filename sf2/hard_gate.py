@@ -27,7 +27,8 @@ TABLE, RAM, TESTING, GATE = "TABLE", "RAM", "TESTING", "GATE"
 
 # The play runners. Add the Qwen loop runner (README M1/G1) here the day it exists.
 ENTRY_POINTS: Tuple[str, ...] = (
-    "scripts/play_screen.py",   # screen-only play (S0): the current real runner
+    "scripts/play_screen.py",        # screen-only play (S0): the reader harness (table-in-play arm, RED - README M1)
+    "sf2/system1/loop_runner.py",    # the Qwen-in-loop screen runner (README M1/G3): two-stage text laya, no table/RAM
 )
 EXTRA_ROOTS: Tuple[str, ...] = (
     "sf2/screen",               # the screen reader: real code whether or not a runner imports it yet
@@ -151,6 +152,11 @@ LUA_RULES = (
 # Reviewed exceptions: (path, rule id) -> reason.
 ALLOW: Dict[Tuple[str, str], str] = {
     ("sf2/system1/screen_emu.py", "ram-attr:rams"): "guard: raises RamForbidden if the bridge ever sends RAM rows",
+    # advice.opp_doing reads a game-log row's opp_air/opp_state. It is called ONLY by System 2 (sf2.system2.lessons,
+    # character_prompt) between games, never on the screen decision path: the runner reads what he is doing from
+    # sf2.system1.screen_words.Moment.doing (the reader's sprite label), not from a RAM row. Reviewed false positive.
+    ("sf2/system1/advice.py", "ram-key:opp_air"): "opp_doing: System-2-only game-log reader, never in screen play",
+    ("sf2/system1/advice.py", "ram-key:opp_state"): "opp_doing: System-2-only game-log reader, never in screen play",
 }
 
 
