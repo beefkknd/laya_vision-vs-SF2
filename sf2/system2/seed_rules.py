@@ -27,7 +27,6 @@ import sys
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..system1 import advice as A
-from ..system1.system1 import choices
 from . import lessons as L
 
 log = logging.getLogger(__name__)
@@ -47,9 +46,25 @@ def _claim_from_line(line: str, moves: Sequence[str]) -> Optional[Dict]:
     return {"kind": POLARITY_KIND[les.polarity], "move": les.move, "range": les.where, "when": les.when}
 
 
+def _reads_as(got: Dict, stored: Dict, moves: Sequence[str]) -> bool:
+    """Does the play-parser's reading ``got`` agree with the book's stored claim? Exact on every field, with one
+    accepted reconciliation: the book may store the generic throw word ("throw"/"grab") where the play parser
+    canonicalizes it to the menu's concrete throw move (advice.throw_move) - the throw alias (advice.THROW_WORD, owner
+    2026-10-02). That one substitution names the SAME move System 1 follows, so it is not a drift; any other
+    disagreement (a different move, kind, range or condition) is."""
+    if L.key(got) == L.key(stored):
+        return True
+    sm = stored.get("move")
+    return bool(isinstance(sm, str) and A.THROW_WORD.fullmatch(sm) and got["move"] == A.throw_move(moves)
+                and got["kind"] == stored["kind"]
+                and got.get("range") == stored.get("range") and got.get("when") == stored.get("when"))
+
+
 def validate_tip(tip: Dict, moves: Sequence[str]) -> Tuple[bool, str]:
-    """Is a book tip admissible? (ok, reason-if-dropped). It must render from its stored claim AND parse back to the
-    same claim via advice.read, so text laya reads it as System 2 wrote it."""
+    """Is a book tip admissible? (ok, reason-if-dropped). It must render from its stored claim AND parse back - via
+    advice.read against the SAME two-stage move menu text laya reads at play time (``moves`` = char_menu_moves(me)) -
+    to the move System 1 would actually follow, so text laya reads it as System 2 wrote it. The book's generic throw
+    word reconciles to the menu's concrete throw move (see ``_reads_as``)."""
     line, stored = tip.get("line"), tip.get("claim")
     if not isinstance(line, str) or not isinstance(stored, dict):
         return False, "tip has no line/claim"
@@ -62,7 +77,7 @@ def validate_tip(tip: Dict, moves: Sequence[str]) -> Tuple[bool, str]:
     got = _claim_from_line(line, moves)
     if got is None:
         return False, "advice.read parses no followable move in %r" % line
-    if L.key(got) != L.key(stored):
+    if not _reads_as(got, stored, moves):
         return False, "advice.read reads %r as %r, not the stored claim %r" % (line, got, stored)
     return True, ""
 
@@ -84,7 +99,10 @@ def seed_lessons(path: str, opp: str, me: Optional[str] = None, game: int = -1) 
     """One opponent's verified book lines as starting registry entries (tagged "web"); [] when the opponent is not in
     the book. Each line is validated; a line that no longer parses is dropped with a logged reason."""
     doc, sha = load_book(path)
-    moves = choices(me or doc.get("me", DEFAULT_ME))
+    # Validate against the character's full two-stage MOVE MENU - the exact names text laya chooses from at play time
+    # (char_menu_moves(me), incl. hadoken_hp / shoryuken_hp / throw_F+hp) - NOT the Stage-1 action vocabulary
+    # (system1.choices), which lacks the two-stage names and carries a bare "hp" that misreads "throw_F+hp" as "hp".
+    moves = A.char_menu_moves(me or doc.get("me", DEFAULT_ME))
     tips = doc.get("opponents", {}).get(opp, {}).get("lines", [])     # verified only; not_verified never read
     good = []
     for t in tips:
