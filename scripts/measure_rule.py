@@ -34,33 +34,15 @@ from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sf2.config import REPO  # noqa: E402
-from sf2.system1.advice import char_menu_moves, parse  # noqa: E402
+from sf2.system1.advice import char_menu_moves  # noqa: E402
 from sf2.system2 import lessons as L, seed_rules  # noqa: E402
+from sf2.system2.rule_entry import claim_of, entry as _entry  # noqa: E402  (shared carry shape)
 
 PY = os.path.join(REPO, ".venv", "bin", "python")
 ROM = os.environ.get("SF2_ROM") or os.path.join(REPO, "roms", "Street Fighter II (USA).sfc")
 OUT = os.path.join(REPO, "out", "measure")
 PORTS = list(range(48901, 48917))
 BOOK = os.path.join("lessons", "book.json")
-
-
-def _entry(claim):
-    return {"claim": {k: claim.get(k) for k in ("kind", "move", "range", "when", "view")},
-            "line": L.render(claim), "state": "verified", "why": "measured candidate", "since": -1,
-            "evidence": {}, "qwen_why": ""}
-
-
-POL2KIND = {"soft": "use_more", "hard": "always", "neg": "avoid"}
-
-
-def claim_of(line, moves):
-    """A raw advice-grammar line ('use more c.mk far away when he jumps') -> a claim dict, via advice.parse.
-    advice.parse returns a Lesson(text, move, polarity, where, when, fireball); polarity 'none' / move None means an
-    unfollowable line (e.g. the raw 'forward' token - use 'walk_forward' instead)."""
-    lsn = parse(line, moves)
-    if lsn is None or lsn.move is None or lsn.polarity == "none":
-        raise SystemExit("advice line not followable (no move / unfollowable token): %r -> %r" % (line, lsn))
-    return {"kind": POL2KIND[lsn.polarity], "move": lsn.move, "range": lsn.where, "when": lsn.when, "view": None}
 
 
 def build_carries(opp, me, rules, add):
