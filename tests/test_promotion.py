@@ -11,7 +11,7 @@ Fixtures are the real step-B measurements (provenance: out/measure run ba500pefp
   HONDA rewrite    DEV delta  -3.2 CI[ -93.5,+87.2] wins 7/12     -> keep (inconclusive, CI spans 0)
   KEN seeded-red   DEV delta -68.7 CI[-104.2,-33.2] wins 0/12 fires ~0 -> keep (never fired, not ceiling)
 """
-from sf2.system2.promotion import BlockStat, Cfg, decide
+from sf2.system2.promotion import BlockStat, Cfg, decide, warrants_held
 
 
 def _ken_dev_win(**kw):
@@ -95,6 +95,22 @@ def test_rejects_ci_not_bracketing_delta():
     import pytest
     with pytest.raises(ValueError):
         decide(BlockStat(delta=72.7, lo=80.0, hi=112.3, cand_wins=11, n=12, fire_rate=0.9, follows=0.9), None)
+
+
+# --- warrants_held gates the EXPENSIVE held-out run: only when dev would otherwise promote ---
+def test_warrants_held_true_only_when_dev_passes_fire_and_significance():
+    assert warrants_held(_ken_dev_win()) is True
+    # below fire floor: don't spend held-out games
+    assert warrants_held(_ken_dev_win(fire_rate=0.2)) is False
+    # dev not significantly better: don't spend held-out games
+    assert warrants_held(_ken_dev_win(delta=-10.0, lo=-50.0, hi=30.0)) is False
+
+
+def test_decide_agrees_with_warrants_held():
+    # if warrants_held is False, decide keeps regardless of a (hypothetical) held block
+    dev = _ken_dev_win(fire_rate=0.2)
+    assert warrants_held(dev) is False
+    assert decide(dev, _ken_dev_win()).verdict == "keep"
 
 
 # --- INVARIANT: the decision core stays PURE (no games/IO/Qwen leak into it) ---

@@ -70,6 +70,14 @@ def _ceiling(b, cfg):
             and b.cand_wins <= int(cfg.ceiling_win_frac * b.n) and b.delta <= 0)
 
 
+def warrants_held(dev, cfg=Cfg()):
+    """Would dev alone justify spending the (expensive) fresh held-out block? True iff the candidate
+    clears the fire floor AND is significantly better on dev. Single-sources the gate decide() uses,
+    so the loop never re-implements it."""
+    _validate(dev)
+    return dev.fire_rate >= cfg.min_fire and _sig_better(dev)
+
+
 def decide(dev, held, cfg=Cfg()):
     """dev: BlockStat for the dev block. held: BlockStat for a FRESH held-out block, or None.
     Returns a Decision. Promotes only on dev-significant AND held-replicated, above the fire floor."""
