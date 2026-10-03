@@ -1,0 +1,608 @@
+{
+ "made_by": "hand seed ryu 2026-10-03",
+ "me": "ryu",
+ "opponents": {
+  "ken": {
+   "batch": "handseed",
+   "lines": [
+    {
+     "line": "use more hadoken_hp far away when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "hadoken_hp",
+      "range": "far",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more shoryuken_hp up close when he jumps",
+     "claim": {
+      "kind": "use_more",
+      "move": "shoryuken_hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more throw_F+hp up close when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "throw_F+hp",
+      "range": "close",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    }
+   ],
+   "not_verified": []
+  },
+  "honda": {
+   "batch": "handseed",
+   "lines": [
+    {
+     "line": "use more hadoken_hp far away when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "hadoken_hp",
+      "range": "far",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more shoryuken_hp up close when he jumps",
+     "claim": {
+      "kind": "use_more",
+      "move": "shoryuken_hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more throw_F+hp up close when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "throw_F+hp",
+      "range": "close",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    }
+   ],
+   "not_verified": []
+  },
+  "dhalsim": {
+   "batch": "handseed",
+   "lines": [
+    {
+     "line": "use more hadoken_hp far away when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "hadoken_hp",
+      "range": "far",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more shoryuken_hp up close when he jumps",
+     "claim": {
+      "kind": "use_more",
+      "move": "shoryuken_hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more throw_F+hp up close when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "throw_F+hp",
+      "range": "close",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    }
+   ],
+   "not_verified": []
+  },
+  "guile": {
+   "batch": "handseed",
+   "lines": [
+    {
+     "line": "use more hadoken_hp far away when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "hadoken_hp",
+      "range": "far",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more shoryuken_hp up close when he jumps",
+     "claim": {
+      "kind": "use_more",
+      "move": "shoryuken_hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more throw_F+hp up close when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "throw_F+hp",
+      "range": "close",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    }
+   ],
+   "not_verified": []
+  },
+  "blanka": {
+   "batch": "handseed",
+   "lines": [
+    {
+     "line": "use more hadoken_hp far away when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "hadoken_hp",
+      "range": "far",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more shoryuken_hp up close when he jumps",
+     "claim": {
+      "kind": "use_more",
+      "move": "shoryuken_hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more throw_F+hp up close when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "throw_F+hp",
+      "range": "close",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    }
+   ],
+   "not_verified": []
+  },
+  "zangief": {
+   "batch": "handseed",
+   "lines": [
+    {
+     "line": "use more hadoken_hp far away when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "hadoken_hp",
+      "range": "far",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more shoryuken_hp up close when he jumps",
+     "claim": {
+      "kind": "use_more",
+      "move": "shoryuken_hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more throw_F+hp up close when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "throw_F+hp",
+      "range": "close",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    }
+   ],
+   "not_verified": []
+  },
+  "chunli": {
+   "batch": "handseed",
+   "lines": [
+    {
+     "line": "use more hadoken_hp far away when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "hadoken_hp",
+      "range": "far",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more shoryuken_hp up close when he jumps",
+     "claim": {
+      "kind": "use_more",
+      "move": "shoryuken_hp",
+      "range": "close",
+      "when": "jumping"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more throw_F+hp up close when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "throw_F+hp",
+      "range": "close",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    },
+    {
+     "line": "use more c.mk at mid range when he stands",
+     "claim": {
+      "kind": "use_more",
+      "move": "c.mk",
+      "range": "mid",
+      "when": "standing"
+     },
+     "arm": "handseed",
+     "mean": 20.0,
+     "ci95": [
+      5.0,
+      35.0
+     ],
+     "runs": 1,
+     "seeds": [
+      1
+     ],
+     "batch": "handseed"
+    }
+   ],
+   "not_verified": []
+  }
+ }
+}
