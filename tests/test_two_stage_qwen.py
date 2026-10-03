@@ -131,27 +131,30 @@ def test_stage2_escalate_prompt_asks_for_common_grounded_offense():
     assert "range-only" in esc                                           # prefer range-only / common-state rules
 
 
-def test_stage2_coach_filter_drops_stance_invalid_jump_attacks():
-    """STANCE guard: a jump attack ("j."/"jf.") keyed on HIS state is stance-invalid (she can't be airborne on cue) and
-    is DROPPED with a logged reason; a GROUNDED anti-air (shoryuken_hp when he jumps), a grounded special
-    (spinning_bird_kick when he stands) and a range-only poke (c.mk at mid) all pass. Seen RED: before this change
-    coach_filter had no stance check, so j.hp/jf.hk were KEPT (the assert that they are absent fails)."""
+def test_stage2_coach_filter_drops_stance_unreliable_moves():
+    """STANCE guard: a move whose stance she cannot reliably be in ON HIS CUE is DROPPED - jump attacks ("j."/"jf.",
+    she can't be airborne) AND crouch normals ("c.*", she is not reliably crouching when a lesson keyed on his
+    state/range fires; verified in play - "c.mk at mid when he stands" voided to block, 0 fires in 149 mid/standing
+    decisions). A GROUNDED anti-air (shoryuken_hp), a grounded special (spinning_bird_kick) and a STANDING poke (s.mk)
+    pass. Seen RED: the old guard kept c.mk (asserted c.mk in kept), which this change now drops."""
     jump_air = {"view": "answer", "kind": "use_more", "move": "j.hp", "range": None, "when": "jumping"}
     jump_fwd = {"view": "answer", "kind": "use_more", "move": "jf.hk", "range": None, "when": "jumping"}
     grounded_aa = {"view": "answer", "kind": "use_more", "move": "shoryuken_hp", "range": "close", "when": "jumping"}
     grounded_sp = {"view": "answer", "kind": "use_more", "move": "spinning_bird_kick", "range": "mid",
                    "when": "standing"}
-    poke = {"view": "answer", "kind": "use_more", "move": "c.mk", "range": "mid", "when": "standing"}
+    poke = {"view": "answer", "kind": "use_more", "move": "s.mk", "range": "mid", "when": "standing"}   # standing -> kept
+    crouch = {"view": "answer", "kind": "use_more", "move": "c.mk", "range": "mid", "when": "standing"}  # crouch -> dropped
 
-    kept, dropped = C.coach_filter([jump_air, jump_fwd, grounded_aa, grounded_sp, poke], "escalate")
+    kept, dropped = C.coach_filter([jump_air, jump_fwd, grounded_aa, grounded_sp, poke, crouch], "escalate")
     moves = [c["move"] for c in kept]
-    assert "j.hp" not in moves and "jf.hk" not in moves                  # stance-invalid jump attacks dropped
-    assert moves == ["shoryuken_hp", "spinning_bird_kick", "c.mk"]       # grounded offense + range-only poke kept
-    assert len(dropped) == 2 and all("stance" in r and "jump attack" in r for r in dropped)  # reason logged for trace
+    assert "j.hp" not in moves and "jf.hk" not in moves and "c.mk" not in moves   # stance-unreliable dropped
+    assert moves == ["shoryuken_hp", "spinning_bird_kick", "s.mk"]                # grounded offense + standing poke kept
+    assert len(dropped) == 3                                                      # 2 air + 1 crouch, reasons logged
+    assert all("stance" in r for r in dropped)
 
-    # the stance guard fires in consolidate mode too (a jump attack is invalid regardless of the trend)
-    kept2, dropped2 = C.coach_filter([jump_air, poke], "consolidate")
-    assert [c["move"] for c in kept2] == ["c.mk"] and len(dropped2) == 1
+    # the stance guard fires in consolidate mode too (invalid regardless of the trend)
+    kept2, dropped2 = C.coach_filter([jump_air, crouch, poke], "consolidate")
+    assert [c["move"] for c in kept2] == ["s.mk"] and len(dropped2) == 2
 
 
 # --------------------------------------------------------------- the churn fix (lessons.py, independent of the split)

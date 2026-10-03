@@ -397,16 +397,23 @@ def _is_jump_attack(move) -> bool:
 def coach_filter(claims: Sequence[Dict], mode: str) -> Tuple[List[Dict], List[str]]:
     """Mechanically enforce stance validity and the escalate rule. Returns (kept claims, dropped-reason strings); the
     reasons are logged in the trace (scripts/play_loop_screen.py folds them into ``problems``).
-    [SCRIPT] STANCE (both modes): a JUMP attack ("j."/"jf.*") is DROPPED - her lessons are keyed on his state/range,
-    never on her own being airborne, so she cannot reliably be in the air to use it (prefer a grounded anti-air).
+    [SCRIPT] STANCE (both modes): a move whose stance she can't reliably be in ON HIS CUE is DROPPED - a JUMP attack
+    ("j."/"jf.*", she can't be airborne) AND a CROUCH normal ("c.*", she is not reliably crouching when a lesson keyed
+    on his state fires; "c.mk when he stands" voided to block in play). Prefer a grounded STANDING move (s.*).
     [SCRIPT] ESCALATE: when she is losing by turtling, a new DEFENSIVE "use more"/"always" answer is dropped (she is
     already losing by blocking); an "avoid" of a defensive move is kept (it removes defense). Consolidate keeps blocks.
     (A move not in char_menu_moves(me) is refused downstream in lessons.propose - left there, not duplicated here.)"""
     kept, dropped = [], []
     for c in claims:
-        if _is_jump_attack(c.get("move")):
+        move = c.get("move")
+        if _is_jump_attack(move):
             dropped.append("stance: %s is a jump attack - she must be airborne, but the lesson is keyed on his "
-                           "state/range, so she cannot do it on cue (use a grounded move instead)" % c.get("move"))
+                           "state/range, so she cannot do it on cue (use a grounded move instead)" % move)
+            continue
+        if isinstance(move, str) and move.startswith("c."):            # crouch normal (c.lp/c.mk/c.hk...): stance-unreliable
+            dropped.append("stance: %s is a crouch normal - she is not reliably crouching on his cue (the lesson is "
+                           "keyed on his state/range, not her own crouch), so it voids to block like a jump attack; "
+                           "use a standing s.* move instead" % move)
             continue
         if mode == "escalate" and c.get("kind") in ("use_more", "always") and c.get("move") in DEFENSIVE:
             dropped.append("escalate: she is losing by blocking, a new defensive answer (%s) is forbidden" % c.get("move"))

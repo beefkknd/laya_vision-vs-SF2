@@ -51,7 +51,7 @@ MOVEMENT_MOVES = frozenset(CATEGORIES["move"])     # the "move" category: no rec
 MENU_MOVES: Tuple[str, ...] = tuple(m for cat in CATEGORY_ORDER for m in CATEGORIES[cat])
 
 DECISION_KEYS = ("category", "cat_probs", "move_options", "move_probs", "rule", "rule_cats", "rule_answers",
-                 "follows_rule", "follows_cat", "advice_text", "lines")
+                 "follows_rule", "follows_cat", "advice_text", "lines", "prompt_lines")
 
 
 def physical(tokens: Sequence[str], facing_right: bool, pad: Dict[str, str] = PAD) -> List[str]:
