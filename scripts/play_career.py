@@ -20,13 +20,28 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from sf2.config import REPO  # noqa: E402
+from sf2.config import QWEN_URL, REPO  # noqa: E402
 from sf2.vocab import FIGHTERS  # noqa: E402
 
 PY = os.path.join(REPO, ".venv", "bin", "python")
 ROM = os.environ.get("SF2_ROM") or os.path.join(REPO, "roms", "Street Fighter II (USA).sfc")
+
+
+def qwen_alive(url=None, timeout=8):
+    """True if the Qwen server answers at all (any HTTP status = alive; a connection error = down).
+    The Coach needs it; without it every block fails silently and the session dir is just text logs."""
+    url = url or QWEN_URL
+    try:
+        urllib.request.urlopen(urllib.request.Request(url, method="GET"), timeout=timeout)
+        return True
+    except urllib.error.HTTPError:
+        return True          # it responded (401/405/...) -> up
+    except Exception:
+        return False         # connection refused / DNS / timeout -> down
 
 
 def ladder_for(me, opps):
@@ -63,11 +78,14 @@ def plan(me, ladder, block, cap, laps):
     return out
 
 
-def run_block(me, opp, nn, session_dir, carry, save_reg, block, rounds, cat, move, qmode="two"):
+def run_block(me, opp, nn, session_dir, carry, save_reg, block, rounds, cat, move,
+              qmode="two", watch=False, speed=100):
     out = os.path.join(session_dir, "round_%02d_%s" % (nn, opp))
     cmd = [PY, "scripts/play_loop_screen.py", "--me", me, "--opp", opp,
            "--games", str(block), "--rounds", str(rounds), "--qwen-mode", qmode,
            "--cat-advisor", cat, "--move-advisor", move, "--no-score", "--rom", ROM, "--out", out]
+    if watch:
+        cmd += ["--watch", "--speed", str(speed)]      # open a visible Mesen window for the match
     if carry:
         cmd += ["--carry", carry]
     if save_reg:
@@ -87,6 +105,9 @@ def main():
     ap.add_argument("--laps", type=int, default=0, help="times through the ladder; 0 = forever (Ctrl-C)")
     ap.add_argument("--carry-forward", action="store_true", help="keep the learned memory into the next opponent")
     ap.add_argument("--book", default=None, help="start from this book instead of a BLANK playbook")
+    ap.add_argument("--watch", action="store_true", help="open a VISIBLE Mesen window for each match (see the SNES game)")
+    ap.add_argument("--speed", type=int, default=100, help="--watch emulation speed percent")
+    ap.add_argument("--no-qwen-check", action="store_true", help="skip the Qwen server preflight")
     ap.add_argument("--name", default=None)
     ap.add_argument("--cat-advisor", default=os.path.join("runs", "text_laya", "cat_v3"))
     ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v2"))
@@ -105,6 +126,14 @@ def main():
         for lap, opp, b in plan(args.me, ladder, args.block, args.cap, args.laps):
             print("  lap %d  vs %-8s  block %d" % (lap, opp, b))
         return 0
+
+    if not args.no_qwen_check and not qwen_alive():
+        print("Qwen server not reachable at %s\n"
+              "The Coach needs it. Set SF2_QWEN_URL to a live server, e.g.\n"
+              "  export SF2_QWEN_URL=http://100.66.12.33:8080/v1/chat/completions\n"
+              "then rerun (or pass --no-qwen-check to skip). Aborting so the session isn't just empty logs."
+              % QWEN_URL, file=sys.stderr)
+        return 2
 
     os.makedirs(session_dir, exist_ok=True)
     print("CAREER %s  ladder: %s" % (args.me, " -> ".join(ladder)))
@@ -127,7 +156,8 @@ def main():
                 for b in range(args.cap):
                     save_reg = os.path.join(session_dir, "reg_%s.json" % opp)
                     out = run_block(args.me, opp, nn, session_dir, reg, save_reg,
-                                    args.block, args.rounds, args.cat_advisor, args.move_advisor)
+                                    args.block, args.rounds, args.cat_advisor, args.move_advisor,
+                                    watch=args.watch, speed=args.speed)
                     wr = block_winrate(out)
                     reg = save_reg                       # learn ON TOP within this opponent
                     nn += 1
