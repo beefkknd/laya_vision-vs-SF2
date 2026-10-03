@@ -59,8 +59,8 @@ def open_fight(me: str, opp: str, port: int, rom: Optional[str] = None,
         b.set_vars(VARS)
         r = dict(zip(NAMES, b.load_state(state).rams[-1]))
         if (r["p1_char"], r["p2_char"]) != (IDS[me], IDS[opp]):
-            raise SystemExit("%s holds characters %s, expected %s" % (
-                path, (r["p1_char"], r["p2_char"]), (IDS[me], IDS[opp])))
+            raise SystemExit("savestate holds characters %s, expected %s" % (
+                (r["p1_char"], r["p2_char"]), (IDS[me], IDS[opp])))
         yield b, state
     finally:
         b.close()
