@@ -7,7 +7,7 @@ Unfollowable lines (no move / bare movement token) must be rejected loudly, not 
 import pytest
 
 from sf2.system1.advice import char_menu_moves
-from sf2.system2.rule_entry import candidate_rules, carry_entries, claim_of, entry
+from sf2.system2.rule_entry import candidate_rules, carry_entries, claim_of, default_kit, entry
 
 
 def test_claim_of_parses_a_situational_line():
@@ -47,6 +47,16 @@ def test_candidate_rules_applies_coach_claims_onto_incumbent():
     assert cand[0] == "use more throw up close"
     assert any("s.mk" in r and "mid" in r for r in cand)
     assert len(cand) == 2
+
+
+def test_default_kit_is_one_attacking_foothold():
+    moves = char_menu_moves("chunli")
+    kit = default_kit(moves)
+    assert len(kit) == 1, "blank start seeds ONE attack; block/defend is already the default"
+    e = kit[0]
+    assert e["state"] == "verified"
+    assert e["claim"]["kind"] in ("use_more", "always")           # it's an attack, not an avoid
+    assert not e["claim"]["move"].startswith(("block", "c.", "j.", "jf."))  # a real grounded attack
 
 
 def test_candidate_rules_dedupes_an_already_present_rule():

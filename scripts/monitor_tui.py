@@ -378,10 +378,13 @@ def _launch_loop(spec: str, blank: bool = False):
            "--move-advisor", "runs/text_laya/move_v2",
            "--no-score"]
     if blank:
+        from sf2.system1.advice import char_menu_moves
+        from sf2.system2.rule_entry import default_kit
         os.makedirs(os.path.join(REPO, run_dir), exist_ok=True)
         carry = os.path.join(run_dir, "blank_start.json")
         with open(os.path.join(REPO, carry), "w") as f:
-            f.write("[]")                      # empty registry -> blank playbook, Coach fills it in
+            import json as _json
+            _json.dump(default_kit(char_menu_moves(me)), f)   # blank = 1 attack foothold; block stays the default
         cmd += ["--carry", carry]
     env = dict(os.environ)  # passes SF2_QWEN_URL / SF2_ROM through unchanged
     proc = subprocess.Popen(cmd, cwd=REPO, env=env)

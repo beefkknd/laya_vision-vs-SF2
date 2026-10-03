@@ -32,6 +32,17 @@ def carry_entries(rules, moves):
     return [entry(claim_of(r, moves)) for r in rules]
 
 
+# A blank playbook keeps BLOCK as the no-rule default (defend is already implicit), so a blank start only
+# needs ONE attacking foothold so she is not a pure turtle from frame 1 (owner 2026-10-03).
+DEFAULT_ATTACK = "use more s.mk at mid range when he stands"
+
+
+def default_kit(moves):
+    """The minimal starting playbook for a BLANK book: one grounded attacking rule. Defend/block is
+    already the no-rule default, so no defensive rule is seeded."""
+    return carry_entries([DEFAULT_ATTACK], moves)
+
+
 def candidate_rules(incumbent_rules, claims, moves):
     """Apply the Coach's kept claims to the incumbent playbook -> the candidate's rule lines. Each claim
     (already stance-filtered by coach_filter) renders to a line and is appended unless the incumbent

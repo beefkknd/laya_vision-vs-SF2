@@ -26,7 +26,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sf2.config import QWEN_URL, REPO  # noqa: E402
 from sf2.system1.advice import char_menu_moves  # noqa: E402
-from sf2.system2.rule_entry import carry_entries  # noqa: E402
+from sf2.system2.rule_entry import carry_entries, default_kit  # noqa: E402
 from sf2.vocab import FIGHTERS  # noqa: E402
 
 PY = os.path.join(REPO, ".venv", "bin", "python")
@@ -202,12 +202,14 @@ def main():
     print("CAREER %s  ladder: %s" % (args.me, " -> ".join(ladder)))
     print("session_dir: %s\nwatch:  python scripts/monitor_tui.py --session %s\n" % (session_dir, session_dir))
 
-    # the blank (or book) starting registry file carried into an opponent's FIRST block
+    # the blank (or book) starting registry file carried into an opponent's FIRST block. A BLANK book is
+    # NOT empty: it seeds ONE attacking foothold (block/defend is already the no-rule default).
+    moves = char_menu_moves(args.me)
     blank_path = os.path.join(session_dir, "_blank.json")
     with open(blank_path, "w") as f:
-        f.write("[]")
+        json.dump(default_kit(moves), f, indent=1)
+    print("blank start kit: %s" % [e["line"] for e in default_kit(moves)])
 
-    moves = char_menu_moves(args.me)
     nn = 0
     carry_next = None                      # None -> blank/book; a path -> carry it
     lap = 0
