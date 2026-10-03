@@ -75,6 +75,21 @@ def decision_row(game: int, me: str, opp: str, dec: Dict, nxt: Optional[Dict]) -
     }
 
 
+def round_result(my_life_end: int, his_life_end: int) -> str:
+    """Win / loss / draw from the two drawn HEALTH BARS at round over (life points, 0 = empty bar). A KO is the empty
+    bar: her bar empty -> loss, his bar empty -> win (double KO or both alive with equal life -> draw). Otherwise the
+    fighter with more life wins. Never "unknown" - the screen always draws both bars."""
+    if his_life_end <= 0 < my_life_end:
+        return "win"
+    if my_life_end <= 0 < his_life_end:
+        return "loss"
+    if my_life_end > his_life_end:
+        return "win"
+    if my_life_end < his_life_end:
+        return "loss"
+    return "draw"
+
+
 def round_evidence(game: int, me: str, opp: str, decisions: Sequence[Dict],
                    replay: Optional[Dict] = None) -> Tuple[List[Dict], Dict]:
     """(the per-decision rows, the round summary) for one round. ``decisions``: the round's decision records
@@ -95,7 +110,10 @@ def round_evidence(game: int, me: str, opp: str, decisions: Sequence[Dict],
                    "dealt": replay.get("dealt", s_dealt), "taken": replay.get("taken", s_taken),
                    "hp": replay.get("hp", s_dealt - s_taken), "source": "replay", "decisions": len(rows)}
     else:
-        summary = {"game": game, "result": "unknown", "dealt": s_dealt, "taken": s_taken,
+        # No RAM referee: decide the result from the drawn health bars at the last decision (the bars the screen read
+        # closest to round over - his_life_end 0 means his bar went empty, a KO). hp / dealt / taken stay the screen sums.
+        result = round_result(rows[-1]["my_life_after"], rows[-1]["opp_life_after"]) if rows else "unknown"
+        summary = {"game": game, "result": result, "dealt": s_dealt, "taken": s_taken,
                    "hp": s_dealt - s_taken, "source": "screen", "decisions": len(rows)}
     return rows, summary
 

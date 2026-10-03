@@ -30,17 +30,29 @@ def savestate(me: str, opp: str) -> str:
     return os.path.join("states", "p1_%s_vs_%s.state" % (me, opp))
 
 
-@contextlib.contextmanager
-def open_fight(me: str, opp: str, port: int, rom: Optional[str] = None,
-               state: Optional[str] = None) -> Iterator[Tuple[MesenBridge, bytes]]:
-    """(bridge, savestate bytes): headless Mesen on ``port`` with raw capture and the fight VARS, the savestate
-    (``state``, default states/p1_<me>_vs_<opp>.state) loaded and checked to hold ``me`` (player 1) vs ``opp``.
-    Mesen is closed on the way out, whatever happens."""
+def read_state(me: str, opp: str, state: "Optional[str | bytes]" = None) -> bytes:
+    """The savestate bytes to load. ``state`` may be the savestate CONTENT itself (bytes - used as is) or a PATH to it
+    (str, read from disk; default states/p1_<me>_vs_<opp>.state). A path that does not exist is a SystemExit naming the
+    path. Accepting bytes keeps a caller that already has the savestate in memory (the screen loop's in-play replay
+    scorer) from passing it where a path is expected - which read os.path.exists() on the raw bytes, failed, and raised
+    'no savestate <172 KB of bytes>', aborting the loop before Mesen was ever launched."""
+    if isinstance(state, (bytes, bytearray)):
+        return bytes(state)
     path = state or savestate(me, opp)
     if not os.path.exists(path):
         raise SystemExit("no savestate %s" % path)
     with open(path, "rb") as f:
-        state = f.read()
+        return f.read()
+
+
+@contextlib.contextmanager
+def open_fight(me: str, opp: str, port: int, rom: Optional[str] = None,
+               state: "Optional[str | bytes]" = None) -> Iterator[Tuple[MesenBridge, bytes]]:
+    """(bridge, savestate bytes): headless Mesen on ``port`` with raw capture and the fight VARS, the savestate
+    (``state`` - a path, or the savestate bytes; default states/p1_<me>_vs_<opp>.state) loaded and checked to hold
+    ``me`` (player 1) vs ``opp``. Mesen is launched headless (launch_argv) and closed on the way out, whatever happens;
+    no manual Mesen is ever waited on."""
+    state = read_state(me, opp, state)
     b = MesenBridge(port, launch=launch_argv(port, rom))
     try:
         b.set_capture("raw")

@@ -57,5 +57,7 @@ def test_rows_feed_the_lesson_accessors():
 
 def test_screen_only_fallback_when_no_replay():
     rows, summary = E.round_evidence(0, ME, OPP, DECS, replay=None)
-    assert summary["source"] == "screen" and summary["result"] == "unknown"
+    assert summary["source"] == "screen"
+    # no RAM referee: the result is read off the last drawn health bars (my 150 > his 146 -> win), never "unknown"
+    assert summary["result"] == "win"
     assert summary["dealt"] == sum(r["dealt"] for r in rows)        # summed from the per-decision screen drops
