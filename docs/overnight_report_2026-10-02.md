@@ -42,3 +42,23 @@ Per-game detail: scripts/loop_report.py <dir>.
 - "better" = last-5 vs first-5 mean hp/round, 12 games/opponent, 1 seed - exploratory, not the pre-registered verdict
   (docs/prereg_loop_run.md wants more seeds + a FROZEN control arm). This run shows the loop FUNCTIONS and gains
   knowledge; the pre-registered run is the formal verdict.
+
+## Second character (Ryu) - generalization proven, seed path needs a fix
+- The runner is now per-character (--me chunli/ryu/ken, commit f12326d; char_categories/char_menu_moves in advice.py;
+  cat_v1/move_v1 are all-8-character so they handle Ryu). Ryu plays: a 2-game ryu-vs-ken ran clean, 212 decisions from
+  RYU's own menu, Qwen admitted rules - generalization to a new character WORKS mechanically.
+- BUT blank-seed Ryu just BLOCKS (all 212 decisions block_high/low): with no offensive starting rules the system
+  defaults to pure defense and never attacks (Chun-Li only fought because the book seeded "throw up close"). FINDING:
+  the SEED matters; each character needs offensive starting rules.
+- A proper seeded Ryu run is blocked by a real bug: sf2.system2.seed_rules validates book lines against choices()
+  (the Stage-1 action vocab), NOT the character's full move menu (char_menu_moves), so Ryu's hadoken/shoryuken lines
+  are dropped as "no followable move", and the throw alias misfires there. FIX (daylight): seed_rules should validate
+  against char_menu_moves(me). Then build a Ryu seed (web research like Chun-Li's book) and run it.
+
+## Next steps (daylight)
+1. Fix seed_rules to use char_menu_moves(me); make a Ryu (and Ken) seed; run them -> confirm the loop gains knowledge
+   for a second/third character.
+2. Tighten Qwen's rule quality for guile/ryu/zangief (~half admitted rules were table-bad) and add anti-zoning offense
+   for dhalsim/guile.
+3. The formal pre-registered run (docs/prereg_loop_run.md): more seeds + a FROZEN control arm; needs the owner's 7
+   decisions.
