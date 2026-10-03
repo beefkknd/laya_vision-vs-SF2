@@ -59,9 +59,13 @@ def _validate(b):
         raise ValueError("cand_wins must be in [0, n]")
 
 
-def _sig_better(b):
-    """Candidate beats the incumbent with the CI excluding 0."""
+def is_gain(b):
+    """Candidate beats the incumbent with the 95% CI excluding 0 (a real, not-noise improvement).
+    The same test gates dev significance, held-out replication, and the terminal confirm."""
     return b.delta > 0 and b.lo > 0
+
+
+_sig_better = is_gain  # internal alias kept for readability at call sites
 
 
 def _ceiling(b, cfg):
