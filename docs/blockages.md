@@ -86,3 +86,19 @@ tag the output dir by a candidate hash/label so every arm's trace survives.
 The one matchup the game-guide set helped has no decision trace of its own (same overwrite issue). The "collapse was
 free because Honda already blocked-and-lost" story is a hypothesis, not evidence. Capture a Honda cand trace when B1 is
 re-examined.
+
+---
+
+## Decision D1 — no-rule default stays `block` (2026-10-03)
+Tested the owner's idea that the no-rule default should be exploratory movement `{stand, walk_forward, walk_back}`
+instead of `block`. Measured model(block) vs explore on the same book-seed policy, 8 seeds, per opponent:
+- honda: block 4/8 +10 vs explore 0/8 -151.8 (delta -162, block significantly better)
+- ryu:   block 4/8 +9.5 vs explore 2/8 -55   (trend block better)
+- guile: block 4/8 +23.8 vs explore 1/8 -8.5 (trend block better)
+- ken:   block 2/8 -10.8 vs explore 3/8 +9.8 (~tie)
+
+DECISION: keep `block` as the no-rule default; do NOT ship the explore default (reverted to keep the code simple).
+WHY: in SF2 holding BACK is the block input, so of the three options "back" already IS the block default and it is the
+best of the three; "stand" (no-action) releases her defense and "walk_forward" walks into danger when she has no
+guidance (confirmed by Honda -162). The block default was never the turtle cause - B1 (multi-rule collapse, fixed by
+oracle routing) and a lack of good firing rules were. The lever is better RULES, not a different default.
