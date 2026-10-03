@@ -282,8 +282,8 @@ def _launch_loop(spec: str):
     cmd = [sys.executable, os.path.join("scripts", "play_loop_screen.py"),
            "--me", me, "--opp", opp, "--games", games, "--rounds", rounds,
            "--name", name,
-           "--cat-advisor", "runs/text_laya/cat_v1",
-           "--move-advisor", "runs/text_laya/move_v1",
+           "--cat-advisor", "runs/text_laya/cat_v3",
+           "--move-advisor", "runs/text_laya/move_v2",
            "--no-score"]
     env = dict(os.environ)  # passes SF2_QWEN_URL / SF2_ROM through unchanged
     proc = subprocess.Popen(cmd, cwd=REPO, env=env)

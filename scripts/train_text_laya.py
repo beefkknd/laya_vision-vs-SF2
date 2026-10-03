@@ -22,7 +22,7 @@ import _path  # noqa: E402,F401
 from sf2.config import TEST_DATA  # noqa: E402
 from sf2.system1 import mlx_lora, text_laya  # noqa: E402
 
-DATA = os.path.join(TEST_DATA, "advice")
+DATA = os.path.join(TEST_DATA, "advice_v5")
 
 
 class Say:
@@ -74,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--val-limit", type=int, default=400, help="validation rows per evaluation (speed)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, default=0, help="smoke test: this many rows of each split")
-    ap.add_argument("--data", default=DATA, help="dataset dir (train/val/test.jsonl); default test_data/advice")
+    ap.add_argument("--data", default=DATA, help="dataset dir (train/val/test.jsonl); default test_data/advice_v5")
     ap.add_argument("--round", choices=["cat", "move"], default=None,
                     help="train on only this round's rows (the row's 'round' tag), for the two-stage split")
     return ap.parse_args()

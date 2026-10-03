@@ -305,10 +305,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="after the run, write the final registry here so the next round can --carry it")
     ap.add_argument("--watch", action="store_true", help="open a VISIBLE Mesen window to watch the match (default: headless)")
     ap.add_argument("--speed", type=int, default=100, help="--watch emulation speed percent (e.g. 100, 150)")
-    ap.add_argument("--cat-advisor", default=os.path.join("runs", "text_laya", "cat_v1"),
+    ap.add_argument("--cat-advisor", default=os.path.join("runs", "text_laya", "cat_v3"),
                     help="round-1 CATEGORY checkpoint")
-    ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v1"),
-                    help="round-2 MOVE checkpoint (point BOTH flags at runs/text_laya/advice_v2 to compare the old "
+    ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v2"),
+                    help="round-2 MOVE checkpoint (point BOTH flags at junk/models/advice_v2 to compare the old "
                          "single model)")
     ap.add_argument("--qwen-mode", dest="qwen_mode", default="two", choices=("one", "two"),
                     help="two (default): Stage 1 Scout summarizes, Stage 2 Coach strategizes (escalate when losing); "

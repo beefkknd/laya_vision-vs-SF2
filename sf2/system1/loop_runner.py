@@ -17,7 +17,7 @@ One decision (``two_stage_decide``): TWO trained checkpoints, one per round (doc
   4. the label rule (advice.two_stage) is logged next to the pick as ``follows_rule`` (did text laya follow the advice).
 
 The two advisors are INJECTED (each an object with ``ask(text, question) -> {option: prob}``): two real text laya
-servers (sf2.system1.advisor.Advisor on the cat_v1 / move_v1 checkpoints) in play, follower/mock stubs in tests.
+servers (sf2.system1.advisor.Advisor on the cat_v3 / move_v2 checkpoints) in play, follower/mock stubs in tests.
 Nothing here calls Qwen or the network.
 
 Seeding, the screen evidence and the Qwen update that rotate the short memory live in the driver
