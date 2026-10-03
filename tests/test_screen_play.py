@@ -117,7 +117,7 @@ ALLOWED_FROM = {                 # the only names a play module may take from a 
     "sf2.data.vs_sweep": {"actions", "MOVEMENT"},     # the button table of each move (no RAM)
     "sf2.emu.vs": {"physical"},                       # F / B -> left / right by a facing given to it (no RAM)
     "sf2.emu.mesen": {"MesenBridge"},                 # screen_emu.py only: the wire, driven by the screen-only Lua
-    "sf2.emu.headless": {"launch_argv", "find_mesen"},
+    "sf2.emu.headless": {"launch_argv", "find_mesen", "window_argv", "KeepMesenSettings"},  # RAM-free launch helpers (--watch window)
 }
 RAMS_ALLOWED = {"sf2/system1/screen_emu.py"}          # reads .rams only to refuse a non-empty one
 

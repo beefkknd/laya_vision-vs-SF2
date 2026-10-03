@@ -303,6 +303,8 @@ def build_parser() -> argparse.ArgumentParser:
                          "if the file is absent, fall back to the book seed")
     ap.add_argument("--save-registry", dest="save_registry", default=None,
                     help="after the run, write the final registry here so the next round can --carry it")
+    ap.add_argument("--watch", action="store_true", help="open a VISIBLE Mesen window to watch the match (default: headless)")
+    ap.add_argument("--speed", type=int, default=100, help="--watch emulation speed percent (e.g. 100, 150)")
     ap.add_argument("--cat-advisor", default=os.path.join("runs", "text_laya", "cat_v1"),
                     help="round-1 CATEGORY checkpoint")
     ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v1"),
@@ -345,7 +347,7 @@ def main() -> int:
     # Two Advisor instances - one per checkpoint. In shared mode each gets its own socket (shared_laya.socket_path keys
     # off the checkpoint), so this is two shared servers on different sockets; otherwise two helper subprocesses.
     with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
-            open_screen(args.port, args.rom) as emu:
+            open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
         verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
                            seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
                            state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,

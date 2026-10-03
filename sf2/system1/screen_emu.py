@@ -15,7 +15,7 @@ from typing import Dict, Iterator, List, Optional, Sequence
 import numpy as np
 
 from ..config import REPO
-from ..emu.headless import launch_argv
+from ..emu.headless import KeepMesenSettings, launch_argv, window_argv
 from ..emu.mesen import MesenBridge
 
 SCREEN_BRIDGE = os.path.join(REPO, "mesen", "sf2_bridge_screen.lua")
@@ -92,15 +92,19 @@ def screen_bridge_for_port(port: int, out_dir: str = os.path.join(REPO, "out", "
 
 
 @contextlib.contextmanager
-def open_screen(port: int, rom: Optional[str] = None) -> Iterator[ScreenEmu]:
-    """Headless Mesen running the screen-only bridge, raw capture; always closed. The handle yielded is the first
-    round's record (``new_round`` for the next)."""
-    argv = launch_argv(port, rom)
+def open_screen(port: int, rom: Optional[str] = None, show_window: bool = False, speed: int = 100) -> Iterator[ScreenEmu]:
+    """Mesen running the screen-only bridge, raw capture; always closed. The handle yielded is the first
+    round's record (``new_round`` for the next). ``watch=True`` opens a VISIBLE Mesen window you can watch the match
+    in (``speed`` percent), instead of the headless test runner; the bridge is identical, so play is unchanged."""
+    argv = window_argv(port, rom, speed=speed) if show_window else launch_argv(port, rom)
     if not argv[-1].endswith("sf2_bridge_%d.lua" % port):
         raise RuntimeError("unexpected Mesen command line: %r" % argv)
-    b = MesenBridge(port, launch=argv[:-1] + [screen_bridge_for_port(port)])
-    try:
-        b.set_capture("raw")
-        yield ScreenEmu(b)
-    finally:
-        b.close()
+    argv = argv[:-1] + [screen_bridge_for_port(port)]
+    keep = KeepMesenSettings() if show_window else contextlib.nullcontext()
+    with keep:
+        b = MesenBridge(port, launch=argv)
+        try:
+            b.set_capture("raw")
+            yield ScreenEmu(b)
+        finally:
+            b.close()
