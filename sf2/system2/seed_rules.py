@@ -79,6 +79,9 @@ def validate_tip(tip: Dict, moves: Sequence[str]) -> Tuple[bool, str]:
         return False, "advice.read parses no followable move in %r" % line
     if not _reads_as(got, stored, moves):
         return False, "advice.read reads %r as %r, not the stored claim %r" % (line, got, stored)
+    if A.stance_unreliable(got["move"]):
+        return False, ("stance-unreliable move %r (crouch c.* / jump j.|jf.*) voids to block when keyed "
+                       "on his state - dropped from the seed" % got["move"])
     return True, ""
 
 

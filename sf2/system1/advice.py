@@ -218,6 +218,17 @@ GROUNDED_STANCES = ("standing", "close", "crouch")
 # how a stance picks the move variant: standing -> s.* , grounded+close -> cl.* , crouch -> c.* , air -> j./jf.*
 STANCE_PREFIXES = {"standing": ("s.",), "close": ("cl.",), "crouch": ("c.",), "air": ("j.", "jf.")}
 NORMAL_PREFIXES = ("jf.", "cl.", "j.", "s.", "c.")      # longest/ambiguous first so "cl."/"jf." win over "c."/"j."
+# Stances she cannot reliably be in ON HIS CUE: a lesson keyed on HIS state/range can't guarantee HER
+# posture, so a crouch normal (c.*) or an air/jump attack (j./jf.*) voids to block. Standing (s.*) and
+# close (cl.*) are grounded and reliable. The shared stance law coach_filter and the book loader enforce.
+STANCE_VOID_PREFIXES = STANCE_PREFIXES["crouch"] + STANCE_PREFIXES["air"]   # ("c.", "j.", "jf.")
+
+
+def stance_unreliable(move) -> bool:
+    """True for a crouch normal (c.*) or a jump/air attack (j./jf.*): she cannot be relied on to be in
+    that stance when a lesson keyed on HIS state fires, so it voids to block. "cl." (close) does not
+    match "c." (distinct second char), so close normals stay reliable."""
+    return isinstance(move, str) and move.startswith(STANCE_VOID_PREFIXES)
 
 
 def stance_of(posture: str, rng: str) -> str:

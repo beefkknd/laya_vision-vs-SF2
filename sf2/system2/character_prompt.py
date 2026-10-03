@@ -18,7 +18,7 @@ lacks it and keeps the coarse wording (jumps in / attacks on the ground / hits h
 import collections
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..system1.advice import opp_doing
+from ..system1.advice import opp_doing, stance_unreliable
 from ..vocab import RANGE_WORDS
 from . import lessons as L
 from . import track_record as T
@@ -415,14 +415,14 @@ def coach_filter(claims: Sequence[Dict], mode: str) -> Tuple[List[Dict], List[st
     kept, dropped = [], []
     for c in claims:
         move = c.get("move")
-        if _is_jump_attack(move):
-            dropped.append("stance: %s is a jump attack - she must be airborne, but the lesson is keyed on his "
-                           "state/range, so she cannot do it on cue (use a grounded move instead)" % move)
-            continue
-        if isinstance(move, str) and move.startswith("c."):            # crouch normal (c.lp/c.mk/c.hk...): stance-unreliable
-            dropped.append("stance: %s is a crouch normal - she is not reliably crouching on his cue (the lesson is "
-                           "keyed on his state/range, not her own crouch), so it voids to block like a jump attack; "
-                           "use a standing s.* move instead" % move)
+        if stance_unreliable(move):                                    # shared stance law (sf2.system1.advice)
+            if _is_jump_attack(move):
+                dropped.append("stance: %s is a jump attack - she must be airborne, but the lesson is keyed on his "
+                               "state/range, so she cannot do it on cue (use a grounded move instead)" % move)
+            else:
+                dropped.append("stance: %s is a crouch normal - she is not reliably crouching on his cue (the lesson "
+                               "is keyed on his state/range, not her own crouch), so it voids to block like a jump "
+                               "attack; use a standing s.* move instead" % move)
             continue
         if mode == "escalate" and c.get("kind") in ("use_more", "always") and c.get("move") in DEFENSIVE:
             dropped.append("escalate: she is losing by blocking, a new defensive answer (%s) is forbidden" % c.get("move"))
