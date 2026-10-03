@@ -37,6 +37,7 @@ if REPO not in sys.path:
 from rich.console import Console, Group            # noqa: E402
 from rich.layout import Layout                     # noqa: E402
 from rich.live import Live                         # noqa: E402
+from rich.markup import escape                      # noqa: E402
 from rich.panel import Panel                       # noqa: E402
 from rich.table import Table                       # noqa: E402
 from rich.text import Text                         # noqa: E402
@@ -44,72 +45,114 @@ from rich.text import Text                         # noqa: E402
 from sf2.eval import tui_model as T                # noqa: E402
 
 REFRESH_HZ = 4
-BAR_W = 28
+BAR_W = 26
+TREND_W = 24
+_DOT = "·"              # middot track for games not yet played
 
 _VERDICT_STYLE = {"good": "bold green", "ok": "yellow", "bad": "bold red",
                   "not_scorable": "dim", None: "dim"}
 
 
+def _conf_color(p: float) -> str:
+    """System-1 confidence -> rich color: green high, yellow mid, red low."""
+    if p >= 0.6:
+        return "green"
+    if p >= 0.35:
+        return "yellow"
+    return "red"
+
+
 # --------------------------------------------------------------------------- panels
 
-def _hp_line(name: str, hp: int, frac: float, color: str) -> Text:
-    bar = T.hp_bar(frac, BAR_W)
-    t = Text()
-    t.append(f"{name:<8}", style="bold")
-    t.append(bar, style=color)
-    t.append(f"  {hp:>3}/{T.HP_MAX}", style=color)
-    return t
+def _hp_line(name: str, hp: int, frac: float) -> Text:
+    """Name + a shaded, health-colored bar + 'hp/176' label (label color tracks health)."""
+    bar = T.shaded_bar(frac, BAR_W)                 # already colored by health level
+    label_col = T._bar_color(max(0.0, min(1.0, frac)))
+    return Text.from_markup(
+        f"[bold]{escape(f'{name:<8}')}[/bold]{bar}  "
+        f"[{label_col}]{hp:>4}/{T.HP_MAX}[/{label_col}]"
+    )
+
+
+def _trend_line(m: T.DashboardModel) -> Text:
+    """One cell per GAME played, left->right in game order: green win / red loss / yellow tie.
+
+    As wins accumulate the strip fills green toward the right. A trailing dim '·' track shows the
+    games not yet played so the strip's length is stable across the run.
+    """
+    cell = {"W": "[green]█[/green]", "L": "[red]█[/red]", "T": "[yellow]█[/yellow]"}
+    played = "".join(cell[v] for v in m.per_game_wl)
+    remaining = max(0, m.games - len(m.per_game_wl))
+    track = f"[dim]{_DOT * remaining}[/dim]" if remaining else ""
+    return Text.from_markup(f"[bold]history [/bold]{played}{track}")
+
+
+def _winrate_line(m: T.DashboardModel) -> Text:
+    """Cumulative win-rate meter: a green shaded bar + 'win rate W/N PCT%'."""
+    wins, played, pct = T.win_rate(m.per_game_wl)
+    bar = T.shaded_bar((pct / 100.0) if played else 0.0, TREND_W, color="green")
+    return Text.from_markup(f"[bold]winrate [/bold]{bar}  "
+                            f"[green]win rate {wins}/{played} {pct}%[/green]")
 
 
 def _left_panel(m: T.DashboardModel) -> Panel:
-    title = Text()
-    title.append(f"{m.me}", style="bold cyan")
-    title.append("  vs  ")
-    title.append(f"{m.opp}", style="bold red")
-    title.append(f"    game {m.cur_game + 1}/{m.games}  round {m.cur_round + 1}/{m.rounds}",
-                 style="white")
+    title = Text.from_markup(
+        f"[bold cyan]{escape(m.me)}[/bold cyan]  vs  [bold red]{escape(m.opp)}[/bold red]"
+        f"    [white]game {m.cur_game + 1}/{m.games}  round {m.cur_round + 1}/{m.rounds}[/white]"
+    )
 
     hp = Group(
-        _hp_line(m.me, m.me_hp, m.me_hp_frac, "green"),
-        _hp_line(m.opp, m.opp_hp, m.opp_hp_frac, "magenta"),
+        _hp_line(m.me, m.me_hp, m.me_hp_frac),
+        _hp_line(m.opp, m.opp_hp, m.opp_hp_frac),
     )
+
+    trend = Group(_trend_line(m), _winrate_line(m))
 
     pipe = Table.grid(padding=(0, 1))
     pipe.add_column(justify="right", style="dim", no_wrap=True)       # situation
     pipe.add_column(no_wrap=True)                                     # category
     pipe.add_column(no_wrap=True)                                     # action
     pipe.add_column(style="dim", no_wrap=True)                        # pressed
-    pipe.add_row("SITUATION ->", "CATEGORY ->", "ACTION ->", "PRESSED")
+    pipe.add_row(Text.from_markup("[dim]SITUATION ->[/dim]"),
+                 Text.from_markup("[cyan]CATEGORY ->[/cyan]"),
+                 Text.from_markup("[white]ACTION ->[/white]"),
+                 Text.from_markup("[dim]PRESSED[/dim]"))
     if not m.decisions:
         pipe.add_row("(waiting for first decision...)", "", "", "")
     for d in m.decisions:
-        fb = " fb!" if d.fireball else ""
-        sit = f"{d.rng}/{d.opp_doing} dx={d.dx:+d}{fb}"
-        cat = Text(f"{d.category} {d.cat_prob:.0%}")
-        act = Text(f"{d.action} {d.move_prob:.0%}")
+        fb = " [bold red]fb![/bold red]" if d.fireball else ""
+        sit = Text.from_markup(f"{escape(d.rng)}/{escape(d.opp_doing)} dx={d.dx:+d}{fb}")
+        ccol = _conf_color(d.cat_prob)
+        mcol = _conf_color(d.move_prob)
+        cat = Text.from_markup(f"[cyan]{escape(d.category)}[/cyan] [{ccol}]{d.cat_prob:.0%}[/{ccol}]")
         mark = "ok" if d.follows_rule else "x"
-        act.append(f" [{d.rule}:{mark}]",
-                   style="green" if d.follows_rule else "red")
-        pipe.add_row(sit, cat, act, d.pressed)
+        rcol = "green" if d.follows_rule else "red"
+        act = Text.from_markup(
+            f"[bold white]{escape(d.action)}[/bold white] [{mcol}]{d.move_prob:.0%}[/{mcol}]"
+            f" [{rcol}][{escape(d.rule)}:{mark}][/{rcol}]"
+        )
+        pipe.add_row(sit, cat, act, Text(d.pressed, style="dim"))
 
     s = m.stats
-    stats = Text()
-    stats.append(f"this round  hits {s.hits}  dealt {s.dealt}  taken {s.taken}  "
-                 f"({s.decisions} decisions)\n")
-    stats.append(f"follows-rule so far  {s.follows_rule_pct:.1f}%", style="cyan")
+    fr_col = "green" if s.follows_rule_pct >= 80 else "yellow"
+    stats = Text.from_markup(
+        f"this round  hits [bold]{s.hits}[/bold]  dealt [green]{s.dealt}[/green]  "
+        f"taken [red]{s.taken}[/red]  ([dim]{s.decisions} decisions[/dim])\n"
+        f"follows-rule so far  [{fr_col}]{s.follows_rule_pct:.1f}%[/{fr_col}]"
+    )
 
-    body = Group(title, Text(""), hp, Text(""), pipe, Text(""), stats)
+    body = Group(title, Text(""), hp, Text(""), trend, Text(""), pipe, Text(""), stats)
     return Panel(body, title="LIVE GAMEPLAY", border_style="cyan")
 
 
 def _memory_panel(m: T.DashboardModel) -> Panel:
     t = Text()
-    t.append(f"{len(m.in_play)} rule(s) in play\n\n", style="bold")
+    t.append(f"{len(m.in_play)} rule(s) in play\n\n", style="bold green")
     if not m.in_play:
         t.append("(none)", style="dim")
     for i, rule in enumerate(m.in_play, 1):
         t.append(f"{i}. ", style="dim")
-        t.append(f"{rule}\n")
+        t.append(f"{rule}\n", style="bright_cyan")      # short-memory rules in a readable accent
     return Panel(t, title="SHORT MEMORY (in-play rules)", border_style="green")
 
 
@@ -189,12 +232,40 @@ def _launch_loop(spec: str):
     return proc, run_dir
 
 
+def _save_frame(run_dir: str, path: str, grade: bool) -> int:
+    """Render ONE frame to an image file, fully headless (no live terminal).
+
+    A recording Console at a fixed 120-col width with a dark background captures the frame, then
+    writes .svg (console.save_svg) or .html (console.save_html), chosen by the path extension.
+    Returns 0 on success; a clear message + non-zero on an unsupported extension or a write error.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in (".svg", ".html", ".htm"):
+        print(f"--save: unsupported extension '{ext}' (use .svg or .html)", file=sys.stderr)
+        return 2
+    m = T.build_model(run_dir, grade_qwen=grade)
+    with open(os.devnull, "w") as sink:
+        console = Console(record=True, width=120, file=sink)   # fixed width, headless
+        console.print(render(m))
+        try:
+            if ext == ".svg":
+                console.save_svg(path, title="SF2 loop monitor")
+            else:
+                console.save_html(path)
+        except OSError as exc:
+            print(f"--save: could not write {path}: {exc}", file=sys.stderr)
+            return 1
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(description="Read-only live monitor for the self-learning loop.")
     ap.add_argument("--watch", metavar="RUN_DIR", help="attach to this run dir")
     ap.add_argument("--latest", action="store_true", help="watch the newest rollouts/loop_screen/*")
     ap.add_argument("--run", metavar="SPEC", help='launch play_loop_screen.py "<me> <opp> <games> <rounds>" and watch')
     ap.add_argument("--once", action="store_true", help="render a single frame and exit")
+    ap.add_argument("--save", metavar="PATH", help="render ONE frame headless to PATH (.svg or "
+                    ".html) and exit; no live terminal needed")
     ap.add_argument("--no-grade", action="store_true", help="skip the G5 rule grading")
     args = ap.parse_args(argv)
 
@@ -210,6 +281,12 @@ def main(argv: Optional[list] = None) -> int:
         run_dir = _resolve_run_dir(args)
 
     grade = not args.no_grade
+
+    if args.save:
+        rc = _save_frame(run_dir, args.save, grade)
+        if proc is not None:
+            proc.terminate()
+        return rc
 
     if args.once:
         m = T.build_model(run_dir, grade_qwen=grade)

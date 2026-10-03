@@ -111,6 +111,7 @@ class DashboardModel:
     in_play: Tuple[str, ...]                 # current short-memory rules
     qwen: Tuple[QwenView, ...]               # per game, newest last
     results: Tuple[RoundResult, ...]
+    per_game_wl: Tuple[str, ...]             # one 'W'/'L'/'T' per game played, in game order
     # inferred loop state
     qwen_thinking: bool
     status: str                              # "running" / "thinking" / "done" / "empty"
@@ -139,6 +140,88 @@ def hp_bar(frac: float, width: int = 24) -> str:
     filled = int(round(f * width))
     filled = 0 if filled < 0 else (width if filled > width else filled)
     return "#" * filled + "-" * (width - filled)
+
+
+# shaded-bar glyphs: full cell, the eighth-block ramp (1/8..7/8) for a partial last cell, empty track
+_FULL_BLOCK = "█"                               # █
+_EIGHTHS = ("▏", "▎", "▍", "▌",  # ▏ ▎ ▍ ▌
+            "▋", "▊", "▉")            # ▋ ▊ ▉  (1/8 .. 7/8)
+_EMPTY_BLOCK = "░"                              # ░
+
+
+def _bar_color(frac: float) -> str:
+    """Health -> rich color: green when >0.6, yellow 0.3..0.6, red below 0.3."""
+    if frac > 0.6:
+        return "green"
+    if frac >= 0.3:
+        return "yellow"
+    return "red"
+
+
+def shaded_bar(frac: float, width: int = 24, color: Optional[str] = None) -> str:
+    """Render a 0..1 fraction as a rich-markup shaded bar of ``width`` cells.
+
+    The filled part is whole '█' cells plus, for sub-cell precision, one partial cell from the
+    eighth-block ramp '▏▎▍▌▋▊▉'; the empty part is a dim '░' track. The filled run is colored by
+    health (``_bar_color``) unless ``color`` overrides it (e.g. the win-rate meter forces green).
+    Returns VALID, balanced rich markup. Clamps out-of-range / non-numeric input.
+
+    >>> from rich.text import Text
+    >>> _ = Text.from_markup(shaded_bar(0.42, 10))   # parses cleanly
+    """
+    if width <= 0:
+        return ""
+    try:
+        f = float(frac)
+    except (TypeError, ValueError):
+        f = 0.0
+    f = 0.0 if f < 0 else (1.0 if f > 1 else f)
+    total = width * 8
+    eighths = int(round(f * total))
+    eighths = 0 if eighths < 0 else (total if eighths > total else eighths)
+    full = eighths // 8
+    rem = eighths % 8
+    partial = _EIGHTHS[rem - 1] if rem else ""
+    empty = width - full - (1 if rem else 0)
+    filled = _FULL_BLOCK * full + partial
+    track = _EMPTY_BLOCK * empty
+    col = color or _bar_color(f)
+    out = ""
+    if filled:
+        out += f"[{col}]{filled}[/{col}]"
+    if track:
+        out += f"[dim]{track}[/dim]"
+    return out
+
+
+def per_game_wl(results: Sequence["RoundResult"]) -> Tuple[str, ...]:
+    """Reduce per-round results to one verdict per game, in game order.
+
+    'W' when a game won more rounds than it lost, 'L' when it lost more, 'T' on a tie (equal, or
+    no decisive rounds). Derived from the round results already in the model -- no play-path access.
+    """
+    wins: Dict[int, int] = {}
+    losses: Dict[int, int] = {}
+    for r in results:
+        wins.setdefault(r.game, 0)
+        losses.setdefault(r.game, 0)
+        if r.result == "win":
+            wins[r.game] += 1
+        elif r.result == "loss":
+            losses[r.game] += 1
+    out: List[str] = []
+    for g in sorted(wins.keys()):
+        w, l = wins[g], losses[g]
+        out.append("W" if w > l else ("L" if l > w else "T"))
+    return tuple(out)
+
+
+def win_rate(per_game: Sequence[str]) -> Tuple[int, int, int]:
+    """(wins, games_played, win_pct) from a per-game W/L/T sequence. Empty -> (0, 0, 0)."""
+    played = len(per_game)
+    wins = sum(1 for v in per_game if v == "W")
+    pct = int(round(100.0 * wins / played)) if played else 0
+    return wins, played, pct
 
 
 def _pressed_str(pressed: Sequence, max_tokens: int = 4) -> str:
@@ -404,6 +487,7 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
         me_hp=me_hp, opp_hp=opp_hp, me_hp_frac=me_frac, opp_hp_frac=opp_frac,
         decisions=tuple(decisions), stats=stats,
         in_play=in_play, qwen=tuple(qwen_views), results=results,
+        per_game_wl=per_game_wl(results),
         qwen_thinking=thinking, status=status, error=error,
     )
 

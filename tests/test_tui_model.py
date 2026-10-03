@@ -10,6 +10,7 @@ mapping, and the thinking inference were each checked against an inverted implem
 """
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -36,6 +37,107 @@ def test_hp_bar_clamps_out_of_range():
     assert T.hp_bar(2.0, 8) == "#" * 8
     assert T.hp_bar(-1.0, 8) == "-" * 8
     assert T.hp_bar("bad", 8) == "-" * 8  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------- shaded_bar (pure, NEW)
+
+_TAG = re.compile(r"\[/?[a-z ]+\]")      # strip rich markup tags -> raw glyphs only
+
+
+def _glyphs(markup: str) -> str:
+    return _TAG.sub("", markup)
+
+
+def test_shaded_bar_levels_glyphs():
+    """Full '█', partial eighth-ramp cell, dim '░' track -- exact glyphs at the key fractions.
+
+    Seen RED first: run against the old codebase (no shaded_bar) -> AttributeError, and against a
+    twin that used int(round(f*width)) full cells with no partial ramp -> the 0.3125 case is
+    '██░░░░░░' not '██▌░░░░░', so the partial-cell assertion fails.
+    """
+    assert _glyphs(T.shaded_bar(1.0, 8)) == "████████"
+    assert _glyphs(T.shaded_bar(0.0, 8)) == "░░░░░░░░"
+    assert _glyphs(T.shaded_bar(0.5, 8)) == "████░░░░"
+    assert _glyphs(T.shaded_bar(0.25, 8)) == "██░░░░░░"
+    # partial-cell boundary: 0.3125*8*8 = 20 eighths -> 2 full + 4/8 ('▌') + 5 track
+    assert _glyphs(T.shaded_bar(0.3125, 8)) == "██▌░░░░░"
+
+
+def test_shaded_bar_color_by_health():
+    assert "[green]" in T.shaded_bar(0.9, 8)     # >0.6
+    assert "[yellow]" in T.shaded_bar(0.45, 8)   # 0.3..0.6
+    assert "[red]" in T.shaded_bar(0.1, 8)       # <0.3
+    assert "[dim]" in T.shaded_bar(0.5, 8)       # empty track is dim
+    # explicit color override (win-rate meter forces green)
+    assert "[green]" in T.shaded_bar(0.5, 8, color="green")
+    assert "[yellow]" not in T.shaded_bar(0.5, 8, color="green")
+
+
+def test_shaded_bar_markup_is_valid():
+    """Every produced bar must be parseable rich markup (balanced tags, no stray brackets)."""
+    from rich.text import Text as _RT
+    for f in (0.0, 0.17, 0.25, 0.3, 0.5, 0.6, 0.8125, 1.0, 2.0, -1.0):
+        _RT.from_markup(T.shaded_bar(f, 12))   # raises on malformed markup
+
+
+def test_shaded_bar_width_invariant():
+    """Rendered glyph width always equals the requested width (partial cell counts as one)."""
+    for f in (0.0, 0.1, 0.3125, 0.49, 0.5, 0.99, 1.0):
+        for w in (1, 7, 12, 28):
+            assert len(_glyphs(T.shaded_bar(f, w))) == w
+
+
+# --------------------------------------------------------------------------- per-game W/L (pure, NEW)
+
+def _rr(game, rnd, result):
+    return T.RoundResult(game=game, round=rnd, result=result, hp=0, dealt=0, taken=0)
+
+
+def test_per_game_wl_three_wins_two_losses():
+    """3 wins then 2 losses, one decisive round each -> ('W','W','W','L','L') in game order.
+
+    Seen RED first: a twin that keyed the dict by round instead of game collapsed all into
+    two buckets and returned the wrong length/order.
+    """
+    results = (_rr(0, 0, "win"), _rr(1, 0, "win"), _rr(2, 0, "win"),
+               _rr(3, 0, "loss"), _rr(4, 0, "loss"))
+    assert T.per_game_wl(results) == ("W", "W", "W", "L", "L")
+
+
+def test_per_game_wl_multiround_and_tie():
+    results = (
+        _rr(0, 0, "loss"), _rr(0, 1, "win"),    # 1-1 -> tie
+        _rr(1, 0, "win"), _rr(1, 1, "win"),     # 2-0 -> win
+        _rr(2, 0, "loss"), _rr(2, 1, "loss"),   # 0-2 -> loss
+    )
+    assert T.per_game_wl(results) == ("T", "W", "L")
+
+
+def test_win_rate_number():
+    assert T.win_rate(("W", "W", "W", "L", "L")) == (3, 5, 60)
+    assert T.win_rate(()) == (0, 0, 0)
+    assert T.win_rate(("W", "T", "L", "T")) == (1, 4, 25)
+
+
+@pytest.mark.skipif(not os.path.isdir(HONDA), reason="overnight honda dir not present")
+def test_real_honda_per_game_wl():
+    m = T.build_model(HONDA)
+    assert len(m.per_game_wl) == m.games                 # one verdict per game played
+    assert set(m.per_game_wl) <= {"W", "L", "T"}
+    wins, played, pct = T.win_rate(m.per_game_wl)
+    assert 0 <= wins <= played == len(m.per_game_wl)
+    assert 0 <= pct <= 100
+
+
+@pytest.mark.skipif(not os.path.isdir(HONDA), reason="overnight honda dir not present")
+def test_once_render_has_new_visual_elements():
+    """--once on the real honda dir renders the shaded bar (block glyph) and the win-rate meter."""
+    script = os.path.join(REPO, "scripts", "monitor_tui.py")
+    out = subprocess.run([sys.executable, script, "--once", "--watch", HONDA],
+                         capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert "█" in out.stdout            # a full block glyph from a shaded bar
+    assert "win rate" in out.stdout.lower()
 
 
 def test_parse_round_dir():
@@ -274,6 +376,36 @@ def test_once_render_subprocess_real_dir():
     assert "chunli" in text and "honda" in text
     assert "SHORT MEMORY" in text or "MEMORY" in text
     assert "QWEN" in text
+
+
+@pytest.mark.skipif(not os.path.isdir(HONDA), reason="overnight honda dir not present")
+def test_save_svg_frame(tmp_path):
+    """--save <path>.svg writes a non-empty SVG containing a block glyph, headless, exit 0.
+
+    Seen RED first: before --save existed, argparse rejected the flag (exit 2) and no file was
+    written, so the file-exists / block-glyph assertions failed.
+    """
+    out_svg = str(tmp_path / "frame.svg")
+    script = os.path.join(REPO, "scripts", "monitor_tui.py")
+    out = subprocess.run([sys.executable, script, "--save", out_svg, "--watch", HONDA],
+                         capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert os.path.isfile(out_svg)
+    data = open(out_svg, encoding="utf-8").read()
+    assert len(data) > 0
+    assert data.lstrip().startswith("<svg") or "<svg" in data[:2000]
+    assert "█" in data                   # a full block glyph rendered into the SVG
+
+
+@pytest.mark.skipif(not os.path.isdir(HONDA), reason="overnight honda dir not present")
+def test_save_html_frame(tmp_path):
+    out_html = str(tmp_path / "frame.html")
+    script = os.path.join(REPO, "scripts", "monitor_tui.py")
+    out = subprocess.run([sys.executable, script, "--save", out_html, "--watch", HONDA],
+                         capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert os.path.getsize(out_html) > 0
+    assert "█" in open(out_html, encoding="utf-8").read()
 
 
 def test_once_render_subprocess_crafted(tmp_path):
