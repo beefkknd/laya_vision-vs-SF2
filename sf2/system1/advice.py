@@ -116,6 +116,21 @@ WHERE = {"close": re.compile(r"\b(close|next to)\b", re.I),
          "far": re.compile(r"\b(far|long range)\b", re.I)}
 FIRE = re.compile(r"\bfireballs?\b", re.I)      # G4: the lesson conditions on an incoming fireball (identical token)
 HE_DOES = re.compile(r"\b(he|him|ryu|ken|blanka|guile|chunli|chun-li|honda|zangief|dhalsim)\s+(is\s+)?\w+", re.I)
+# The throw alias (owner 2026-10-02): a lesson may say the generic word "throw"/"grab" rather than the menu's
+# canonical throw-move name (throw_F+hp). When no concrete move is named, a generic throw word resolves to the
+# character's throw move (throw_F+hp preferred) so the lesson is FOLLOWABLE, not inert. Canonical names stay the menu's.
+THROW_WORD = re.compile(r"\b(throw|throws|throwing|grab|grabs|grabbing|toss|tosses)\b", re.I)
+
+
+def throw_move(moves: Sequence[str]) -> Optional[str]:
+    """The concrete throw move a generic "throw"/"grab" aliases to: throw_F+hp if offered, else the first throw_*
+    move, else a literal "throw" if the menu still carries one; None when this menu has no throw."""
+    if "throw_F+hp" in moves:
+        return "throw_F+hp"
+    throws = sorted(m for m in moves if m.startswith("throw_"))
+    if throws:
+        return throws[0]
+    return "throw" if "throw" in moves else None
 
 
 @dataclass(frozen=True)
@@ -139,11 +154,14 @@ def parse(text: str, moves: Sequence[str]) -> Lesson:
     first, so "c.mk" is not read as "mk"; "throw" only when no other move is named, as in "throw c.mk"; what HE does,
     "he jumps", is not her move); none named -> no move."""
     what = text.split(":", 1)[0]
+    cleaned = HE_DOES.sub(" ", what)        # drop "he jumps" / "him up" so his action is not read as my move
     named = [m for m in sorted(moves, key=len, reverse=True)
-             if re.search(r"(?<![\w.])%s(ing|s)?(?![\w])" % re.escape(m), HE_DOES.sub(" ", what))]
+             if re.search(r"(?<![\w.])%s(ing|s)?(?![\w])" % re.escape(m), cleaned)]
     if len(named) > 1 and "throw" in named:
         named.remove("throw")
     move = named[0] if named else None
+    if move is None and THROW_WORD.search(cleaned):   # throw alias: a bare "throw"/"grab" -> the concrete throw move
+        move = throw_move(moves)
     if move is None:
         pol = "none"
     elif NEG.search(what):
@@ -220,13 +238,15 @@ def _prefix(move: str) -> Optional[str]:
     return None
 
 
-def moves_in_stance(category: str, stance: str) -> List[str]:
+def moves_in_stance(category: str, stance: str, categories: Optional[Dict[str, Sequence[str]]] = None) -> List[str]:
     """``category``'s move names that this stance can actually do: a prefixed normal/combo by its prefix, a throw only
-    up close, and the other grounded moves (movement, block, special) only while grounded."""
+    up close, and the other grounded moves (movement, block, special) only while grounded. ``categories`` is the
+    character's category->moves map (default: the module's CATEGORIES, i.e. Chun-Li), so one rule serves all 8."""
+    categories = categories if categories is not None else CATEGORIES
     if stance not in STANCES:
         raise ValueError("unknown stance %r" % stance)
     out = []
-    for m in CATEGORIES[category]:
+    for m in categories[category]:
         p = _prefix(m)
         if p is not None:
             if p in STANCE_PREFIXES[stance]:
@@ -239,8 +259,9 @@ def moves_in_stance(category: str, stance: str) -> List[str]:
     return out
 
 
-def available_moves(stance: str) -> set:
-    return {m for cat in CATEGORY_ORDER for m in moves_in_stance(cat, stance)}
+def available_moves(stance: str, categories: Optional[Dict[str, Sequence[str]]] = None) -> set:
+    categories = categories if categories is not None else CATEGORIES
+    return {m for cat in CATEGORY_ORDER for m in moves_in_stance(cat, stance, categories)}
 
 
 def category_question() -> Dict:
@@ -255,11 +276,14 @@ def move_question(moves: Sequence[str]) -> Dict:
 
 
 def chosen_moves(rng: str, doing: str, stance: str, lessons: Sequence[Lesson],
-                 fireball: bool = False) -> Tuple[List[str], str]:
+                 fireball: bool = False, categories: Optional[Dict[str, Sequence[str]]] = None) -> Tuple[List[str],
+                                                                                                         str]:
     """The move(s) the advice picks from the stance-pruned (unrated) menu, and which rule decided: an applying hard
     lesson, else an applying soft lesson, else the hardcoded default (block). A negative lesson rules its move out.
-    With no ratings a move is chosen only when a lesson names it; otherwise it is the default."""
-    avail = available_moves(stance)
+    With no ratings a move is chosen only when a lesson names it; otherwise it is the default. ``categories`` is the
+    character's menu (default: Chun-Li's CATEGORIES)."""
+    categories = categories if categories is not None else CATEGORIES
+    avail = available_moves(stance, categories)
     live = [les for les in lessons if les.move in avail and les.applies(rng, doing, fireball)]
     out = {les.move for les in live if les.polarity == "neg"}
     hard = sorted({les.move for les in live if les.polarity == "hard"} - out)
@@ -271,10 +295,14 @@ def chosen_moves(rng: str, doing: str, stance: str, lessons: Sequence[Lesson],
     return [DEFAULT_MOVE], "default"
 
 
-def two_stage(rng: str, doing: str, stance: str, lessons: Sequence[Lesson],
-              fireball: bool = False) -> Tuple[List[str], List[str], str]:
+def two_stage(rng: str, doing: str, stance: str, lessons: Sequence[Lesson], fireball: bool = False,
+              categories: Optional[Dict[str, Sequence[str]]] = None) -> Tuple[List[str], List[str], str]:
     """Labels for the two-stage menu: (round-1 category answers, round-2 move answers, the rule that decided). Round 2
-    is scoped to one category, so when the picks span categories the caller asks round 2 per category."""
-    moves, rule = chosen_moves(rng, doing, stance, lessons, fireball)
-    cats = sorted({category_of(m) for m in moves})
+    is scoped to one category, so when the picks span categories the caller asks round 2 per category. ``categories``
+    is the character's menu (default: Chun-Li's CATEGORIES); the category of each picked move is read from it, so a
+    character whose moves action_menu.category_of does not know (e.g. Ryu's hadoken) still resolves."""
+    categories = categories if categories is not None else CATEGORIES
+    moves, rule = chosen_moves(rng, doing, stance, lessons, fireball, categories)
+    cat_of = {m: c for c, names in categories.items() for m in names}
+    cats = sorted({cat_of.get(m) or category_of(m) for m in moves})
     return cats, moves, rule
