@@ -28,7 +28,7 @@ import time
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import _path  # noqa: F401
-from sf2.config import PORTS, TEXT_LAYA
+from sf2.config import PORTS
 from sf2.system1.action_menu import CATEGORIES, CATEGORY_ORDER
 from sf2.system1.loop_runner import play_round as play_screen_round
 from sf2.system2 import character_prompt, lessons as L, screen_evidence, seed_rules
@@ -91,12 +91,13 @@ PlayFn = Callable[..., Dict]        # like sf2.system1.loop_runner.play_round
 ScoreFn = Callable[[str], Optional[Dict]]    # a round dir -> its offline replay score (result, hp, ...), or None
 
 
-def run_loop(opp: str, advisor, ask_qwen: QwenCaller, *, games: int, rounds: int, seed_lines: L.Registry,
-             out: str, play_round_fn: PlayFn, state: bytes, state_id: Dict, emu, score_fn: Optional[ScoreFn] = None,
-             reader=None, seed_rng: int = 0, me: str = ME, log=None) -> Dict:
+def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games: int, rounds: int,
+             seed_lines: L.Registry, out: str, play_round_fn: PlayFn, state: bytes, state_id: Dict, emu,
+             score_fn: Optional[ScoreFn] = None, reader=None, seed_rng: int = 0, me: str = ME, log=None) -> Dict:
     """Play ``games`` games, rotating the short memory through System 2 after each. Everything heavy is injected:
-    ``advisor`` (text laya), ``ask_qwen``, ``play_round_fn`` (plays one round, writes its record), ``emu`` (a handle
-    with ``new_round()``), ``score_fn`` (the offline replay, or None to score from the screen). Returns the verdict."""
+    ``cat_advisor`` / ``move_advisor`` (the two text laya checkpoints: round-1 category, round-2 move), ``ask_qwen``,
+    ``play_round_fn`` (plays one round, writes its record), ``emu`` (a handle with ``new_round()``), ``score_fn`` (the
+    offline replay, or None to score from the screen). Returns the verdict."""
     os.makedirs(out, exist_ok=True)
     trace = open(os.path.join(out, "trace.jsonl"), "w") if log is None else log
     reg: L.Registry = list(seed_lines)
@@ -119,7 +120,7 @@ def run_loop(opp: str, advisor, ask_qwen: QwenCaller, *, games: int, rounds: int
         for r in range(rounds):
             rd = os.path.join(out, "g%02d_r%d" % (g, r))
             delay = DELAY_MIN + rng.randrange(DELAY_SPAN)
-            play_round_fn(emu, advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
+            play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
             emu = emu.new_round()
             replay = score_fn(rd) if score_fn else None
             decisions = screen_evidence.read_decisions(rd)
@@ -188,7 +189,11 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=3)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--book", default=os.path.join("lessons", "book.json"))
-    ap.add_argument("--advisor", default=TEXT_LAYA)
+    ap.add_argument("--cat-advisor", default=os.path.join("runs", "text_laya", "cat_v1"),
+                    help="round-1 CATEGORY checkpoint")
+    ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v1"),
+                    help="round-2 MOVE checkpoint (point BOTH flags at runs/text_laya/advice_v2 to compare the old "
+                         "single model)")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -207,12 +212,16 @@ def main() -> int:
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "run.json"), "w") as f:
         json.dump({"arm": "loop", "me": ME, "opp": args.opp, "games": args.games, "rounds": args.rounds,
-                   "seed": args.seed, "state": state_id, "book": args.book, "advisor": args.advisor,
+                   "seed": args.seed, "state": state_id, "book": args.book,
+                   "cat_advisor": args.cat_advisor, "move_advisor": args.move_advisor,
                    "qwen": "on"}, f, indent=1)
     shared = {"shared": True} if args.shared_text_laya else {}
     score_fn = None if args.no_score else _real_score(args.replay_port, args.rom)
-    with Advisor(args.advisor, **shared) as advisor, open_screen(args.port, args.rom) as emu:
-        verdict = run_loop(args.opp, advisor, _real_qwen(), games=args.games, rounds=args.rounds,
+    # Two Advisor instances - one per checkpoint. In shared mode each gets its own socket (shared_laya.socket_path keys
+    # off the checkpoint), so this is two shared servers on different sockets; otherwise two helper subprocesses.
+    with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
+            open_screen(args.port, args.rom) as emu:
+        verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
                            seed_lines=seed(args.opp, args.book), out=out, play_round_fn=play_screen_round,
                            state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed)
     print(json.dumps(verdict, indent=1))

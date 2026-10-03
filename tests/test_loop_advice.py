@@ -22,17 +22,17 @@ from sf2.system2 import lessons as L                                 # noqa: E40
 
 def test_default_is_block_when_no_advice_applies():
     m = make_moment(dx=36, doing="standing")           # up close, nothing to follow
-    d = two_stage_decide(FollowerLaya(), "chunli", m, [])
+    d = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m, [])
     assert d["action"] == DEFAULT_MOVE and d["category"] == "block" and d["rule"] == "default"
     assert d["follows_rule"] is True                   # following the default IS following the (empty) advice
 
 
 def test_advice_line_changes_the_move():
     m = make_moment(dx=36, doing="standing")           # up close
-    base = two_stage_decide(FollowerLaya(), "chunli", m, [])["action"]
+    base = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m, [])["action"]
     assert base == DEFAULT_MOVE
     # the owner's "always throw up close", in the two-stage menu's vocabulary (throw -> throw_F+hp)
-    d = two_stage_decide(FollowerLaya(), "chunli", m, ["always use throw_F+hp up close"])
+    d = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m, ["always use throw_F+hp up close"])
     assert d["action"] == "throw_F+hp" and d["category"] == "throw"
     assert d["rule"] == "hard" and d["follows_rule"] and d["rule_answers"] == ["throw_F+hp"]
     assert "always use throw_F+hp up close" in d["advice_text"]      # the advice reached the model's prompt
@@ -52,12 +52,12 @@ def test_retire_signal_removes_a_rule_and_the_move_changes_back():
     assert [o["state"] for o in out] == ["registered"], out
     line = L.render(claim)
     assert line in L.in_play(reg)
-    picked = two_stage_decide(FollowerLaya(), "chunli", m, L.in_play(reg))
+    picked = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m, L.in_play(reg))
     assert picked["action"] == "cl.hp" and picked["follows_rule"]
 
     bad = _rows("cl.hp", 0, 30) + _rows("block_high", 30, 0)         # now cl.hp is clearly WORSE: evidence flips
     reg = L.review(reg, bad, game=1)
     assert line not in L.in_play(reg)                               # retired
     assert any(r["state"] == "retired" and r["line"] == line for r in reg)
-    back = two_stage_decide(FollowerLaya(), "chunli", m, L.in_play(reg))
+    back = two_stage_decide(FollowerLaya(), FollowerLaya(), "chunli", m, L.in_play(reg))
     assert back["action"] == DEFAULT_MOVE and back["rule"] == "default"

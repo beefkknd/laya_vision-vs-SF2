@@ -7,16 +7,18 @@ reader harness does (sf2.system1.screen_play), but the decision is `two_stage_de
 this module's whole import closure is free of the table and the RAM play paths (scripts/hard_gate.py --entry
 sf2/system1/loop_runner.py is clean).
 
-One decision (``two_stage_decide``):
+One decision (``two_stage_decide``): TWO trained checkpoints, one per round (docs/plan_two_finetune_textlaya.md):
   1. the screen words: the situation sentence (sf2.system1.screen_words.sentence) + "Advice: <lines>." (the short
      memory in force), built byte-for-byte as text laya's training data (scripts/build_advice_data.py);
-  2. round 1 - text laya picks one of the 7 categories (advice.category_question);
-  3. round 2 - text laya picks one move inside it, the stance having pruned the options (advice.move_question over
-     advice.moves_in_stance); nothing the advice names -> the hardcoded default (block, action_menu.DEFAULT_MOVE);
+  2. round 1 - the CATEGORY model picks one of the 7 categories (advice.category_question);
+  3. round 2 - the MOVE model picks one move inside it, the stance having pruned the options (advice.move_question over
+     advice.moves_in_stance); the model owns the default - when nothing applies the model has learned to block, no code
+     forces it. block is only ever OFFERED (the block category on the round-1 menu, block_high always in round 2);
   4. the label rule (advice.two_stage) is logged next to the pick as ``follows_rule`` (did text laya follow the advice).
 
-The advisor is INJECTED (an object with ``ask(text, question) -> {option: prob}``): the real text laya server
-(sf2.system1.advisor.Advisor) in play, a follower stub in tests. Nothing here calls Qwen or the network.
+The two advisors are INJECTED (each an object with ``ask(text, question) -> {option: prob}``): two real text laya
+servers (sf2.system1.advisor.Advisor on the cat_v1 / move_v1 checkpoints) in play, follower/mock stubs in tests.
+Nothing here calls Qwen or the network.
 
 Seeding, the screen evidence and the Qwen update that rotate the short memory live in the driver
 (scripts/play_loop_screen.py) and sf2.system2.screen_evidence, OUTSIDE this clean play module; this module only plays a
@@ -92,20 +94,27 @@ def _posture(m: Moment) -> str:
     return "stand"
 
 
-def two_stage_decide(advisor, me: str, m: Moment, lines: Sequence[str]) -> Dict:
-    """Text laya's move, by following the advice over the unrated two-stage menu. ``advisor.ask(text, question)``
-    returns {option: probability}. Returns the pick and everything logged about how it was reached."""
+def two_stage_decide(cat_advisor, move_advisor, me: str, m: Moment, lines: Sequence[str]) -> Dict:
+    """Text laya's move, by following the advice over the unrated two-stage menu. TWO trained checkpoints decide:
+    ``cat_advisor`` scores round 1 (the CATEGORY model) and ``move_advisor`` scores round 2 (the MOVE model); each
+    ``ask(text, question)`` returns {option: probability}. The model owns the default - no code forces block when
+    nothing applies, the model's round-1 and round-2 picks stand. The one safety nuance: block is ALWAYS an offered
+    option (the block category is always on the round-1 menu via CATEGORY_ORDER, and block_high is always added to the
+    round-2 options below), so the model can always choose the safe move but is never forced to. Returns the pick and
+    everything logged about how it was reached."""
     rng, doing, _, _ = situation(m)
     stance = stance_of(_posture(m), rng)
     lessons = [read_lesson(t, MENU_MOVES) for t in lines]
     cats, move_answers, rule = two_stage(rng, doing, stance, lessons, m.fireball)
 
     text = prompt(sentence(m), list(lines))
-    cat_probs = advisor.ask(text, category_question())
-    category = max(cat_probs, key=cat_probs.get)
-    options = moves_in_stance(category, stance) or [DEFAULT_MOVE]
-    move_probs = advisor.ask(text, move_question(options))
-    pick = max(move_probs, key=move_probs.get)
+    cat_probs = cat_advisor.ask(text, category_question())          # round 1: the CATEGORY model (block always offered)
+    category = max(cat_probs, key=cat_probs.get)                    # the model's category pick STANDS (no code floor)
+    options = list(moves_in_stance(category, stance))
+    if DEFAULT_MOVE not in options:                                # safety: block_high is ALWAYS an offered move,
+        options.append(DEFAULT_MOVE)                               # never a forced fallback - the model still picks
+    move_probs = move_advisor.ask(text, move_question(options))     # round 2: the MOVE model
+    pick = max(move_probs, key=move_probs.get)                     # the model's move pick STANDS
     return {"action": pick, "category": category, "cat_probs": cat_probs, "move_options": list(options),
             "move_probs": move_probs, "rule": rule, "rule_cats": cats, "rule_answers": move_answers,
             "follows_rule": pick in move_answers, "follows_cat": category in cats,
@@ -165,9 +174,10 @@ class WrongFight(RuntimeError):
     """The reader locked other characters than the run's (the start state or the catalog is wrong)."""
 
 
-def play_round(emu: ScreenEmu, advisor, me: str, opp: str, state: bytes, state_id: Dict, delay: int,
+def play_round(emu: ScreenEmu, cat_advisor, move_advisor, me: str, opp: str, state: bytes, state_id: Dict, delay: int,
                lines: Sequence[str], out: str, reader: Optional[RoundReader] = None) -> Dict:
-    """One round in screen-only mode, text laya following ``lines`` (the short memory in force). Writes the round
+    """One round in screen-only mode, text laya following ``lines`` (the short memory in force). ``cat_advisor`` /
+    ``move_advisor`` are the two trained checkpoints (round-1 category, round-2 move). Writes the round
     record under ``out`` (the same files scripts/replay_score.py reads) and returns round.json's content. No hp and
     no result here: those come from the offline replay (sf2.system2.screen_evidence sources them). ``reader`` is
     injectable so a test can feed scripted ScreenFacts without an emulator; the default is a real RoundReader."""
@@ -193,7 +203,7 @@ def play_round(emu: ScreenEmu, advisor, me: str, opp: str, state: bytes, state_i
                 facts, ms = eyes.read(cur, k)
                 continue
             t = time.perf_counter()
-            d = two_stage_decide(advisor, me, m, lines)
+            d = two_stage_decide(cat_advisor, move_advisor, me, m, lines)
             d_ms = 1000 * (time.perf_counter() - t)
             press = press_frames(me, d["action"], m)
             unknown = [f.side for f in (facts.left, facts.right) if f.unknown]

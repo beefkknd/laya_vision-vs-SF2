@@ -23,12 +23,12 @@ class FakeEmu:
         return self
 
 
-def fake_play(emu, advisor, me, opp, state, state_id, delay, lines, out, reader=None):
+def fake_play(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, out, reader=None):
     """One decision, up close while he attacks, written in loop_runner's decision-record shape (so screen_evidence
     reads it like a real round). The move is the REAL two_stage_decide, so the advice genuinely drives it."""
     os.makedirs(out, exist_ok=True)
     m = make_moment(dx=36, doing="attacking", my_bar=150 / 176.0, his_bar=150 / 176.0)
-    d = two_stage_decide(advisor, me, m, lines)
+    d = two_stage_decide(cat_advisor, move_advisor, me, m, lines)
     rec = dict(d, i=0, k=12, k_prev=8, situation=["close", "attacking", "half", "half"],
                moment={"my_life": 150, "his_life": 150, "doing": "attacking", "his_air": False,
                        "side": "left", "dx": 36, "fireball": False})
@@ -70,7 +70,7 @@ def test_qwen_claim_closes_the_loop_and_changes_the_next_game(tmp_path):
     driver = load_driver()
     qwen = MockQwen()
     out = str(tmp_path / "run")
-    verdict = driver.run_loop(OPP, FollowerLaya(), qwen, games=2, rounds=1, seed_lines=[], out=out,
+    verdict = driver.run_loop(OPP, FollowerLaya(), FollowerLaya(), qwen, games=2, rounds=1, seed_lines=[], out=out,
                               play_round_fn=fake_play, state=b"x", state_id={"path": "p", "sha256": "0"},
                               emu=FakeEmu(), score_fn=fake_score, seed_rng=1)
     acts = _actions(out)
@@ -95,7 +95,7 @@ def test_seed_lines_play_from_game_zero(tmp_path):
     seed_line = {"claim": {"kind": "always", "move": "cl.hp", "range": "close", "when": "attacking", "view": "book"},
                  "line": "always cl.hp up close when he attacks", "state": "verified", "why": "seed",
                  "since": -1, "evidence": {"source": "web"}}
-    driver.run_loop(OPP, FollowerLaya(), MockQwen(), games=1, rounds=1, seed_lines=[seed_line], out=out,
-                    play_round_fn=fake_play, state=b"x", state_id={"path": "p", "sha256": "0"},
+    driver.run_loop(OPP, FollowerLaya(), FollowerLaya(), MockQwen(), games=1, rounds=1, seed_lines=[seed_line],
+                    out=out, play_round_fn=fake_play, state=b"x", state_id={"path": "p", "sha256": "0"},
                     emu=FakeEmu(), score_fn=fake_score, seed_rng=1)
     assert _actions(out)[0] == "cl.hp"

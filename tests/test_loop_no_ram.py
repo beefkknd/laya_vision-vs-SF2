@@ -31,7 +31,8 @@ def test_play_round_makes_a_decision_with_no_ram(tmp_path):
               make_facts(ME, OPP),                                  # the decision moment (I can act)
               make_facts(ME, OPP, over=True)]                       # the round ends right after the press
     reader = FakeReader(ME, OPP, script)
-    summary = play_round(emu, FollowerLaya(), ME, OPP, state=b"x", state_id={"path": "p", "sha256": "0"},
+    summary = play_round(emu, FollowerLaya(), FollowerLaya(), ME, OPP, state=b"x",
+                         state_id={"path": "p", "sha256": "0"},
                          delay=8, lines=[], out=str(tmp_path), reader=reader)
     assert summary["decisions"] >= 1
     assert summary["chars"] == [ME, OPP]
@@ -49,5 +50,5 @@ def test_play_round_raises_if_the_bridge_leaks_ram(tmp_path):
     emu = ScreenEmu(LeakyBridge())
     reader = FakeReader(ME, OPP, [make_facts(ME, OPP), make_facts(ME, OPP), make_facts(ME, OPP, over=True)])
     with pytest.raises(RamForbidden):
-        play_round(emu, FollowerLaya(), ME, OPP, state=b"x", state_id={"path": "p", "sha256": "0"},
+        play_round(emu, FollowerLaya(), FollowerLaya(), ME, OPP, state=b"x", state_id={"path": "p", "sha256": "0"},
                    delay=8, lines=[], out=str(tmp_path), reader=reader)
