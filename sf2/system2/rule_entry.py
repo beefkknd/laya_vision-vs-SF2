@@ -30,3 +30,20 @@ def entry(claim):
 def carry_entries(rules, moves):
     """A list of advice lines -> a list of verified registry entries, in order."""
     return [entry(claim_of(r, moves)) for r in rules]
+
+
+def candidate_rules(incumbent_rules, claims, moves):
+    """Apply the Coach's kept claims to the incumbent playbook -> the candidate's rule lines. Each claim
+    (already stance-filtered by coach_filter) renders to a line and is appended unless the incumbent
+    already carries the same rule - compared in CANONICAL form (book lines use aliases like 'throw',
+    render uses 'throw_F+hp'), so an equivalent rule is not duplicated. Incumbent lines are kept verbatim;
+    order preserved. Pure (renders/parses via the shared helpers)."""
+    from sf2.system2 import lessons as L
+    canon = {L.render(claim_of(r, moves)) for r in incumbent_rules}
+    out = list(incumbent_rules)
+    for c in claims:
+        line = L.render(c)
+        if line not in canon:
+            out.append(line)
+            canon.add(line)
+    return tuple(out)

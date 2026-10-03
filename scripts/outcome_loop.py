@@ -32,7 +32,7 @@ from sf2.system2 import seed_rules  # noqa: E402
 from sf2.system2.measurer import assemble  # noqa: E402
 from sf2.system2.outcome_loop import Playbook, SeedBlocks, blocks_for_round, run_round, run_session  # noqa: E402
 from sf2.system2.promotion import BlockStat, Cfg  # noqa: E402
-from sf2.system2.rule_entry import carry_entries  # noqa: E402
+from sf2.system2.rule_entry import candidate_rules, carry_entries  # noqa: E402
 from sf2.system2.screen_evidence import read_decisions  # noqa: E402
 
 PY = os.path.join(REPO, ".venv", "bin", "python")
@@ -64,6 +64,36 @@ def load_candidates(path, cap):
 
     def proposer(opp, incumbent, k):
         return [mk(d) for d in by_round.get(str(k), [])][:cap]
+    return proposer
+
+
+def make_coach_proposer(opp, me, cat, move, out_root, moves, scout_games=2, scout_seed0=700, cap=1):
+    """The live Coach as the loop's proposer: play a couple of SCOUT games with the current incumbent
+    (routing on, qwen-mode two = Scout+Coach) on seeds DISJOINT from dev/held/terminal, then read the
+    Coach's kept claims from the trace and build ONE candidate playbook = incumbent + those claims
+    (noise control: cap candidates). The scout games are research only - the outcome engine still owns
+    acceptance (dev + held + decide). Qwen server via $SF2_QWEN_URL."""
+    def proposer(opp_, incumbent, k):
+        carry = os.path.join(out_root, "coach_incumbent_r%d.json" % k)
+        json.dump(carry_entries(list(incumbent.rules), moves), open(carry, "w"), indent=1)
+        out = os.path.join(out_root, "scout_r%d" % k)
+        seed = scout_seed0 + k  # research seeds, kept away from dev/held/terminal
+        cmd = [PY, "scripts/play_loop_screen.py", "--me", me, "--opp", opp, "--games", str(scout_games),
+               "--rounds", "1", "--seed", str(seed), "--qwen-mode", "two", "--cat-advisor", cat,
+               "--move-advisor", move, "--no-score", "--rom", ROM, "--port", str(PORTS[-1]),
+               "--carry", carry, "--out", out]
+        subprocess.run(cmd, cwd=REPO, stdout=open(out + ".log", "w"), stderr=subprocess.STDOUT, timeout=1200)
+        rows = [json.loads(l) for l in open(os.path.join(out, "trace.jsonl"))]
+        qwen_events = [r for r in rows if r.get("event") == "qwen" and (r.get("claims"))]
+        if not qwen_events:
+            return []
+        claims = qwen_events[-1]["claims"]  # the last (most-informed) game's kept claims
+        cand = candidate_rules(incumbent.rules, claims, moves)
+        if cand == incumbent.rules:
+            return []
+        label = "coach_r%d" % k
+        print("  [coach] r%d proposed %d claim(s): %s" % (k, len(claims), [c.get("move") for c in claims]))
+        return [Playbook(label, cand)][:cap]
     return proposer
 
 
@@ -117,7 +147,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--opp", required=True)
     ap.add_argument("--me", default="chunli")
-    ap.add_argument("--candidates", required=True, help="JSON list or {round:[...]} of {id,rules}")
+    ap.add_argument("--candidates", help="JSON list or {round:[...]} of {id,rules} (offline/stub proposer)")
+    ap.add_argument("--coach", action="store_true", help="use the live Qwen Coach as the proposer (needs $SF2_QWEN_URL)")
+    ap.add_argument("--scout-games", type=int, default=2, help="scout games per round for the Coach proposer")
     ap.add_argument("--dev", default="0-5")
     ap.add_argument("--held", default="6-11")
     ap.add_argument("--terminal", default="90-95")
@@ -133,7 +165,13 @@ def main():
     moves = char_menu_moves(args.me)
     out_root = os.path.join(REPO, "out", "loop", "%s_%d" % (args.opp, int(time.time())))
     os.makedirs(out_root, exist_ok=True)
-    proposer = load_candidates(args.candidates, args.max_candidates)
+    if not args.coach and not args.candidates:
+        raise SystemExit("give --coach (live Qwen proposer) or --candidates <file> (offline stub)")
+    if args.coach:
+        proposer = make_coach_proposer(args.opp, args.me, args.cat_advisor, args.move_advisor,
+                                       out_root, moves, scout_games=args.scout_games, cap=args.max_candidates)
+    else:
+        proposer = load_candidates(args.candidates, args.max_candidates)
     measure = fake_measure if args.selfcheck else make_measure(
         args.opp, args.me, args.cat_advisor, args.move_advisor, out_root, moves)
 

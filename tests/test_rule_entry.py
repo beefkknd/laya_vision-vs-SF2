@@ -7,7 +7,7 @@ Unfollowable lines (no move / bare movement token) must be rejected loudly, not 
 import pytest
 
 from sf2.system1.advice import char_menu_moves
-from sf2.system2.rule_entry import carry_entries, claim_of, entry
+from sf2.system2.rule_entry import candidate_rules, carry_entries, claim_of, entry
 
 
 def test_claim_of_parses_a_situational_line():
@@ -36,3 +36,21 @@ def test_unfollowable_line_is_rejected():
     moves = char_menu_moves("chunli")
     with pytest.raises(Exception):
         claim_of("use more forward at mid range", moves)  # bare 'forward' is not a followable move token
+
+
+def test_candidate_rules_applies_coach_claims_onto_incumbent():
+    moves = char_menu_moves("chunli")
+    incumbent = ("use more throw up close",)
+    # a real-shaped Coach claim (answer): s.mk at mid when he attacks
+    claim = claim_of("use more s.mk at mid range when he attacks", moves)
+    cand = candidate_rules(incumbent, [claim], moves)
+    assert cand[0] == "use more throw up close"
+    assert any("s.mk" in r and "mid" in r for r in cand)
+    assert len(cand) == 2
+
+
+def test_candidate_rules_dedupes_an_already_present_rule():
+    moves = char_menu_moves("chunli")
+    incumbent = ("use more throw up close",)
+    claim = claim_of("use more throw up close", moves)
+    assert candidate_rules(incumbent, [claim], moves) == incumbent  # no duplicate added
