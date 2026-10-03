@@ -237,11 +237,10 @@ def _flow_line(label: str, nodes, pulse: Optional[int], color: str) -> Text:
     return t
 
 
-def _pipeline_panel(m: T.DashboardModel, frame: int) -> Panel:
+def _pipeline_panel(thinking: bool, frame: int) -> Panel:
     """The cross-system data flow with a firing pulse. While playing, the pulse travels the PLAY path
     (vision -> text -> category -> move/short-memory -> control); while Qwen reflects between games, it
     travels the LEARN path (laya_text -> qwen -> playbook -> short-memory). The idle path is dim."""
-    thinking = m.qwen_thinking
     play_pulse = None if thinking else frame % len(_PLAY_NODES)
     learn_pulse = (frame % len(_LEARN_NODES)) if thinking else None
     body = Group(
@@ -254,18 +253,23 @@ def _pipeline_panel(m: T.DashboardModel, frame: int) -> Panel:
     return Panel(body, title=f"DATA FLOW — {status}", border_style="yellow")
 
 
-def render(m: T.DashboardModel, frame: int = 0) -> Layout:
-    layout = Layout()
-    layout.split_column(Layout(name="top", ratio=4), Layout(name="bottom", ratio=1))
-    layout["top"].split_row(Layout(name="left", ratio=3), Layout(name="right", ratio=2))
-    layout["top"]["left"].update(_left_panel(m))
-    layout["top"]["right"].split_column(
+def render(m: T.DashboardModel, frame: int = 0, with_footer: bool = True) -> Layout:
+    """Single-run view. with_footer adds the TREND + DATA FLOW row; the session view sets it False and
+    supplies its own career-wide trend and flow instead (so they are not duplicated)."""
+    top = Layout()
+    top.split_row(Layout(name="left", ratio=3), Layout(name="right", ratio=2))
+    top["left"].update(_left_panel(m))
+    top["right"].split_column(
         Layout(_memory_panel(m), name="mem", ratio=1),
         Layout(_qwen_panel(m), name="qwen", ratio=2),
     )
+    if not with_footer:
+        return top
+    layout = Layout()
+    layout.split_column(Layout(top, name="top", ratio=4), Layout(name="bottom", ratio=1))
     layout["bottom"].split_row(
         Layout(_trend_panel(m), name="trend", ratio=2),
-        Layout(_pipeline_panel(m, frame), name="flow", ratio=3),
+        Layout(_pipeline_panel(m.qwen_thinking, frame), name="flow", ratio=3),
     )
     return layout
 
@@ -310,18 +314,37 @@ def _session_panel(sm: T.SessionModel) -> Panel:
     return Panel(body, title="SESSION (all rounds)", border_style="cyan")
 
 
+def _career_trend(sm: T.SessionModel) -> Panel:
+    """Career-wide trend: cumulative win-rate across EVERY game of every opponent so far, as a climbing
+    bar chart (one column per game) + the running percent. The 'is it getting better over the ladder?' view."""
+    series = T.cum_winrate_series(sm.per_game_wl)
+    body = Text()
+    if series:
+        for row in T.vbars(series, height=5, lo=0.0, hi=1.0):
+            body.append(row + "\n", style="green")
+    else:
+        body.append("(no games yet)\n\n\n\n\n", style="dim")
+    body.append(f"career win-rate {sm.cum_wins}/{sm.cum_played} = {sm.cum_pct}%", style="bold green")
+    return Panel(body, title="CAREER TREND (win-rate over the ladder)", border_style="green")
+
+
 def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
-    """Session view: the cumulative summary on top, the latest round's live single-run view below (reused)."""
+    """Session view: the cumulative summary + career trend on top, the live round's single-run view in the
+    middle, and the cross-system DATA FLOW pulse at the bottom."""
     layout = Layout()
     layout.split_column(
-        Layout(_session_panel(sm), name="session", ratio=2),
+        Layout(name="head", ratio=2),
         Layout(name="active", ratio=3),
+        Layout(name="flow", ratio=1),
     )
+    layout["head"].split_row(Layout(_session_panel(sm), ratio=3), Layout(_career_trend(sm), ratio=2))
+    thinking = bool(sm.active and sm.active.qwen_thinking)
     if sm.active is not None:
-        layout["active"].update(render(sm.active, frame))
+        layout["active"].update(render(sm.active, frame, with_footer=False))
     else:
         layout["active"].update(Panel(Text("(no active round yet)", style="dim"),
                                       title="LIVE GAMEPLAY", border_style="cyan"))
+    layout["flow"].update(_pipeline_panel(thinking, frame))
     return layout
 
 
@@ -363,6 +386,17 @@ def _launch_loop(spec: str, blank: bool = False):
     env = dict(os.environ)  # passes SF2_QWEN_URL / SF2_ROM through unchanged
     proc = subprocess.Popen(cmd, cwd=REPO, env=env)
     return proc, run_dir
+
+
+def _launch_career(me: str):
+    """Launch the continuous blank-start career (scripts/play_career.py) for ME and return (proc,
+    session_dir) so the TUI session view can tail it live. READ-ONLY afterwards. Needs SF2_QWEN_URL."""
+    name = f"career_{me}_{int(time.time())}"
+    session_dir = os.path.join("rollouts", "career", name)
+    cmd = [sys.executable, os.path.join("scripts", "play_career.py"), "--me", me, "--name", name]
+    env = dict(os.environ)
+    proc = subprocess.Popen(cmd, cwd=REPO, env=env)
+    return proc, session_dir
 
 
 def _renderable(run_dir: str, grade: bool, session: bool, frame: int = 0):
@@ -409,6 +443,9 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--latest", action="store_true", help="watch the newest rollouts/loop_screen/*")
     ap.add_argument("--run", metavar="SPEC", help='launch play_loop_screen.py "<me> <opp> <games> <rounds>" and watch')
     ap.add_argument("--blank", action="store_true", help="with --run: start from a BLANK playbook (empty short memory; the Coach builds it)")
+    ap.add_argument("--career", metavar="ME", nargs="?", const="chunli",
+                    help="launch the CONTINUOUS blank-start career (scripts/play_career.py) for ME (default chunli) "
+                         "and watch it: play forever, replay on loss, beat an opponent and move on")
     ap.add_argument("--once", action="store_true", help="render a single frame and exit")
     ap.add_argument("--save", metavar="PATH", help="render ONE frame headless to PATH (.svg or "
                     ".html) and exit; no live terminal needed")
@@ -416,15 +453,21 @@ def main(argv: Optional[list] = None) -> int:
     args = ap.parse_args(argv)
 
     proc = None
-    session = bool(args.session)
-    if args.run:
+    session = bool(args.session) or bool(args.career)
+    if args.career:
+        proc, run_dir = _launch_career(args.career)
+        for _ in range(80):                       # wait for the first round dir to appear
+            if os.path.isdir(run_dir) and any(n.startswith("round_") for n in os.listdir(run_dir)):
+                break
+            time.sleep(0.25)
+    elif args.run:
         proc, run_dir = _launch_loop(args.run, blank=args.blank)
         # wait briefly for the run dir to appear
         for _ in range(40):
             if os.path.isdir(run_dir):
                 break
             time.sleep(0.25)
-    elif session:
+    elif args.session:
         run_dir = args.session
     else:
         run_dir = _resolve_run_dir(args)
