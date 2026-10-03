@@ -29,20 +29,32 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import _path  # noqa: F401
 from sf2.config import PORTS
-from sf2.system1.action_menu import CATEGORIES, CATEGORY_ORDER
+from sf2.system1.advice import char_menu_moves
 from sf2.system1.loop_runner import play_round as play_screen_round
 from sf2.system2 import character_prompt, lessons as L, screen_evidence, seed_rules
 from sf2.system2.lesson_prompt import streak
 
 ME = "chunli"
-MENU_MOVES: List[str] = [m for cat in CATEGORY_ORDER for m in CATEGORIES[cat]]   # the followable (two-stage) vocabulary
+# the characters we can play AS: only those with a RAM-free move menu in sf2.moves_free (chunli/ryu/ken). The round-1
+# categories and round-2 move menu, and the advice vocabulary, come from ME's own moveset (sf2.system1.advice).
+SUPPORTED_ME = ("chunli", "ryu", "ken")
+MENU_MOVES: List[str] = char_menu_moves(ME)       # Chun-Li's followable (two-stage) vocabulary; == the old constant
 DELAY_MIN, DELAY_SPAN = 4, 40
 
 
 # ------------------------------------------------------------------ seeding
 def seed(opp: str, book: Optional[str], me: str = ME) -> L.Registry:
-    """The starting short memory: the opponent's verified web/book lines (sf2.system2.seed_rules), [] without a book."""
-    return seed_rules.seed_lessons(book, opp, me) if book else []
+    """The starting short memory: the opponent's verified web/book lines (sf2.system2.seed_rules), [] without a book.
+    The book is written for ONE character (its ``me`` field, currently Chun-Li); for any other ME there is no seed, so
+    the loop starts blank (logged) rather than feeding ME lines in another character's moveset."""
+    if not book:
+        return []
+    doc, _sha = seed_rules.load_book(book)
+    book_me = doc.get("me", seed_rules.DEFAULT_ME)
+    if me != book_me:
+        print("no seed for %s, starting blank (book is for %s)" % (me, book_me), file=sys.stderr)
+        return []
+    return seed_rules.seed_lessons(book, opp, me)
 
 
 # ------------------------------------------------------------------ the Qwen update (System 2)
@@ -54,7 +66,8 @@ def ask_claims(opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[D
                ask_qwen: QwenCaller, me: str = ME) -> Tuple[List[Dict], List[str], Optional[str]]:
     """Qwen's claims for this game (sf2.system2.character_prompt); ([], [problem], None) if the call or parse fails."""
     from sf2.system2.qwen import json_reply
-    msgs = character_prompt.messages(me, opp, reg, rows, last, all_rounds, last_rounds, MENU_MOVES, refused, stable)
+    msgs = character_prompt.messages(me, opp, reg, rows, last, all_rounds, last_rounds, char_menu_moves(me), refused,
+                                     stable)
     try:
         raw = ask_qwen(msgs, "loop_%s" % opp)
         claims, problems = character_prompt.parse_claims(json_reply(raw))
@@ -74,7 +87,7 @@ def update(reg: L.Registry, rows: List[Dict], game: int, game_hp: List[float], g
     stable = streak(games, changed)
     claims, problems, raw = ask_claims(opp, reg, rows, last, all_rounds, last_rounds, refused, stable,
                                        ask_qwen, me)
-    reg, outcome = L.propose(reg, claims, rows, game, moves=MENU_MOVES)
+    reg, outcome = L.propose(reg, claims, rows, game, moves=char_menu_moves(me))
     after = L.in_play(reg)
     trace = {"game": game, "stable": stable, "claims": claims, "problems": problems,
              "outcome": [{"line": o.get("line", o.get("claim")), "state": o["state"], "why": o.get("why")}
@@ -175,15 +188,18 @@ def _real_score(port: int, rom: Optional[str]) -> ScoreFn:
     def score(round_dir: str) -> Optional[Dict]:
         with open(os.path.join(round_dir, os.pardir, "run.json")) as f:
             run = json.load(f)
+        me = run.get("me", ME)
         with open(run["state"]["path"], "rb") as f:
             state = f.read()
-        with open_fight(ME, run["opp"], port, state=state) as (b, _state):
-            return score_round(b, state, round_dir, ME, run["opp"])
+        with open_fight(me, run["opp"], port, state=state) as (b, _state):
+            return score_round(b, state, round_dir, me, run["opp"])
     return score
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--me", default=ME, choices=SUPPORTED_ME,
+                    help="the character to play AS (default chunli; only characters with a move menu in sf2.moves_free)")
     ap.add_argument("--opp", default="honda")
     ap.add_argument("--games", type=int, default=10)
     ap.add_argument("--rounds", type=int, default=3)
@@ -200,18 +216,24 @@ def main() -> int:
     ap.add_argument("--replay-port", type=int, default=PORTS["replay"][0] + PORTS["replay"][1] - 1)
     ap.add_argument("--rom", default=os.environ.get("SF2_ROM"))
     ap.add_argument("--out", default=None)
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> int:
+    args = build_parser().parse_args()
     from sf2.system1.advisor import Advisor
     from sf2.system1.screen_emu import open_screen
 
-    state_path = os.path.join("states", "p1_%s_vs_%s.state" % (ME, args.opp))
+    me = args.me
+    state_path = os.path.join("states", "p1_%s_vs_%s.state" % (me, args.opp))
     with open(state_path, "rb") as f:
         state = f.read()
     state_id = {"path": state_path, "sha256": hashlib.sha256(state).hexdigest()}
-    out = args.out or os.path.join("rollouts", "loop_screen", "%s_%s" % (time.strftime("%Y%m%d_%H%M%S"), args.opp))
+    out = args.out or os.path.join("rollouts", "loop_screen", "%s_%s_vs_%s" % (time.strftime("%Y%m%d_%H%M%S"), me,
+                                                                               args.opp))
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "run.json"), "w") as f:
-        json.dump({"arm": "loop", "me": ME, "opp": args.opp, "games": args.games, "rounds": args.rounds,
+        json.dump({"arm": "loop", "me": me, "opp": args.opp, "games": args.games, "rounds": args.rounds,
                    "seed": args.seed, "state": state_id, "book": args.book,
                    "cat_advisor": args.cat_advisor, "move_advisor": args.move_advisor,
                    "qwen": "on"}, f, indent=1)
@@ -222,8 +244,8 @@ def main() -> int:
     with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
             open_screen(args.port, args.rom) as emu:
         verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
-                           seed_lines=seed(args.opp, args.book), out=out, play_round_fn=play_screen_round,
-                           state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed)
+                           seed_lines=seed(args.opp, args.book, me), out=out, play_round_fn=play_screen_round,
+                           state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me)
     print(json.dumps(verdict, indent=1))
     print("saved", out)
     return 0

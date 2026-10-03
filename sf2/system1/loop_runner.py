@@ -38,8 +38,8 @@ from ..moves_free import kind_of, steps_of
 from ..screen.reader import RoundReader
 from ..screen.unknown_log import UnknownLog
 from .action_menu import CATEGORIES, CATEGORY_ORDER, DEFAULT_MOVE, category_of
-from .advice import (advice_text, category_question, move_question, moves_in_stance, prompt, read as read_lesson,
-                     situation_text, stance_of, two_stage)
+from .advice import (advice_text, category_question, char_categories, char_menu_moves, move_question, moves_in_stance,
+                     prompt, read as read_lesson, situation_text, stance_of, two_stage)
 from .screen_emu import ScreenEmu
 from .screen_words import CAN_ACT, Moment, label, moment, note, players, sentence, situation
 
@@ -104,13 +104,15 @@ def two_stage_decide(cat_advisor, move_advisor, me: str, m: Moment, lines: Seque
     everything logged about how it was reached."""
     rng, doing, _, _ = situation(m)
     stance = stance_of(_posture(m), rng)
-    lessons = [read_lesson(t, MENU_MOVES) for t in lines]
-    cats, move_answers, rule = two_stage(rng, doing, stance, lessons, m.fireball)
+    categories = char_categories(me)                                # ME's own menu (chunli == action_menu.CATEGORIES)
+    menu_moves = char_menu_moves(me)                                # ME's two-stage vocabulary (advice parses against it)
+    lessons = [read_lesson(t, menu_moves) for t in lines]
+    cats, move_answers, rule = two_stage(rng, doing, stance, lessons, m.fireball, categories)
 
     text = prompt(sentence(m), list(lines))
     cat_probs = cat_advisor.ask(text, category_question())          # round 1: the CATEGORY model (block always offered)
     category = max(cat_probs, key=cat_probs.get)                    # the model's category pick STANDS (no code floor)
-    options = list(moves_in_stance(category, stance))
+    options = list(moves_in_stance(category, stance, categories))
     if DEFAULT_MOVE not in options:                                # safety: block_high is ALWAYS an offered move,
         options.append(DEFAULT_MOVE)                               # never a forced fallback - the model still picks
     move_probs = move_advisor.ask(text, move_question(options))     # round 2: the MOVE model

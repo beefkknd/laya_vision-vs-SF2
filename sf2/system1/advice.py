@@ -24,6 +24,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from ..moves_free import menu as _menu
 from ..vocab import BARS, OPP_STATES, RANGE_WORDS, RANGES
 from .action_menu import CATEGORIES, CATEGORY_ORDER, DEFAULT_MOVE, category_of
 
@@ -262,6 +263,34 @@ def moves_in_stance(category: str, stance: str, categories: Optional[Dict[str, S
 def available_moves(stance: str, categories: Optional[Dict[str, Sequence[str]]] = None) -> set:
     categories = categories if categories is not None else CATEGORIES
     return {m for cat in CATEGORY_ORDER for m in moves_in_stance(cat, stance, categories)}
+
+
+# The menu action_menu.CATEGORIES hardcodes for Chun-Li, derived here for ANY character whose RAM-free move menu
+# sf2.moves_free knows (chunli / ryu / ken). This is the ONE reusable source of the per-character category map:
+# scripts/build_advice_data.char_categories mirrors the same mapping over all 8 characters (it cannot import from a
+# play-path module via the hard gate), and char_categories("chunli") is byte-identical to action_menu.CATEGORIES, so
+# Chun-Li's labels and menu are unchanged.
+KIND_TO_CAT = {"movement": "move", "block": "block", "throw": "throw", "special": "special", "combo": "combo"}
+
+
+def char_categories(char: str) -> Dict[str, List[str]]:
+    """``char``'s category -> move-names map (the 7 categories, in CATEGORY_ORDER), from its RAM-free move menu
+    (sf2.moves_free.menu, which raises ValueError for a character it has no menu for). Normals split into punch/kick
+    by their button; everything else by kind. char_categories("chunli") equals action_menu.CATEGORIES exactly."""
+    cats: Dict[str, List[str]] = {c: [] for c in CATEGORY_ORDER}
+    for m in _menu(char):
+        if m.kind == "normal":
+            cat = "punch" if m.name.rsplit(".", 1)[-1].endswith("p") else "kick"
+        else:
+            cat = KIND_TO_CAT[m.kind]
+        cats[cat].append(m.name)
+    return cats
+
+
+def char_menu_moves(char: str) -> List[str]:
+    """``char``'s flat two-stage move vocabulary (CATEGORY_ORDER), the names advice lines are parsed against."""
+    cats = char_categories(char)
+    return [m for c in CATEGORY_ORDER for m in cats[c]]
 
 
 def category_question() -> Dict:
