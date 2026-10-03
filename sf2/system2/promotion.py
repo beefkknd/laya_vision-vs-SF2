@@ -68,6 +68,13 @@ def is_gain(b):
 _sig_better = is_gain  # internal alias kept for readability at call sites
 
 
+def coverage_gated(dev, cfg=Cfg()):
+    """A NEAR-MISS: the candidate is a statistically significant gain on dev (CI excludes 0, positive)
+    but is held back ONLY by the effective-coverage floor (fires < min_fire). Surfaced in the ledger so
+    a high-significance, low-coverage rule is visible rather than silently dropped (owner 2026-10-03)."""
+    return is_gain(dev) and dev.fire_rate < cfg.min_fire
+
+
 def _ceiling(b, cfg):
     """Fires enough AND is followed AND (nearly) never wins AND is not beating the incumbent."""
     return (b.fire_rate >= cfg.ceiling_fire and b.follows >= cfg.ceiling_follows

@@ -97,8 +97,9 @@ def make_coach_proposer(opp, me, cat, move, out_root, moves, scout_games=2, scou
     return proposer
 
 
-def make_measure(opp, me, cat, move, out_root, moves):
-    """Real measurer: runs both arms over the seeds in parallel and assembles a BlockStat."""
+def make_measure(opp, me, cat, move, out_root, moves, workers=6):
+    """Real measurer: runs both arms over the seeds in parallel and assembles a BlockStat. `workers`
+    caps emulator+MLX concurrency to leave GPU/memory headroom (owner: do not crash the box)."""
     os.makedirs(out_root, exist_ok=True)
 
     def run_arm(rules, seed, port):
@@ -123,7 +124,7 @@ def make_measure(opp, me, cat, move, out_root, moves):
         jobs = ([("base", incumbent.rules, s) for s in seeds]
                 + [("cand", candidate.rules, s) for s in seeds])
         res = {}
-        with ThreadPoolExecutor(max_workers=min(8, len(PORTS))) as ex:
+        with ThreadPoolExecutor(max_workers=min(workers, len(PORTS))) as ex:
             futs = {ex.submit(run_arm, rules, s, PORTS[i % len(PORTS)]): (arm, s)
                     for i, (arm, rules, s) in enumerate(jobs)}
             for f in futs:
@@ -150,6 +151,7 @@ def main():
     ap.add_argument("--candidates", help="JSON list or {round:[...]} of {id,rules} (offline/stub proposer)")
     ap.add_argument("--coach", action="store_true", help="use the live Qwen Coach as the proposer (needs $SF2_QWEN_URL)")
     ap.add_argument("--scout-games", type=int, default=2, help="scout games per round for the Coach proposer")
+    ap.add_argument("--workers", type=int, default=6, help="parallel emulator+MLX jobs (GPU/memory headroom)")
     ap.add_argument("--dev", default="0-5")
     ap.add_argument("--held", default="6-11")
     ap.add_argument("--terminal", default="90-95")
@@ -173,7 +175,7 @@ def main():
     else:
         proposer = load_candidates(args.candidates, args.max_candidates)
     measure = fake_measure if args.selfcheck else make_measure(
-        args.opp, args.me, args.cat_advisor, args.move_advisor, out_root, moves)
+        args.opp, args.me, args.cat_advisor, args.move_advisor, out_root, moves, workers=args.workers)
 
     ledger_path = os.path.join(out_root, "ledger.jsonl")
     lf = open(ledger_path, "w")

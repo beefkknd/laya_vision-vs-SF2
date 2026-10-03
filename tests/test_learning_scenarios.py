@@ -116,6 +116,27 @@ def test_mode_follows_verdict():
     assert WINNING_HONDA.mode == "consolidate"
 
 
+def test_coverage_gated_near_miss_is_flagged_in_the_ledger():
+    # r1-style: significant gain (CI excludes 0) but fires below the 40% floor -> kept, but flagged as a
+    # near-miss so a high-significance low-coverage rule is visible, not silently dropped.
+    sbk = BlockStat(136.7, 69.5, 203.8, 4, 12, 0.31, 1.0)
+    cand = Playbook("sbk", ("use more throw up close", "use more spinning_bird_kick at mid range when he stands"))
+
+    def measure(incumbent, candidate, seeds):
+        return sbk
+
+    rr = run_round(BOOK, [cand], measure, (0, 1), (2, 3))
+    row = rr.rows[0]
+    assert row["verdict"] == "keep"
+    assert row["dev_significant"] is True
+    assert row["coverage_gated"] is True
+    # a plain inconclusive candidate is NOT a near-miss
+    def measure2(i, c, s):
+        return BlockStat(-3.0, -40.0, 34.0, 6, 12, 0.6, 0.9)
+    row2 = run_round(BOOK, [Playbook("x", ("use more throw up close", "r"))], measure2, (0, 1), (2, 3)).rows[0]
+    assert row2["coverage_gated"] is False
+
+
 def test_noise_control_one_promotion_per_round():
     # many candidates in one round; at most one is promoted (the best held delta). Real Coach is capped
     # to a few, but the engine must hold the line even if more arrive.

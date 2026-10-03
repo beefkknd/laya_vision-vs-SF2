@@ -15,7 +15,7 @@ Types here are immutable; run_round/run_session return new state rather than mut
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence, Tuple
 
-from sf2.system2.promotion import Cfg, decide, warrants_held
+from sf2.system2.promotion import Cfg, coverage_gated, decide, is_gain, warrants_held
 
 
 @dataclass(frozen=True)
@@ -57,11 +57,13 @@ def blocks_for_round(sb: SeedBlocks, k: int):
     return sb.dev[k % len(sb.dev)], sb.held[k % len(sb.held)]
 
 
-def _ledger_row(cand: Playbook, dev, held, dec):
+def _ledger_row(cand: Playbook, dev, held, dec, cfg):
     return {"candidate": cand.id, "rules": list(cand.rules),
             "verdict": dec.verdict, "ceiling": dec.ceiling, "reason": dec.reason,
             "dev_delta": dev.delta, "dev_ci": [dev.lo, dev.hi], "dev_wins": dev.cand_wins,
             "dev_fire": dev.fire_rate, "dev_follows": dev.follows,
+            "dev_significant": is_gain(dev),              # CI excludes 0 and positive
+            "coverage_gated": coverage_gated(dev, cfg),   # NEAR-MISS: significant but fires < floor
             "held_delta": (held.delta if held else None),
             "held_ci": ([held.lo, held.hi] if held else None),
             "held_wins": (held.cand_wins if held else None)}
@@ -81,7 +83,7 @@ def run_round(incumbent: Playbook, candidates: Sequence[Playbook], measure: Meas
         dev = measure(incumbent, cand, dev_seeds)
         held = measure(incumbent, cand, held_seeds) if warrants_held(dev, cfg) else None
         dec = decide(dev, held, cfg)
-        rows.append(_ledger_row(cand, dev, held, dec))
+        rows.append(_ledger_row(cand, dev, held, dec, cfg))
         if dec.verdict == "promote" and (winner_held_delta is None or held.delta > winner_held_delta):
             winner, winner_held_delta = cand, held.delta
     return RoundResult(winner or incumbent, winner is not None, tuple(rows))
