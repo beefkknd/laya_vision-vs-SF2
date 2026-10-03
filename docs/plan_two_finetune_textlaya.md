@@ -65,3 +65,11 @@ every category and condition (range, his state, fireball). This is the lever; wi
 - Parallelism: both MLX runs fit on the M3 Ultra; run them in parallel or back to back.
 - The "throw" seed-alias gap (book says "throw", menu says throw_F+hp) and the screen round "unknown" result are
   separate small fixes, tracked in README; not part of these two fine-tunes.
+
+## Results (2026-10-02) - T1-T4 done
+- Data: test_data/advice_v3 (all 8 chars, 37,984 rows; condition-off 66% to block; shortcut cat -0.010 / move -0.003).
+- cat_v1 (category, from base): overall 0.906, **condition_off 1.00** (gate >=0.95 PASS; base 0.152, advice_v2 0.737),
+  uniform per char 0.88-0.93, held-out wordings 0.90. Softer: default 0.66, hard 0.75 (nudge later).
+- move_v1 (move, from base): overall 0.999, every case ~1.0, all 8 chars ~1.0. (Easy half, as expected.)
+- Lesson: two MLX trainings in parallel OOM-killed one (EXIT 137); train text-laya runs SEQUENTIALLY on the Mac.
+- [x] T1/T2 data (f26c1c7); [x] T3 cat_v1; [x] T4 move_v1. Next: T5 wire both + drop code default; T6 live re-smoke.
