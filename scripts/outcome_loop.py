@@ -71,32 +71,36 @@ def load_candidates(path, cap):
 
 
 def make_coach_proposer(opp, me, cat, move, out_root, moves, scout_games=2, scout_seed0=700, cap=1):
-    """The live Coach as the loop's proposer: play a couple of SCOUT games with the current incumbent
-    (routing on, qwen-mode two = Scout+Coach) on seeds DISJOINT from dev/held/terminal, then read the
-    Coach's kept claims from the trace and build ONE candidate playbook = incumbent + those claims
-    (noise control: cap candidates). The scout games are research only - the outcome engine still owns
-    acceptance (dev + held + decide). Qwen server via $SF2_QWEN_URL."""
+    """The live Coach as the loop's proposer: play SCOUT games with the current incumbent (routing on,
+    qwen-mode two = Scout+Coach) on seeds DISJOINT from the evaluation seeds, then read the Coach's kept
+    claims from the trace. Each scout game yields its own (differently-informed) proposal; build ONE
+    candidate per DISTINCT proposal (incumbent + that game's answer claims), dedupe, and keep up to `cap`
+    (noise control). Scout games are research only - the outcome engine owns acceptance. Qwen via
+    $SF2_QWEN_URL."""
     def proposer(opp_, incumbent, k):
         carry = os.path.join(out_root, "coach_incumbent_r%d.json" % k)
         json.dump(carry_entries(list(incumbent.rules), moves), open(carry, "w"), indent=1)
         out = os.path.join(out_root, "scout_r%d" % k)
-        seed = scout_seed0 + k  # research seeds, kept away from dev/held/terminal
+        seed = scout_seed0 + k  # research seeds, kept away from the evaluation seeds
         cmd = [PY, "scripts/play_loop_screen.py", "--me", me, "--opp", opp, "--games", str(scout_games),
                "--rounds", "1", "--seed", str(seed), "--qwen-mode", "two", "--cat-advisor", cat,
                "--move-advisor", move, "--no-score", "--rom", ROM, "--port", str(PORTS[-1]),
                "--carry", carry, "--out", out]
         subprocess.run(cmd, cwd=REPO, stdout=open(out + ".log", "w"), stderr=subprocess.STDOUT, timeout=1200)
         rows = [json.loads(l) for l in open(os.path.join(out, "trace.jsonl"))]
-        qwen_events = [r for r in rows if r.get("event") == "qwen" and (r.get("claims"))]
-        if not qwen_events:
-            return []
-        claims = qwen_events[-1]["claims"]  # the last (most-informed) game's kept claims
-        cand = candidate_rules(incumbent.rules, claims, moves)
-        if cand == incumbent.rules:
-            return []
-        label = "coach_r%d" % k
-        print("  [coach] r%d proposed %d claim(s): %s" % (k, len(claims), [c.get("move") for c in claims]))
-        return [Playbook(label, cand)][:cap]
+        qwen_events = [r for r in rows if r.get("event") == "qwen" and r.get("claims")]
+        cands, seen = [], set()
+        for ev in qwen_events:                      # one candidate per distinct scout-game proposal
+            cand = candidate_rules(incumbent.rules, ev["claims"], moves)
+            if cand == incumbent.rules or cand in seen:
+                continue
+            seen.add(cand)
+            cands.append(Playbook("coach_r%d_c%d" % (k, len(cands)), cand))
+            if len(cands) >= cap:
+                break
+        print("  [coach] r%d: %d scout proposal(s) -> %d candidate(s): %s"
+              % (k, len(qwen_events), len(cands), [[x for x in c.rules if "throw up close" not in x] for c in cands]))
+        return cands
     return proposer
 
 
