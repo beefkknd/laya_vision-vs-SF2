@@ -263,6 +263,64 @@ def win_rate(per_game: Sequence[str]) -> Tuple[int, int, int]:
     return wins, played, pct
 
 
+# --------------------------------------------------------------------------- trend series (pure)
+
+def cum_winrate_series(per_game: Sequence[str]) -> Tuple[float, ...]:
+    """Running win fraction AFTER each game, in order: the trend that should climb as the loop learns.
+    ('W','L','W') -> (1.0, 0.5, 0.667). Ties count as non-wins (same as win_rate)."""
+    out: List[float] = []
+    wins = 0
+    for i, v in enumerate(per_game, 1):
+        if v == "W":
+            wins += 1
+        out.append(wins / i)
+    return tuple(out)
+
+
+def margin_series(results: Sequence["RoundResult"]) -> Tuple[int, ...]:
+    """Per-game hp margin (dealt - taken), in game order: the offense/defense trend alongside win-rate."""
+    agg: Dict[int, int] = {}
+    for r in results:
+        agg[r.game] = agg.get(r.game, 0) + (r.dealt - r.taken)
+    return tuple(agg[g] for g in sorted(agg))
+
+
+_SPARK = "▁▂▃▄▅▆▇█"
+
+
+def spark(values: Sequence[float], lo: Optional[float] = None, hi: Optional[float] = None) -> str:
+    """A one-line sparkline over `values` using the 8 block levels. lo/hi override the auto range."""
+    if not values:
+        return ""
+    lo = min(values) if lo is None else lo
+    hi = max(values) if hi is None else hi
+    span = (hi - lo) or 1.0
+    out = []
+    for v in values:
+        t = max(0.0, min(1.0, (v - lo) / span))
+        out.append(_SPARK[int(round(t * (len(_SPARK) - 1)))])
+    return "".join(out)
+
+
+def vbars(values: Sequence[float], height: int, lo: float = 0.0, hi: float = 1.0) -> Tuple[str, ...]:
+    """A multi-row vertical bar chart: `height` strings, top row first. Each value is one column; its
+    bar rises with the value (full/partial top block). Normalised to [lo, hi]. Pure, so it is testable."""
+    span = (hi - lo) or 1.0
+    levels = [max(0.0, min(1.0, (v - lo) / span)) * height for v in values]
+    rows: List[str] = []
+    for r in range(height, 0, -1):            # top row = highest
+        row = []
+        for lv in levels:
+            if lv >= r:
+                row.append("█")
+            elif lv > r - 1:
+                row.append(_SPARK[int((lv - (r - 1)) * (len(_SPARK) - 1))])
+            else:
+                row.append(" ")
+        rows.append("".join(row))
+    return tuple(rows)
+
+
 def _pressed_str(pressed: Sequence, max_tokens: int = 4) -> str:
     """Compact a button list into 'tok tok tok xN' -- the first few tokens plus the total count,
     so a long hold ('left' x24) stays on one short line instead of flooding the pipeline column.

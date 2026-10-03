@@ -192,13 +192,80 @@ def _qwen_panel(m: T.DashboardModel) -> Panel:
     return Panel(Group(rows, footer), title="QWEN (short-memory churn)", border_style="magenta")
 
 
-def render(m: T.DashboardModel) -> Layout:
+def _trend_panel(m: T.DashboardModel) -> Panel:
+    """A bar graph that CLIMBS as the loop learns: one column per game, bar height = cumulative win-rate,
+    plus a per-game hp-margin sparkline underneath. (The headline 'does it go up?' view.)"""
+    wl = m.per_game_wl
+    series = T.cum_winrate_series(wl)
+    body = Text()
+    if series:
+        for row in T.vbars(series, height=5, lo=0.0, hi=1.0):
+            body.append(row + "\n", style="green")
+        body.append("0%" + " " * max(0, len(series) - 6) + "100%->\n", style="dim")
+    else:
+        body.append("(no games yet)\n\n\n\n\n", style="dim")
+    wins, played, pct = T.win_rate(wl)
+    body.append(f"win-rate {wins}/{played} = {pct}%\n", style="bold green")
+    margins = T.margin_series(m.results)
+    if margins:
+        body.append("margin  ", style="dim")
+        body.append(T.spark(margins), style="cyan")
+        body.append(f"  last {margins[-1]:+d}", style="dim")
+    return Panel(body, title="TREND (win-rate climbing)", border_style="green")
+
+
+_PLAY_NODES = ("VISION", "TEXT", "CATEGORY", "MOVE", "CONTROL")
+_LEARN_NODES = ("laya_text", "QWEN", "PLAYBOOK", "MEMORY")
+
+
+def _flow_line(label: str, nodes, pulse: Optional[int], color: str) -> Text:
+    """One path as nodes joined by arrows; the pulsing node is reverse-bright, its trail colored, the
+    rest dim. pulse=None renders the whole path idle (dim). A small ◉ marks where the event is firing."""
+    t = Text()
+    t.append(f"{label:<10}", style="bold")
+    for i, n in enumerate(nodes):
+        if i:
+            t.append(" → ", style="dim")
+        if pulse is None:
+            t.append(n, style="dim")
+        elif i == pulse:
+            t.append(f"◉{n}", style=f"bold reverse {color}")
+        elif i == pulse - 1:
+            t.append(n, style=color)
+        else:
+            t.append(n, style="dim")
+    return t
+
+
+def _pipeline_panel(m: T.DashboardModel, frame: int) -> Panel:
+    """The cross-system data flow with a firing pulse. While playing, the pulse travels the PLAY path
+    (vision -> text -> category -> move/short-memory -> control); while Qwen reflects between games, it
+    travels the LEARN path (laya_text -> qwen -> playbook -> short-memory). The idle path is dim."""
+    thinking = m.qwen_thinking
+    play_pulse = None if thinking else frame % len(_PLAY_NODES)
+    learn_pulse = (frame % len(_LEARN_NODES)) if thinking else None
+    body = Group(
+        _flow_line("PLAY", _PLAY_NODES, play_pulse, "cyan"),
+        Text(""),
+        _flow_line("LEARN", _LEARN_NODES, learn_pulse, "magenta"),
+        Text.from_markup("[dim]MEMORY feeds back into MOVE — the short memory the player reads.[/dim]"),
+    )
+    status = "reflecting (LEARN firing)" if thinking else "playing (PLAY firing)"
+    return Panel(body, title=f"DATA FLOW — {status}", border_style="yellow")
+
+
+def render(m: T.DashboardModel, frame: int = 0) -> Layout:
     layout = Layout()
-    layout.split_row(Layout(name="left", ratio=3), Layout(name="right", ratio=2))
-    layout["left"].update(_left_panel(m))
-    layout["right"].split_column(
+    layout.split_column(Layout(name="top", ratio=4), Layout(name="bottom", ratio=1))
+    layout["top"].split_row(Layout(name="left", ratio=3), Layout(name="right", ratio=2))
+    layout["top"]["left"].update(_left_panel(m))
+    layout["top"]["right"].split_column(
         Layout(_memory_panel(m), name="mem", ratio=1),
         Layout(_qwen_panel(m), name="qwen", ratio=2),
+    )
+    layout["bottom"].split_row(
+        Layout(_trend_panel(m), name="trend", ratio=2),
+        Layout(_pipeline_panel(m, frame), name="flow", ratio=3),
     )
     return layout
 
@@ -243,7 +310,7 @@ def _session_panel(sm: T.SessionModel) -> Panel:
     return Panel(body, title="SESSION (all rounds)", border_style="cyan")
 
 
-def render_session(sm: T.SessionModel) -> Layout:
+def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
     """Session view: the cumulative summary on top, the latest round's live single-run view below (reused)."""
     layout = Layout()
     layout.split_column(
@@ -251,7 +318,7 @@ def render_session(sm: T.SessionModel) -> Layout:
         Layout(name="active", ratio=3),
     )
     if sm.active is not None:
-        layout["active"].update(render(sm.active))
+        layout["active"].update(render(sm.active, frame))
     else:
         layout["active"].update(Panel(Text("(no active round yet)", style="dim"),
                                       title="LIVE GAMEPLAY", border_style="cyan"))
@@ -271,8 +338,10 @@ def _resolve_run_dir(args) -> str:
     sys.exit("need --watch <run_dir>, --latest, or --run \"<me> <opp> <games> <rounds>\"")
 
 
-def _launch_loop(spec: str):
-    """Shell out to play_loop_screen.py and return (popen, run_dir_guess). READ-ONLY afterwards."""
+def _launch_loop(spec: str, blank: bool = False):
+    """Shell out to play_loop_screen.py and return (popen, run_dir_guess). READ-ONLY afterwards.
+    With ``blank``, start from an EMPTY short memory (an empty --carry file) so the Coach builds the
+    playbook from scratch -- the purest self-learning demo. Needs the Qwen server (SF2_QWEN_URL)."""
     parts = spec.split()
     if len(parts) != 4:
         sys.exit('--run expects "<me> <opp> <games> <rounds>"')
@@ -285,17 +354,24 @@ def _launch_loop(spec: str):
            "--cat-advisor", "runs/text_laya/cat_v3",
            "--move-advisor", "runs/text_laya/move_v2",
            "--no-score"]
+    if blank:
+        os.makedirs(os.path.join(REPO, run_dir), exist_ok=True)
+        carry = os.path.join(run_dir, "blank_start.json")
+        with open(os.path.join(REPO, carry), "w") as f:
+            f.write("[]")                      # empty registry -> blank playbook, Coach fills it in
+        cmd += ["--carry", carry]
     env = dict(os.environ)  # passes SF2_QWEN_URL / SF2_ROM through unchanged
     proc = subprocess.Popen(cmd, cwd=REPO, env=env)
     return proc, run_dir
 
 
-def _renderable(run_dir: str, grade: bool, session: bool):
+def _renderable(run_dir: str, grade: bool, session: bool, frame: int = 0):
     """Build the frame for ``run_dir``: the session view (aggregated across round dirs) when ``session``,
-    else the single-run view. Both reuse the same single-run rendering for the live gameplay."""
+    else the single-run view. Both reuse the same single-run rendering for the live gameplay. ``frame``
+    advances the data-flow pulse animation."""
     if session:
-        return render_session(T.build_session_model(run_dir, grade_qwen=grade))
-    return render(T.build_model(run_dir, grade_qwen=grade))
+        return render_session(T.build_session_model(run_dir, grade_qwen=grade), frame)
+    return render(T.build_model(run_dir, grade_qwen=grade), frame)
 
 
 def _save_frame(run_dir: str, path: str, grade: bool, session: bool = False) -> int:
@@ -309,10 +385,10 @@ def _save_frame(run_dir: str, path: str, grade: bool, session: bool = False) -> 
     if ext not in (".svg", ".html", ".htm"):
         print(f"--save: unsupported extension '{ext}' (use .svg or .html)", file=sys.stderr)
         return 2
-    frame = _renderable(run_dir, grade, session)
+    renderable = _renderable(run_dir, grade, session, frame=2)  # mid-pulse so the snapshot looks alive
     with open(os.devnull, "w") as sink:
         console = Console(record=True, width=120, file=sink)   # fixed width, headless
-        console.print(frame)
+        console.print(renderable)
         try:
             if ext == ".svg":
                 console.save_svg(path, title="SF2 loop monitor")
@@ -332,6 +408,7 @@ def main(argv: Optional[list] = None) -> int:
                          "(cumulative win rate + per-round summary + the live round's gameplay)")
     ap.add_argument("--latest", action="store_true", help="watch the newest rollouts/loop_screen/*")
     ap.add_argument("--run", metavar="SPEC", help='launch play_loop_screen.py "<me> <opp> <games> <rounds>" and watch')
+    ap.add_argument("--blank", action="store_true", help="with --run: start from a BLANK playbook (empty short memory; the Coach builds it)")
     ap.add_argument("--once", action="store_true", help="render a single frame and exit")
     ap.add_argument("--save", metavar="PATH", help="render ONE frame headless to PATH (.svg or "
                     ".html) and exit; no live terminal needed")
@@ -341,7 +418,7 @@ def main(argv: Optional[list] = None) -> int:
     proc = None
     session = bool(args.session)
     if args.run:
-        proc, run_dir = _launch_loop(args.run)
+        proc, run_dir = _launch_loop(args.run, blank=args.blank)
         # wait briefly for the run dir to appear
         for _ in range(40):
             if os.path.isdir(run_dir):
@@ -361,19 +438,21 @@ def main(argv: Optional[list] = None) -> int:
         return rc
 
     if args.once:
-        Console().print(_renderable(run_dir, grade, session))
+        Console().print(_renderable(run_dir, grade, session, frame=2))
         if proc is not None:
             proc.terminate()
         return 0
 
     console = Console()
+    frame = 0
     try:
-        with Live(_renderable(run_dir, grade, session),
+        with Live(_renderable(run_dir, grade, session, frame),
                   console=console, refresh_per_second=REFRESH_HZ, screen=True) as live:
             while True:
                 status = (T.build_session_model(run_dir, grade_qwen=grade).status if session
                           else T.build_model(run_dir, grade_qwen=grade).status)
-                live.update(_renderable(run_dir, grade, session))
+                frame += 1                                   # advance the data-flow pulse each tick
+                live.update(_renderable(run_dir, grade, session, frame))
                 if proc is not None and proc.poll() is not None and status in ("done", "empty"):
                     break
                 time.sleep(1.0 / REFRESH_HZ)
