@@ -74,14 +74,19 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--val-limit", type=int, default=400, help="validation rows per evaluation (speed)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, default=0, help="smoke test: this many rows of each split")
+    ap.add_argument("--data", default=DATA, help="dataset dir (train/val/test.jsonl); default test_data/advice")
+    ap.add_argument("--round", choices=["cat", "move"], default=None,
+                    help="train on only this round's rows (the row's 'round' tag), for the two-stage split")
     return ap.parse_args()
 
 
 def load_splits(args, rng):
-    """(train, val rows evaluated during training, test); ``--limit`` cuts each split for a smoke test."""
-    train = text_laya.read(os.path.join(DATA, "train.jsonl"))
-    val = text_laya.read(os.path.join(DATA, "val.jsonl"))
-    test = text_laya.read(os.path.join(DATA, "test.jsonl"))
+    """(train, val rows evaluated during training, test); ``--limit`` cuts each split for a smoke test; ``--round``
+    keeps only that round's rows (two-stage split)."""
+    def rd(name):
+        rows = text_laya.read(os.path.join(args.data, name))
+        return [r for r in rows if r.get("round") == args.round] if args.round else rows
+    train, val, test = rd("train.jsonl"), rd("val.jsonl"), rd("test.jsonl")
     if args.limit:
         train, val, test = train[:args.limit], val[:args.limit], test[:args.limit]
     return train, rng.sample(val, min(args.val_limit, len(val))), test
@@ -151,7 +156,7 @@ def save_and_test(args, out, best, best_state, step, base_test, test, say) -> No
     mx.save_safetensors(os.path.join(out, "adapter.safetensors"), dict(tree_flatten(best_state)))
     with open(os.path.join(out, "adapter.json"), "w") as f:
         json.dump({"r": args.rank, "alpha": 2.0 * args.rank, "targets": list(mlx_lora.TARGETS), "top_k": None,
-                   "base": text_laya.BASE, "data": DATA, "best_val": best, "steps": step, "args": vars(args)}, f,
+                   "base": text_laya.BASE, "data": args.data, "best_val": best, "steps": step, "args": vars(args)}, f,
                   indent=1)
     tuned = text_laya.load(out)
     result = {"base": base_test, "tuned": text_laya.score(test, text_laya.predict_rows(tuned, test))}
