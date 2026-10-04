@@ -334,15 +334,18 @@ def _session_panel(sm: T.SessionModel) -> Panel:
 def _career_trend(sm: T.SessionModel) -> Panel:
     """Career-wide trend: cumulative win-rate across EVERY game of every opponent so far, as a climbing
     bar chart (one column per game) + the running percent. The 'is it getting better over the ladder?' view."""
-    series = T.cum_winrate_series(sm.per_game_wl)
-    body = Text()
+    wl = sm.per_round_wl                                        # per ROUND/turn: the finest unit, fills fast
+    series = T.cum_winrate_series(wl)
+    wins = sum(1 for v in wl if v == "W")
+    rows = []
     if series:
-        for row in T.vbars(series, height=4, lo=0.0, hi=1.0):   # compact bar: growth visible, little space
-            body.append(row + "\n", style="green")
+        for row in T.vbars(series, height=4, lo=0.0, hi=1.0):   # the growth bar: cumulative win-rate per turn
+            rows.append(Text(row, style="green"))
+        rows.append(Text.from_markup(
+            T.shaded_bar(wins / len(wl), TREND_W, color="green") + f"  [bold green]{wins}/{len(wl)} rounds won[/bold green]"))
     else:
-        body.append("(no games yet)\n", style="dim")
-    body.append(f"win-rate {sm.cum_wins}/{sm.cum_played} = {sm.cum_pct}%", style="bold green")
-    return Panel(body, title=tr("CAREER TREND (growth)"), border_style="green")
+        rows.append(Text("(no rounds yet)", style="dim"))
+    return Panel(Group(*rows), title=tr("CAREER TREND (growth)"), border_style="green")
 
 
 def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:

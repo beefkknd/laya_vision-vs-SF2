@@ -147,6 +147,7 @@ class SessionModel:
     opp_order: Tuple[str, ...]                 # from session.json {opp_order}, else ()
     rounds: Tuple[RoundSummary, ...]           # one per round dir, in round order
     per_game_wl: Tuple[str, ...]               # cumulative, every game of every round, in order
+    per_round_wl: Tuple[str, ...]              # cumulative, every ROUND (health bar) in order - the finest unit
     cum_wins: int
     cum_played: int
     cum_pct: int
@@ -645,12 +646,14 @@ def build_session_model(session_dir: str, grader: Optional[GradeFn] = None,
 
     summaries: List[RoundSummary] = []
     cum_series: List[str] = []
+    round_series: List[str] = []       # per ROUND (health bar) across the whole session - the finest trend unit
     active: Optional[DashboardModel] = None
     active_num, active_opp = -1, "?"
     for num, opp, dirname in round_dirs:
         rd = os.path.join(session_dir, dirname)
         dm = build_model(rd, grader=grader, grade_qwen=grade_qwen, max_decisions=max_decisions)
         wl = list(dm.per_game_wl)
+        round_series += ["W" if r.result == "win" else ("L" if r.result == "loss" else "T") for r in dm.results]
         cum_series += wl
         cw, cp, cpct = win_rate(cum_series)
         summaries.append(RoundSummary(
@@ -677,7 +680,7 @@ def build_session_model(session_dir: str, grader: Optional[GradeFn] = None,
 
     return SessionModel(
         session_dir=session_dir, rounds_planned=rounds_planned, opp_order=opp_order,
-        rounds=tuple(summaries), per_game_wl=tuple(cum_series),
+        rounds=tuple(summaries), per_game_wl=tuple(cum_series), per_round_wl=tuple(round_series),
         cum_wins=cum_wins, cum_played=cum_played, cum_pct=cum_pct,
         active_num=active_num, active_opp=active_opp, active=active,
         status=status, error=error,
