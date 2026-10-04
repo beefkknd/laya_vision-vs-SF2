@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sf2.config import DEFAULT_ROM, REPO                                   # noqa: E402
 from sf2.eval.runner import read_state                                     # noqa: E402
 from sf2.system2 import screen_evidence as E                               # noqa: E402
+from sf2.vocab import FULL_LIFE                                            # noqa: E402
 
 ME = "chunli"
 # a real screen-only round the smoke aborted on (only g00_r0 was written before the loop died)
@@ -83,6 +84,64 @@ def test_replay_result_still_wins_over_the_screen():
     replay = {"result": "win", "dealt": 60, "taken": 26, "hp": 34, "my_life_end": 120, "opp_life_end": 100}
     _, summary = E.round_evidence(0, ME, "honda", decs, replay)
     assert summary["result"] == "win" and summary["source"] == "replay"
+
+
+# --------------------------------------------------------------------- read_end_bars: the KO, not the refill
+# BUG: a round ends, the KO is the empty bar (e.g. his_life 0), then the screen REFILLS both bars to full life for the
+# round-over banner. read_end_bars scanned for the LAST row with both bars drawn and returned that refill (176/176),
+# so round_result saw 176==176 and called every --no-score round a "draw" -- win/loss went structurally invisible.
+def _write_reads(path, rows):
+    with open(path, "w") as f:
+        f.writelines(json.dumps(r) + "\n" for r in rows)
+
+
+def test_read_end_bars_returns_the_KO_not_the_refill(tmp_path):
+    rd = tmp_path / "g00_r1"
+    rd.mkdir()
+    _write_reads(rd / "reads.jsonl", [
+        {"k": 1, "my_life": FULL_LIFE, "his_life": FULL_LIFE, "round": "fighting"},   # round start, both full
+        {"k": 2, "my_life": 58, "his_life": 0, "round": "fighting"},                   # THE KO: his bar empty
+        {"k": 3, "my_life": None, "his_life": None, "round": "fighting"},              # bars briefly unread
+        {"k": 4, "my_life": FULL_LIFE, "his_life": FULL_LIFE, "round": "over"},        # the round-over REFILL
+    ])
+    end = E.read_end_bars(str(rd))
+    assert end == {"my_life": 58, "his_life": 0}                   # the KO frame, NOT the 176/176 refill
+    assert E.round_result(end["my_life"], end["his_life"]) == "win"
+
+
+def test_read_end_bars_win_at_full_own_life_is_not_the_refill(tmp_path):
+    # she KOs him without taking a hit: (full, 0) must NOT be mistaken for the (full, full) refill
+    rd = tmp_path / "r"
+    rd.mkdir()
+    _write_reads(rd / "reads.jsonl", [
+        {"k": 1, "my_life": FULL_LIFE, "his_life": 0, "round": "fighting"},
+        {"k": 2, "my_life": FULL_LIFE, "his_life": FULL_LIFE, "round": "over"},
+    ])
+    assert E.read_end_bars(str(rd)) == {"my_life": FULL_LIFE, "his_life": 0}
+
+
+def test_read_end_bars_keeps_a_genuine_double_KO_draw(tmp_path):
+    # both bars empty is a real draw, not a refill -- it must be kept
+    rd = tmp_path / "r"
+    rd.mkdir()
+    _write_reads(rd / "reads.jsonl", [
+        {"k": 1, "my_life": 0, "his_life": 0, "round": "fighting"},
+        {"k": 2, "my_life": FULL_LIFE, "his_life": FULL_LIFE, "round": "over"},
+    ])
+    end = E.read_end_bars(str(rd))
+    assert end == {"my_life": 0, "his_life": 0}
+    assert E.round_result(end["my_life"], end["his_life"]) == "draw"
+
+
+@pytest.mark.parametrize("rd,want", [("g00_r1", "loss"), ("g01_r1", "win")])
+def test_read_end_bars_on_the_real_ab_hyb_rounds(rd, want):
+    # the bug as caught in the wild: ab_hyb round_05_ryu scored these as "draw" off the 176/176 refill
+    base = os.path.join(REPO, "playbooks", "ab_hyb", "round_05_ryu", rd)
+    if not os.path.isdir(base):
+        pytest.skip("missing ab_hyb session (gitignored)")
+    end = E.read_end_bars(base)
+    assert end is not None and (end["my_life"], end["his_life"]) != (FULL_LIFE, FULL_LIFE)
+    assert E.round_result(end["my_life"], end["his_life"]) == want
 
 
 # --------------------------------------------------------------------- FIX 2 state-reading (pure, fast)

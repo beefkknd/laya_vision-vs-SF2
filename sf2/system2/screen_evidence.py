@@ -32,6 +32,7 @@ import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..system1.action_menu import category_of
+from ..vocab import FULL_LIFE
 
 # the reader's "doing" word (sf2.system1.screen_words.Moment.doing) -> (opp_state, opp_air) so that
 # sf2.system1.advice.opp_doing(row) reproduces the same word the screen already decided.
@@ -114,16 +115,25 @@ def round_result(my_life_end: int, his_life_end: int) -> str:
 
 
 def read_end_bars(round_dir: str) -> Optional[Dict]:
-    """The round-END life from the screen: the LAST read in reads.jsonl that drew both bars (the frame at/after
-    round-over, so a KO shows as the empty bar). ``{"my_life", "his_life"}`` or None if unavailable. No RAM."""
+    """The round-END life from the screen: the last read in reads.jsonl that drew both bars at the KO -- the frame
+    that shows the final blow (the empty bar), NOT the round-over banner that REFILLS both bars to full life.
+
+    So we skip the trailing refill: scanning from the end, a row whose two bars are BOTH back at ``FULL_LIFE`` is the
+    reset and is passed over (as are rows that drew neither bar). The first row that drew both bars and is not that
+    full/full refill is the round end. A genuine double KO (0/0) or any uneven bars (176/0, 0/108, ...) is kept --
+    only full==full is treated as the reset. ``{"my_life", "his_life"}`` or None if unavailable. No RAM."""
     path = os.path.join(round_dir, "reads.jsonl")
     try:
         rows = [json.loads(l) for l in open(path)]
     except OSError:
         return None
     for r in reversed(rows):
-        if r.get("my_life") is not None and r.get("his_life") is not None:
-            return {"my_life": r["my_life"], "his_life": r["his_life"]}
+        my, his = r.get("my_life"), r.get("his_life")
+        if my is None or his is None:
+            continue
+        if my == FULL_LIFE and his == FULL_LIFE:          # the round-over refill, not the KO -- skip it
+            continue
+        return {"my_life": my, "his_life": his}
     return None
 
 
