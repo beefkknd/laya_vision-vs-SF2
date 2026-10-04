@@ -51,6 +51,12 @@ TEST_GAMES = 3         # games a "use more" claim is tried before it is judged
 # tests that pin the per-decision behaviour), review is byte-identical to before.
 PROMOTE_GAMES = 3      # games a registered rule must survive before it can stick
 STICK_WINDOW = 2       # games of win/loss outcome needed before a trend can promote or retire a rule
+# REVIVE a retired move when its net outcome over the accumulated history points the right way over enough
+# tries. Stage-adaptive (owner 2026-10-03): thin playbook needs more evidence (EARLY), an established one
+# revives on less (LATE). (tries, not the 20-try CI class, so good-but-small samples can come back.)
+REVIVE_EARLY = 5
+REVIVE_LATE = 3
+REVIVE_STAGE = 3       # fewer than this many in-play rules = EARLY stage
 # Early stop. Calibrated on the 89 finished no-advice arms (lock lesson_loop_v1 + rollouts/qwen_lessons, 2026-09-29):
 # a game's mean hp per round varies by SD ~36 between games of one arm, so a 40 drop is crossed by chance in 10% of
 # the checks a test would get; 60 in 4.4% (per 3-game test 8.3%). tests/test_early_stop.py holds it under 5%.
@@ -267,6 +273,7 @@ def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Seq
     registered lesson that keeps tracking good outcomes and is winning STICKS (verified by play), and a
     registered/sticky lesson correlated with losing games is retired - the churn fix. Without it, registered lessons
     follow only the per-decision CI flip (byte-identical to before)."""
+    revive_need = REVIVE_EARLY if len(in_play(reg)) < REVIVE_STAGE else REVIVE_LATE  # stage-adaptive revive window
     out = []
     for r in reg:
         r = dict(r)
@@ -292,6 +299,10 @@ def review(reg: Registry, rows: Sequence[Dict], game: int, game_hp: Optional[Seq
                      % (right, r["since"], _vs(ev)), evidence=ev)
         elif r["state"] in ("registered", "sticky"):
             r["evidence"] = ev                       # sticky survives a per-decision CI flip; only losing retires it
+        elif r["state"] == "retired" and ev["tries"] >= revive_need and (
+                ev["net"] > 0 if right == "better" else ev["net"] < 0):
+            r.update(state="registered", evidence=ev,  # REVIVE: history now points the right way -> give it another go
+                     why="revived: net %+.1f over %d tries (stage window %d)" % (ev["net"], ev["tries"], revive_need))
         # verified: kept as it is - its evidence is the A/B in play, which her per-situation history cannot judge
         out.append(r)
     return out
