@@ -161,6 +161,33 @@ Bounded: Qwen may rank the under-sampled arms of ONE bleeding cell to set which 
 prose. Never writes values/counts/legal-masks, never the exploit choice. Honest-keeping test: replace Qwen's ranking
 with a random permutation -> the converged table is identical within CI.
 
+## REUSE from the shelved value/table subsystem (assessed 2026-10-04)
+The project already built a value table once (then shelved it). What carries over:
+- **REUSE AS-IS:** `sf2/eval/stats.py` (`paired`/`run_level`/`pooled` opponent-as-unit bootstrap/`verdict`) for the
+  Stage-3 A/B gate; `advice.followable`/`available_moves` (action set); `screen_evidence.decision_row` net-hp +
+  `rule_stats` Welford/Welch (credit + split); `scripts/value_inplay.py::_throw_close` (a throw-rate-per-close-
+  decision diagnostic — our degeneracy guard, below).
+- **ADAPT (optional):** `lessons/value_oracle_v1.json` as the Stage-2 optimistic SEED — `json.load` the 12 chunli
+  cells DIRECTLY (schema `{"cell":[me,range,opp_attacking,opp_airborne],"values":{move:net_hp}}`; values are shrunk
+  mean net hp). **Never import `sf2/data/value_oracle.py` (hard-gate TABLE).** Caveats: means only (counts dropped →
+  pick your own pseudo-count), needs an old→two-stage move-name map, and it can only seed the BASE `(range, coarse-
+  doing)` — NOT fireball or his_label. `value_inplay.py::report()/commands()` A/B fan-out shape can be copied but
+  retargeted to `loop_runner --policy table`. `value_oracle.build()`'s `dealt-taken` + `n/(n+SHRINK)` shrink is a
+  REFERENCE for the table's credit (reimplement gate-clean in `value_table.py`, don't import).
+- **IGNORE:** `system1._by_table` (fixed argmax, no exploration, gate-forbidden), `play_system1 --oracle` (RAM
+  harness), `sf2/data/value.py` + `value_data.py` (the VLM value-head/dataset — a different, killed fine-tune),
+  `junk/docs/plan_laya_vision_value.md` + `docs/reviews/2026-09-30_dr_fable_lv_value.md` (the killed fine-tune).
+
+## The prior in-play result — corrected, and its lesson (anti-degeneracy)
+The "-88 hp, lost badly" memory is UNCONFIRMED (those logs are empty). The on-disk report
+(`logs/lv_inplay_oracle_report.json`) shows the fixed table WON the hp A/B (+81.4 [+42.7,+121.9] over the eye) — **by
+throw-spamming up close** (0.46-0.89 of close decisions). A FIXED table + argmax + no exploration + coarse keys
+collapses to ONE degenerate exploit that "wins" per-decision net-hp without playing well. The new plan guards:
+exploration (Stage 2), the `his_label` split (close/attacking shows throw **-5.18** → demoted), the credit fix (the
+oracle's numbers were on the un-reattributed, delayed-hit-contaminated signal). **Add to Stage-3 acceptance a
+DEGENERACY guard:** no single action may exceed a share-of-decisions ceiling in a cell (reuse `_throw_close`) — a
+table that wins only by spamming one move FAILS the A/B.
+
 ## Knobs (2): `MIN_TRIES` (reused), `ε₀` (new, ~0.3). Nothing else.
 ## Product decision deferred to the A/B: the table makes text-laya redundant as the DECIDER (it stays as the
 RulePolicy arm). The owner's "day vs night": an explicit empirical table vs a generalizing model — they should
