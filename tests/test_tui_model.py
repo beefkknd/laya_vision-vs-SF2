@@ -300,8 +300,9 @@ def test_crafted_thinking_inferred(tmp_path):
     assert m.status == "thinking"
 
 
-def test_crafted_not_thinking_mid_game(tmp_path):
-    """Only round 0 of game 0 done (round 1 not reached): qwen does NOT run between rounds."""
+def test_crafted_thinking_between_rounds(tmp_path):
+    """Round 0 of game 0 done, round 1 not started: qwen reflects AFTER EACH ROUND now, so this gap IS a
+    thinking moment (updated from the old per-game assumption that broke the 'thinking...' animation)."""
     tmp = str(tmp_path / "run")
     _write_run(tmp, games=2, rounds=2)
     _write_round(tmp, 0, 0, [_decision_record(1, 1.0, 1.0)])
@@ -309,7 +310,7 @@ def test_crafted_not_thinking_mid_game(tmp_path):
         {"event": "round", "game": 0, "round": 0, "result": "win", "hp": 50, "dealt": 100, "taken": 50},
     ])
     m = T.build_model(tmp, grade_qwen=False)
-    assert m.qwen_thinking is False
+    assert m.qwen_thinking is True
 
 
 def test_crafted_not_thinking_next_game_started(tmp_path):

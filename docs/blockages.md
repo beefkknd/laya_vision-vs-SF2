@@ -102,3 +102,11 @@ WHY: in SF2 holding BACK is the block input, so of the three options "back" alre
 best of the three; "stand" (no-action) releases her defense and "walk_forward" walks into danger when she has no
 guidance (confirmed by Honda -162). The block default was never the turtle cause - B1 (multi-rule collapse, fixed by
 oracle routing) and a lack of good firing rules were. The lever is better RULES, not a different default.
+
+## B5: "qwen is thinking..." animation vanished after per-round reflection (RESOLVED 2026-10-03)
+Moving System 2 from per-GAME to per-ROUND reflection (fix ce3745f) left `tui_model._infer_thinking`
+on the old assumption `if r != rounds-1: return False` -- so between rounds it reported not-thinking and
+the blinking "...thinking..." banner (and the DATA FLOW LEARN path) never lit except at a match boundary.
+Repro: tests/test_tui_thinking.py (newest round ended, next not started -> thinking must be True). Fix:
+thinking = the newest round has ended AND the run is not finished (final round of final game). Works at
+every round boundary now. Updated test_tui_model.test_crafted_thinking_between_rounds to the new reality.

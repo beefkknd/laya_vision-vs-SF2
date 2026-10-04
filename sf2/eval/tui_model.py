@@ -483,19 +483,18 @@ def _round_stats(trace: Sequence[dict], game: int, rnd: int) -> RoundStats:
 
 def _infer_thinking(games: int, rounds: int, round_dirs: Sequence[Tuple[int, int, str]],
                     round_events: Sequence[dict]) -> bool:
-    """Qwen reflects at a GAME boundary. 'Thinking' = the final round of the current game has ended
-    (a round event for it exists) and the next game's decisions have not started -- inferred purely
-    from file state, never from a runner signal. Not thinking after the final game (that is done)."""
+    """Qwen reflects after EVERY round (per-round reflection). 'Thinking' = the newest round has ended
+    (a round event for it exists) and the next round's decisions have not started -- inferred purely
+    from file state, never from a runner signal. Not thinking once the whole run is done (final round of
+    the final game). Works at every round boundary, including the game boundary."""
     if not round_dirs:
         return False
     g, r, _ = round_dirs[-1]            # newest (game, round)
-    if r != rounds - 1:
-        return False                    # mid-game (between r0 and r1): qwen does not run here
-    if g >= games - 1:
-        return False                    # last game finished -> done, not thinking
+    if g >= games - 1 and r >= rounds - 1:
+        return False                    # final round of the final game ended -> done, not thinking
     ended = any(e.get("event") == "round" and e.get("game") == g and e.get("round") == r
                 for e in round_events)
-    return ended
+    return ended                        # between this round and the next: Qwen is reflecting
 
 
 def build_model(run_dir: str, grader: Optional[GradeFn] = None,
