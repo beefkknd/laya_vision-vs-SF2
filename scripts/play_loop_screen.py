@@ -201,7 +201,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
              save_table: Optional[str] = None, explore_rate: float = 0.1,
              explore_tries: int = VT.MIN_TRIES, quorum: Optional[QuorumConfig] = None,
              quorum_state: Optional[Dict] = None, save_quorum: Optional[str] = None, qwen_pick=None,
-             credit_horizon: int = 0, credit_gamma: float = 1.0) -> Dict:
+             credit_horizon: int = 0, credit_gamma: float = 1.0, no_learn: bool = False) -> Dict:
     """Play ``games`` games. Two policies (owner's two-system A/B): ``policy="rules"`` (default) = text-laya follows
     the short memory, rotated by System 2 after each round; ``policy="table"`` = the self-learning value table
     (sf2.system1.value_table) picks the move and is CREDITED from each round's outcomes (no Qwen, no short memory).
@@ -274,7 +274,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                                     "hp": summary["hp"], "dealt": summary["dealt"], "taken": summary["taken"],
                                     "source": summary["source"]}) + "\n")
             trace.flush()
-            if policy in ("table", "hybrid", "quorum"):  # CREDIT the table from this round's outcomes (every round)
+            if policy in ("table", "hybrid", "quorum") and not no_learn:  # CREDIT the table (skipped in --no-learn frozen eval)
                 tbl = VT.credit(tbl, drows, horizon=credit_horizon, gamma=credit_gamma)
                 if policy == "quorum":                   # ...and each voter's reliability, from the same outcomes
                     QR.credit(qrel, decisions, drows, qcfg)
@@ -422,6 +422,8 @@ def build_parser() -> argparse.ArgumentParser:
                          "return over the next N decisions (fixes setup-move myopia); 0 = one-step reward (default)")
     ap.add_argument("--gamma", dest="credit_gamma", type=float, default=1.0,
                     help="table/hybrid credit: discount for the n-step return (only used with --horizon>0)")
+    ap.add_argument("--no-learn", dest="no_learn", action="store_true",
+                    help="frozen EVAL: play the carried table but do NOT credit/update it (use with --explore 0)")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -493,7 +495,8 @@ def main() -> int:
                                qwen_mode=args.qwen_mode, policy=args.policy, table=table_in, save_table=args.save_table,
                                explore_rate=args.explore_rate, explore_tries=args.explore_tries,
                                quorum=qcfg, quorum_state=qstate, save_quorum=args.save_quorum, qwen_pick=qwen_pick,
-                               credit_horizon=args.credit_horizon, credit_gamma=args.credit_gamma)
+                               credit_horizon=args.credit_horizon, credit_gamma=args.credit_gamma,
+                               no_learn=args.no_learn)
     if args.policy in ("table", "hybrid", "quorum") and args.save_table:
         print("saved table", args.save_table)
     if args.save_registry:
