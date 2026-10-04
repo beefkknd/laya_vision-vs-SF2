@@ -5,7 +5,16 @@ These are the RED-first tests for the deadlock the old timer tangle caused (play
 12 straight losses, every Coach claim refused 'already 2 claims in test', zero change). The pure policy
 has no since/idx coordinate and no test-slot cap, so that class of bug cannot recur -- proven here.
 """
+from sf2.system1.advice import followable as _real_followable
 from sf2.system2 import short_memory as SM
+
+
+def _chunli_fol(move, rng):
+    return _real_followable(move, rng, "chunli")
+
+
+def _trying_at(move, rounds, range_=None, when="standing"):
+    return dict(SM._trying_entry(_claim(move, range_=range_, when=when)), rounds=rounds)
 
 
 # --- a deterministic injected scorer so graduation/weakest tests don't need 20-row CI fixtures -------
@@ -174,3 +183,37 @@ def test_no_retone_when_the_coach_repeats_the_same_tone():
                       scorer=_scorer({}))
     assert not ev.get("retoned")                                    # identical kind -> nothing to retone
     assert [r["line"] for r in out] == ["use more s.mk when he stands"]
+
+
+# --------------------------------------------------------------------------- enforceability (Step 1A)
+def test_unfollowable_coach_claim_is_not_admitted():
+    # 's.lp up close' can never be played (close offers only cl.*): refused at admission. Not losing -> no pool.
+    reg = [_kept("s.mk")]
+    bad = _claim("s.lp", range_="close", when="jumping")
+    out, ev = SM.step(reg, _wl("W"), claims=[bad], rows=[], moves={"s.mk", "s.lp"},
+                      scorer=_scorer({}), followable=_chunli_fol)
+    assert ev["added"] == [] and not any("s.lp" in r["line"] for r in out)
+
+
+def test_carried_unfollowable_line_is_dropped_each_round():
+    reg = [_kept("s.mk"), _trying_at("s.lp", 5, range_="close", when="jumping")]   # a dead carried rule
+    out, ev = SM.step(reg, _wl("W"), claims=[], rows=[], moves={"s.mk", "s.lp"},
+                      scorer=_scorer({}), followable=_chunli_fol)
+    assert any("s.lp" in l for l in ev["removed"])
+    assert not any("s.lp" in r["line"] for r in out)
+
+
+def test_drop_unfollowable_is_targeted_and_immutable():
+    reg = [_kept("s.mk"), _trying_at("s.lp", 5, range_="close", when="jumping")]
+    kept, dropped = SM.drop_unfollowable(reg, _chunli_fol)
+    assert dropped == ["use more s.lp up close when he jumps"]
+    assert [r["line"] for r in kept] == ["use more s.mk when he stands"]
+    assert len(reg) == 2                                         # input list untouched
+
+
+def test_default_allows_all_when_no_predicate_given():
+    # pure callers without a character pass no predicate -> enforceability is off (synthetic-move tests still valid)
+    reg = [_kept("s.mk")]
+    out, ev = SM.step(reg, _wl("W"), claims=[_claim("s.lp", range_="close")], rows=[], moves={"s.mk", "s.lp"},
+                      scorer=_scorer({}))
+    assert ev["added"] and "s.lp" in ev["added"][0]

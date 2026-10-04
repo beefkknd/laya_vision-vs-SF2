@@ -29,7 +29,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import _path  # noqa: F401
 from sf2.config import PORTS
-from sf2.system1.advice import char_menu_moves
+from sf2.system1.advice import char_menu_moves, followable
 from sf2.system1.loop_runner import play_round as play_screen_round
 from sf2.system2 import character_prompt, lessons as L, screen_evidence, seed_rules, short_memory as SM
 from sf2.system2.lesson_prompt import streak
@@ -163,7 +163,8 @@ def update(reg: L.Registry, rows: List[Dict], game: int, game_hp: List[float], g
     claims, problems, raw = ask_claims(opp, reg, rows, last, all_rounds, last_rounds, refused, stable,
                                        ask_qwen, me, qwen_mode, digest)
     moves = set(char_menu_moves(me))
-    reg, event = SM.step(reg, games, claims, rows, moves, rotate=game, scorer=L.condition_evidence)
+    fol = lambda move, rng: followable(move, rng, me)        # drop/refuse rules text-laya can't play at their range
+    reg, event = SM.step(reg, games, claims, rows, moves, rotate=game, scorer=L.condition_evidence, followable=fol)
     after = SM.in_play(reg)
     promoted = [r["line"] for r in reg if r["state"] == SM.KEPT and r["line"] not in pre_kept]
     admitted = set(event["added"])

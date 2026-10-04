@@ -74,7 +74,8 @@ def _full_carried_registry():
         return dict(SM._trying_entry(c), rounds=rounds)
     kit = {"claim": {"kind": "use_more", "move": "s.mk", "range": None, "when": "standing", "view": None},
            "line": "use more s.mk when he stands", "state": "kept", "rounds": 20, "evidence": {}, "why": "kit"}
-    fillers = ["walk_back", "throw_F+hp", "throw_F+mp", "c.mk", "c.hk", "s.hp", "c.lp", "j.hk", "cl.mk"]
+    # followable fillers only (no c.*/j.* -- the Step-1A lint would drop those and open room); disjoint from PICKS
+    fillers = ["walk_back", "throw_F+hp", "throw_F+mp", "s.hp", "cl.mk", "cl.hk", "cl.hp", "cl.lp", "cl.lk"]
     reg = [kit] + [trying(m, 10 + i) for i, m in enumerate(fillers)]
     assert len(reg) == SM.MAX_LINES, "carried memory must be FULL to exercise the swap/freeze"
     return reg

@@ -12,7 +12,7 @@ from typing import Dict, Optional, Sequence
 EXPLORE_POOL = (
     "use more s.mk at mid range when he stands",
     "use more walk_forward at mid range when he stands",
-    "use more s.hk up close when he stands",
+    "use more cl.hk up close when he stands",        # cl.* (close normal): FOLLOWABLE up close -- 's.hk up close' was not
     "use more throw up close when he stands",
     "use more s.mp at mid range when he attacks",
     "use more walk_back at mid range when he attacks",
@@ -31,9 +31,10 @@ def _covered(in_claims: Sequence[Dict], c: Dict) -> bool:
     return any(L.RIGHT[ic["kind"]] == L.RIGHT[c["kind"]] and L._covers(ic, c) for ic in in_claims)
 
 
-def pick(in_play_lines: Sequence[str], moves: set, rotate: int = 0) -> Optional[Dict]:
-    """The next pool rule NOT already covered in play, as a claim dict (rotating by ``rotate``). None when the
-    pool is exhausted. Invalid pool lines for this move set are skipped (defensive; the pool is validated)."""
+def pick(in_play_lines: Sequence[str], moves: set, rotate: int = 0, followable=None) -> Optional[Dict]:
+    """The next pool rule NOT already covered in play AND followable, as a claim dict (rotating by ``rotate``).
+    None when the pool is exhausted. ``followable(move, range)`` (optional) skips a rule text-laya can't play at
+    its range. Invalid pool lines for this move set are skipped (defensive; the pool is validated)."""
     from sf2.system2.rule_entry import claim_of
     in_claims = []
     for line in in_play_lines:
@@ -47,6 +48,8 @@ def pick(in_play_lines: Sequence[str], moves: set, rotate: int = 0) -> Optional[
         try:
             c = claim_of(line, moves)
         except ValueError:
+            continue
+        if followable is not None and not followable(c["move"], c.get("range")):
             continue
         if not _covered(in_claims, c):
             return c

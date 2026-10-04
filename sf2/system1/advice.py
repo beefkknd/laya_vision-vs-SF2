@@ -276,6 +276,17 @@ def available_moves(stance: str, categories: Optional[Dict[str, Sequence[str]]] 
     return {m for cat in CATEGORY_ORDER for m in moves_in_stance(cat, stance, categories)}
 
 
+def followable(move: str, rng: Optional[str], me: str = "chunli",
+               categories: Optional[Dict[str, Sequence[str]]] = None) -> bool:
+    """Can ``move`` actually be the menu answer at range ``rng`` -- i.e. is it OFFERED in the grounded stand stance
+    there? A rule text-laya can never follow (e.g. 's.mk up close': close offers only 'cl.*') is UNFOLLOWABLE and
+    should never be learned. A range-agnostic rule (``rng`` None) is followable if it is offered in SOME range.
+    Pure; mirrors exactly what ``moves_in_stance`` offers the move model, so the count never diverges from play."""
+    cats = categories if categories is not None else char_categories(me)
+    rngs = [rng] if rng else list(RANGES)
+    return any(move in available_moves(stance_of("stand", r), cats) for r in rngs)
+
+
 # The menu action_menu.CATEGORIES hardcodes for Chun-Li, derived here for ANY character whose RAM-free move menu
 # sf2.moves_free knows (chunli / ryu / ken). This is the ONE reusable source of the per-character category map:
 # scripts/build_advice_data.char_categories mirrors the same mapping over all 8 characters (it cannot import from a

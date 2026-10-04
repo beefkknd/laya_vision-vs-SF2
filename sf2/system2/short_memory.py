@@ -70,12 +70,30 @@ def in_play(reg: Registry) -> List[str]:
 
 
 # --------------------------------------------------------------------------- validity / novelty
-def _valid(c: Claim, moves: set) -> bool:
+Followable = Callable[[str, Optional[str]], bool]
+_ALLOW: Followable = lambda move, rng: True        # default: no enforceability check (pure tests / callers w/o a char)
+
+
+def _valid(c: Claim, moves: set, followable: Followable = _ALLOW) -> bool:
     if not isinstance(c, dict) or c.get("kind") not in L.KINDS or not isinstance(c.get("move"), str):
         return False
     if c.get("range") not in (None,) + L.RANGES or c.get("when") not in (None,) + tuple(L.WHEN_WORDS):
         return False
-    return c["move"] in moves and c["move"] not in L.UNFOLLOWABLE
+    if c["move"] not in moves or c["move"] in L.UNFOLLOWABLE:
+        return False
+    return followable(c["move"], c.get("range"))   # UNFOLLOWABLE at its range (e.g. 's.mk up close') -> refused
+
+
+def drop_unfollowable(reg: Registry, followable: Followable) -> Tuple[Registry, List[str]]:
+    """Prune in-play lines text-laya can never play at their range (e.g. a carried 's.* up close'). Immutable:
+    returns (new reg, dropped lines). Non-in-play entries (rejected history) are left untouched."""
+    kept, dropped = [], []
+    for r in reg:
+        if r["state"] in IN_PLAY_STATES and not followable(r["claim"]["move"], r["claim"].get("range")):
+            dropped.append(r["line"])
+        else:
+            kept.append(dict(r))
+    return kept, dropped
 
 
 def _novel(reg: Registry, c: Claim) -> bool:
@@ -90,14 +108,14 @@ def _novel(reg: Registry, c: Claim) -> bool:
 
 
 def _pick_admit(reg: Registry, claims: Sequence[Claim], moves: set, rotate: int,
-                allow_pool: bool) -> Optional[Claim]:
-    """The fresh line to bring in: the Coach's first valid & novel claim, else (only while losing, via
-    ``allow_pool``) the next explore-pool rule. None if nothing valid and novel is available."""
+                allow_pool: bool, followable: Followable = _ALLOW) -> Optional[Claim]:
+    """The fresh line to bring in: the Coach's first valid & novel & FOLLOWABLE claim, else (only while losing,
+    via ``allow_pool``) the next followable explore-pool rule. None if nothing valid/novel/followable is available."""
     for c in claims or []:
-        if _valid(c, moves) and _novel(reg, c):
+        if _valid(c, moves, followable) and _novel(reg, c):
             return c
     if allow_pool:
-        pool = explore_pool.pick(in_play(reg), moves, rotate)
+        pool = explore_pool.pick(in_play(reg), moves, rotate, followable)
         if pool and _novel(reg, pool):
             return pool
     return None
@@ -146,13 +164,14 @@ def _age(reg: Registry) -> Registry:
     return [dict(r, rounds=r.get("rounds", 0) + 1) if r["state"] == TRYING else dict(r) for r in reg]
 
 
-def _retone(reg: Registry, claims: Sequence[Claim], moves: set) -> Tuple[Registry, Dict]:
+def _retone(reg: Registry, claims: Sequence[Claim], moves: set,
+            followable: Followable = _ALLOW) -> Tuple[Registry, Dict]:
     """TONE ADJUSTMENT between rounds: a Coach claim naming the SAME move+range+when as a line in play but a
     DIFFERENT kind (use_more <-> always <-> avoid) dials that line's tone in place -- keep its state and its
     rounds-in-play, just change the tone. At most one retone per round (one change at a time). Returns
     (new registry, event) where a retone fills event added=[new line] / removed=[old line]; else ({}, {})."""
     for c in claims or []:
-        if not _valid(c, moves):
+        if not _valid(c, moves, followable):
             continue
         for i, r in enumerate(reg):
             if r["state"] not in IN_PLAY_STATES:
@@ -176,10 +195,10 @@ def _fair_chance(reg: Registry, swap_after: int) -> bool:
 
 
 def _swap(reg: Registry, claims: Sequence[Claim], rows: Sequence[Dict], moves: set, rotate: int,
-          scorer: Scorer) -> Tuple[Registry, Dict]:
+          scorer: Scorer, followable: Followable = _ALLOW) -> Tuple[Registry, Dict]:
     """FULL memory + losing: drop the weakest trying line and admit one fresh claim (Coach's, else pool)."""
     reg = [dict(r) for r in reg]
-    admit = _pick_admit(reg, claims, moves, rotate, allow_pool=True)
+    admit = _pick_admit(reg, claims, moves, rotate, allow_pool=True, followable=followable)
     if admit is None:
         return reg, {"added": [], "removed": []}
     victim = _weakest_trying(reg, rows, scorer)
@@ -197,32 +216,38 @@ def _default_scorer(rows: Sequence[Dict], claim: Claim) -> Dict:
 
 def step(reg: Registry, round_wl: Sequence[Dict], claims: Sequence[Claim], rows: Sequence[Dict],
          moves: set, rotate: int = 0, scorer: Optional[Scorer] = None,
-         swap_after: int = SWAP_AFTER) -> Tuple[Registry, Dict]:
-    """One round of the live policy. Age the trying lines, graduate the proven ones (advisory), then change
-    the short memory by the owner's rule:
-      - ROOM in the memory (< MAX_LINES): admit one fresh line -- the Coach's valid&novel claim always
+         swap_after: int = SWAP_AFTER, followable: Optional[Followable] = None) -> Tuple[Registry, Dict]:
+    """One round of the live policy. Age the trying lines, drop any now-unfollowable ones, graduate the proven
+    ones (advisory), then change the short memory by the owner's rule:
+      - ROOM in the memory (< MAX_LINES): admit one fresh line -- the Coach's valid&novel&FOLLOWABLE claim always
         (early-game growth), or, only while losing, an explore-pool rule when the Coach is silent.
       - FULL + losing past SWAP_AFTER (and the newest trying line has had its fair-chance window): SWAP --
         drop the weakest trying line and admit one fresh claim.
       - FULL + not losing: freeze (stop churning once the established set is winning).
-    Returns (new registry, event={added, removed, streak}). Pure; never raises on empty inputs."""
+    ``followable(move, range)`` refuses/drops rules text-laya can never play at their range (default: allow all --
+    pure tests). Returns (new registry, event={added, removed, streak}). Pure; never raises on empty inputs."""
     scorer = scorer or _default_scorer
+    fol = followable or _ALLOW
     moves = set(moves) if moves is not None else {a.get("action") for a in rows}
     reg = _age(reg)
+    reg, dead = drop_unfollowable(reg, fol)                         # prune carried rules she can't play at their range
     reg = _graduate(reg, rows, scorer)
     streak = loss_streak(round_wl)
     losing = streak >= swap_after
-    event = {"added": [], "removed": [], "streak": streak}
-    reg, retone = _retone(reg, claims, moves)                       # tone change counts as this round's one change
+    event = {"added": [], "removed": list(dead), "streak": streak}
+    reg, retone = _retone(reg, claims, moves, fol)                  # tone change counts as this round's one change
     if retone.get("retoned"):
-        event.update(retone)
+        event["added"] = retone["added"]
+        event["removed"] = list(dead) + retone["removed"]
+        event["retoned"] = True
         return reg, event
     if MAX_LINES - len(_in_play_entries(reg)) > 0:                  # room: grow the memory
-        admit = _pick_admit(reg, claims, moves, rotate, allow_pool=losing)
+        admit = _pick_admit(reg, claims, moves, rotate, allow_pool=losing, followable=fol)
         if admit is not None:
             reg = [dict(r) for r in reg] + [_trying_entry(admit)]
             event["added"] = [L.render(admit)]
     elif losing and _fair_chance(reg, swap_after):                  # full + losing: swap one
-        reg, ch = _swap(reg, claims, rows, moves, rotate, scorer)
-        event.update(ch)
+        reg, ch = _swap(reg, claims, rows, moves, rotate, scorer, fol)
+        event["added"] = ch["added"]
+        event["removed"] = list(dead) + ch["removed"]
     return reg, event
