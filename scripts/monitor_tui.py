@@ -355,7 +355,15 @@ def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
 
 def _resolve_run_dir(args) -> str:
     if args.watch:
-        return args.watch
+        d = args.watch
+        has_data = os.path.isdir(d) and (os.path.exists(os.path.join(d, "trace.jsonl"))
+                                         or any(n.startswith(("round_", "g0")) for n in os.listdir(d)))
+        if not has_data:
+            sys.exit("--watch only TAILS an existing run dir (%r has no gameplay). To PLAY a game, use:\n"
+                     "  monitor_tui.py --run \"chunli ryu 4 3\" --show-game     # one matchup + SNES window\n"
+                     "  monitor_tui.py --career chunli --show-game            # the continuous ladder\n"
+                     "(set SF2_QWEN_URL to a live Qwen server first.)" % d)
+        return d
     if args.latest:
         d = T.latest_run_dir()
         if not d:
@@ -364,7 +372,7 @@ def _resolve_run_dir(args) -> str:
     sys.exit("need --watch <run_dir>, --latest, or --run \"<me> <opp> <games> <rounds>\"")
 
 
-def _launch_loop(spec: str, blank: bool = False):
+def _launch_loop(spec: str, blank: bool = False, show_game: bool = False):
     """Shell out to play_loop_screen.py and return (popen, run_dir_guess). READ-ONLY afterwards.
     With ``blank``, start from an EMPTY short memory (an empty --carry file) so the Coach builds the
     playbook from scratch -- the purest self-learning demo. Needs the Qwen server (SF2_QWEN_URL)."""
@@ -380,6 +388,8 @@ def _launch_loop(spec: str, blank: bool = False):
            "--cat-advisor", "runs/text_laya/cat_v3",
            "--move-advisor", "runs/text_laya/move_v2",
            "--no-score"]
+    if show_game:
+        cmd += ["--watch", "--speed", "100"]       # open a VISIBLE Mesen window (the SNES game console)
     if blank:
         from sf2.system1.advice import char_menu_moves
         from sf2.system2.rule_entry import default_kit
@@ -394,12 +404,14 @@ def _launch_loop(spec: str, blank: bool = False):
     return proc, run_dir
 
 
-def _launch_career(me: str):
+def _launch_career(me: str, show_game: bool = False):
     """Launch the continuous blank-start career (scripts/play_career.py) for ME and return (proc,
     session_dir) so the TUI session view can tail it live. READ-ONLY afterwards. Needs SF2_QWEN_URL."""
     name = f"career_{me}_{int(time.time())}"
     session_dir = os.path.join("rollouts", "career", name)
     cmd = [sys.executable, os.path.join("scripts", "play_career.py"), "--me", me, "--name", name]
+    if show_game:
+        cmd += ["--watch"]                         # visible Mesen window per match (the SNES game console)
     env = dict(os.environ)
     proc = subprocess.Popen(cmd, cwd=REPO, env=env)
     return proc, session_dir
@@ -452,6 +464,8 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--career", metavar="ME", nargs="?", const="chunli",
                     help="launch the CONTINUOUS blank-start career (scripts/play_career.py) for ME (default chunli) "
                          "and watch it: play forever, replay on loss, beat an opponent and move on")
+    ap.add_argument("--show-game", action="store_true",
+                    help="with --run/--career: ALSO open a visible SNES (Mesen) window (default: headless, TUI only)")
     ap.add_argument("--once", action="store_true", help="render a single frame and exit")
     ap.add_argument("--save", metavar="PATH", help="render ONE frame headless to PATH (.svg or "
                     ".html) and exit; no live terminal needed")
@@ -461,13 +475,13 @@ def main(argv: Optional[list] = None) -> int:
     proc = None
     session = bool(args.session) or bool(args.career)
     if args.career:
-        proc, run_dir = _launch_career(args.career)
+        proc, run_dir = _launch_career(args.career, show_game=args.show_game)
         for _ in range(80):                       # wait for the first round dir to appear
             if os.path.isdir(run_dir) and any(n.startswith("round_") for n in os.listdir(run_dir)):
                 break
             time.sleep(0.25)
     elif args.run:
-        proc, run_dir = _launch_loop(args.run, blank=args.blank)
+        proc, run_dir = _launch_loop(args.run, blank=args.blank, show_game=args.show_game)
         # wait briefly for the run dir to appear
         for _ in range(40):
             if os.path.isdir(run_dir):
