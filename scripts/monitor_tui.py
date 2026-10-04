@@ -305,7 +305,7 @@ def _session_panel(sm: T.SessionModel) -> Panel:
     rounds.add_column(no_wrap=True)
     if not sm.rounds:
         rounds.add_row(Text("(no rounds yet)", style="dim"))
-    for rsum in sm.rounds:
+    for rsum in sm.rounds[-4:]:                         # recent opponents only, so the strip stays compact
         marker = " [cyan](live)[/cyan]" if rsum.num == sm.active_num else ""
         rounds.add_row(Text.from_markup(
             f"round [bold]{rsum.num:>2}[/bold] vs [red]{escape(rsum.opp)}[/red]  "
@@ -313,8 +313,8 @@ def _session_panel(sm: T.SessionModel) -> Panel:
             + (f"-[yellow]{rsum.ties}T[/yellow]" if rsum.ties else "")
             + f"   [dim]cum {rsum.cum_wins}/{rsum.cum_played} {rsum.cum_pct}%[/dim]{marker}"
         ))
-    body = Group(live, Text(""), _session_trend_line(sm), _session_winrate_line(sm), Text(""), rounds)
-    return Panel(body, title="SESSION (all rounds)", border_style="cyan")
+    body = Group(live, Text(""), rounds)               # career growth lives in the CAREER TREND panel beside this
+    return Panel(body, title="SESSION", border_style="cyan")
 
 
 def _career_trend(sm: T.SessionModel) -> Panel:
@@ -323,24 +323,25 @@ def _career_trend(sm: T.SessionModel) -> Panel:
     series = T.cum_winrate_series(sm.per_game_wl)
     body = Text()
     if series:
-        for row in T.vbars(series, height=5, lo=0.0, hi=1.0):
+        for row in T.vbars(series, height=4, lo=0.0, hi=1.0):   # compact bar: growth visible, little space
             body.append(row + "\n", style="green")
     else:
-        body.append("(no games yet)\n\n\n\n\n", style="dim")
-    body.append(f"career win-rate {sm.cum_wins}/{sm.cum_played} = {sm.cum_pct}%", style="bold green")
-    return Panel(body, title="CAREER TREND (win-rate over the ladder)", border_style="green")
+        body.append("(no games yet)\n", style="dim")
+    body.append(f"win-rate {sm.cum_wins}/{sm.cum_played} = {sm.cum_pct}%", style="bold green")
+    return Panel(body, title="CAREER TREND (growth)", border_style="green")
 
 
 def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
-    """Session view: the cumulative summary + career trend on top, the live round's single-run view in the
-    middle, and the cross-system DATA FLOW pulse at the bottom."""
+    """Session view, re-weighted so SHORT MEMORY + PLAYBOOK get the room: a COMPACT round-summary + career-
+    growth bar on top, the live gameplay with the big short-memory/playbook column in the MIDDLE (most of
+    the height), and the DATA FLOW pulse at the bottom."""
     layout = Layout()
     layout.split_column(
-        Layout(name="head", ratio=2, minimum_size=9),
-        Layout(name="active", ratio=3),
-        Layout(name="flow", ratio=1, minimum_size=6),
+        Layout(name="head", ratio=2, minimum_size=7),      # compact: round summary + career-growth bar
+        Layout(name="active", ratio=7),                    # the gameplay + roomy SHORT MEMORY / PLAYBOOK
+        Layout(name="flow", ratio=1, minimum_size=5),
     )
-    layout["head"].split_row(Layout(_session_panel(sm), ratio=3), Layout(_career_trend(sm), ratio=2))
+    layout["head"].split_row(Layout(_session_panel(sm), ratio=1), Layout(_career_trend(sm), ratio=1))
     thinking = bool(sm.active and sm.active.qwen_thinking)
     if sm.active is not None:
         layout["active"].update(render(sm.active, frame, with_footer=False))

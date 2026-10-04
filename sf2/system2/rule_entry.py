@@ -34,7 +34,7 @@ def carry_entries(rules, moves):
 
 # A blank playbook keeps BLOCK as the no-rule default (defend is already implicit), so a blank start only
 # needs ONE attacking foothold so she is not a pure turtle from frame 1 (owner 2026-10-03).
-DEFAULT_ATTACK = "use more s.mk at mid range when he stands"
+DEFAULT_ATTACK = "use more s.mk when he stands"   # range-agnostic: fires close, mid OR far (not a mid-only turtle)
 
 
 def default_kit(moves):
