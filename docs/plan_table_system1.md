@@ -179,6 +179,23 @@ Phase it: **3a** = make `--policy table` actually PLAY and learn (pluggable deci
 - **Acceptance (mechanical):** on the `stunned` cells (100% `block_high` today) the table stops blocking within ~10
   rounds (check decisions.jsonl); and the table's last-N win-rate CI beats frozen rules.
 
+## A/B RESULT (2026-10-04, table vs ryu, 144 rounds) — the table LOSES, and converges DOWN
+First live table career (feat/table-system1, policy=table, ryu, cap 12): **0 wins / 144 rounds**, win-rate curve
+dead flat at 0%. NOT a wiring bug -- the table learns sensible per-cell values (lightning_legs +17 close/standing;
+throw_F+mp +10 to PUNISH a stunned opponent -- the credit fix working) and she deals 115 hp/round. But she TAKES
+156 -> net -41/round, and the deficit WIDENS as it converges: net -27 (first third) -> -48 (middle) -> -49 (last).
+Diagnosis: her most-visited cell `mid|attacking` (n=1515) has NO net-positive option (best s.lp -5.3, worst -32) --
+every move loses hp there; `far|standing` best is a passive jump_back (0). The per-decision-net objective converges
+to "the least-bad move in each situation" = SAFE BUT LOSING; exploitation (eps->0) then locks her into that
+defensive equilibrium, so more games make it WORSE, not better. The table optimizes the move GIVEN the situation
+but cannot learn to AVOID losing situations (neutral/spacing), which is where ryu wins. The rules arm gets ~22% vs
+ryu (text-laya's trained priors play neutral/offense far better). EMPIRICAL VERDICT: the pure value table, per-
+decision net hp, from scratch, does not beat ryu and does not converge up; "text-laya faster" (owner's day-vs-night)
+is confirmed. The levers if the table continues: (a) change the objective to ROUND-WIN correlation (use the
+rounds_fired/wins stat, not per-decision net) so it optimizes WINNING not safety; (b) test vs an EASIER opponent
+first (ryu is the hardest cold-start); (c) accept text-laya as the base and shelve the pure table; (d) hybrid --
+text-laya plays neutral, the table overrides only in specific winnable cells. OWNER DECISION PENDING.
+
 ## STAGE 4 — Qwen as System 2 (only if Stage 3 is positive)
 Bounded: Qwen may rank the under-sampled arms of ONE bleeding cell to set which are force-covered first, and write
 prose. Never writes values/counts/legal-masks, never the exploit choice. Honest-keeping test: replace Qwen's ranking
