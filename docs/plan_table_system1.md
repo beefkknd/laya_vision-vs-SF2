@@ -196,6 +196,19 @@ rounds_fired/wins stat, not per-decision net) so it optimizes WINNING not safety
 first (ryu is the hardest cold-start); (c) accept text-laya as the base and shelve the pure table; (d) hybrid --
 text-laya plays neutral, the table overrides only in specific winnable cells. OWNER DECISION PENDING.
 
+## HYBRID (owner 2026-10-04, after the pure table lost): text-laya plays, the table OVERRIDES
+The pivot's answer: NOT the pure table. `--policy hybrid` = the full rules system (text-laya + short memory + Qwen,
+the ~22% baseline) is the PLAYER; the value table only OVERRIDES in a cell where it is CONFIDENT a move is clearly
+good (n>=MIN_TRIES AND mean net hp > 0) -- adding the wins it learned (punish-stunned, lightning_legs) WITHOUT the
+from-scratch defensive-losing trap (text-laya keeps the neutral game the table couldn't learn). A small fixed
+`explore` (0.1) still tries an under-sampled move so the table keeps learning from every round incl. losses; the
+table is credited every round regardless of who chose. `value_table.hybrid_decider(table, me, rng, base_decide)`.
+Win/loss is the end goal (how we judge it); the dense per-action net-hp signal is how the table learns (owner).
+RUN IT (headless; needs threebody Qwen for the text-laya base):
+  play_career.py --opps ryu --policy hybrid --playbook ab_hyb --block 4 --cap 8
+then ab_table.py --table playbooks/ab_hyb --rules playbooks/ab_rules (or just read its win-rate curve vs the 22%).
+Open refinement if it helps: gate the override on ROUND-WIN correlation (rounds_fired wins), not just net hp.
+
 ## STAGE 4 — Qwen as System 2 (only if Stage 3 is positive)
 Bounded: Qwen may rank the under-sampled arms of ONE bleeding cell to set which are force-covered first, and write
 prose. Never writes values/counts/legal-masks, never the exploit choice. Honest-keeping test: replace Qwen's ranking

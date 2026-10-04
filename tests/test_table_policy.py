@@ -44,3 +44,39 @@ def test_table_learns_from_the_deciders_own_choices():
         t = VT.credit(t, [_row(d["action"], net(d["action"]))])
     assert VT.mean(t["cells"]["close|standing|0"].get("throw_F+hp")) > 0
     assert VT.decider(t, "chunli", rng, eps0=0.0)(make_moment(dx=36, doing="standing"))["action"] == "throw_F+hp"
+
+
+# ----------------------------------------------------------------- HYBRID policy (text-laya + table override)
+def _laya(_m):
+    return {"action": "block_high", "category": "block", "source": "should-be-overwritten"}
+
+
+def test_hybrid_defers_to_text_laya_when_the_table_is_not_confident():
+    # empty table -> no confident cell -> text-laya's pick stands (source 'laya')
+    decide = VT.hybrid_decider(VT.blank(), "chunli", random.Random(0), _laya, explore=0.0)
+    d = decide(make_moment(dx=36, doing="standing"))
+    assert d["action"] == "block_high" and d["source"] == "laya" and d["when"] == "close|standing|0"
+
+
+def test_hybrid_overrides_with_a_confident_good_table_move():
+    t = VT.blank()
+    for _ in range(VT.MIN_TRIES):                            # the table learns throw is clearly good up close/standing
+        t = VT.credit(t, [_row("throw_F+hp", 15)])
+    decide = VT.hybrid_decider(t, "chunli", random.Random(0), _laya, explore=0.0)
+    d = decide(make_moment(dx=36, doing="standing"))
+    assert d["action"] == "throw_F+hp" and d["source"] == "table"   # overrode text-laya's block
+
+
+def test_hybrid_does_not_override_with_a_known_bad_move():
+    t = VT.blank()
+    for _ in range(VT.MIN_TRIES):                            # a well-sampled but NEGATIVE move must NOT override
+        t = VT.credit(t, [_row("spinning_bird_kick", -12)])
+    decide = VT.hybrid_decider(t, "chunli", random.Random(0), _laya, explore=0.0)
+    d = decide(make_moment(dx=36, doing="standing"))
+    assert d["source"] == "laya"                            # defers; the table's move there is net-negative
+
+
+def test_hybrid_explore_tries_an_under_sampled_move():
+    decide = VT.hybrid_decider(VT.blank(), "chunli", random.Random(1), _laya, explore=1.0)
+    picks = {decide(make_moment(dx=36, doing="standing"))["source"] for _ in range(20)}
+    assert "table-explore" in picks                         # with explore=1 it tries under-sampled moves

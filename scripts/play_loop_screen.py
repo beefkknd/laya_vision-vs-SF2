@@ -30,7 +30,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import _path  # noqa: F401
 from sf2.config import PORTS
 from sf2.system1.advice import char_menu_moves, followable
-from sf2.system1.loop_runner import play_round as play_screen_round
+from sf2.system1.loop_runner import play_round as play_screen_round, two_stage_decide
 from sf2.system1 import value_table as VT
 from sf2.system2 import character_prompt, lessons as L, rule_stats, screen_evidence, seed_rules, short_memory as SM
 from sf2.system2.lesson_prompt import streak
@@ -229,6 +229,11 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
             if policy == "table":                        # the value table picks the move (no short memory, no Qwen)
                 play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, [], rd,
                               reader=reader, decide=VT.decider(tbl, me, explore))
+            elif policy == "hybrid":                     # text-laya plays; the table OVERRIDES where it is confident
+                lines = SM.in_play(reg)
+                base = lambda m, _l=lines: two_stage_decide(cat_advisor, move_advisor, me, m, _l)
+                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd,
+                              reader=reader, decide=VT.hybrid_decider(tbl, me, explore, base))
             else:
                 lines = SM.in_play(reg)                  # FRESH each round: play with the latest short memory
                 play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
@@ -251,12 +256,13 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                                     "hp": summary["hp"], "dealt": summary["dealt"], "taken": summary["taken"],
                                     "source": summary["source"]}) + "\n")
             trace.flush()
-            if policy == "table":                        # CREDIT the table from this round's outcomes; no Qwen/SM
+            if policy in ("table", "hybrid"):            # CREDIT the table from this round's outcomes (every round)
                 tbl = VT.credit(tbl, drows)
                 trace.write(json.dumps({"event": "table", "game": g, "round": r,
                                         "cells": len(tbl["cells"]), "splits": len(tbl.get("depth", {}))}) + "\n")
                 trace.flush()
-                continue
+                if policy == "table":
+                    continue                             # pure table: no Qwen/short-memory; hybrid falls through to it
             # SYSTEM 2 AFTER EACH ROUND: reflect and rotate the short memory so the NEXT round can adapt.
             round_hp.append(summary["dealt"] - summary["taken"])
             round_wl.append({"won": 1 if summary["result"] == "win" else 0,
@@ -277,7 +283,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                "seed_lines": [r["line"] for r in seed_lines],
                "in_play_end": SM.in_play(reg), "registry_end": reg, "decisions": len(all_rows),
                "game_hp": game_hp, "games": games_wl, "violations": L.violations(reg, all_rows)}
-    if policy == "table":
+    if policy in ("table", "hybrid"):
         verdict["table_cells"] = len(tbl["cells"])
         verdict["table_splits"] = len(tbl.get("depth", {}))
         if save_table:                                        # persist so the table GROWS across blocks (like career_reg)
@@ -348,9 +354,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--qwen-mode", dest="qwen_mode", default="two", choices=("one", "two"),
                     help="two (default): Stage 1 Scout summarizes, Stage 2 Coach strategizes (escalate when losing); "
                          "one: the OLD single prompt, kept as the A/B fallback")
-    ap.add_argument("--policy", default="rules", choices=("rules", "table"),
+    ap.add_argument("--policy", default="rules", choices=("rules", "table", "hybrid"),
                     help="rules (default): text-laya + short memory + Qwen; table: the self-learning value table "
-                         "(sf2.system1.value_table) picks the move and is credited from outcomes (no Qwen, no text-laya)")
+                         "decides alone (no Qwen/text-laya); hybrid: text-laya plays and the value table OVERRIDES "
+                         "where it is confident a move is clearly good (text-laya + table, the owner's pick)")
     ap.add_argument("--carry-table", dest="carry_table", default=None,
                     help="policy table: start the value table from this JSON and keep GROWING it (pass again to resume)")
     ap.add_argument("--save-table", dest="save_table", default=None,
@@ -378,12 +385,12 @@ def main() -> int:
                                                                                args.opp))
     os.makedirs(out, exist_ok=True)
     table_in = None
+    if args.policy in ("table", "hybrid") and args.carry_table and os.path.exists(args.carry_table):
+        with open(args.carry_table) as f:
+            table_in = json.load(f)
     if args.policy == "table":
         seed_lines, seed_source = [], "table"
-        if args.carry_table and os.path.exists(args.carry_table):
-            with open(args.carry_table) as f:
-                table_in = json.load(f)
-    else:
+    else:                                                    # rules AND hybrid seed text-laya's short memory
         seed_lines, seed_source = starting_registry(args.carry, args.opp, args.book, me)
     with open(os.path.join(out, "run.json"), "w") as f:
         json.dump({"arm": args.policy, "me": me, "opp": args.opp, "games": args.games, "rounds": args.rounds,
@@ -401,14 +408,14 @@ def main() -> int:
                                state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
                                policy="table", table=table_in, save_table=args.save_table)
     else:
-        # Two Advisor instances - one per checkpoint (shared mode: each its own socket; else helper subprocesses).
+        # rules OR hybrid: text-laya plays (two Advisor instances). hybrid also carries/credits the value table.
         with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
                 open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
             verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
                                seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
                                state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
-                               qwen_mode=args.qwen_mode)
-    if args.policy == "table" and args.save_table:
+                               qwen_mode=args.qwen_mode, policy=args.policy, table=table_in, save_table=args.save_table)
+    if args.policy in ("table", "hybrid") and args.save_table:
         print("saved table", args.save_table)
     if args.save_registry:
         save_registry(verdict["registry_end"], args.save_registry)

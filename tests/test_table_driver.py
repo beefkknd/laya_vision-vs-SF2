@@ -74,3 +74,25 @@ def test_table_grows_across_blocks_via_carry(tmp_path):
     grown = json.load(open(save))
     total1 = sum(s[0] for s in grown["cells"]["close|standing|0"].values())
     assert total1 > n0                                                      # pooled across blocks (grew)
+
+
+class QuietQwen:
+    def __call__(self, messages, task):
+        return ""                                  # scout prose / no claims -> the rules update is a no-op this round
+
+
+def test_hybrid_runs_text_laya_base_credits_the_table_and_churns_rules(tmp_path):
+    from looptools import FollowerLaya
+    driver = load_driver()
+    out = str(tmp_path / "hyb")
+    save = str(tmp_path / "table.json")
+    verdict = driver.run_loop(OPP, FollowerLaya(), FollowerLaya(), QuietQwen(), games=2, rounds=2, seed_lines=[],
+                              out=out, play_round_fn=fake_table_play, state=b"x",
+                              state_id={"path": "p", "sha256": "0"}, emu=FakeEmu(), score_fn=fake_score,
+                              seed_rng=1, policy="hybrid", save_table=save)
+    assert verdict["policy"] == "hybrid" and verdict["table_cells"] >= 1      # the table was credited every round
+    import os as _os
+    assert _os.path.isfile(save)
+    events = [json.loads(l) for l in open(_os.path.join(out, "trace.jsonl"))]
+    assert any(e.get("event") == "table" for e in events)                    # table credited
+    assert any(e.get("event") == "qwen" for e in events)                     # text-laya's rules update also ran

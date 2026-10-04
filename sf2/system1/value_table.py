@@ -172,6 +172,40 @@ def _cell_view(table: Table, when: str) -> Dict[str, List]:
     return cell
 
 
+def hybrid_decider(table: Table, me: str, rng: random.Random, base_decide,
+                   min_tries: int = MIN_TRIES, explore: float = 0.1):
+    """HYBRID policy (owner 2026-10-04, after the pure table lost to ryu by tanking the neutral game): text-laya is
+    the PLAYER via ``base_decide(moment) -> {action, ...}`` (its trained neutral play); the value table only
+    OVERRIDES in a cell where it is CONFIDENT a move is clearly good (n>=min_tries AND mean net hp > 0) -- so it adds
+    the wins it actually learned (punish-stunned, lightning_legs) without forcing the from-scratch defensive-losing
+    policy. A small fixed ``explore`` rate still tries an under-sampled followable move so the table keeps learning
+    (even from losing games), but rarely enough not to wreck text-laya's neutral. The table is credited every round
+    regardless of who chose. Returns the decision dict tagged with ``source`` (laya / table / table-explore)."""
+    from .advice import available_moves, stance_of, char_categories
+    from .action_menu import category_of
+    from ..vocab import range_of
+    cats = char_categories(me)
+
+    def decide(m) -> Dict:
+        rng_ = range_of(abs(m.dx))
+        actions = sorted(available_moves(stance_of("stand", rng_), cats))
+        when = when_key(rng_, m.doing, m.fireball, m.his_label, table.get("depth", {}))
+        cell = _cell_view(table, when)
+        under = [a for a in actions if count(cell, a) < min_tries]
+        if under and rng.random() < explore:                 # a little discovery so the table keeps learning
+            a = rng.choice(under)
+            return {"action": a, "when": when, "explored": True, "source": "table-explore", "category": category_of(a)}
+        good = [(mean(cell.get(a)), a) for a in actions if count(cell, a) >= min_tries and mean(cell.get(a)) > 0]
+        if good:                                             # override text-laya only where the table is confident-good
+            a = max(good)[1]
+            return {"action": a, "when": when, "explored": False, "source": "table", "category": category_of(a)}
+        d = dict(base_decide(m))                             # otherwise defer to text-laya's neutral play
+        d.setdefault("when", when)
+        d["source"] = "laya"
+        return d
+    return decide
+
+
 def choose(table: Table, when: str, actions: Sequence[str], rng: random.Random,
            min_tries: int = MIN_TRIES, eps0: float = EPS0) -> Tuple[str, bool]:
     """Pick an action for ``when`` over the FOLLOWABLE ``actions``. ε-greedy: with probability eps (decaying as the

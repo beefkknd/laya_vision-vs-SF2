@@ -113,16 +113,16 @@ def run_block(me, opp, nn, session_dir, carry, save_reg, block, rounds, cat, mov
            "--games", str(block), "--rounds", str(rounds), "--no-score", "--rom", ROM, "--out", out]
     if watch:
         cmd += ["--watch", "--speed", str(speed)]      # open a visible Mesen window for the match
-    if policy == "table":
-        cmd += ["--policy", "table"]                   # the value table decides; text-laya/Qwen are not used
-        if table_path:
-            cmd += ["--carry-table", table_path, "--save-table", table_path]   # grows in place across blocks
-    else:
+    if policy in ("rules", "hybrid"):                  # text-laya plays (hybrid: the table overrides on top)
         cmd += ["--qwen-mode", qmode, "--cat-advisor", cat, "--move-advisor", move]
         if carry:
             cmd += ["--carry", carry]
         if save_reg:
             cmd += ["--save-registry", save_reg]
+    if policy in ("table", "hybrid"):                  # the value table (alone, or as the hybrid override)
+        cmd += ["--policy", policy]
+        if table_path:
+            cmd += ["--carry-table", table_path, "--save-table", table_path]   # grows in place across blocks
     subprocess.run(cmd, cwd=REPO, stdout=open(out + ".log", "w"), stderr=subprocess.STDOUT, timeout=3600)
     return out
 
@@ -131,9 +131,10 @@ def main():
     ap = argparse.ArgumentParser(description="Continuous blank-start career / arcade ladder.")
     ap.add_argument("--me", default="chunli")
     ap.add_argument("--opps", default=None, help="comma list; default = every fighter except --me")
-    ap.add_argument("--policy", default="rules", choices=("rules", "table"),
+    ap.add_argument("--policy", default="rules", choices=("rules", "table", "hybrid"),
                     help="rules (default): text-laya + short memory + Qwen; table: the self-learning value table "
-                         "(no Qwen, no text-laya) -- the two-system A/B")
+                         "alone (no Qwen/text-laya); hybrid: text-laya plays + the table overrides where confident "
+                         "(the owner's pick after the pure table lost)")
     ap.add_argument("--block", type=int, default=4, help="matches per block (a loss just replays next match)")
     ap.add_argument("--rounds", type=int, default=3, help="rounds per match (a match is best-of-3 = 2-3 rounds)")
     ap.add_argument("--win-target", type=float, default=0.60, help="recent win-rate that counts as BEATEN")
@@ -171,7 +172,7 @@ def main():
             print("  lap %d  vs %-8s  block %d" % (lap, opp, b))
         return 0
 
-    if args.policy == "rules" and not args.no_qwen_check and not qwen_alive():
+    if args.policy in ("rules", "hybrid") and not args.no_qwen_check and not qwen_alive():
         print("Qwen server not reachable at %s\n"
               "The Coach needs it. Set SF2_QWEN_URL to a live server, e.g.\n"
               "  export SF2_QWEN_URL=http://100.66.12.33:8080/v1/chat/completions\n"
@@ -198,19 +199,20 @@ def main():
         except (OSError, ValueError, KeyError):
             return 0
 
-    if args.policy == "table":
-        # the value table is the whole state; it grows in table.json across blocks (resume = the file persists)
+    if args.policy in ("table", "hybrid"):
+        # the value table grows in table.json across blocks (resume = the file persists)
         print("RESUMING table %s (%d cells)" % (table_path, _table_cells()) if os.path.exists(table_path)
               else "start: BLANK value table")
-    # ONE growing playbook for the whole RULES career: carried into EVERY block, only replaced on a valid save, so a
-    # crash / Mesen restart never loses it. If the playbook file already exists, RESUME from it; otherwise seed it.
-    elif os.path.exists(career_reg) and _reg_lines():
-        print("RESUMING playbook %s (%d rules)" % (career_reg, len(_reg_lines())))
-    else:
-        seed_entries = (list(seed_rules.seed_lessons(args.book, ladder[0], args.me)) or default_kit(moves)
-                        if args.book else default_kit(moves))
-        json.dump(seed_entries, open(career_reg, "w"), indent=1)
-        print("start kit: %s" % [e["line"] for e in seed_entries])
+    if args.policy in ("rules", "hybrid"):
+        # ONE growing playbook for text-laya's short memory: carried into EVERY block, only replaced on a valid save.
+        # If the playbook file already exists, RESUME from it; otherwise seed it.
+        if os.path.exists(career_reg) and _reg_lines():
+            print("RESUMING playbook %s (%d rules)" % (career_reg, len(_reg_lines())))
+        else:
+            seed_entries = (list(seed_rules.seed_lessons(args.book, ladder[0], args.me)) or default_kit(moves)
+                            if args.book else default_kit(moves))
+            json.dump(seed_entries, open(career_reg, "w"), indent=1)
+            print("start kit: %s" % [e["line"] for e in seed_entries])
 
     # continue the play-log numbering so a resumed playbook APPENDS its history instead of overwriting it
     existing = [n for n in os.listdir(session_dir) if n.startswith("round_") and os.path.isdir(os.path.join(session_dir, n))]
@@ -226,13 +228,14 @@ def main():
                                         args.cat_advisor, args.move_advisor, watch=args.watch, speed=args.speed,
                                         policy="table", table_path=table_path)
                         state_desc = "cells=%d" % _table_cells()
-                    else:
+                    else:                                        # rules OR hybrid: grow text-laya's registry; hybrid also the table
                         tmp = os.path.join(session_dir, "_block_save.json")
                         if os.path.exists(tmp):
                             os.remove(tmp)
                         out = run_block(args.me, opp, nn, session_dir, career_reg, tmp,
                                         args.block, args.rounds, args.cat_advisor, args.move_advisor,
-                                        watch=args.watch, speed=args.speed)
+                                        watch=args.watch, speed=args.speed, policy=args.policy,
+                                        table_path=(table_path if args.policy == "hybrid" else None))
                         # GROW: promote the block's save into the career registry ONLY if valid, so a crashed/
                         # restarted block keeps the previous playbook instead of losing it.
                         try:
@@ -242,6 +245,8 @@ def main():
                         except (OSError, ValueError):
                             print("  (block produced no registry -- keeping the current playbook, %d rules)" % len(_reg_lines()))
                         state_desc = "rules=%d" % len(_reg_lines())
+                        if args.policy == "hybrid":
+                            state_desc += " cells=%d" % _table_cells()
                     wr = block_winrate(out)
                     nn += 1
                     rr = round_results(out)
