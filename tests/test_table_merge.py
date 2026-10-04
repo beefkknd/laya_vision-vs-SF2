@@ -58,6 +58,27 @@ def test_merge_of_empty_list_is_blank():
     assert VT.merge([]) == VT.blank()
 
 
+def test_merge_with_shared_seed_counts_the_seed_once():
+    # THE BUG this guards (2026-10-04): workers are each SEEDED from a common prior table and save seed+own, so a
+    # plain sum counts the seed K times. ``shared=seed`` subtracts it (K-1) times so it counts exactly once.
+    seed = VT.blank()
+    for _ in range(10):
+        seed = VT.credit(seed, [_row("cl.mk", 8)])            # seed: n=10, sum=80
+    w1 = seed
+    for _ in range(3):
+        w1 = VT.credit(w1, [_row("cl.mk", 2)])                # worker1 adds +3 (sum +6)
+    w2 = seed
+    for _ in range(5):
+        w2 = VT.credit(w2, [_row("cl.mk", -1)])               # worker2 adds +5 (sum -5)
+    plain = VT.merge([w1, w2])                                 # WRONG: seed counted twice
+    assert plain["cells"][WHEN]["cl.mk"][0] == 10 + 10 + 3 + 5
+    deduped = VT.merge([w1, w2], shared=seed)                  # RIGHT: seed once + both deltas
+    s = deduped["cells"][WHEN]["cl.mk"]
+    assert s[0] == 10 + 3 + 5                                  # 18, not 28
+    assert s[1] == 80 + 6 - 5                                  # 81
+    assert seed["cells"][WHEN]["cl.mk"][0] == 10               # seed untouched
+
+
 def test_merge_single_table_is_a_copy_not_the_same_object():
     a = VT.blank()
     a = VT.credit(a, [_row("cl.mk", 7)])

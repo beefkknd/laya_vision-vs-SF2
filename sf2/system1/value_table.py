@@ -89,12 +89,17 @@ def _add(dst: Optional[List], src: List) -> List:
     return list(src) if dst is None else [dst[0] + src[0], dst[1] + src[1], dst[2] + src[2]]
 
 
-def merge(tables: Sequence[Table]) -> Table:
+def merge(tables: Sequence[Table], shared: Optional[Table] = None) -> Table:
     """Combine independently-collected tables (parallel data-collection workers) into ONE (immutable; the inputs are
     never mutated). Welford stats [n, sum, sumsq] are additive, so every cell (base and split-child) and every shadow
     tally sums elementwise across workers, and ``depth`` is the UNION: a split any worker learned is kept, and
-    ``_cell_view``'s parent fallback recovers the other workers' un-split data for that cell. K workers seeded from
-    the same table and merged thus hold the pooled K x experience."""
+    ``_cell_view``'s parent fallback recovers the other workers' un-split data for that cell.
+
+    ``shared``: the common SEED table every worker started from (each saved seed+own). A plain sum would count that
+    seed once per worker; passing it subtracts it (len(tables)-1) times so it counts EXACTLY ONCE -- the result is
+    seed + sum of each worker's own new experience. Exact because the accumulators are additive and every worker
+    only ADDS to the seed (so the merge is >= K*seed elementwise, never going negative). Without ``shared`` this is a
+    plain additive pool (correct when the workers did NOT share a seed, e.g. all started blank)."""
     out = blank()
     for t in tables:
         for when, cell in t["cells"].items():
@@ -109,6 +114,20 @@ def merge(tables: Sequence[Table]) -> Table:
                     dl[a] = _add(dl.get(a), s)
         for base, how in t.get("depth", {}).items():
             out["depth"][base] = how
+    k = len(tables) - 1
+    if shared is not None and k > 0:                              # count the shared seed once, not once per worker
+        for when, cell in shared["cells"].items():
+            d = out["cells"].get(when, {})
+            for a, s in cell.items():
+                if a in d:
+                    d[a] = [d[a][0] - k * s[0], d[a][1] - k * s[1], d[a][2] - k * s[2]]
+        for base, labs in shared.get("shadow", {}).items():
+            db = out["shadow"].get(base, {})
+            for lab, acts in labs.items():
+                dl = db.get(lab, {})
+                for a, s in acts.items():
+                    if a in dl:
+                        dl[a] = [dl[a][0] - k * s[0], dl[a][1] - k * s[1], dl[a][2] - k * s[2]]
     return out
 
 
