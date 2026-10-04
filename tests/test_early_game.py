@@ -66,15 +66,18 @@ class FreshCoachEachRound:
 
 
 def _full_carried_registry():
-    """A FULL (MAX_LINES) short memory carried from a prior block: one kept kit line + four aged trying lines,
-    exactly the shape that deadlocked (the slots are all occupied)."""
+    """A FULL (SM.MAX_LINES) short memory carried from a prior block: one kept kit line + aged trying lines that
+    fill every slot -- exactly the deadlock shape. Trying moves are disjoint from the Coach's PICKS so its claims
+    are fresh admissions, not tone changes."""
     def trying(move, rounds):
         c = {"kind": "use_more", "move": move, "range": None, "when": "standing", "view": None}
-        e = SM._trying_entry(c)
-        return dict(e, rounds=rounds)
+        return dict(SM._trying_entry(c), rounds=rounds)
     kit = {"claim": {"kind": "use_more", "move": "s.mk", "range": None, "when": "standing", "view": None},
            "line": "use more s.mk when he stands", "state": "kept", "rounds": 20, "evidence": {}, "why": "kit"}
-    return [kit, trying("walk_forward", 10), trying("walk_back", 11), trying("throw_F+hp", 12), trying("s.mk", 9)]
+    fillers = ["walk_back", "throw_F+hp", "throw_F+mp", "c.mk", "c.hk", "s.hp", "c.lp", "j.hk", "cl.mk"]
+    reg = [kit] + [trying(m, 10 + i) for i, m in enumerate(fillers)]
+    assert len(reg) == SM.MAX_LINES, "carried memory must be FULL to exercise the swap/freeze"
+    return reg
 
 
 def _qwen_added(out):
@@ -97,7 +100,7 @@ def test_full_memory_losing_streak_changes_within_two_rounds(tmp_path):
                               state_id={"path": "p", "sha256": "0"}, emu=FakeEmu(), score_fn=fake_loss, seed_rng=1)
     assert _qwen_added(out), "while losing, the short memory MUST gain a fresh line (deadlock broken)"
     assert SM.in_play(verdict["registry_end"]) != before, "the in-play set must actually change under a loss streak"
-    assert len(SM.in_play(verdict["registry_end"])) <= SM.L.MAX_LINES    # never grows past the cap
+    assert len(SM.in_play(verdict["registry_end"])) <= SM.MAX_LINES      # never grows past the live cap
 
 
 def test_full_memory_while_winning_stays_frozen(tmp_path):

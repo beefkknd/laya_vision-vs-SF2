@@ -30,6 +30,8 @@ Registry = List[Dict]
 Scorer = Callable[[Sequence[Dict], Claim], Dict]
 
 SWAP_AFTER = 2                      # straight lost rounds that force one line change (owner: a single number)
+MAX_LINES = 10                      # the LIVE short memory holds up to 10 lines (the offline lessons cap stays 5);
+#                                     only the situation-applicable subset is ever shown to text-laya per decision
 TRYING, KEPT = "trying", "kept"
 IN_PLAY_STATES = (KEPT, "verified", TRYING)      # what text-laya actually reads; kept/verified are immune to swaps
 IMMUNE = (KEPT, "verified")
@@ -64,7 +66,7 @@ def in_play(reg: Registry) -> List[str]:
     MAX_LINES. Stable set first so a swap only ever churns the trying tail."""
     immune = [r["line"] for r in reg if r["state"] in IMMUNE]
     trying = [r["line"] for r in reg if r["state"] == TRYING]
-    return (immune + trying)[:L.MAX_LINES]
+    return (immune + trying)[:MAX_LINES]
 
 
 # --------------------------------------------------------------------------- validity / novelty
@@ -144,6 +146,28 @@ def _age(reg: Registry) -> Registry:
     return [dict(r, rounds=r.get("rounds", 0) + 1) if r["state"] == TRYING else dict(r) for r in reg]
 
 
+def _retone(reg: Registry, claims: Sequence[Claim], moves: set) -> Tuple[Registry, Dict]:
+    """TONE ADJUSTMENT between rounds: a Coach claim naming the SAME move+range+when as a line in play but a
+    DIFFERENT kind (use_more <-> always <-> avoid) dials that line's tone in place -- keep its state and its
+    rounds-in-play, just change the tone. At most one retone per round (one change at a time). Returns
+    (new registry, event) where a retone fills event added=[new line] / removed=[old line]; else ({}, {})."""
+    for c in claims or []:
+        if not _valid(c, moves):
+            continue
+        for i, r in enumerate(reg):
+            if r["state"] not in IN_PLAY_STATES:
+                continue
+            rc = r["claim"]
+            if (rc["move"] == c["move"] and rc.get("range") == c.get("range")
+                    and rc.get("when") == c.get("when") and rc["kind"] != c["kind"]):
+                new_reg = [dict(x) for x in reg]
+                old = r["line"]
+                new_reg[i] = dict(r, claim={k: c.get(k) for k in ("kind", "move", "range", "when", "view")},
+                                  line=L.render(c), why="retoned: %s -> %s" % (rc["kind"], c["kind"]))
+                return new_reg, {"added": [L.render(c)], "removed": [old], "retoned": True}
+    return reg, {}
+
+
 def _fair_chance(reg: Registry, swap_after: int) -> bool:
     """A just-admitted trying line gets one SWAP_AFTER window before it can be evicted (no thrashing). True
     when the youngest trying line is at least SWAP_AFTER rounds old (or there is none)."""
@@ -189,7 +213,11 @@ def step(reg: Registry, round_wl: Sequence[Dict], claims: Sequence[Claim], rows:
     streak = loss_streak(round_wl)
     losing = streak >= swap_after
     event = {"added": [], "removed": [], "streak": streak}
-    if L.MAX_LINES - len(_in_play_entries(reg)) > 0:                 # room: grow the memory
+    reg, retone = _retone(reg, claims, moves)                       # tone change counts as this round's one change
+    if retone.get("retoned"):
+        event.update(retone)
+        return reg, event
+    if MAX_LINES - len(_in_play_entries(reg)) > 0:                  # room: grow the memory
         admit = _pick_admit(reg, claims, moves, rotate, allow_pool=losing)
         if admit is not None:
             reg = [dict(r) for r in reg] + [_trying_entry(admit)]

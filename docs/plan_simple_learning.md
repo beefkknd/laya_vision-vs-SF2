@@ -30,7 +30,13 @@ timers, and the retention timers ended up blocking admission — the deadlock. S
   re-basing.
 - **One threshold: `SWAP_AFTER = 2`** trailing lost rounds. (Single number, not stage-adaptive — owner
   2026-10-03: fewest knobs.)
-- **`MAX_LINES = 5`** short-memory size stays (a real constraint — text-laya reads ≤5 lines).
+- **`short_memory.MAX_LINES = 10`** — the LIVE short memory holds up to 10 lines (owner 2026-10-03). Only the
+  *situation-applicable* subset is shown to text-laya per decision (`loop_runner.py` filters by range/stance/
+  fireball), so this is cheap on the prompt. The offline `lessons.MAX_LINES` stays 5 (book/scoring untouched).
+- **Three tones, adjustable between rounds:** a claim's `kind` is `use_more` (soft), `always` (hard — overrides
+  text-laya's "likely fails" rating) or `avoid` (negative). A Coach claim naming the SAME move+situation as a
+  line in play but a different kind *retones that line in place* (keeps its state and rounds) — one such change
+  per round. So the Coach can dial a rule up/down (or reverse it) across rounds, not only add "more".
 - **Weakest `trying` line** = lowest advisory score among `trying` lines that have fired; if none has
   fired, the one with the largest `rounds-in-play` (most chance, nothing shown). `kept` lines never
   dropped.

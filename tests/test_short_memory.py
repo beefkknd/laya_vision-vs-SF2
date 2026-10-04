@@ -35,6 +35,18 @@ def _wl(seq):
     return [{"won": 0, "lost": 1} if c == "L" else {"won": 1, "lost": 0} for c in seq]
 
 
+def _full(trying=(), kept=()):
+    """A FULL short memory (len == SM.MAX_LINES). Pads with distinct filler trying lines so the room/swap
+    branch is exercised whatever SM.MAX_LINES is. In-play entries need not be real moves (not validated)."""
+    reg = [_kept(m) for m in kept] + [_trying(m, rounds=5) for m in trying]
+    i = 0
+    while len(reg) < SM.MAX_LINES:
+        reg.append(_trying("fill%d" % i, rounds=5))
+        i += 1
+    assert len(reg) == SM.MAX_LINES
+    return reg
+
+
 # --------------------------------------------------------------------------- the one signal
 def test_loss_streak_counts_trailing_lost_rounds():
     assert SM.loss_streak(_wl("WLLL")) == 3
@@ -54,9 +66,10 @@ def test_room_admits_a_coach_claim_even_while_winning():
 
 def test_full_memory_while_winning_freezes():
     # FULL (MAX_LINES) and winning: nothing changes -- stop churning once the established set is winning.
-    moves = {"s.mk", "s.hk", "throw_F+hp", "walk_forward", "s.mp", "lightning_legs"}
-    reg = [_kept("s.mk"), _kept("s.hk"), _kept("throw_F+hp"), _kept("walk_forward"), _kept("s.mp")]
-    out, ev = SM.step(reg, _wl("WW"), claims=[_claim("lightning_legs")], rows=[], moves=moves, scorer=_scorer({}))
+    reg = _full(kept=["s.mk"])                                      # all slots filled, all immune/aged
+    reg = [dict(r, state="kept") for r in reg]                      # make every slot immune so none can be swapped
+    out, ev = SM.step(reg, _wl("WW"), claims=[_claim("lightning_legs")], rows=[], moves={"lightning_legs"},
+                      scorer=_scorer({}))
     assert ev["added"] == [] and ev["removed"] == []
     assert [r["line"] for r in out] == [r["line"] for r in reg]     # memory unchanged
 
@@ -66,28 +79,24 @@ def test_losing_streak_forces_one_swap_even_when_slots_are_full():
     # the round_03_ryu shape: the short memory is FULL (MAX_LINES) of aged trying lines, she is losing, the
     # Coach offers a fresh move. Old code refused it ('already 2 claims in test'); the simple policy MUST
     # drop the weakest trying line and bring the fresh one in -- the deadlock cannot recur (no slot cap).
-    moves = {"s.mk", "walk_forward", "spinning_bird_kick", "s.hk", "s.mp", "lightning_legs"}
-    reg = [_kept("s.mk"),
-           _trying("walk_forward", rounds=5), _trying("spinning_bird_kick", rounds=5),
-           _trying("s.hk", rounds=5), _trying("s.mp", rounds=5)]        # 1 kept + 4 trying = MAX_LINES (5)
+    reg = _full(kept=["s.mk"])                                    # FULL (SM.MAX_LINES), one kept + filler trying
     coach = [_claim("lightning_legs", range_="far")]
-    out, ev = SM.step(reg, _wl("LL"), claims=coach, rows=[], moves=moves, scorer=_scorer({}))
+    out, ev = SM.step(reg, _wl("LL"), claims=coach, rows=[], moves={"lightning_legs"}, scorer=_scorer({}))
     assert ev["added"] and "lightning_legs" in ev["added"][0], "a fresh line must be admitted while losing"
     assert ev["removed"], "a trying line must be dropped to make room"
     lines = [r["line"] for r in out if r["state"] in SM.IN_PLAY_STATES]
     assert any("lightning_legs" in l for l in lines)              # the new memory really changed
-    assert len(lines) <= SM.L.MAX_LINES                           # never grows past the cap
+    assert len(lines) <= SM.MAX_LINES                             # never grows past the cap
     assert any("s.mk" in l for l in lines)                        # the kept line survived
 
 
 def test_fair_chance_window_no_double_swap_right_after_one():
     # FULL memory, losing, but the newest trying line was just admitted (rounds=0): it gets one SWAP_AFTER
     # window of chance before it (or any line) can be swapped again -- no thrashing. Same single threshold.
-    moves = {"s.mk", "walk_forward", "spinning_bird_kick", "s.hk", "lightning_legs", "throw_F+hp"}
-    reg = [_kept("s.mk"),
-           _trying("walk_forward", rounds=5), _trying("spinning_bird_kick", rounds=5), _trying("s.hk", rounds=5),
-           _trying("lightning_legs", rounds=0)]                     # 5 in play (FULL); youngest just admitted
-    out, ev = SM.step(reg, _wl("LLL"), claims=[_claim("throw_F+hp")], rows=[], moves=moves, scorer=_scorer({}))
+    reg = _full(trying=["young"])                                   # FULL; make 'young' the just-admitted one
+    reg = [dict(r, rounds=0) if r["line"] == "use more young when he stands" else r for r in reg]
+    out, ev = SM.step(reg, _wl("LLL"), claims=[_claim("throw_F+hp")], rows=[], moves={"throw_F+hp"},
+                      scorer=_scorer({}))
     assert ev["added"] == [] and ev["removed"] == []
 
 
@@ -114,10 +123,54 @@ def test_graduation_is_advisory_only_unproven_lines_stay_trying():
 
 
 def test_kept_line_is_never_the_swap_victim():
-    # full of kept + one trying: losing must drop the TRYING one, never a kept line.
-    moves = {"s.mk", "s.hk", "throw_F+hp", "lightning_legs", "walk_forward", "s.mp"}
-    reg = [_kept("s.mk"), _kept("s.hk"), _kept("throw_F+hp"), _kept("walk_forward"),
-           _trying("lightning_legs", rounds=5)]
-    out, ev = SM.step(reg, _wl("LL"), claims=[_claim("s.mp")], rows=[], moves=moves, scorer=_scorer({}))
-    assert ev["removed"] and "lightning_legs" in ev["removed"][0]
-    assert all(r["state"] == "kept" for r in out if "lightning_legs" not in r["line"] and "s.mp" not in r["line"])
+    # FULL of kept + exactly one trying: losing must drop the TRYING one, never a kept line.
+    reg = [_kept("k%d" % i) for i in range(SM.MAX_LINES - 1)] + [_trying("victim", rounds=5)]
+    out, ev = SM.step(reg, _wl("LL"), claims=[_claim("fresh")], rows=[], moves={"fresh"}, scorer=_scorer({}))
+    assert ev["removed"] and "victim" in ev["removed"][0]
+    assert all(r["state"] == "kept" for r in out if "victim" not in r["line"] and "fresh" not in r["line"])
+
+
+# --------------------------------------------------------------------------- the live cap (owner: 10)
+def test_live_cap_is_ten_and_shows_only_that_many():
+    assert SM.MAX_LINES == 10
+    reg = [_kept("k%d" % i) for i in range(4)] + [_trying("t%d" % i, rounds=1) for i in range(8)]  # 12 in play
+    assert len(SM.in_play(reg)) == 10                                # capped at the live MAX_LINES
+    # the offline lessons cap is independent (unchanged) so the book/scoring path is untouched
+    assert SM.L.MAX_LINES == 5
+
+
+# --------------------------------------------------------------------------- tone adjustment (between rounds)
+def test_retone_escalates_use_more_to_always_in_place():
+    reg = [_trying("s.mk", rounds=4)]                               # "use more s.mk when he stands"
+    coach = [_claim("s.mk", kind="always")]                         # same move+situation, harder tone
+    out, ev = SM.step(reg, _wl("W"), claims=coach, rows=[], moves={"s.mk"}, scorer=_scorer({}))
+    assert ev.get("retoned") is True
+    assert out[0]["line"] == "always s.mk when he stands"           # tone changed in place
+    assert out[0]["state"] == "trying"                              # state preserved (not re-admitted)
+    assert out[0]["rounds"] == 5                                    # its clock kept (aged once this round)
+    assert ev["removed"] == ["use more s.mk when he stands"] and ev["added"] == ["always s.mk when he stands"]
+
+
+def test_retone_can_reverse_a_rule_to_avoid():
+    reg = [_kept("s.mk")]
+    out, ev = SM.step(reg, _wl("W"), claims=[_claim("s.mk", kind="avoid")], rows=[], moves={"s.mk"},
+                      scorer=_scorer({}))
+    assert ev.get("retoned") is True
+    assert out[0]["line"] == "avoid s.mk when he stands" and out[0]["state"] == "kept"
+
+
+def test_retone_is_the_one_change_per_round_and_skips_admission():
+    # a retone AND a novel claim offered the same round: only the retone happens (one change per round).
+    reg = [_trying("s.mk", rounds=4)]
+    coach = [_claim("s.mk", kind="always"), _claim("lightning_legs")]
+    out, ev = SM.step(reg, _wl("W"), claims=coach, rows=[], moves={"s.mk", "lightning_legs"}, scorer=_scorer({}))
+    assert ev.get("retoned") is True
+    assert not any("lightning_legs" in r["line"] for r in out)      # the second claim was NOT also admitted
+
+
+def test_no_retone_when_the_coach_repeats_the_same_tone():
+    reg = [_trying("s.mk", rounds=4)]
+    out, ev = SM.step(reg, _wl("W"), claims=[_claim("s.mk", kind="use_more")], rows=[], moves={"s.mk"},
+                      scorer=_scorer({}))
+    assert not ev.get("retoned")                                    # identical kind -> nothing to retone
+    assert [r["line"] for r in out] == ["use more s.mk when he stands"]
