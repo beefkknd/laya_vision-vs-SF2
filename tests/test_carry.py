@@ -21,6 +21,7 @@ from looptools import FollowerLaya, load_driver        # noqa: E402
 
 from sf2.system1.loop_runner import two_stage_decide   # noqa: E402
 from sf2.system2 import lessons as L                    # noqa: E402
+from sf2.system2 import short_memory as SM              # noqa: E402  (the live short-memory reader)
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BOOK = os.path.join(HERE, "lessons", "book.json")
@@ -87,7 +88,7 @@ def test_carry_round_trips_the_full_registry(tmp_path):
     driver = load_driver()
     first = _run(driver, str(tmp_path / "round0"), seed_lines=[])
     reg_end = first["registry_end"]
-    assert reg_end and L.in_play(reg_end), "the first round should have learned at least one in-play rule"
+    assert reg_end and SM.in_play(reg_end), "the first round should have learned at least one in-play rule"
 
     reg_path = str(tmp_path / "carry.json")
     driver.save_registry(reg_end, reg_path)
@@ -104,8 +105,8 @@ def test_carry_round_trips_the_full_registry(tmp_path):
     # and the NEXT round actually begins with those rules in play (the loop logs them in its seed event)
     out2 = str(tmp_path / "round1")
     _run(driver, out2, seed_lines=reg_start)
-    assert _seed_event_lines(out2) == L.in_play(reg_start)
-    assert L.in_play(reg_start)                               # non-empty: the carried rule is in force from game 0
+    assert _seed_event_lines(out2) == SM.in_play(reg_start)
+    assert SM.in_play(reg_start)                              # non-empty: the carried rule is in force from game 0
 
 
 def test_carry_missing_file_falls_back_to_book_seed():

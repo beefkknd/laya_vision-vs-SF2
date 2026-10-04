@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sf2.config import QWEN_URL, REPO  # noqa: E402
 from sf2.system1.advice import char_menu_moves  # noqa: E402
 from sf2.system2 import seed_rules  # noqa: E402
-from sf2.system2.rule_entry import carry_entries, default_kit  # noqa: E402
+from sf2.system2.rule_entry import default_kit  # noqa: E402
 from sf2.vocab import FIGHTERS  # noqa: E402
 
 PY = os.path.join(REPO, ".venv", "bin", "python")
@@ -47,53 +47,10 @@ def qwen_alive(url=None, timeout=8):
         return False         # connection refused / DNS / timeout -> down
 
 
-# Forced-exploration pool: grounded, situational offensive rules valid for ANY of the 8 (standing
-# normals / movement / throw). When she loses too many rounds in a row WITHOUT changing strategy, the
-# loop injects the next unused one so her behaviour MUST change (escape the losing repetition).
-EXPLORE_POOL = (
-    "use more s.mk at mid range when he stands",
-    "use more walk_forward at mid range when he stands",
-    "use more s.hk up close when he stands",
-    "use more throw up close when he stands",
-    "use more s.mp at mid range when he attacks",
-    "use more walk_back at mid range when he attacks",
-)
-
-
-def trailing_losses(results):
-    """How many of the most recent rounds were losses, in a row (results are 'win'/'loss'/'tie' strings)."""
-    n = 0
-    for r in reversed(list(results)):
-        if r == "loss":
-            n += 1
-        else:
-            break
-    return n
-
-
-def needs_intervention(results, window=3):
-    """True when the last `window` rounds are ALL losses -- a losing streak with no payoff, so the loop
-    must force a strategy change rather than keep failing identically (owner 2026-10-03)."""
-    results = list(results)
-    return len(results) >= window and all(r == "loss" for r in results[-window:])
-
-
-def loss_window(n_rules, early=2, late=3, stage_rules=2):
-    """How many straight losses force a new rule, by STAGE (owner): EARLY stage (short memory still thin,
-    fewer than `stage_rules` rules) explores aggressively at `early` losses; LATER stage (an established
-    playbook) is more patient at `late`. n_rules = rules currently in play."""
-    return early if n_rules < stage_rules else late
-
-
-def pick_forced_rule(in_play_lines, rotate):
-    """The next exploration-pool rule NOT already in play (rotating). None only if the pool is exhausted."""
-    in_play = set(in_play_lines)
-    n = len(EXPLORE_POOL)
-    for k in range(n):
-        line = EXPLORE_POOL[(rotate + k) % n]
-        if line not in in_play:
-            return line
-    return None
+# Forced exploration now lives in the LIVE per-round policy (sf2.system2.short_memory + explore_pool): while
+# she is losing, the loop swaps one short-memory line WITHIN the block, so the career driver no longer injects
+# rules between blocks. The old between-block trigger (loss_window / needs_intervention / pick_forced_rule /
+# EXPLORE_POOL) is gone -- one policy, one place (docs/plan_simple_learning.md).
 
 
 def round_results(out_dir):
@@ -171,9 +128,6 @@ def main():
     ap.add_argument("--opps", default=None, help="comma list; default = every fighter except --me")
     ap.add_argument("--block", type=int, default=4, help="matches per block (a loss just replays next match)")
     ap.add_argument("--rounds", type=int, default=3, help="rounds per match (a match is best-of-3 = 2-3 rounds)")
-    ap.add_argument("--loss-trigger", type=int, default=3, help="LATER-stage straight losses that force a new rule")
-    ap.add_argument("--loss-trigger-early", type=int, default=2, help="EARLY-stage (thin memory) straight losses that force a new rule")
-    ap.add_argument("--stage-rules", type=int, default=2, help="fewer than this many in-play rules = EARLY stage")
     ap.add_argument("--win-target", type=float, default=0.60, help="recent win-rate that counts as BEATEN")
     ap.add_argument("--cap", type=int, default=6, help="max blocks on one opponent before moving on anyway")
     ap.add_argument("--laps", type=int, default=0, help="times through the ladder; 0 = forever (Ctrl-C)")
@@ -244,8 +198,6 @@ def main():
     existing = [n for n in os.listdir(session_dir) if n.startswith("round_") and os.path.isdir(os.path.join(session_dir, n))]
     nn = (max((int(n.split("_")[1]) for n in existing), default=-1) + 1) if existing else 0
     lap = 0
-    streak = []                            # recent round results across turns (for the loss trigger)
-    rotate = 0                             # which exploration-pool rule to inject next
     try:
         while args.laps == 0 or lap < args.laps:
             for opp in ladder:
@@ -267,25 +219,13 @@ def main():
                         print("  (block produced no registry -- keeping the current playbook, %d rules)" % len(_reg_lines()))
                     wr = block_winrate(out)
                     nn += 1
-                    print("  vs %-8s block %d: win-rate %s  rules=%d  (%s)"
+                    rr = round_results(out)
+                    print("  vs %-8s block %d: win-rate %s  rules=%d  rounds=%s  (%s)"
                           % (opp, b, ("%.0f%%" % (100 * wr)) if wr is not None else "n/a",
-                             len(_reg_lines()), os.path.basename(out)))
-
-                    # FORCED STRATEGY CHANGE on a losing streak (stage-adaptive window). Injected into the
-                    # GROWING career registry so it persists.
-                    streak += round_results(out)
-                    lines = _reg_lines()
-                    window = loss_window(len(lines), args.loss_trigger_early, args.loss_trigger, args.stage_rules)
-                    if needs_intervention(streak, window):
-                        stage = "EARLY" if len(lines) < args.stage_rules else "LATER"
-                        line = pick_forced_rule(lines, rotate)
-                        rotate += 1
-                        if line:
-                            entries = json.load(open(career_reg)) + carry_entries([line], moves)
-                            json.dump(entries, open(career_reg, "w"), indent=1)
-                            print("  !! %d straight round losses (%s stage, %d rules) -> FORCED new rule: + %r"
-                                  % (window, stage, len(lines), line))
-                        streak = []          # give the new strategy a clean window before triggering again
+                             len(_reg_lines()), "".join("W" if r == "win" else "L" for r in rr),
+                             os.path.basename(out)))
+                    # The live per-round policy already swapped the short memory while she lost inside this block
+                    # (sf2.system2.short_memory); the driver no longer forces rules between blocks.
 
                     if wr is not None and wr >= args.win_target:
                         beaten = True

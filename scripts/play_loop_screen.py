@@ -31,7 +31,7 @@ import _path  # noqa: F401
 from sf2.config import PORTS
 from sf2.system1.advice import char_menu_moves
 from sf2.system1.loop_runner import play_round as play_screen_round
-from sf2.system2 import character_prompt, lessons as L, screen_evidence, seed_rules
+from sf2.system2 import character_prompt, lessons as L, screen_evidence, seed_rules, short_memory as SM
 from sf2.system2.lesson_prompt import streak
 
 ME = "chunli"
@@ -150,33 +150,33 @@ def ask_claims(opp: str, reg: L.Registry, rows: Sequence[Dict], last: Sequence[D
 def update(reg: L.Registry, rows: List[Dict], game: int, game_hp: List[float], games: List[Dict],
            changed: List[bool], opp: str, last: List[Dict], all_rounds: List[Dict], last_rounds: List[Dict],
            refused: List[Dict], ask_qwen: QwenCaller, me: str = ME, qwen_mode: str = "two") -> Tuple[L.Registry, Dict]:
-    """One System-2 step: review the registry on the evidence so far, scout the game, coach the rule changes, judge
-    them. ``rows`` = all her decisions so far, ``last`` = last game's decisions, ``games`` = the per-game win/loss list.
-    Returns the new registry and a trace record (the scout digest, claims, verdicts, and the churn: added / removed /
-    promoted / retired). ``qwen_mode`` "two" (default) = Scout + Coach; "one" = the old single prompt."""
-    before = L.in_play(reg)
-    pre_state = {r["line"]: r["state"] for r in reg}
-    reg = L.review(reg, rows, game, game_hp, games_wl=games)        # churn fix: round outcomes promote/retire registered
+    """One System-2 step (per round): the Coach (Qwen) proposes claims; the SIMPLE live policy
+    (sf2.system2.short_memory) decides the short memory -- while losing it swaps one line (drop the weakest
+    trying, admit one fresh claim), while winning it freezes. ``games`` is the per-ROUND win/loss list, the
+    loss-streak signal. The measurement (lessons.condition_evidence) is the ADVISORY graduation scorer only;
+    it never blocks a change. Returns the new registry and a trace record. ``qwen_mode`` "two" = Scout+Coach."""
+    before = SM.in_play(reg)
+    pre_kept = {r["line"] for r in reg if r["state"] in SM.IMMUNE}
     stable = streak(games, changed)
     digest = summarize_game(opp, reg, rows, last, all_rounds, last_rounds, game_hp, games, ask_qwen, me) \
         if qwen_mode == "two" else None
     claims, problems, raw = ask_claims(opp, reg, rows, last, all_rounds, last_rounds, refused, stable,
                                        ask_qwen, me, qwen_mode, digest)
-    reg, outcome = L.propose(reg, claims, rows, game, moves=char_menu_moves(me))
-    after = L.in_play(reg)
-    promoted = [r["line"] for r in reg if r["state"] == "sticky" and pre_state.get(r["line"]) == "registered"]
-    retired = [r["line"] for r in reg if r["state"] in ("retired", "rejected")
-               and pre_state.get(r["line"]) in ("registered", "sticky")]
+    moves = set(char_menu_moves(me))
+    reg, event = SM.step(reg, games, claims, rows, moves, rotate=game, scorer=L.condition_evidence)
+    after = SM.in_play(reg)
+    promoted = [r["line"] for r in reg if r["state"] == SM.KEPT and r["line"] not in pre_kept]
+    admitted = set(event["added"])
+    not_taken = [{"claim": c, "why": "not admitted (one change per round while losing)"}
+                 for c in claims if not (SM._valid(c, moves) and L.render(c) in admitted)]
     trace = {"game": game, "mode": character_prompt.coach_mode(digest) if digest else "one", "stable": stable,
              "scout": digest, "claims": claims, "problems": problems,
-             "outcome": [{"line": o.get("line", o.get("claim")), "state": o["state"], "why": o.get("why")}
-                         for o in outcome],
+             "outcome": [{"line": l, "state": "trying"} for l in event["added"]],
              "in_play_before": before, "in_play_after": after,
-             "added": [l for l in after if l not in before], "removed": [l for l in before if l not in after],
-             "promoted": promoted, "retired": retired,
-             "violations": L.violations(reg, rows), "reply": raw}
-    new_refused = [o for o in outcome if o["state"] == "refused"]
-    return reg, dict(trace, refused=new_refused)
+             "added": event["added"], "removed": event["removed"],
+             "promoted": promoted, "retired": [], "streak": event["streak"],
+             "violations": [], "reply": raw}
+    return reg, dict(trace, refused=not_taken)
 
 
 # ------------------------------------------------------------------ the loop
@@ -196,7 +196,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
     trace = open(os.path.join(out, "trace.jsonl"), "w") if log is None else log
     reg: L.Registry = list(seed_lines)
     rng = random.Random(seed_rng)
-    trace.write(json.dumps({"event": "seed", "opp": opp, "lines": L.in_play(reg),
+    trace.write(json.dumps({"event": "seed", "opp": opp, "lines": SM.in_play(reg),
                             "rules": [{"line": r["line"], "state": r["state"], "source": r.get("evidence", {}).get("source")}
                                       for r in reg]}) + "\n")
     trace.flush()
@@ -212,7 +212,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
     for g in range(games):
         this_rounds: List[Dict] = []
         for r in range(rounds):
-            lines = L.in_play(reg)                       # FRESH each round: play with the latest short memory
+            lines = SM.in_play(reg)                      # FRESH each round: play with the latest short memory
             rd = os.path.join(out, "g%02d_r%d" % (g, r))
             delay = DELAY_MIN + rng.randrange(DELAY_SPAN)
             play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
@@ -251,7 +251,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
         games_wl.append({"won": sum(s["result"] == "win" for s in this_rounds),
                          "lost": sum(s["result"] != "win" for s in this_rounds)})
     verdict = {"opp": opp, "games": games, "rounds": rounds, "seed_lines": [r["line"] for r in seed_lines],
-               "in_play_end": L.in_play(reg), "registry_end": reg, "decisions": len(all_rows),
+               "in_play_end": SM.in_play(reg), "registry_end": reg, "decisions": len(all_rows),
                "game_hp": game_hp, "games": games_wl, "violations": L.violations(reg, all_rows)}
     with open(os.path.join(out, "verdict.json"), "w") as f:
         json.dump(verdict, f, indent=1)

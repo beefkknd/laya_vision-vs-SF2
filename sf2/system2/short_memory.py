@@ -87,13 +87,18 @@ def _novel(reg: Registry, c: Claim) -> bool:
     return True
 
 
-def _pick_admit(reg: Registry, claims: Sequence[Claim], moves: set, rotate: int) -> Optional[Claim]:
-    """The fresh line to bring in: the Coach's first valid & novel claim, else the next explore-pool rule."""
+def _pick_admit(reg: Registry, claims: Sequence[Claim], moves: set, rotate: int,
+                allow_pool: bool) -> Optional[Claim]:
+    """The fresh line to bring in: the Coach's first valid & novel claim, else (only while losing, via
+    ``allow_pool``) the next explore-pool rule. None if nothing valid and novel is available."""
     for c in claims or []:
         if _valid(c, moves) and _novel(reg, c):
             return c
-    pool = explore_pool.pick(in_play(reg), moves, rotate)
-    return pool if (pool and _novel(reg, pool)) else None
+    if allow_pool:
+        pool = explore_pool.pick(in_play(reg), moves, rotate)
+        if pool and _novel(reg, pool):
+            return pool
+    return None
 
 
 # --------------------------------------------------------------------------- swap / graduate
@@ -139,29 +144,24 @@ def _age(reg: Registry) -> Registry:
     return [dict(r, rounds=r.get("rounds", 0) + 1) if r["state"] == TRYING else dict(r) for r in reg]
 
 
-def _should_swap(reg: Registry, round_wl: Sequence[Dict], swap_after: int) -> bool:
-    """Swap when she is on a loss streak AND the current experiment has had its SWAP_AFTER window of chance
-    (the youngest trying line is at least SWAP_AFTER rounds old). With no trying line, bring one in at once."""
-    if loss_streak(round_wl) < swap_after:
-        return False
+def _fair_chance(reg: Registry, swap_after: int) -> bool:
+    """A just-admitted trying line gets one SWAP_AFTER window before it can be evicted (no thrashing). True
+    when the youngest trying line is at least SWAP_AFTER rounds old (or there is none)."""
     tries = [r for r in reg if r["state"] == TRYING]
-    if not tries:
-        return True
-    return min(r.get("rounds", 0) for r in tries) >= swap_after
+    return (not tries) or min(r.get("rounds", 0) for r in tries) >= swap_after
 
 
 def _swap(reg: Registry, claims: Sequence[Claim], rows: Sequence[Dict], moves: set, rotate: int,
           scorer: Scorer) -> Tuple[Registry, Dict]:
+    """FULL memory + losing: drop the weakest trying line and admit one fresh claim (Coach's, else pool)."""
     reg = [dict(r) for r in reg]
-    admit = _pick_admit(reg, claims, moves, rotate)
+    admit = _pick_admit(reg, claims, moves, rotate, allow_pool=True)
     if admit is None:
         return reg, {"added": [], "removed": []}
-    removed: List[str] = []
-    if len(_in_play_entries(reg)) >= L.MAX_LINES:
-        victim = _weakest_trying(reg, rows, scorer)
-        if victim is None:
-            return reg, {"added": [], "removed": []}        # every slot is immune: cannot swap (she is winning on kept)
-        removed = [reg.pop(victim)["line"]]
+    victim = _weakest_trying(reg, rows, scorer)
+    if victim is None:
+        return reg, {"added": [], "removed": []}            # every slot is immune: cannot swap (winning on kept lines)
+    removed = [reg.pop(victim)["line"]]
     entry = _trying_entry(admit)
     reg.append(entry)
     return reg, {"added": [entry["line"]], "removed": removed}
@@ -174,15 +174,27 @@ def _default_scorer(rows: Sequence[Dict], claim: Claim) -> Dict:
 def step(reg: Registry, round_wl: Sequence[Dict], claims: Sequence[Claim], rows: Sequence[Dict],
          moves: set, rotate: int = 0, scorer: Optional[Scorer] = None,
          swap_after: int = SWAP_AFTER) -> Tuple[Registry, Dict]:
-    """One round of the live policy: age the trying lines, graduate the proven ones (advisory), and -- only
-    while losing past the threshold -- swap exactly one line (drop the weakest trying, admit one fresh claim).
-    Returns (new registry, event) where event = {added, removed, streak}. Pure; never raises on empty inputs."""
+    """One round of the live policy. Age the trying lines, graduate the proven ones (advisory), then change
+    the short memory by the owner's rule:
+      - ROOM in the memory (< MAX_LINES): admit one fresh line -- the Coach's valid&novel claim always
+        (early-game growth), or, only while losing, an explore-pool rule when the Coach is silent.
+      - FULL + losing past SWAP_AFTER (and the newest trying line has had its fair-chance window): SWAP --
+        drop the weakest trying line and admit one fresh claim.
+      - FULL + not losing: freeze (stop churning once the established set is winning).
+    Returns (new registry, event={added, removed, streak}). Pure; never raises on empty inputs."""
     scorer = scorer or _default_scorer
     moves = set(moves) if moves is not None else {a.get("action") for a in rows}
     reg = _age(reg)
     reg = _graduate(reg, rows, scorer)
-    event = {"added": [], "removed": [], "streak": loss_streak(round_wl)}
-    if _should_swap(reg, round_wl, swap_after):
+    streak = loss_streak(round_wl)
+    losing = streak >= swap_after
+    event = {"added": [], "removed": [], "streak": streak}
+    if L.MAX_LINES - len(_in_play_entries(reg)) > 0:                 # room: grow the memory
+        admit = _pick_admit(reg, claims, moves, rotate, allow_pool=losing)
+        if admit is not None:
+            reg = [dict(r) for r in reg] + [_trying_entry(admit)]
+            event["added"] = [L.render(admit)]
+    elif losing and _fair_chance(reg, swap_after):                  # full + losing: swap one
         reg, ch = _swap(reg, claims, rows, moves, rotate, scorer)
         event.update(ch)
     return reg, event

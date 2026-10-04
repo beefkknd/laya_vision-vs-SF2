@@ -45,40 +45,10 @@ def test_block_winrate_missing_is_none(tmp_path):
     assert C.block_winrate(str(tmp_path)) is None
 
 
-# --- the loss-streak forced-change trigger (owner: 3 straight round losses -> change strategy) ---
-def test_trailing_losses_counts_only_the_streak():
-    assert C.trailing_losses(["win", "loss", "loss", "loss"]) == 3
-    assert C.trailing_losses(["loss", "loss", "win"]) == 0
-    assert C.trailing_losses([]) == 0
-
-
-def test_needs_intervention_on_three_straight():
-    assert C.needs_intervention(["win", "loss", "loss", "loss"], window=3) is True
-    assert C.needs_intervention(["loss", "loss", "win"], window=3) is False      # streak broken by a win
-    assert C.needs_intervention(["loss", "loss"], window=3) is False             # not enough rounds yet
-    assert C.needs_intervention(["loss", "loss"], window=2) is True              # window is configurable
-
-
-def test_loss_window_adapts_by_stage():
-    # EARLY stage (thin memory, < stage_rules in play): explore aggressively at 2 losses
-    assert C.loss_window(0, early=2, late=3, stage_rules=2) == 2
-    assert C.loss_window(1, early=2, late=3, stage_rules=2) == 2
-    # LATER stage (an established playbook): be patient, 3 losses
-    assert C.loss_window(2, early=2, late=3, stage_rules=2) == 3
-    assert C.loss_window(5, early=2, late=3, stage_rules=2) == 3
-
-
-def test_pick_forced_rule_skips_rules_already_in_play():
-    first = C.EXPLORE_POOL[0]
-    # with the first pool rule already in play, it must pick a DIFFERENT one
-    got = C.pick_forced_rule([first], rotate=0)
-    assert got and got != first and got in C.EXPLORE_POOL
-
-
-def test_pick_forced_rule_none_when_pool_exhausted():
-    assert C.pick_forced_rule(list(C.EXPLORE_POOL), rotate=0) is None
-
-
+# The loss-streak forced change moved INTO the live per-round policy: its behaviour is now tested in
+# tests/test_short_memory.py (loss_streak + swap) and the pool in tests/test_explore_pool.py. The career
+# driver no longer injects rules between blocks, so trailing_losses / needs_intervention / loss_window /
+# pick_forced_rule / EXPLORE_POOL were removed from play_career.py with their tests.
 def test_round_results_reads_trace(tmp_path):
     d = tmp_path / "round_00_ryu"
     d.mkdir()

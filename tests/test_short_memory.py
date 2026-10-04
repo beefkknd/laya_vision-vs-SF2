@@ -42,13 +42,23 @@ def test_loss_streak_counts_trailing_lost_rounds():
     assert SM.loss_streak([]) == 0
 
 
-# --------------------------------------------------------------------------- freeze while winning
-def test_no_swap_while_not_losing_enough():
-    reg = [_kept("s.mk"), _trying("s.hk", rounds=9)]
-    out, ev = SM.step(reg, _wl("WL"), claims=[_claim("throw_F+hp")], rows=[], moves={"throw_F+hp"},
+# --------------------------------------------------------------------------- growth (room) vs freeze (full)
+def test_room_admits_a_coach_claim_even_while_winning():
+    # early-game growth: with free slots, a valid Coach claim fills one (win or lose). Not a swap -- nothing dropped.
+    reg = [_kept("s.mk"), _trying("s.hk", rounds=9)]                 # 2 in play, room for 3 more
+    out, ev = SM.step(reg, _wl("WW"), claims=[_claim("throw_F+hp")], rows=[], moves={"s.mk", "s.hk", "throw_F+hp"},
                       scorer=_scorer({}))
+    assert ev["added"] and "throw_F+hp" in ev["added"][0]
+    assert ev["removed"] == []                                      # grown, not swapped
+
+
+def test_full_memory_while_winning_freezes():
+    # FULL (MAX_LINES) and winning: nothing changes -- stop churning once the established set is winning.
+    moves = {"s.mk", "s.hk", "throw_F+hp", "walk_forward", "s.mp", "lightning_legs"}
+    reg = [_kept("s.mk"), _kept("s.hk"), _kept("throw_F+hp"), _kept("walk_forward"), _kept("s.mp")]
+    out, ev = SM.step(reg, _wl("WW"), claims=[_claim("lightning_legs")], rows=[], moves=moves, scorer=_scorer({}))
     assert ev["added"] == [] and ev["removed"] == []
-    assert [r["line"] for r in out] == [r["line"] for r in reg]   # memory unchanged
+    assert [r["line"] for r in out] == [r["line"] for r in reg]     # memory unchanged
 
 
 # --------------------------------------------------------------------------- the deadlock-breaker
@@ -71,10 +81,12 @@ def test_losing_streak_forces_one_swap_even_when_slots_are_full():
 
 
 def test_fair_chance_window_no_double_swap_right_after_one():
-    # just swapped in a fresh trying line (rounds=0); losing again must NOT immediately swap it out --
-    # one SWAP_AFTER window of chance. Uses the SAME single threshold, no extra knob.
-    moves = {"s.mk", "lightning_legs", "throw_F+hp"}
-    reg = [_kept("s.mk"), _trying("lightning_legs", rounds=0)]
+    # FULL memory, losing, but the newest trying line was just admitted (rounds=0): it gets one SWAP_AFTER
+    # window of chance before it (or any line) can be swapped again -- no thrashing. Same single threshold.
+    moves = {"s.mk", "walk_forward", "spinning_bird_kick", "s.hk", "lightning_legs", "throw_F+hp"}
+    reg = [_kept("s.mk"),
+           _trying("walk_forward", rounds=5), _trying("spinning_bird_kick", rounds=5), _trying("s.hk", rounds=5),
+           _trying("lightning_legs", rounds=0)]                     # 5 in play (FULL); youngest just admitted
     out, ev = SM.step(reg, _wl("LLL"), claims=[_claim("throw_F+hp")], rows=[], moves=moves, scorer=_scorer({}))
     assert ev["added"] == [] and ev["removed"] == []
 
@@ -107,5 +119,5 @@ def test_kept_line_is_never_the_swap_victim():
     reg = [_kept("s.mk"), _kept("s.hk"), _kept("throw_F+hp"), _kept("walk_forward"),
            _trying("lightning_legs", rounds=5)]
     out, ev = SM.step(reg, _wl("LL"), claims=[_claim("s.mp")], rows=[], moves=moves, scorer=_scorer({}))
-    assert ev["removed"] == ["use more lightning_legs when he stands"] or "lightning_legs" in (ev["removed"] or [""])[0]
+    assert ev["removed"] and "lightning_legs" in ev["removed"][0]
     assert all(r["state"] == "kept" for r in out if "lightning_legs" not in r["line"] and "s.mp" not in r["line"])
