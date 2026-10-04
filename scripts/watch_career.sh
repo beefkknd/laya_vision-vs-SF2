@@ -19,6 +19,8 @@ NAME="career_${ME}_$(date +%s)"
 SESS="rollouts/career/${NAME}"
 LOG="/tmp/${NAME}.log"
 
+echo "worktree  : $(pwd)"
+echo "branch    : $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 echo "character : ${ME}"
 echo "qwen      : ${SF2_QWEN_URL}"
 echo "session   : ${SESS}"
