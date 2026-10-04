@@ -89,3 +89,80 @@ Headless on the M3 Ultra this is feasible; laya-prior + Qwen-narrowed exploratio
 5. A/B comparison harness + TUI (two curves).
 
 No code until Fable + GPT-6 have reviewed this and the owner picks a direction.
+
+---
+
+# PLAN OF RECORD (after Fable + GPT-6 review, 2026-10-04)
+
+**Decision: GO — as a bounded EXPERIMENT beside the rules, credit-fix FIRST. Not a blind replacement.** Promote the
+table only if it beats the frozen rule system in the A/B. Both reviewers converged on this; the pieces below fold
+in their grounded corrections.
+
+## Both reviewers agreed
+- Experiment, not replacement: build the table, A/B vs frozen RulePolicy, promote on evidence.
+- **The per-decision CREDIT is contaminated by delayed hits — fix it FIRST (the gate). It helps the rule system too,
+  and is likely a real reason chun4 barely learned.**
+- Keep **Qwen OUT of experiment 1** (narrowing exploration / injecting optimism = becoming the policy).
+- Pluggable policy + `--policy rules|table`; reuse `scripts/ab_memory.py`'s pre-registered paired-CI test for the A/B.
+
+## Grounded corrections to the spec (Fable, measured on chun3/chun4)
+- **No laya prior exists** — `cat_v3` outputs `block=1.000` in every no-advice cell; `move_probs` only ranks an
+  already-chosen category's 3-4 options. Seeding from laya = uniform. **Drop the laya-prior (spec rec b).** Optional
+  optimistic init from the offline `lessons/value_oracle_v1.json` (12 cells, needs a name map; no-RAM-safe).
+- **Aliasing is his SUB-STATE, not distance.** Measured collisions: `close/jumping` empty-jump (-3.4) vs jump-attack
+  (-22.6); `close/standing` his-takeoff (+15) vs his-walk (+4.8). dx-halves within `mid` barely matter. **Split a cell
+  by `his_label`** (already in the decision record, no retrain) via a shadow tally; this is a key the table can use
+  but the text-rule grammar cannot — a real argument FOR the table.
+- **Reuse directly:** `advice.followable` / `available_moves` (action set), `screen_evidence.decision_row` net-hp
+  (credit), `rule_stats` Welford/Welch (the table's credit + split test are a ~20-line copy).
+- **Sample cost (the one disagreement, reconciled):** busy cells (60-280 decisions / 27 rounds) separate their top
+  actions in ~1-2 headless hours (Fable); rare cells stay sparse and fall back to parent/prior (GPT-6's caution). So
+  the table earns its keep on the COMMON whens, not the rare ones.
+- `--no-score` loses the KO window's damage (`nxt=None -> 0`); log `hud.health` per read so the last window credits
+  the KO. (Small, separate from reattribution.)
+
+## STAGE 1 — the credit fix (the gate; do first; helps rules AND table)
+**Bug (measured):** `decision_row` credits each decision with the health-bar drop until the next decision. When she
+lands a hit at t, he enters hit-stun and his bar drains during t+1's window, so the move at t+1 (often `block_high`
+while `his_label=="hit"`) is credited with the prior move's damage. chun4: `block_high` in (mid,jumping) netted
+**+19.7** this way.
+**Fix (conserving):** in `round_evidence`, after building rows, reattribute: a decision whose `moment.his_label ==
+"hit"` did not cause its window's `dealt` -> move that `dealt` to the nearest EARLIER decision whose `his_label !=
+"hit"` (the action that started the hit). If none (round start), leave it. Add `his_label` to the row (also used by
+the table split). Total `dealt` conserved; round summary unchanged.
+**Red test (already on disk, pre-registered):** `tests/test_credit_reattribution.py` — block's +40 moves to the
+anti-air; honest s.mk keeps its credit; round-start hit-stun left in place; totals conserved.
+**Also (optional, same stage):** log `hud.health` in `reads.jsonl` so the KO window isn't lost under `--no-score`.
+
+## STAGE 2 — `sf2/system1/value_table.py` (pure, test-first)
+- `blank()`, `key(moment, depth) -> when` (base `(range, doing, fireball)`; `depth[cell]="his_label"` splits one cell),
+  `credit(table, drows) -> table` (Welford net-hp per `(when, action)` + a `his_label` shadow tally + the split rule),
+  `choose(table, when, actions, rng) -> (action, explored)` (ε-greedy: force-cover arms with `n<MIN_TRIES` first,
+  then ε₀·MIN_TRIES/(MIN_TRIES+n_cell) exploration, else argmax).
+- Split rule: split a cell by `his_label` only when two sub-labels' top action differs with Welch-CI separation and
+  both have `n>=MIN_TRIES` (reuse `rule_stats._var`). One binary split per cell. Parent stays fallback for sparse children.
+- Tests: Welford == `rule_stats` sums on a chun4 fixture; the delayed-hit fixture; split fires on a crafted two-label
+  case and not a homogeneous one; seeded ε-greedy covers every arm within K draws; a toy 3-arm convergence golden.
+
+## STAGE 3 — pluggable policy + A/B harness
+- `loop_runner.play_round(..., decide: Optional[Callable[[Moment], Dict]] = None)` (default = today's closure);
+  `TablePolicy.decide(m) -> {action, when, values, explored}`; add `when/values/explored` to `DECISION_KEYS`.
+- `play_loop_screen --policy rules|table`, `--save-table/--carry-table` (JSON, like the registry); for `table`,
+  `update()` skips Qwen/short_memory and runs `credit` once per round.
+- A/B: both arms same opponent + `--seed` (same start-delays only; trajectories diverge — say so), **Qwen OFF in both**
+  (RulePolicy = frozen `--carry` of a chosen registry). Reuse `ab_memory.py`'s paired-CI verdict on per-round hp over
+  the LAST N rounds; report win-rate + hp curves over round index. Optional 3rd arm = rules+randomised ablation
+  (GPT-6's baseline) once ablation exists.
+- **Acceptance (mechanical):** on the `stunned` cells (100% `block_high` today) the table stops blocking within ~10
+  rounds (check decisions.jsonl); and the table's last-N win-rate CI beats frozen rules.
+
+## STAGE 4 — Qwen as System 2 (only if Stage 3 is positive)
+Bounded: Qwen may rank the under-sampled arms of ONE bleeding cell to set which are force-covered first, and write
+prose. Never writes values/counts/legal-masks, never the exploit choice. Honest-keeping test: replace Qwen's ranking
+with a random permutation -> the converged table is identical within CI.
+
+## Knobs (2): `MIN_TRIES` (reused), `ε₀` (new, ~0.3). Nothing else.
+## Product decision deferred to the A/B: the table makes text-laya redundant as the DECIDER (it stays as the
+RulePolicy arm). The owner's "day vs night": an explicit empirical table vs a generalizing model — they should
+converge where both have data; the A/B measures final strength AND rounds-to-converge (hypothesis: laya faster to
+decent play, table self-learns and uses `his_label` laya can't read).
