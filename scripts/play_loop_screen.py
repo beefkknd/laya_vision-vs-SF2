@@ -235,7 +235,8 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
             emu = emu.new_round()
             replay = score_fn(rd) if score_fn else None
             decisions = screen_evidence.read_decisions(rd)
-            drows, summary = screen_evidence.round_evidence(g, me, opp, decisions, replay)
+            end_bars = None if replay else screen_evidence.read_end_bars(rd)   # --no-score: the KO from the last read
+            drows, summary = screen_evidence.round_evidence(g, me, opp, decisions, replay, end_bars=end_bars)
             all_rows += drows
             all_rounds.append(summary)
             this_rounds.append(summary)

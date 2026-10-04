@@ -42,6 +42,7 @@ from .advice import (advice_text, category_question, char_categories, char_menu_
                      prompt, read as read_lesson, situation_text, stance_of, two_stage)
 from .screen_emu import ScreenEmu
 from .screen_words import CAN_ACT, Moment, label, moment, note, players, sentence, situation
+from ..vocab import FULL_LIFE
 
 WAIT = 4              # idle frames per step while the fighter cannot act (the 4-frame prev/now gap), as T0
 MAX_RECOVER = 90      # frames to wait after a move for the fighter to be able to act again
@@ -160,8 +161,14 @@ class Eyes:
         self.reads += 1
         self.read_ms += ms
         me, him = players(facts)
+        hud = facts.hud.health if facts.hud else (None, None)
+        my_frac = me.health if me.health is not None else hud[0]
+        his_frac = him.health if him.health is not None else hud[1]
         self.rows.append({"k": k, "can_act": label(me) in CAN_ACT and not me.in_air, "me": label(me),
                           "me_air": bool(me.in_air), "him": label(him), "him_air": bool(him.in_air),
+                          # drawn health bars, so the LAST read gives the round-END life (the KO) for --no-score scoring
+                          "my_life": int(round(my_frac * FULL_LIFE)) if my_frac is not None else None,
+                          "his_life": int(round(his_frac * FULL_LIFE)) if his_frac is not None else None,
                           "unknown": [f.side for f in (me, him) if f.unknown], "round": facts.round_state,
                           "ms": round(ms, 2)})
         return facts, ms

@@ -113,15 +113,33 @@ def round_result(my_life_end: int, his_life_end: int) -> str:
     return "draw"
 
 
+def read_end_bars(round_dir: str) -> Optional[Dict]:
+    """The round-END life from the screen: the LAST read in reads.jsonl that drew both bars (the frame at/after
+    round-over, so a KO shows as the empty bar). ``{"my_life", "his_life"}`` or None if unavailable. No RAM."""
+    path = os.path.join(round_dir, "reads.jsonl")
+    try:
+        rows = [json.loads(l) for l in open(path)]
+    except OSError:
+        return None
+    for r in reversed(rows):
+        if r.get("my_life") is not None and r.get("his_life") is not None:
+            return {"my_life": r["my_life"], "his_life": r["his_life"]}
+    return None
+
+
 def round_evidence(game: int, me: str, opp: str, decisions: Sequence[Dict],
-                   replay: Optional[Dict] = None) -> Tuple[List[Dict], Dict]:
+                   replay: Optional[Dict] = None, end_bars: Optional[Dict] = None) -> Tuple[List[Dict], Dict]:
     """(the per-decision rows, the round summary) for one round. ``decisions``: the round's decision records
-    (loop_runner decisions.jsonl). ``replay``: scripts/replay_score.py's per-round score (result, hp, dealt, taken,
-    my_life_end, opp_life_end) - the frame-truth round fields; None falls back to the screen."""
+    (loop_runner decisions.jsonl). ``replay``: scripts/replay_score.py's per-round score (the frame-truth round
+    fields); None falls back to the screen. ``end_bars`` (``read_end_bars``): the screen's round-END life, used
+    when there is no replay so the LAST decision is scored to the final bars (the KO) and the result reflects the
+    final blow instead of the bars BEFORE it."""
     decisions = list(decisions)
     end = None
     if replay is not None:
         end = {"my_life": replay.get("my_life_end", 0), "his_life": replay.get("opp_life_end", 0)}
+    elif end_bars is not None:
+        end = {"my_life": end_bars["my_life"], "his_life": end_bars["his_life"]}
     rows: List[Dict] = []
     for i, d in enumerate(decisions):
         nxt = _moment(decisions[i + 1]) if i + 1 < len(decisions) else end

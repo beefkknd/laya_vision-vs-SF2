@@ -52,3 +52,25 @@ def test_no_earlier_attack_leaves_the_delayed_hit_in_place():
     rows, summary = SE.round_evidence(0, "chunli", "ryu", [
         _dec("block_high", 100), _dec("s.mk", 50)], replay=None)
     assert _dealt(rows)["block_high"] == 50 and summary["dealt"] == 50   # conserved, not lost
+
+
+# --------------------------------------------------------------------------- --no-score KO / last-window fix
+def test_read_end_bars_takes_the_last_drawn_bars(tmp_path):
+    rd = str(tmp_path)
+    with open(__import__("os").path.join(rd, "reads.jsonl"), "w") as f:
+        f.write('{"k": 10, "my_life": 90, "his_life": 80}\n')
+        f.write('{"k": 20, "my_life": null, "his_life": null}\n')   # a read that saw no bars -> skipped
+        f.write('{"k": 30, "my_life": 40, "his_life": 0}\n')        # the KO: his bar empty at round over
+    assert SE.read_end_bars(rd) == {"my_life": 40, "his_life": 0}
+
+
+def test_end_bars_credits_the_ko_and_fixes_the_result():
+    # last decision BEFORE the final blow: she is behind (my 5, his 10). She then KOs (his bar -> 0).
+    decs = [_dec("s.mk", 100), dict(_dec("s.mk", 10), moment={"my_life": 5, "his_life": 10, "doing": "standing",
+                                                               "his_air": False, "his_label": "stand", "dx": 40})]
+    # WITHOUT the end bars: last window is 0 and the result reads the pre-final-blow bars -> wrong "loss"
+    rows0, s0 = SE.round_evidence(0, "chunli", "ryu", decs, replay=None)
+    assert rows0[-1]["dealt"] == 0 and s0["result"] == "loss"
+    # WITH the screen end bars (his_life 0): the KO (10 hp) is credited and the result is the real "win"
+    rows1, s1 = SE.round_evidence(0, "chunli", "ryu", decs, replay=None, end_bars={"my_life": 5, "his_life": 0})
+    assert rows1[-1]["dealt"] == 10 and s1["result"] == "win"
