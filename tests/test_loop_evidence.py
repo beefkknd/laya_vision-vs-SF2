@@ -33,8 +33,10 @@ REPLAY = {"result": "win", "dealt": 60, "taken": 26, "hp": 34, "my_life_end": 12
 def test_damage_comes_from_health_bar_drops_across_the_decision():
     rows, summary = E.round_evidence(0, ME, OPP, DECS, REPLAY)
     r0, r1 = rows
-    assert (r0["dealt"], r0["taken"]) == (176 - 146, 176 - 150)     # his / my drawn-hp drop to the NEXT decision
-    assert (r1["dealt"], r1["taken"]) == (146 - 100, 150 - 120)     # last decision: to the replay round-end life
+    # raw drops are his/my hp to the NEXT decision (r0 cl.hp: 176->146 = 30; r1 block: 146->100replay = 46), BUT r1
+    # is a BLOCK -- it cannot deal damage, so its 46 is the cl.hp hit still draining and is REATTRIBUTED to r0.
+    assert (r0["dealt"], r0["taken"]) == (30 + 46, 176 - 150)       # 30 in its window + 46 moved from the block
+    assert (r1["dealt"], r1["taken"]) == (0, 150 - 120)             # block's drawn damage reattributed; taken kept
     assert summary["result"] == "win" and summary["hp"] == 34 and summary["source"] == "replay"
 
 

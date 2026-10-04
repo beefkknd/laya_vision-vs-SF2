@@ -77,17 +77,21 @@ def decision_row(game: int, me: str, opp: str, dec: Dict, nxt: Optional[Dict]) -
 
 
 def _reattribute_delayed_hits(rows: List[Dict]) -> None:
-    """Fix delayed-hit credit contamination: a decision taken while he is in hit-stun (``his_label == "hit"``) did
-    NOT cause the damage drawn in its window -- that is a PRIOR move's hit still draining the bar. Move its ``dealt``
-    back to the nearest EARLIER decision that was not itself in hit-stun (the move that landed the hit). Total dealt
-    is conserved; only per-decision attribution is corrected. Mutates ``rows`` (freshly built by the caller) in place.
+    """Fix delayed-hit credit contamination. A NON-damaging move (block/movement, ``kind != "attack"``) cannot deal
+    damage, so any ``dealt`` drawn in its window is a PRIOR attack still landing (the hit-stun bar drain). Move that
+    ``dealt`` back to the nearest EARLIER ATTACK (the move that caused it). An ATTACK keeps its own window: the
+    screen cannot tell a real combo follow-up from a whiff during a prior hit's drain, so we credit the attack --
+    erring toward crediting genuine follow-ups rather than zeroing them (the key fix after review: the old rule
+    keyed on the opponent's hit-stun label and zeroed every follow-up in a `stunned` cell, teaching her to BLOCK a
+    stunned opponent instead of punishing it). Keying on HER move's kind also avoids the unknown-opponent-sprite
+    sink. Total dealt is conserved; mutates ``rows`` (freshly built by the caller) in place.
 
-    Why it matters (measured, chun4): ``block_high`` in (mid,jumping) scored +19.7 because the anti-air she threw the
-    decision before drained his bar during the block's window -- crediting block and robbing the anti-air."""
+    Why it matters (measured, chun4): ``block_high`` in (mid,jumping) scored +19.7 because the anti-air she threw
+    the decision before drained his bar during the block's window -- crediting block and robbing the anti-air."""
     for i in range(len(rows)):
-        if rows[i].get("his_label") == "hit" and rows[i]["dealt"] > 0:
+        if rows[i]["kind"] != "attack" and rows[i]["dealt"] > 0:    # she blocked/moved, yet damage drew -> delayed
             j = i - 1
-            while j >= 0 and rows[j].get("his_label") == "hit":
+            while j >= 0 and rows[j]["kind"] != "attack":           # credit the nearest earlier ATTACK that caused it
                 j -= 1
             if j >= 0:
                 rows[j]["dealt"] += rows[i]["dealt"]

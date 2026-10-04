@@ -83,23 +83,29 @@ def _rows(n, action, net, his_label, doing="stand"):
     return [_row(action, net, doing=doing, his_label=his_label) for _ in range(n)]
 
 
-def test_cell_splits_by_his_label_when_labels_prefer_different_actions():
-    # base (mid,standing): when his_label=='stand' s.mk is best (+10, throw -10); when 'walk' throw is best (+10).
-    # The coarse cell would average throw away; the split preserves it. (min_tries=5 to keep the fixture small.)
-    t = VT.blank()
-    rows = (_rows(6, "s.mk", 10, "stand") + _rows(6, "throw_F+hp", -10, "stand")
-            + _rows(6, "throw_F+hp", 10, "walk"))
-    t = VT.credit(t, rows, min_tries=5)
+def test_cell_splits_on_a_two_directional_reversal():
+    # 'stand': s.mk +10 > throw -10 ; 'walk': throw +10 > s.mk -10. A GENUINE reversal (both arms covered in both
+    # labels) -> split. (min_tries=5 for a small fixture.)
+    t = VT.credit(VT.blank(), _rows(6, "s.mk", 10, "stand") + _rows(6, "throw_F+hp", -10, "stand")
+                  + _rows(6, "throw_F+hp", 10, "walk") + _rows(6, "s.mk", -10, "walk"), min_tries=5)
     assert t["depth"].get("mid|standing|0") == "his_label"
     assert "mid|standing|0|stand" in t["cells"] and "mid|standing|0|walk" in t["cells"]
-    # after the split, a 'walk' decision keys into the split cell and sees throw as best there
     wk = VT.row_when(_row("x", 0, his_label="walk"), t["depth"])
     assert wk == "mid|standing|0|walk"
     assert VT.choose(t, wk, ["s.mk", "throw_F+hp"], random.Random(0), eps0=0.0)[0] == "throw_F+hp"
 
 
+def test_no_split_when_only_one_label_has_a_covered_arm():
+    # 'walk' only ever did throw (s.mk uncovered there) -> no EVIDENCE the labels disagree -> must NOT split
+    # (the one-sided false positive the review caught).
+    t = VT.credit(VT.blank(), _rows(6, "s.mk", 10, "stand") + _rows(6, "throw_F+hp", -10, "stand")
+                  + _rows(6, "throw_F+hp", 10, "walk"), min_tries=5)
+    assert t["depth"] == {}
+
+
 def test_no_split_when_labels_agree():
-    t = VT.credit(VT.blank(), _rows(6, "s.mk", 10, "stand") + _rows(6, "s.mk", 10, "walk"), min_tries=5)
+    t = VT.credit(VT.blank(), _rows(6, "s.mk", 10, "stand") + _rows(6, "s.mk", 10, "walk")
+                  + _rows(6, "throw_F+hp", -10, "stand") + _rows(6, "throw_F+hp", -10, "walk"), min_tries=5)
     assert t["depth"] == {}                                  # both labels prefer s.mk -> nothing to split
 
 
@@ -110,12 +116,19 @@ def test_no_split_when_under_covered():
 
 
 def test_far_cell_stays_coarse_no_split():
-    # density by distance: the SAME divergent-label pattern that splits a close cell must NOT split a far cell
-    far = (_rows(6, "s.mk", 10, "stand", doing="stand") + _rows(6, "lightning_legs", -10, "stand", doing="stand")
-           + _rows(6, "lightning_legs", 10, "walk", doing="stand"))
-    far = [dict(r, range="far") for r in far]
-    t = VT.credit(VT.blank(), far, min_tries=5)
-    assert t["depth"] == {}, "far cells stay coarse"
-    # the identical pattern up close DOES split (control)
-    close = [dict(r, range="close") for r in far]
-    assert VT.credit(VT.blank(), close, min_tries=5)["depth"].get("close|standing|0") == "his_label"
+    # density by distance: the SAME two-directional reversal that splits a close cell must NOT split a far cell
+    pat = (_rows(6, "s.mk", 10, "stand") + _rows(6, "lightning_legs", -10, "stand")
+           + _rows(6, "lightning_legs", 10, "walk") + _rows(6, "s.mk", -10, "walk"))
+    far = VT.credit(VT.blank(), [dict(r, range="far") for r in pat], min_tries=5)
+    assert far["depth"] == {}, "far cells stay coarse"
+    close = VT.credit(VT.blank(), [dict(r, range="close") for r in pat], min_tries=5)
+    assert close["depth"].get("close|standing|0") == "his_label"           # control: close DOES split
+
+
+def test_choose_falls_back_to_the_parent_cell_for_an_unseen_label():
+    # after a split, a label with no child cell must use the PARENT's knowledge, not start blank
+    t = VT.blank()
+    t["depth"]["close|standing|0"] = "his_label"
+    t["cells"]["close|standing|0"] = {"A": [50, -500.0, 5000.0], "B": [50, 500.0, 5000.0]}   # parent: B good, A bad
+    a, _ = VT.choose(t, "close|standing|0|new_label", ["A", "B"], random.Random(0), eps0=0.0)
+    assert a == "B"                                          # fell back to the parent and picked its best

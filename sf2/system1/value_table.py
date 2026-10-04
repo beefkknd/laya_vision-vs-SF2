@@ -83,7 +83,7 @@ def _clone(t: Table) -> Table:
 # --------------------------------------------------------------------------- credit (learn) and choose (play)
 def _var(s: List) -> float:
     n, su, sq = s
-    return (sq - su * su / n) / (n - 1) if n > 1 else float("inf")      # inf for n<=1 -> never 'separated'
+    return max(0.0, (sq - su * su / n) / (n - 1)) if n > 1 else float("inf")   # clamp roundoff >=0; inf for n<=1
 
 
 def _separated(s1: List, s2: List) -> bool:
@@ -110,11 +110,14 @@ def _maybe_split(t: Table, min_tries: int) -> None:
         if len(tops) < 2:
             continue
         for l1, (a1, s1) in tops.items():
-            for l2, (a2, _s2) in tops.items():
+            for l2, (a2, s2) in tops.items():
                 if l2 == l1 or a1 == a2:
                     continue
-                other = labs[l1].get(a2)                     # a2 (another label's pick) as measured IN l1
-                if other and other[0] >= min_tries and _separated(s1, other):
+                # a TWO-DIRECTIONAL reversal: a1 confidently beats a2 in l1 AND a2 beats a1 in l2, all four covered.
+                # (one-sided was a false-positive source: an under-covered arm in l2 faked a disagreement -- review.)
+                a2_l1, a1_l2 = labs[l1].get(a2), labs[l2].get(a1)
+                if (a2_l1 and a2_l1[0] >= min_tries and _separated(s1, a2_l1)
+                        and a1_l2 and a1_l2[0] >= min_tries and _separated(s2, a1_l2)):
                     t["depth"][b] = "his_label"
                     for lab, acts in labs.items():           # seed the split cells from what we already saw per label
                         t["cells"][b + "|" + lab] = {a: list(s) for a, s in acts.items()}
@@ -128,7 +131,7 @@ def credit(table: Table, drows: Sequence[Dict], min_tries: int = MIN_TRIES) -> T
     t = _clone(table)
     for r in drows:
         act = r.get("action")
-        if not act:
+        if not act or r.get("range") is None:        # a malformed row with no range can't be keyed reliably -> skip
             continue
         rng, doing, fb, lab = r.get("range"), opp_doing(r), r.get("opp_shot"), str(r.get("his_label"))
         b = base_key(rng, doing, fb)
@@ -151,25 +154,38 @@ def decider(table: Table, me: str, rng: random.Random, min_tries: int = MIN_TRIE
     def decide(m) -> Dict:
         rng_ = range_of(abs(m.dx))
         actions = sorted(available_moves(stance_of("stand", rng_), cats))
-        when = when_key(rng_, m.doing, m.fireball, m.his_label, table["depth"])
+        when = when_key(rng_, m.doing, m.fireball, m.his_label, table.get("depth", {}))
         action, explored = choose(table, when, actions, rng, min_tries, eps0)
         return {"action": action, "when": when, "explored": explored, "category": category_of(action)}
     return decide
+
+
+def _cell_view(table: Table, when: str) -> Dict[str, List]:
+    """The stats to read for ``when``, with PARENT FALLBACK: for a split-child key (base|doing|fb|label), an action
+    the child has not seen yet falls back to the base cell's accumulated stats (so an unseen/sparse label keeps the
+    parent's knowledge instead of starting blank). The base cell holds the pre-split data (frozen at split time)."""
+    cell = dict(table["cells"].get(when, {}))
+    if when.count("|") >= 3:                                  # a split child: fall back to the parent (base) cell
+        base = "|".join(when.split("|")[:3])
+        for a, s in table["cells"].get(base, {}).items():
+            cell.setdefault(a, s)
+    return cell
 
 
 def choose(table: Table, when: str, actions: Sequence[str], rng: random.Random,
            min_tries: int = MIN_TRIES, eps0: float = EPS0) -> Tuple[str, bool]:
     """Pick an action for ``when`` over the FOLLOWABLE ``actions``. ε-greedy: with probability eps (decaying as the
     cell fills) explore -- preferring an under-sampled action (forced coverage) -- else exploit the highest mean
-    (an unsampled action is treated as 0, i.e. optimistic vs a known-bad one). Returns (action, explored)."""
+    (unsampled -> 0, optimistic vs a known-bad one), ties broken RANDOMLY (so a blank cell has no accidental
+    alphabetical/defensive prior). Reads with parent fallback for split children. Returns (action, explored)."""
     actions = list(actions)
     if not actions:
         return "", False
-    cell = table["cells"].get(when, {})
+    cell = _cell_view(table, when)
     n_cell = sum(count(cell, a) for a in actions)
     eps = eps0 * min_tries / (min_tries + n_cell)
     if rng.random() < eps:
         under = [a for a in actions if count(cell, a) < min_tries]
         return rng.choice(under or actions), True
-    best = max(actions, key=lambda a: mean(cell.get(a)))      # unsampled -> 0; ties -> first (exploration covers it)
-    return best, False
+    best = max(mean(cell.get(a)) for a in actions)
+    return rng.choice([a for a in actions if mean(cell.get(a)) == best]), False   # random tie-break
