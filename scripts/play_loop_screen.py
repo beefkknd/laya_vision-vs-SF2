@@ -31,6 +31,7 @@ import _path  # noqa: F401
 from sf2.config import PORTS
 from sf2.system1.advice import char_menu_moves, followable
 from sf2.system1.loop_runner import play_round as play_screen_round
+from sf2.system1 import value_table as VT
 from sf2.system2 import character_prompt, lessons as L, rule_stats, screen_evidence, seed_rules, short_memory as SM
 from sf2.system2.lesson_prompt import streak
 
@@ -193,15 +194,20 @@ ScoreFn = Callable[[str], Optional[Dict]]    # a round dir -> its offline replay
 def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games: int, rounds: int,
              seed_lines: L.Registry, out: str, play_round_fn: PlayFn, state: bytes, state_id: Dict, emu,
              score_fn: Optional[ScoreFn] = None, reader=None, seed_rng: int = 0, me: str = ME, log=None,
-             qwen_mode: str = "two") -> Dict:
-    """Play ``games`` games, rotating the short memory through System 2 after each. Everything heavy is injected:
-    ``cat_advisor`` / ``move_advisor`` (the two text laya checkpoints: round-1 category, round-2 move), ``ask_qwen``,
-    ``play_round_fn`` (plays one round, writes its record), ``emu`` (a handle with ``new_round()``), ``score_fn`` (the
-    offline replay, or None to score from the screen). Returns the verdict."""
+             qwen_mode: str = "two", policy: str = "rules", table: Optional[Dict] = None,
+             save_table: Optional[str] = None) -> Dict:
+    """Play ``games`` games. Two policies (owner's two-system A/B): ``policy="rules"`` (default) = text-laya follows
+    the short memory, rotated by System 2 after each round; ``policy="table"`` = the self-learning value table
+    (sf2.system1.value_table) picks the move and is CREDITED from each round's outcomes (no Qwen, no short memory).
+    Everything heavy is injected: ``cat_advisor``/``move_advisor`` (text laya), ``ask_qwen``, ``play_round_fn``,
+    ``emu``, ``score_fn``. For the table policy, ``table`` is the carried table (blank if None) and ``save_table`` a
+    path to persist it to after the run (so it GROWS across blocks like the registry). Returns the verdict."""
     os.makedirs(out, exist_ok=True)
     trace = open(os.path.join(out, "trace.jsonl"), "w") if log is None else log
     reg: L.Registry = list(seed_lines)
+    tbl: Dict = table if table is not None else VT.blank()
     rng = random.Random(seed_rng)
+    explore = random.Random((seed_rng << 1) ^ 0x5F3759DF)      # a separate stream for the table's exploration
     trace.write(json.dumps({"event": "seed", "opp": opp, "lines": SM.in_play(reg),
                             "rules": [{"line": r["line"], "state": r["state"], "source": r.get("evidence", {}).get("source")}
                                       for r in reg]}) + "\n")
@@ -218,10 +224,14 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
     for g in range(games):
         this_rounds: List[Dict] = []
         for r in range(rounds):
-            lines = SM.in_play(reg)                      # FRESH each round: play with the latest short memory
             rd = os.path.join(out, "g%02d_r%d" % (g, r))
             delay = DELAY_MIN + rng.randrange(DELAY_SPAN)
-            play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
+            if policy == "table":                        # the value table picks the move (no short memory, no Qwen)
+                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, [], rd,
+                              reader=reader, decide=VT.decider(tbl, me, explore))
+            else:
+                lines = SM.in_play(reg)                  # FRESH each round: play with the latest short memory
+                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
             emu = emu.new_round()
             replay = score_fn(rd) if score_fn else None
             decisions = screen_evidence.read_decisions(rd)
@@ -240,6 +250,12 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                                     "hp": summary["hp"], "dealt": summary["dealt"], "taken": summary["taken"],
                                     "source": summary["source"]}) + "\n")
             trace.flush()
+            if policy == "table":                        # CREDIT the table from this round's outcomes; no Qwen/SM
+                tbl = VT.credit(tbl, drows)
+                trace.write(json.dumps({"event": "table", "game": g, "round": r,
+                                        "cells": len(tbl["cells"]), "splits": len(tbl.get("depth", {}))}) + "\n")
+                trace.flush()
+                continue
             # SYSTEM 2 AFTER EACH ROUND: reflect and rotate the short memory so the NEXT round can adapt.
             round_hp.append(summary["dealt"] - summary["taken"])
             round_wl.append({"won": 1 if summary["result"] == "win" else 0,
@@ -256,9 +272,18 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
         game_hp.append(sum(s["dealt"] - s["taken"] for s in this_rounds) / max(1, len(this_rounds)))
         games_wl.append({"won": sum(s["result"] == "win" for s in this_rounds),
                          "lost": sum(s["result"] != "win" for s in this_rounds)})
-    verdict = {"opp": opp, "games": games, "rounds": rounds, "seed_lines": [r["line"] for r in seed_lines],
+    verdict = {"opp": opp, "games": games, "rounds": rounds, "policy": policy,
+               "seed_lines": [r["line"] for r in seed_lines],
                "in_play_end": SM.in_play(reg), "registry_end": reg, "decisions": len(all_rows),
                "game_hp": game_hp, "games": games_wl, "violations": L.violations(reg, all_rows)}
+    if policy == "table":
+        verdict["table_cells"] = len(tbl["cells"])
+        verdict["table_splits"] = len(tbl.get("depth", {}))
+        if save_table:                                        # persist so the table GROWS across blocks (like career_reg)
+            tmp = save_table + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(tbl, f)
+            os.replace(tmp, save_table)
     with open(os.path.join(out, "verdict.json"), "w") as f:
         json.dump(verdict, f, indent=1)
     if log is None:
@@ -322,6 +347,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--qwen-mode", dest="qwen_mode", default="two", choices=("one", "two"),
                     help="two (default): Stage 1 Scout summarizes, Stage 2 Coach strategizes (escalate when losing); "
                          "one: the OLD single prompt, kept as the A/B fallback")
+    ap.add_argument("--policy", default="rules", choices=("rules", "table"),
+                    help="rules (default): text-laya + short memory + Qwen; table: the self-learning value table "
+                         "(sf2.system1.value_table) picks the move and is credited from outcomes (no Qwen, no text-laya)")
+    ap.add_argument("--carry-table", dest="carry_table", default=None,
+                    help="policy table: start the value table from this JSON and keep GROWING it (pass again to resume)")
+    ap.add_argument("--save-table", dest="save_table", default=None,
+                    help="policy table: write the value table here after the run")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -344,23 +376,39 @@ def main() -> int:
     out = args.out or os.path.join("rollouts", "loop_screen", "%s_%s_vs_%s" % (time.strftime("%Y%m%d_%H%M%S"), me,
                                                                                args.opp))
     os.makedirs(out, exist_ok=True)
-    seed_lines, seed_source = starting_registry(args.carry, args.opp, args.book, me)
+    table_in = None
+    if args.policy == "table":
+        seed_lines, seed_source = [], "table"
+        if args.carry_table and os.path.exists(args.carry_table):
+            with open(args.carry_table) as f:
+                table_in = json.load(f)
+    else:
+        seed_lines, seed_source = starting_registry(args.carry, args.opp, args.book, me)
     with open(os.path.join(out, "run.json"), "w") as f:
-        json.dump({"arm": "loop", "me": me, "opp": args.opp, "games": args.games, "rounds": args.rounds,
-                   "seed": args.seed, "state": state_id, "book": args.book,
+        json.dump({"arm": args.policy, "me": me, "opp": args.opp, "games": args.games, "rounds": args.rounds,
+                   "seed": args.seed, "state": state_id, "book": args.book, "policy": args.policy,
                    "carry": args.carry, "save_registry": args.save_registry, "seed_source": seed_source,
                    "cat_advisor": args.cat_advisor, "move_advisor": args.move_advisor,
-                   "qwen": "on", "qwen_mode": args.qwen_mode}, f, indent=1)
+                   "qwen": "off" if args.policy == "table" else "on", "qwen_mode": args.qwen_mode}, f, indent=1)
     shared = {"shared": True} if args.shared_text_laya else {}
     score_fn = None if args.no_score else _real_score(args.replay_port, args.rom)
-    # Two Advisor instances - one per checkpoint. In shared mode each gets its own socket (shared_laya.socket_path keys
-    # off the checkpoint), so this is two shared servers on different sockets; otherwise two helper subprocesses.
-    with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
-            open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
-        verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
-                           seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
-                           state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
-                           qwen_mode=args.qwen_mode)
+    if args.policy == "table":
+        # the table decides every move and is credited from outcomes -- text-laya advisors and Qwen are NOT used
+        with open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
+            verdict = run_loop(args.opp, None, None, lambda *a, **k: "", games=args.games, rounds=args.rounds,
+                               seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
+                               state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
+                               policy="table", table=table_in, save_table=args.save_table)
+    else:
+        # Two Advisor instances - one per checkpoint (shared mode: each its own socket; else helper subprocesses).
+        with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
+                open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
+            verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
+                               seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
+                               state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
+                               qwen_mode=args.qwen_mode)
+    if args.policy == "table" and args.save_table:
+        print("saved table", args.save_table)
     if args.save_registry:
         save_registry(verdict["registry_end"], args.save_registry)
         print("saved registry", args.save_registry)

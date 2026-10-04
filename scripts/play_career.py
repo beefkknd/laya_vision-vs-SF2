@@ -107,17 +107,22 @@ def plan(me, ladder, block, cap, laps):
 
 
 def run_block(me, opp, nn, session_dir, carry, save_reg, block, rounds, cat, move,
-              qmode="two", watch=False, speed=100):
+              qmode="two", watch=False, speed=100, policy="rules", table_path=None):
     out = os.path.join(session_dir, "round_%02d_%s" % (nn, opp))
     cmd = [PY, "scripts/play_loop_screen.py", "--me", me, "--opp", opp,
-           "--games", str(block), "--rounds", str(rounds), "--qwen-mode", qmode,
-           "--cat-advisor", cat, "--move-advisor", move, "--no-score", "--rom", ROM, "--out", out]
+           "--games", str(block), "--rounds", str(rounds), "--no-score", "--rom", ROM, "--out", out]
     if watch:
         cmd += ["--watch", "--speed", str(speed)]      # open a visible Mesen window for the match
-    if carry:
-        cmd += ["--carry", carry]
-    if save_reg:
-        cmd += ["--save-registry", save_reg]
+    if policy == "table":
+        cmd += ["--policy", "table"]                   # the value table decides; text-laya/Qwen are not used
+        if table_path:
+            cmd += ["--carry-table", table_path, "--save-table", table_path]   # grows in place across blocks
+    else:
+        cmd += ["--qwen-mode", qmode, "--cat-advisor", cat, "--move-advisor", move]
+        if carry:
+            cmd += ["--carry", carry]
+        if save_reg:
+            cmd += ["--save-registry", save_reg]
     subprocess.run(cmd, cwd=REPO, stdout=open(out + ".log", "w"), stderr=subprocess.STDOUT, timeout=3600)
     return out
 
@@ -126,6 +131,9 @@ def main():
     ap = argparse.ArgumentParser(description="Continuous blank-start career / arcade ladder.")
     ap.add_argument("--me", default="chunli")
     ap.add_argument("--opps", default=None, help="comma list; default = every fighter except --me")
+    ap.add_argument("--policy", default="rules", choices=("rules", "table"),
+                    help="rules (default): text-laya + short memory + Qwen; table: the self-learning value table "
+                         "(no Qwen, no text-laya) -- the two-system A/B")
     ap.add_argument("--block", type=int, default=4, help="matches per block (a loss just replays next match)")
     ap.add_argument("--rounds", type=int, default=3, help="rounds per match (a match is best-of-3 = 2-3 rounds)")
     ap.add_argument("--win-target", type=float, default=0.60, help="recent win-rate that counts as BEATEN")
@@ -163,7 +171,7 @@ def main():
             print("  lap %d  vs %-8s  block %d" % (lap, opp, b))
         return 0
 
-    if not args.no_qwen_check and not qwen_alive():
+    if args.policy == "rules" and not args.no_qwen_check and not qwen_alive():
         print("Qwen server not reachable at %s\n"
               "The Coach needs it. Set SF2_QWEN_URL to a live server, e.g.\n"
               "  export SF2_QWEN_URL=http://100.66.12.33:8080/v1/chat/completions\n"
@@ -176,6 +184,7 @@ def main():
     print("session_dir: %s\nwatch:  python scripts/monitor_tui.py --session %s\n" % (session_dir, session_dir))
 
     moves = char_menu_moves(args.me)
+    table_path = os.path.join(session_dir, "table.json")        # the value table's growing home (policy table)
 
     def _reg_lines():
         try:
@@ -183,10 +192,19 @@ def main():
         except (OSError, ValueError):
             return []
 
-    # ONE growing playbook for the whole career: carried into EVERY block, never reset per opponent, and
-    # only replaced when a block produced a valid save, so a crash / Mesen restart never loses it. If the
-    # playbook file already exists (a --playbook you ran before), RESUME from it; otherwise seed it.
-    if os.path.exists(career_reg) and _reg_lines():
+    def _table_cells():
+        try:
+            return len(json.load(open(table_path))["cells"])
+        except (OSError, ValueError, KeyError):
+            return 0
+
+    if args.policy == "table":
+        # the value table is the whole state; it grows in table.json across blocks (resume = the file persists)
+        print("RESUMING table %s (%d cells)" % (table_path, _table_cells()) if os.path.exists(table_path)
+              else "start: BLANK value table")
+    # ONE growing playbook for the whole RULES career: carried into EVERY block, only replaced on a valid save, so a
+    # crash / Mesen restart never loses it. If the playbook file already exists, RESUME from it; otherwise seed it.
+    elif os.path.exists(career_reg) and _reg_lines():
         print("RESUMING playbook %s (%d rules)" % (career_reg, len(_reg_lines())))
     else:
         seed_entries = (list(seed_rules.seed_lessons(args.book, ladder[0], args.me)) or default_kit(moves)
@@ -203,29 +221,34 @@ def main():
             for opp in ladder:
                 beaten = False
                 for b in range(args.cap):
-                    tmp = os.path.join(session_dir, "_block_save.json")
-                    if os.path.exists(tmp):
-                        os.remove(tmp)
-                    out = run_block(args.me, opp, nn, session_dir, career_reg, tmp,
-                                    args.block, args.rounds, args.cat_advisor, args.move_advisor,
-                                    watch=args.watch, speed=args.speed)
-                    # GROW: promote the block's save into the career registry ONLY if it is valid, so a
-                    # crashed/restarted block keeps the previous playbook instead of losing it.
-                    try:
-                        saved = json.load(open(tmp))
-                        if isinstance(saved, list) and saved:
-                            os.replace(tmp, career_reg)
-                    except (OSError, ValueError):
-                        print("  (block produced no registry -- keeping the current playbook, %d rules)" % len(_reg_lines()))
+                    if args.policy == "table":
+                        out = run_block(args.me, opp, nn, session_dir, None, None, args.block, args.rounds,
+                                        args.cat_advisor, args.move_advisor, watch=args.watch, speed=args.speed,
+                                        policy="table", table_path=table_path)
+                        state_desc = "cells=%d" % _table_cells()
+                    else:
+                        tmp = os.path.join(session_dir, "_block_save.json")
+                        if os.path.exists(tmp):
+                            os.remove(tmp)
+                        out = run_block(args.me, opp, nn, session_dir, career_reg, tmp,
+                                        args.block, args.rounds, args.cat_advisor, args.move_advisor,
+                                        watch=args.watch, speed=args.speed)
+                        # GROW: promote the block's save into the career registry ONLY if valid, so a crashed/
+                        # restarted block keeps the previous playbook instead of losing it.
+                        try:
+                            saved = json.load(open(tmp))
+                            if isinstance(saved, list) and saved:
+                                os.replace(tmp, career_reg)
+                        except (OSError, ValueError):
+                            print("  (block produced no registry -- keeping the current playbook, %d rules)" % len(_reg_lines()))
+                        state_desc = "rules=%d" % len(_reg_lines())
                     wr = block_winrate(out)
                     nn += 1
                     rr = round_results(out)
-                    print("  vs %-8s block %d: win-rate %s  rules=%d  rounds=%s  (%s)"
+                    print("  vs %-8s block %d: win-rate %s  %s  rounds=%s  (%s)"
                           % (opp, b, ("%.0f%%" % (100 * wr)) if wr is not None else "n/a",
-                             len(_reg_lines()), "".join("W" if r == "win" else "L" for r in rr),
+                             state_desc, "".join("W" if r == "win" else "L" for r in rr),
                              os.path.basename(out)))
-                    # The live per-round policy already swapped the short memory while she lost inside this block
-                    # (sf2.system2.short_memory); the driver no longer forces rules between blocks.
 
                     if wr is not None and wr >= args.win_target:
                         beaten = True
