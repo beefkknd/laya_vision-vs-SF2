@@ -21,6 +21,11 @@ from .advice import opp_doing
 MIN_TRIES = 20          # samples before a (when, action) mean is trusted / a cell may split (same threshold family
 #                         as move_coach.MIN_TRIES; kept local so sf2/system1 does not import sf2/system2)
 EPS0 = 0.3              # base exploration rate; per-cell eps = EPS0 * MIN_TRIES / (MIN_TRIES + n_cell)
+# Density by distance (owner 2026-10-04): the closer the fighters, the more DETAIL worth carrying -- up close there
+# are many interacting options (throws, close normals, mix-ups), so allow a cell to split by his_label there; far
+# away she has few options and the situation is coarse, so far cells stay coarse (no split). (Action COUNT is
+# already distance-scaled by `advice.available_moves`: far offers fewer moves, no throws.)
+SPLIT_RANGES = ("close", "mid")
 
 Table = Dict           # {"cells": {wkey: {action: [n, sum, sumsq]}}, "shadow": {...}, "depth": {base: "his_label"}}
 
@@ -99,7 +104,7 @@ def _maybe_split(t: Table, min_tries: int) -> None:
     action) MEASURED IN l1, both covered (n>=min_tries). On split, seed the per-label cells from the shadow tally.
     One split per credit call; the parent cell stays as the fallback for sparse labels."""
     for b, labs in list(t["shadow"].items()):
-        if t["depth"].get(b):
+        if t["depth"].get(b) or b.split("|")[0] not in SPLIT_RANGES:    # far cells stay coarse (density by distance)
             continue
         tops = {l: tc for l, tc in ((l, _top_covered(acts, min_tries)) for l, acts in labs.items()) if tc}
         if len(tops) < 2:

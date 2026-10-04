@@ -144,7 +144,15 @@ anti-air; honest s.mk keeps its credit; round-start hit-stun left in place; tota
 - Tests: Welford == `rule_stats` sums on a chun4 fixture; the delayed-hit fixture; split fires on a crafted two-label
   case and not a homogeneous one; seeded ε-greedy covers every arm within K draws; a toy 3-arm convergence golden.
 
-## STAGE 3 — pluggable policy + A/B harness
+## DENSITY BY DISTANCE (owner 2026-10-04)
+Table detail scales with proximity: the closer, the more interacting options worth distinguishing; far away she has
+few options. Implemented two ways, both already in `value_table.py`: (1) the ACTION COUNT is distance-scaled for free
+by `advice.available_moves` (far = fewer moves, no throws); (2) a cell may SPLIT by his_label only when close/mid
+(`SPLIT_RANGES`) — far cells stay coarse. So the table is dense up close and sparse far, by construction.
+
+## STAGE 3 — pluggable policy + A/B harness (PHASED, owner 2026-10-04)
+Phase it: **3a** = make `--policy table` actually PLAY and learn (pluggable decide, table persistence, Qwen off);
+**3b** = the A/B harness (table vs frozen rules), run incrementally (start one opponent, then expand).
 - `loop_runner.play_round(..., decide: Optional[Callable[[Moment], Dict]] = None)` (default = today's closure);
   `TablePolicy.decide(m) -> {action, when, values, explored}`; add `when/values/explored` to `DECISION_KEYS`.
 - `play_loop_screen --policy rules|table`, `--save-table/--carry-table` (JSON, like the registry); for `table`,

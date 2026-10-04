@@ -107,3 +107,15 @@ def test_no_split_when_under_covered():
     # labels differ but neither reaches min_tries -> no confident split
     t = VT.credit(VT.blank(), _rows(3, "s.mk", 10, "stand") + _rows(3, "throw_F+hp", 10, "walk"), min_tries=5)
     assert t["depth"] == {}
+
+
+def test_far_cell_stays_coarse_no_split():
+    # density by distance: the SAME divergent-label pattern that splits a close cell must NOT split a far cell
+    far = (_rows(6, "s.mk", 10, "stand", doing="stand") + _rows(6, "lightning_legs", -10, "stand", doing="stand")
+           + _rows(6, "lightning_legs", 10, "walk", doing="stand"))
+    far = [dict(r, range="far") for r in far]
+    t = VT.credit(VT.blank(), far, min_tries=5)
+    assert t["depth"] == {}, "far cells stay coarse"
+    # the identical pattern up close DOES split (control)
+    close = [dict(r, range="close") for r in far]
+    assert VT.credit(VT.blank(), close, min_tries=5)["depth"].get("close|standing|0") == "his_label"
