@@ -51,3 +51,11 @@ def test_arm_rounds_reads_round_events(tmp_path):
         + json.dumps({"event": "round", "result": "win", "hp": 15}) + "\n")
     got = AB.arm_rounds(str(tmp_path))
     assert got == [{"hp": -30, "result": "loss"}, {"hp": 15, "result": "win"}]
+
+
+def test_under_powered_flag():
+    # a short tail (< MIN_TAIL per arm) is flagged under-powered; a long one is enough
+    short = AB.compare(_rounds("W" * 10), _rounds("L" * 10), last=40)
+    assert short["enough"] is False
+    long = AB.compare(_rounds("W" * 40), _rounds("L" * 40), last=40)
+    assert long["enough"] is True

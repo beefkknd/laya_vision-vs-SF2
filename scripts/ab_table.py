@@ -73,8 +73,13 @@ def _arm_stat(rounds, last):
             "hp_mean": _mean(hp), "hp_slope": slope([r["hp"] for r in rounds])}
 
 
+MIN_TAIL = 30          # fewer tail rounds than this (either arm) -> the verdict is under-powered (a smoke run is not evidence)
+
+
 def compare(table_rounds, rules_rounds, last=None):
-    """The A/B report dict: each arm's tail stats + the table-minus-rules hp difference with a bootstrap CI/verdict."""
+    """The A/B report dict: each arm's tail stats + the table-minus-rules hp difference with a bootstrap CI/verdict.
+    ``enough`` is False while either tail is below MIN_TAIL -- the table explores early and converges slowly, so an
+    early read is noise; keep playing (both arms resume) and re-run this until ``enough``."""
     t, r = _arm_stat(table_rounds, last), _arm_stat(rules_rounds, last)
     thp = [x["hp"] for x in (table_rounds[-last:] if last else table_rounds)]
     rhp = [x["hp"] for x in (rules_rounds[-last:] if last else rules_rounds)]
@@ -82,6 +87,7 @@ def compare(table_rounds, rules_rounds, last=None):
     return {"table": t, "rules": r,
             "hp_diff": {"mean": t["hp_mean"] - r["hp_mean"], "ci95": [lo, hi], "verdict": verdict(lo, hi)},
             "winrate_diff": t["winrate"] - r["winrate"],
+            "enough": min(t["tail"], r["tail"]) >= MIN_TAIL,
             "curves": {"table": cum_winrate(table_rounds), "rules": cum_winrate(rules_rounds)}}
 
 
@@ -94,6 +100,9 @@ def report(cmp):
     print("TABLE - RULES (last tail): hp %+6.1f  95%% CI [%+.1f, %+.1f]  %s | win-rate %+.0f pp"
           % (d["mean"], d["ci95"][0], d["ci95"][1], d["verdict"], 100 * cmp["winrate_diff"]))
     print("(verdict on hp/round: HELPS = table better, HURTS = rules better, NOT SHOWN = inconclusive)")
+    if not cmp["enough"]:
+        print("** UNDER-POWERED: fewer than %d tail rounds per arm. The table explores early and converges slowly --"
+              " keep playing (both arms resume) and re-run; do not trust this verdict yet. **" % MIN_TAIL)
 
 
 def main():
