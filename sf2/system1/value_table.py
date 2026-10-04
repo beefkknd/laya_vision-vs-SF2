@@ -84,6 +84,34 @@ def _clone(t: Table) -> Table:
             "depth": dict(t.get("depth", {}))}
 
 
+def _add(dst: Optional[List], src: List) -> List:
+    """Elementwise sum of two Welford accumulators [n, sum, sumsq] (``dst`` may be missing). Pure."""
+    return list(src) if dst is None else [dst[0] + src[0], dst[1] + src[1], dst[2] + src[2]]
+
+
+def merge(tables: Sequence[Table]) -> Table:
+    """Combine independently-collected tables (parallel data-collection workers) into ONE (immutable; the inputs are
+    never mutated). Welford stats [n, sum, sumsq] are additive, so every cell (base and split-child) and every shadow
+    tally sums elementwise across workers, and ``depth`` is the UNION: a split any worker learned is kept, and
+    ``_cell_view``'s parent fallback recovers the other workers' un-split data for that cell. K workers seeded from
+    the same table and merged thus hold the pooled K x experience."""
+    out = blank()
+    for t in tables:
+        for when, cell in t["cells"].items():
+            d = out["cells"].setdefault(when, {})
+            for a, s in cell.items():
+                d[a] = _add(d.get(a), s)
+        for base, labs in t.get("shadow", {}).items():
+            db = out["shadow"].setdefault(base, {})
+            for lab, acts in labs.items():
+                dl = db.setdefault(lab, {})
+                for a, s in acts.items():
+                    dl[a] = _add(dl.get(a), s)
+        for base, how in t.get("depth", {}).items():
+            out["depth"][base] = how
+    return out
+
+
 # --------------------------------------------------------------------------- credit (learn) and choose (play)
 def _var(s: List) -> float:
     n, su, sq = s
