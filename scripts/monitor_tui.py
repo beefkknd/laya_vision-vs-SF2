@@ -163,17 +163,16 @@ def _qwen_panel(m: T.DashboardModel) -> Panel:
     rows = Table.grid(padding=(0, 1))
     rows.add_column(no_wrap=True)
     if m.qwen_thinking:
-        rows.add_row(Text("...thinking... (reflecting before the next game)",
+        rows.add_row(Text("...thinking... (reflecting before the next round)",
                           style="bold yellow blink"))
         rows.add_row(Text(""))
-    recent = m.qwen[-8:]
-    if not recent:
-        rows.add_row(Text("(no qwen activity yet)", style="dim"))
-    for qv in recent:
-        head = Text(f"game {qv.game}: ", style="bold")
-        if not qv.added and not qv.removed:
-            head.append("no change", style="dim")
-        rows.add_row(head)
+    # per-round reflection emits a qwen event every round; show only the ones that actually CHANGED the
+    # playbook (newest last), so real churn keeps scrolling up instead of being buried by 'no change'.
+    changed = [qv for qv in m.qwen if qv.added or qv.removed][-6:]
+    if not changed:
+        rows.add_row(Text("(no rule changes yet)", style="dim"))
+    for qv in changed:
+        rows.add_row(Text(f"game {qv.game}:", style="bold"))
         for gr in qv.added:
             line = Text("  + ", style="green")
             line.append(gr.line)
