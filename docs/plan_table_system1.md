@@ -184,9 +184,14 @@ The "-88 hp, lost badly" memory is UNCONFIRMED (those logs are empty). The on-di
 throw-spamming up close** (0.46-0.89 of close decisions). A FIXED table + argmax + no exploration + coarse keys
 collapses to ONE degenerate exploit that "wins" per-decision net-hp without playing well. The new plan guards:
 exploration (Stage 2), the `his_label` split (close/attacking shows throw **-5.18** → demoted), the credit fix (the
-oracle's numbers were on the un-reattributed, delayed-hit-contaminated signal). **Add to Stage-3 acceptance a
-DEGENERACY guard:** no single action may exceed a share-of-decisions ceiling in a cell (reuse `_throw_close`) — a
-table that wins only by spamming one move FAILS the A/B.
+oracle's numbers were on the un-reattributed, delayed-hit-contaminated signal).
+
+**Owner 2026-10-04: winning by a dominant move IS a legitimate win** ("in this game one attack may beat anyone, and
+that's not wrong if it happens"). So the one-move-share (`_throw_close`) is a **DIAGNOSTIC we report, NOT an A/B
+failure.** The A/B is decided by win-rate/hp alone; if the table wins by a dominant move, it wins. Exploration and
+the `his_label` split still earn their keep: they find the BEST exploit, and they ADAPT when a given cell's dominant
+move stops working (e.g. throw demoted once he attacks). text-laya-as-prior may only speed convergence; it is not
+required for the table to be right.
 
 ## Knobs (2): `MIN_TRIES` (reused), `ε₀` (new, ~0.3). Nothing else.
 ## Product decision deferred to the A/B: the table makes text-laya redundant as the DECIDER (it stays as the

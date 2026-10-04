@@ -68,11 +68,30 @@ def decision_row(game: int, me: str, opp: str, dec: Dict, nxt: Optional[Dict]) -
         "opp_state": opp_state, "opp_air": opp_air,
         "action": dec.get("action"), "kind": kind_of(dec.get("action")) if dec.get("action") else "attack",
         "actual": None,                                   # screen cannot see hit / whiff / blocked
+        "his_label": m.get("his_label"),                  # raw reader label (delayed-hit reattribution + table his_label split)
         "dealt": max(0, his_now - his_next), "taken": max(0, my_now - my_next),
         "opp_reaction": [], "opp_move": None, "opp_shot": bool(m.get("fireball")),
         "my_life_after": my_next, "opp_life_after": his_next,
         "follows_rule": dec.get("follows_rule"), "rule": dec.get("rule"),
     }
+
+
+def _reattribute_delayed_hits(rows: List[Dict]) -> None:
+    """Fix delayed-hit credit contamination: a decision taken while he is in hit-stun (``his_label == "hit"``) did
+    NOT cause the damage drawn in its window -- that is a PRIOR move's hit still draining the bar. Move its ``dealt``
+    back to the nearest EARLIER decision that was not itself in hit-stun (the move that landed the hit). Total dealt
+    is conserved; only per-decision attribution is corrected. Mutates ``rows`` (freshly built by the caller) in place.
+
+    Why it matters (measured, chun4): ``block_high`` in (mid,jumping) scored +19.7 because the anti-air she threw the
+    decision before drained his bar during the block's window -- crediting block and robbing the anti-air."""
+    for i in range(len(rows)):
+        if rows[i].get("his_label") == "hit" and rows[i]["dealt"] > 0:
+            j = i - 1
+            while j >= 0 and rows[j].get("his_label") == "hit":
+                j -= 1
+            if j >= 0:
+                rows[j]["dealt"] += rows[i]["dealt"]
+                rows[i]["dealt"] = 0
 
 
 def round_result(my_life_end: int, his_life_end: int) -> str:
@@ -103,6 +122,7 @@ def round_evidence(game: int, me: str, opp: str, decisions: Sequence[Dict],
     for i, d in enumerate(decisions):
         nxt = _moment(decisions[i + 1]) if i + 1 < len(decisions) else end
         rows.append(decision_row(game, me, opp, d, nxt))
+    _reattribute_delayed_hits(rows)                       # credit the hit to the move that landed it, not the next one
     s_dealt = sum(r["dealt"] for r in rows)
     s_taken = sum(r["taken"] for r in rows)
     if replay is not None:
