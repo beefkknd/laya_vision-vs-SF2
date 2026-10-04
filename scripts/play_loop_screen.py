@@ -195,7 +195,8 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
              seed_lines: L.Registry, out: str, play_round_fn: PlayFn, state: bytes, state_id: Dict, emu,
              score_fn: Optional[ScoreFn] = None, reader=None, seed_rng: int = 0, me: str = ME, log=None,
              qwen_mode: str = "two", policy: str = "rules", table: Optional[Dict] = None,
-             save_table: Optional[str] = None, explore_rate: float = 0.1) -> Dict:
+             save_table: Optional[str] = None, explore_rate: float = 0.1,
+             explore_tries: int = VT.MIN_TRIES) -> Dict:
     """Play ``games`` games. Two policies (owner's two-system A/B): ``policy="rules"`` (default) = text-laya follows
     the short memory, rotated by System 2 after each round; ``policy="table"`` = the self-learning value table
     (sf2.system1.value_table) picks the move and is CREDITED from each round's outcomes (no Qwen, no short memory).
@@ -233,7 +234,8 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                 lines = SM.in_play(reg)
                 base = lambda m, _l=lines: two_stage_decide(cat_advisor, move_advisor, me, m, _l)
                 play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd,
-                              reader=reader, decide=VT.hybrid_decider(tbl, me, explore, base, explore=explore_rate))
+                              reader=reader, decide=VT.hybrid_decider(tbl, me, explore, base,
+                                                                      min_tries=explore_tries, explore=explore_rate))
             else:
                 lines = SM.in_play(reg)                  # FRESH each round: play with the latest short memory
                 play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
@@ -365,6 +367,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--explore", dest="explore_rate", type=float, default=0.1,
                     help="hybrid: how often to try an under-sampled move (table exploration rate; higher = more "
                          "exploration, richer table, lower win-rate during collection)")
+    ap.add_argument("--explore-tries", dest="explore_tries", type=int, default=VT.MIN_TRIES,
+                    help="hybrid: a move with fewer than this many tries in a cell still counts as under-sampled "
+                         "(the exploration COVERAGE target). Raise it to re-open exploration in cells that are "
+                         "already saturated past the default -- the lever when --explore alone no longer fires.")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -418,7 +424,7 @@ def main() -> int:
                                seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
                                state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
                                qwen_mode=args.qwen_mode, policy=args.policy, table=table_in, save_table=args.save_table,
-                               explore_rate=args.explore_rate)
+                               explore_rate=args.explore_rate, explore_tries=args.explore_tries)
     if args.policy in ("table", "hybrid") and args.save_table:
         print("saved table", args.save_table)
     if args.save_registry:

@@ -103,3 +103,20 @@ def test_hybrid_explore_tries_an_under_sampled_move():
     decide = VT.hybrid_decider(VT.blank(), "chunli", random.Random(1), _laya, explore=1.0)
     picks = {decide(make_moment(dx=36, doing="standing"))["source"] for _ in range(20)}
     assert "table-explore" in picks                         # with explore=1 it tries under-sampled moves
+
+
+def test_hybrid_coverage_target_reopens_exploration_in_a_saturated_cell():
+    # gen-2 lesson (owner 2026-10-04): once every move in a cell is past the under-sampled bar, raising the explore
+    # RATE does nothing (no move is "under"). Raising the coverage target (min_tries) is what re-opens exploration.
+    from sf2.system1.advice import available_moves, stance_of, char_categories
+    acts = available_moves(stance_of("stand", "close"), char_categories("chunli"))
+    t = VT.blank()
+    for a in acts:                                          # saturate EVERY close action to 25 tries (> 20, < 40)
+        for _ in range(25):
+            t = VT.credit(t, [_row(a, 1)])
+    lo = VT.hybrid_decider(t, "chunli", random.Random(1), _laya, min_tries=20, explore=1.0)
+    hi = VT.hybrid_decider(t, "chunli", random.Random(1), _laya, min_tries=40, explore=1.0)
+    lo_src = {lo(make_moment(dx=36, doing="standing"))["source"] for _ in range(30)}
+    hi_src = {hi(make_moment(dx=36, doing="standing"))["source"] for _ in range(30)}
+    assert "table-explore" not in lo_src                    # nothing is under-sampled at threshold 20 -> no explore
+    assert "table-explore" in hi_src                        # at threshold 40 the 25-try moves are under -> explores
