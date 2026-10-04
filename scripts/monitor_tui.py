@@ -55,6 +55,21 @@ _DOT = "·"              # middot track for games not yet played
 _VERDICT_STYLE = {"good": "bold green", "ok": "yellow", "bad": "bold red",
                   "not_scorable": "dim", None: "dim"}
 
+# ----- i18n: `--font zh` renders the panel TITLE BARS in Chinese (menu bar only; needs a CJK font) -----
+_LANG = "en"
+_ZH = {   # panel title bars only - the rest of the TUI stays in English
+    "LIVE GAMEPLAY": "实况对战", "SHORT MEMORY (in-play rules)": "短期记忆（生效规则）",
+    "QWEN (short-memory churn)": "QWEN（记忆更新）", "SESSION": "生涯", "CAREER TREND (growth)": "生涯趋势（成长）",
+    "TREND (win-rate climbing)": "趋势（胜率上升）",
+    "DATA FLOW — playing (PLAY firing)": "数据流 — 对战中（执行）",
+    "DATA FLOW — reflecting (LEARN firing)": "数据流 — 反思中（学习）",
+}
+
+
+def tr(s: str) -> str:
+    """Translate a panel title bar to the active language (identity in English)."""
+    return _ZH.get(s, s) if _LANG == "zh" else s
+
 
 def _conf_color(p: float) -> str:
     """System-1 confidence -> rich color: green high, yellow mid, red low."""
@@ -145,7 +160,7 @@ def _left_panel(m: T.DashboardModel) -> Panel:
     )
 
     body = Group(title, Text(""), hp, Text(""), trend, Text(""), pipe, Text(""), stats)
-    return Panel(body, title="LIVE GAMEPLAY", border_style="cyan")
+    return Panel(body, title=tr("LIVE GAMEPLAY"), border_style="cyan")
 
 
 def _memory_panel(m: T.DashboardModel) -> Panel:
@@ -156,7 +171,7 @@ def _memory_panel(m: T.DashboardModel) -> Panel:
     for i, rule in enumerate(m.in_play, 1):
         t.append(f"{i}. ", style="dim")
         t.append(f"{rule}\n", style="bright_cyan")      # short-memory rules in a readable accent
-    return Panel(t, title="SHORT MEMORY (in-play rules)", border_style="green")
+    return Panel(t, title=tr("SHORT MEMORY (in-play rules)"), border_style="green")
 
 
 def _qwen_panel(m: T.DashboardModel) -> Panel:
@@ -188,7 +203,7 @@ def _qwen_panel(m: T.DashboardModel) -> Panel:
             line.append(rm, style="strike")
             rows.add_row(line)
     footer = Text(f"\nstatus: {m.status}", style="dim")
-    return Panel(Group(rows, footer), title="QWEN (short-memory churn)", border_style="magenta")
+    return Panel(Group(rows, footer), title=tr("QWEN (short-memory churn)"), border_style="magenta")
 
 
 def _trend_panel(m: T.DashboardModel) -> Panel:
@@ -210,7 +225,7 @@ def _trend_panel(m: T.DashboardModel) -> Panel:
         body.append("margin  ", style="dim")
         body.append(T.spark(margins), style="cyan")
         body.append(f"  last {margins[-1]:+d}", style="dim")
-    return Panel(body, title="TREND (win-rate climbing)", border_style="green")
+    return Panel(body, title=tr("TREND (win-rate climbing)"), border_style="green")
 
 
 _PLAY_NODES = ("VISION", "TEXT", "CATEGORY", "MOVE", "CONTROL")
@@ -249,7 +264,7 @@ def _pipeline_panel(thinking: bool, frame: int) -> Panel:
         Text.from_markup("[dim]MEMORY feeds back into MOVE — the short memory the player reads.[/dim]"),
     )
     status = "reflecting (LEARN firing)" if thinking else "playing (PLAY firing)"
-    return Panel(body, title=f"DATA FLOW — {status}", border_style="yellow")
+    return Panel(body, title=tr(f"DATA FLOW — {status}"), border_style="yellow")
 
 
 def render(m: T.DashboardModel, frame: int = 0, with_footer: bool = True) -> Layout:
@@ -313,7 +328,7 @@ def _session_panel(sm: T.SessionModel) -> Panel:
             + f"   [dim]cum {rsum.cum_wins}/{rsum.cum_played} {rsum.cum_pct}%[/dim]{marker}"
         ))
     body = Group(live, Text(""), rounds)               # career growth lives in the CAREER TREND panel beside this
-    return Panel(body, title="SESSION", border_style="cyan")
+    return Panel(body, title=tr("SESSION"), border_style="cyan")
 
 
 def _career_trend(sm: T.SessionModel) -> Panel:
@@ -327,7 +342,7 @@ def _career_trend(sm: T.SessionModel) -> Panel:
     else:
         body.append("(no games yet)\n", style="dim")
     body.append(f"win-rate {sm.cum_wins}/{sm.cum_played} = {sm.cum_pct}%", style="bold green")
-    return Panel(body, title="CAREER TREND (growth)", border_style="green")
+    return Panel(body, title=tr("CAREER TREND (growth)"), border_style="green")
 
 
 def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
@@ -346,7 +361,7 @@ def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
         layout["active"].update(render(sm.active, frame, with_footer=False))
     else:
         layout["active"].update(Panel(Text("(no active round yet)", style="dim"),
-                                      title="LIVE GAMEPLAY", border_style="cyan"))
+                                      title=tr("LIVE GAMEPLAY"), border_style="cyan"))
     layout["flow"].update(_pipeline_panel(thinking, frame))
     return layout
 
@@ -470,7 +485,12 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--save", metavar="PATH", help="render ONE frame headless to PATH (.svg or "
                     ".html) and exit; no live terminal needed")
     ap.add_argument("--no-grade", action="store_true", help="skip the G5 rule grading")
+    ap.add_argument("--font", action="store_true",
+                    help="render the panel TITLE BARS in Chinese (needs a CJK-capable terminal font)")
     args = ap.parse_args(argv)
+
+    global _LANG
+    _LANG = "zh" if args.font else "en"
 
     proc = None
     session = bool(args.session) or bool(args.career)

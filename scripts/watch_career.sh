@@ -12,7 +12,15 @@ set -u
 cd "$(dirname "$0")/.."
 
 ME="${1:-chunli}"
-[ $# -gt 0 ] && shift                                   # the rest are passed through to play_career.py
+[ $# -gt 0 ] && shift                                   # the rest are split: --font -> monitor, else -> play_career
+MON_ARGS=()
+CAREER_ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --font) MON_ARGS+=(--font) ;;                       # Chinese title bars: a MONITOR arg, not a career one
+    *) CAREER_ARGS+=("$a") ;;
+  esac
+done
 export SF2_QWEN_URL="${SF2_QWEN_URL:-http://100.66.12.33:8080/v1/chat/completions}"
 PY=.venv/bin/python
 NAME="career_${ME}_$(date +%s)"
@@ -28,7 +36,7 @@ echo "driver log: ${LOG}"
 echo
 
 # start the continuous career in the background; its stdout/stderr go to the log
-$PY scripts/play_career.py --me "${ME}" --name "${NAME}" "$@" > "${LOG}" 2>&1 &
+$PY scripts/play_career.py --me "${ME}" --name "${NAME}" "${CAREER_ARGS[@]}" > "${LOG}" 2>&1 &
 CAREER_PID=$!
 cleanup() { kill ${CAREER_PID} 2>/dev/null; }
 trap cleanup EXIT INT TERM
@@ -45,4 +53,4 @@ done
 echo "watching live (Ctrl-C to stop both)..."
 sleep 1
 # the TUI tails the session: per-opponent rounds + CAREER TREND + live gameplay + DATA FLOW pulse
-$PY scripts/monitor_tui.py --session "${SESS}" --no-grade
+$PY scripts/monitor_tui.py --session "${SESS}" --no-grade "${MON_ARGS[@]}"
