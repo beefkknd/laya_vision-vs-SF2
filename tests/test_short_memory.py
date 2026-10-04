@@ -217,3 +217,15 @@ def test_default_allows_all_when_no_predicate_given():
     out, ev = SM.step(reg, _wl("W"), claims=[_claim("s.lp", range_="close")], rows=[], moves={"s.mk", "s.lp"},
                       scorer=_scorer({}))
     assert ev["added"] and "s.lp" in ev["added"][0]
+
+
+# --------------------------------------------------------------------------- graduation via pooled stats (Step 1B)
+def test_pooled_stats_graduate_a_trying_line_without_block_local_evidence():
+    # the entry carries POOLED stats saying clearly 'better' (>= MIN_TRIES both sides); block-local scorer is blind
+    # (returns 'few'). _ev prefers the pooled stats, so the rule graduates trying -> kept. This is the Step-1B fix.
+    good = {"n_mine": 25, "sum_mine": 25 * 30, "sumsq_mine": 25 * 900,
+            "n_rest": 25, "sum_rest": 25 * -10, "sumsq_rest": 25 * 100,
+            "applicable": 50, "followed": 25, "rounds_fired": 5, "wins_fired": 3, "rounds_idle": 0, "wins_idle": 0}
+    e = dict(_trying("s.mk", 5), stats=good)
+    out, ev = SM.step([e], _wl("W"), claims=[], rows=[], moves={"s.mk"}, scorer=_scorer({}))
+    assert out[0]["state"] == "kept", out[0]["why"]

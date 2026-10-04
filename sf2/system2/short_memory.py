@@ -24,6 +24,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import lessons as L
 from . import explore_pool
+from . import rule_stats
 
 Claim = Dict
 Registry = List[Dict]
@@ -122,6 +123,13 @@ def _pick_admit(reg: Registry, claims: Sequence[Claim], moves: set, rotate: int,
 
 
 # --------------------------------------------------------------------------- swap / graduate
+def _ev(entry: Dict, rows: Sequence[Dict], scorer: Scorer) -> Dict:
+    """A rule's evidence: its POOLED cross-block stats when present (Step 1B), else the block-local scorer. Pooling
+    is what lets MIN_TRIES be reached so a rule can graduate at all; the scorer fallback keeps pure tests working."""
+    st = entry.get("stats")
+    return rule_stats.evidence_from_stats(st) if st else scorer(rows, entry["claim"])
+
+
 def _score(ev: Dict, kind: str) -> float:
     """Signed goodness: higher is better in the claim's intended direction (so min() is the weakest)."""
     sign = 1.0 if L.RIGHT[kind] == "better" else -1.0
@@ -135,7 +143,7 @@ def _weakest_trying(reg: Registry, rows: Sequence[Dict], scorer: Scorer) -> Opti
     for i, r in enumerate(reg):
         if r["state"] != TRYING:
             continue
-        ev = scorer(rows, r["claim"])
+        ev = _ev(r, rows, scorer)
         (fired if ev.get("tries", 0) > 0 else idle).append((i, ev, r))
     if fired:
         return min(fired, key=lambda t: _score(t[1], t[2]["claim"]["kind"]))[0]
@@ -151,7 +159,7 @@ def _graduate(reg: Registry, rows: Sequence[Dict], scorer: Scorer) -> Registry:
     for r in reg:
         r = dict(r)
         if r["state"] == TRYING:
-            ev = scorer(rows, r["claim"])
+            ev = _ev(r, rows, scorer)
             if ev.get("tries", 0) > 0 and ev.get("cls") == L.RIGHT[r["claim"]["kind"]]:
                 r.update(state=KEPT, evidence=ev,
                          why="kept: measured clearly %s (%d tries)" % (ev["cls"], ev["tries"]))
