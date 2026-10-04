@@ -88,3 +88,12 @@ def test_round_results_reads_trace(tmp_path):
         '{"event":"round","result":"win"}\n'
         '{"event":"qwen","added":[]}\n')
     assert C.round_results(str(d)) == ["loss", "win"]
+
+def test_resolve_playbook_folder_name_and_json_file(tmp_path):
+    import os
+    folder, reg = C.resolve_playbook("foo")
+    assert folder.endswith(os.path.join("playbooks", "foo"))
+    assert reg.endswith(os.path.join("foo", "playbook.json"))
+    f = str(tmp_path / "my.json")
+    folder2, reg2 = C.resolve_playbook(f)
+    assert reg2 == os.path.abspath(f) and folder2 == os.path.dirname(os.path.abspath(f))

@@ -15,16 +15,25 @@ ME="${1:-chunli}"
 [ $# -gt 0 ] && shift                                   # the rest are split: --font -> monitor, else -> play_career
 MON_ARGS=()
 CAREER_ARGS=()
-for a in "$@"; do
-  case "$a" in
-    --font) MON_ARGS+=(--font) ;;                       # Chinese title bars: a MONITOR arg, not a career one
-    *) CAREER_ARGS+=("$a") ;;
+PB=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --font) MON_ARGS+=(--font); shift ;;                # Chinese title bars: a MONITOR arg, not a career one
+    --playbook) PB="$2"; CAREER_ARGS+=(--playbook "$2"); shift 2 ;;   # a named playbook = its own home + log
+    *) CAREER_ARGS+=("$1"); shift ;;
   esac
 done
 export SF2_QWEN_URL="${SF2_QWEN_URL:-http://100.66.12.33:8080/v1/chat/completions}"
 PY=.venv/bin/python
 NAME="career_${ME}_$(date +%s)"
 SESS="rollouts/career/${NAME}"
+if [ -n "${PB}" ]; then                                 # --playbook: the TUI watches that folder (playbook + log)
+  case "${PB}" in
+    *.json) SESS="$(dirname "${PB}")" ;;
+    /*)     SESS="${PB}" ;;
+    *)      SESS="playbooks/${PB}" ;;
+  esac
+fi
 LOG="/tmp/${NAME}.log"
 
 echo "worktree  : $(pwd)"

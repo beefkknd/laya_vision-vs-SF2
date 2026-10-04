@@ -26,6 +26,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sf2.config import QWEN_URL, REPO  # noqa: E402
 from sf2.system1.advice import char_menu_moves  # noqa: E402
+from sf2.system2 import seed_rules  # noqa: E402
 from sf2.system2.rule_entry import carry_entries, default_kit  # noqa: E402
 from sf2.vocab import FIGHTERS  # noqa: E402
 
@@ -104,6 +105,16 @@ def round_results(out_dir):
     return [r.get("result") for r in rows if r.get("event") == "round"]
 
 
+def resolve_playbook(pb):
+    """`--playbook` -> (folder, playbook.json path). A '*.json' is used as the file (its dir is the home);
+    anything else is a FOLDER name: absolute as given, else under <repo>/playbooks/. The folder holds the
+    playbook AND the play log, and the TUI watches it."""
+    if pb.endswith(".json"):
+        return (os.path.dirname(os.path.abspath(pb)) or REPO), os.path.abspath(pb)
+    folder = pb if os.path.isabs(pb) else os.path.join(REPO, "playbooks", pb)
+    return folder, os.path.join(folder, "playbook.json")
+
+
 def ladder_for(me, opps):
     """The opponent order: an explicit --opps list, else every fighter except `me`."""
     if opps:
@@ -167,7 +178,9 @@ def main():
     ap.add_argument("--cap", type=int, default=6, help="max blocks on one opponent before moving on anyway")
     ap.add_argument("--laps", type=int, default=0, help="times through the ladder; 0 = forever (Ctrl-C)")
     ap.add_argument("--carry-forward", action="store_true", help="keep the learned memory into the next opponent")
-    ap.add_argument("--book", default=None, help="start from this book instead of a BLANK playbook")
+    ap.add_argument("--book", default=None, help="seed a NEW playbook from this book instead of the blank kit")
+    ap.add_argument("--playbook", default=None, help="a playbook FILE or FOLDER to START from and keep GROWING; "
+                    "it persists across runs, so pass the same one again to RESUME. Created + seeded if missing.")
     ap.add_argument("--watch", action="store_true", help="open a VISIBLE Mesen window for each match (see the SNES game)")
     ap.add_argument("--speed", type=int, default=100, help="--watch emulation speed percent")
     ap.add_argument("--no-qwen-check", action="store_true", help="skip the Qwen server preflight")
@@ -179,7 +192,13 @@ def main():
 
     ladder = ladder_for(args.me, args.opps)
     name = args.name or ("career_%s_%d" % (args.me, int(time.time())))
-    session_dir = os.path.join(REPO, "rollouts", "career", name)
+    # A --playbook makes ONE named folder the home for the growing playbook AND the play log (and what the
+    # TUI watches): `--playbook foo` -> playbooks/foo/ with playbook.json inside; pass it again to RESUME.
+    if args.playbook:
+        session_dir, career_reg = resolve_playbook(args.playbook)
+    else:
+        session_dir = os.path.join(REPO, "rollouts", "career", name)
+        career_reg = os.path.join(session_dir, "career_reg.json")
 
     if args.dry_run:
         print("me=%s ladder=%s block=%d win_target=%.2f cap=%d laps=%s start=%s carry_forward=%s"
@@ -202,65 +221,82 @@ def main():
     print("CAREER %s  ladder: %s" % (args.me, " -> ".join(ladder)))
     print("session_dir: %s\nwatch:  python scripts/monitor_tui.py --session %s\n" % (session_dir, session_dir))
 
-    # the blank (or book) starting registry file carried into an opponent's FIRST block. A BLANK book is
-    # NOT empty: it seeds ONE attacking foothold (block/defend is already the no-rule default).
     moves = char_menu_moves(args.me)
-    blank_path = os.path.join(session_dir, "_blank.json")
-    with open(blank_path, "w") as f:
-        json.dump(default_kit(moves), f, indent=1)
-    print("blank start kit: %s" % [e["line"] for e in default_kit(moves)])
 
-    nn = 0
-    carry_next = None                      # None -> blank/book; a path -> carry it
+    def _reg_lines():
+        try:
+            return [e.get("line") for e in json.load(open(career_reg))]
+        except (OSError, ValueError):
+            return []
+
+    # ONE growing playbook for the whole career: carried into EVERY block, never reset per opponent, and
+    # only replaced when a block produced a valid save, so a crash / Mesen restart never loses it. If the
+    # playbook file already exists (a --playbook you ran before), RESUME from it; otherwise seed it.
+    if os.path.exists(career_reg) and _reg_lines():
+        print("RESUMING playbook %s (%d rules)" % (career_reg, len(_reg_lines())))
+    else:
+        seed_entries = (list(seed_rules.seed_lessons(args.book, ladder[0], args.me)) or default_kit(moves)
+                        if args.book else default_kit(moves))
+        json.dump(seed_entries, open(career_reg, "w"), indent=1)
+        print("start kit: %s" % [e["line"] for e in seed_entries])
+
+    # continue the play-log numbering so a resumed playbook APPENDS its history instead of overwriting it
+    existing = [n for n in os.listdir(session_dir) if n.startswith("round_") and os.path.isdir(os.path.join(session_dir, n))]
+    nn = (max((int(n.split("_")[1]) for n in existing), default=-1) + 1) if existing else 0
     lap = 0
     streak = []                            # recent round results across turns (for the loss trigger)
     rotate = 0                             # which exploration-pool rule to inject next
     try:
         while args.laps == 0 or lap < args.laps:
             for opp in ladder:
-                # per-opponent start: carry-forward from the last opponent, else blank (or book seed)
-                reg = carry_next if (args.carry_forward and carry_next) else (None if args.book else blank_path)
                 beaten = False
                 for b in range(args.cap):
-                    save_reg = os.path.join(session_dir, "reg_%s.json" % opp)
-                    out = run_block(args.me, opp, nn, session_dir, reg, save_reg,
+                    tmp = os.path.join(session_dir, "_block_save.json")
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                    out = run_block(args.me, opp, nn, session_dir, career_reg, tmp,
                                     args.block, args.rounds, args.cat_advisor, args.move_advisor,
                                     watch=args.watch, speed=args.speed)
-                    wr = block_winrate(out)
-                    reg = save_reg                       # learn ON TOP within this opponent
-                    nn += 1
-                    print("  vs %-8s block %d: win-rate %s  (%s)"
-                          % (opp, b, ("%.0f%%" % (100 * wr)) if wr is not None else "n/a", os.path.basename(out)))
-
-                    # FORCED STRATEGY CHANGE: losing straight rounds across turns with no payoff is
-                    # meaningless repetition -> inject a fresh offensive rule so her behaviour must change.
-                    # The window ADAPTS by stage: aggressive while her memory is thin, patient once set.
-                    streak += round_results(out)
+                    # GROW: promote the block's save into the career registry ONLY if it is valid, so a
+                    # crashed/restarted block keeps the previous playbook instead of losing it.
                     try:
-                        entries = json.load(open(save_reg)) if os.path.exists(save_reg) else []
+                        saved = json.load(open(tmp))
+                        if isinstance(saved, list) and saved:
+                            os.replace(tmp, career_reg)
                     except (OSError, ValueError):
-                        entries = []
-                    window = loss_window(len(entries), args.loss_trigger_early, args.loss_trigger, args.stage_rules)
+                        print("  (block produced no registry -- keeping the current playbook, %d rules)" % len(_reg_lines()))
+                    wr = block_winrate(out)
+                    nn += 1
+                    print("  vs %-8s block %d: win-rate %s  rules=%d  (%s)"
+                          % (opp, b, ("%.0f%%" % (100 * wr)) if wr is not None else "n/a",
+                             len(_reg_lines()), os.path.basename(out)))
+
+                    # FORCED STRATEGY CHANGE on a losing streak (stage-adaptive window). Injected into the
+                    # GROWING career registry so it persists.
+                    streak += round_results(out)
+                    lines = _reg_lines()
+                    window = loss_window(len(lines), args.loss_trigger_early, args.loss_trigger, args.stage_rules)
                     if needs_intervention(streak, window):
-                        stage = "EARLY" if len(entries) < args.stage_rules else "LATER"
-                        line = pick_forced_rule([e.get("line") for e in entries], rotate)
+                        stage = "EARLY" if len(lines) < args.stage_rules else "LATER"
+                        line = pick_forced_rule(lines, rotate)
                         rotate += 1
                         if line:
-                            entries = list(entries) + carry_entries([line], moves)
-                            json.dump(entries, open(save_reg, "w"), indent=1)
+                            entries = json.load(open(career_reg)) + carry_entries([line], moves)
+                            json.dump(entries, open(career_reg, "w"), indent=1)
                             print("  !! %d straight round losses (%s stage, %d rules) -> FORCED new rule: + %r"
-                                  % (window, stage, len(entries) - 1, line))
+                                  % (window, stage, len(lines), line))
                         streak = []          # give the new strategy a clean window before triggering again
 
                     if wr is not None and wr >= args.win_target:
                         beaten = True
-                        print("  -> BEATEN %s (>= %.0f%%), moving on" % (opp, 100 * args.win_target))
+                        print("  -> BEATEN %s (>= %.0f%%), moving on (playbook kept, %d rules)"
+                              % (opp, 100 * args.win_target, len(_reg_lines())))
                         break
                 if not beaten:
-                    print("  -> moved on from %s after %d blocks (not beaten)" % (opp, args.cap))
-                carry_next = os.path.join(session_dir, "reg_%s.json" % opp)
+                    print("  -> moved on from %s after %d blocks (playbook kept, %d rules)"
+                          % (opp, args.cap, len(_reg_lines())))
             lap += 1
-            print("=== lap %d complete ===" % lap)
+            print("=== lap %d complete (playbook: %d rules) ===" % (lap, len(_reg_lines())))
     except KeyboardInterrupt:
         print("\n(stopped)")
     return 0
