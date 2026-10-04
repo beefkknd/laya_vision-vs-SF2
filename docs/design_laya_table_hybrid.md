@@ -141,3 +141,44 @@ move. (Attack/movement/defense ≈ the `cat_laya` categories, so a "bee" ≈ a c
 - Keep the `mean>0` overwrite floor (the anti-defensive-collapse guard) whatever the player is.
 
 Both directions branch off `feat/table-system1`, so converging is a normal merge.
+
+---
+
+## 7. Phase 2: Qwen-self-guided learning (hypothesis + validation gate)
+
+**Hypothesis (owner):** given enough signal about the learning state, Qwen can *self-guide the
+study* — set the explore/exploit ratio and depth, pick which branches/categories are under-explored
+and need attention, emphasize a bee specialty, decide when to re-seed/merge or change opponent —
+closing the self-sustaining loop of §6. The bees are the hands, the table is the memory, Qwen
+becomes the *thinking that sets the learning schedule*.
+
+**Also under consideration:** short play bursts with an **adjustable learning ratio** re-set between
+bursts (a schedule, not a constant: explore-heavy while the tree is thin → exploit-heavy as it
+thickens). Short bursts give a noisy win-rate, so drive the ratio off **coverage** (how many
+branches are still thin — stable even over a short burst), not off win-rate.
+
+**Validation gate — prove Qwen's judgment BEFORE wiring it into the bee/quorum plan.** Qwen is a
+product-LLM in a consequential control loop, so it is graded against ground truth, not trusted for
+sounding reasonable. The table gives us a **mechanical oracle**: per-branch coverage (`n`), per-leaf
+mean/variance, the genuinely thinnest branches, category balance (from the table); win/hp trend,
+source split, bee-agreement rate (from traces) — all computable, so the *right* control call is
+computable too.
+
+- **Test A (cheap, offline, first — "can Qwen READ the signal?").** Feed Qwen the learning-state
+  summary from the existing gen-1/2/3 snapshots; ask the control questions (explore vs exploit +
+  ratio, which branches/categories under-explored, which bee needed). Grade MECHANICALLY: did it
+  name the actually-thinnest branches? did its explore/exploit call match what coverage says? did it
+  avoid the obviously-bad call (exploit-hard while half the tree is unsampled)? Per the product-LLM
+  rule: ≥10 permutations (rephrase/reorder/noise the signal) × repeats, score the matrix
+  (consistent-right = fits the bill; flip-flops = ambiguous signal/prompt, fix or keep mechanical;
+  consistent-wrong = keep mechanical control).
+- **Test B (expensive, second — "does Qwen's control IMPROVE outcomes?").** Only if A passes. A/B a
+  few generations under Qwen-set ratios vs the mechanical schedule (same seed table); pooled
+  win-rate + coverage. Qwen-guided must match or beat mechanical.
+
+**Integrate into the bee/quorum plan only if A (and ideally B) pass.** Qwen stays the *bounded*
+meta-controller (§6 guardrails: ratios clamped, `mean>0` floor kept, merge `shared=seed` kept, hard
+gate kept, stop conditions), and the table stays **Qwen-agnostic** — Qwen sets *how fast / where* to
+learn, never *what a filled leaf means*.
+
+Status: queued to run after gen-3 completes (2026-10-04).
