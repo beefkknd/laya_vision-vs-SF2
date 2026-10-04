@@ -90,6 +90,21 @@ Headless on the M3 Ultra this is feasible; laya-prior + Qwen-narrowed exploratio
 
 No code until Fable + GPT-6 have reviewed this and the owner picks a direction.
 
+## POST-BUILD REVIEW (Fable + codex, 2026-10-04) — fixed, and two deferred
+Independent blind review of Stages 1-3a. Key consistency (play-time `when` == learn-time `when`) CONFIRMED CLEAN.
+Fixed (commit 4f4934c): reattribution zeroing combo follow-ups (now keys on HER move's kind; a non-damaging move's
+drawn damage credits the nearest earlier ATTACK; fixes the unknown-sprite sink too); one-sided split false positive
+(now a two-directional CI reversal); orphaned parent after a split (choose falls back to the base cell); variance
+clamp; random exploit tie-break (no accidental block_high prior); range=None guard; depth via .get.
+DEFERRED:
+- **Before 3b (the A/B):** `--no-score` scores the round's LAST window 0 and reads the result from the bars BEFORE
+  the final blow -> the KO/finishing move gets 0 credit AND `block_winrate`/the BEATEN gate (the A/B's metric) is
+  mis-scored. Pre-existing; affects both arms, so 3a testing is fine, but FIX before judging the A/B. Needs logging
+  `hud.health` per read in reads.jsonl so the last window + `round_result` use the final bars. Its own task.
+- **Owner decision:** non-stationarity -- one pooled table across the whole ladder, lifetime means, eps decays to
+  ~0. Likely INTENTIONAL (opponent-agnostic, like laya). If per-opponent adaptation is wanted, add an eps floor /
+  a forgetting window / a per-opponent key. Not a bug; your call.
+
 ---
 
 # PLAN OF RECORD (after Fable + GPT-6 review, 2026-10-04)
