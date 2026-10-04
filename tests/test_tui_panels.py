@@ -51,3 +51,14 @@ def test_session_view_has_career_trend_and_data_flow(tmp_path):
     txt = _to_text(mt.render_session(sm, frame=2))
     for tag in ("SESSION", "CAREER TREND", "DATA FLOW", "SHORT MEMORY"):
         assert tag in txt, "missing panel: %s" % tag
+
+
+def test_career_trend_shows_damage_share_percent(tmp_path):
+    """Win/loss is too slow to see movement; the career trend ALSO shows the share of hp inflicted as a
+    percent that moves every round. Seen RED before the dmg-share series/line existed."""
+    rd = os.path.join(str(tmp_path), "round_00_honda")
+    _single_run(rd)                                        # one round: dealt 80, taken 40 -> ~67% share
+    sm = T.build_session_model(str(tmp_path), grade_qwen=False)
+    txt = _to_text(mt._career_trend(sm))
+    assert "dmg" in txt.lower(), "career trend must show a damage-share line"
+    assert "%" in txt

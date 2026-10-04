@@ -543,3 +543,56 @@ def test_session_save_svg(tmp_path):
     assert out.returncode == 0, out.stderr
     assert os.path.isfile(out_svg)
     assert "█" in open(out_svg, encoding="utf-8").read()
+
+
+# ----------------------------- cumulative qwen "since" game-count (keeps growing on continue) + per-round dmg
+
+def _write_round_with_qwen(session, num, opp, n_reflections):
+    """A session round dir whose trace has ``n_reflections`` qwen events (one per SF2 round), each adding a
+    rule and recording a per-round dealt/taken. Drives the cumulative since-count and per_round_dmg."""
+    rdir = os.path.join(session, "round_%02d_%s" % (num, opp))
+    os.makedirs(rdir, exist_ok=True)
+    with open(os.path.join(rdir, "run.json"), "w") as fh:
+        json.dump({"me": "chunli", "opp": opp, "games": 1, "rounds": n_reflections}, fh)
+    events = [{"event": "seed", "lines": []}]
+    for r in range(n_reflections):
+        _write_round(rdir, 0, r, [_decision_record(1, 1.0, 0.8)])
+        events.append({"event": "round", "game": 0, "round": r, "result": "win",
+                       "hp": 10, "dealt": 60, "taken": 40})
+        events.append({"event": "qwen", "game": 0, "round": r, "added": ["rule r%d" % r],
+                       "removed": [], "in_play_after": ["rule r%d" % r]})
+    with open(os.path.join(rdir, "trace.jsonl"), "w") as fh:
+        for e in events:
+            fh.write(json.dumps(e) + "\n")
+    return rdir
+
+
+def test_qwen_since_is_1based_within_a_single_block(tmp_path):
+    """Each churn event carries ``since`` = the Nth reflection of the block (1,2,3...): the game-count the TUI shows."""
+    rdir = _write_round_with_qwen(str(tmp_path), 0, "honda", 3)
+    m = T.build_model(rdir, grade_qwen=False)
+    assert [qv.since for qv in m.qwen] == [1, 2, 3]
+
+
+def test_qwen_since_keeps_growing_across_a_continued_career(tmp_path):
+    """When the career CONTINUES (a new block / after a Mesen restart), the churn numbering does NOT reset to 1:
+    the active block picks up from the highest already played. Seen RED before ``since`` was made cumulative."""
+    session = str(tmp_path / "s")
+    os.makedirs(session)
+    json.dump({"rounds": 2, "opp_order": ["honda", "ken"]}, open(os.path.join(session, "session.json"), "w"))
+    _write_round_with_qwen(session, 0, "honda", 3)     # 3 reflections already played
+    _write_round_with_qwen(session, 1, "ken", 2)       # the active (latest) block
+    sm = T.build_session_model(session, grade_qwen=False)
+    assert [qv.since for qv in sm.active.qwen] == [4, 5]      # continues 4,5 -- not reset to 1,2
+
+
+def test_session_per_round_dmg_accumulates_across_the_career(tmp_path):
+    """per_round_dmg is one (dealt, taken) per ROUND across every block, in order -- the raw for the dmg-share trend."""
+    session = str(tmp_path / "s")
+    os.makedirs(session)
+    json.dump({"rounds": 2, "opp_order": ["honda", "ken"]}, open(os.path.join(session, "session.json"), "w"))
+    _write_round_with_qwen(session, 0, "honda", 3)
+    _write_round_with_qwen(session, 1, "ken", 2)
+    sm = T.build_session_model(session, grade_qwen=False)
+    assert len(sm.per_round_dmg) == 5
+    assert sm.per_round_dmg[0] == (60, 40)

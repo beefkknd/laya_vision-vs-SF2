@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 HP_MAX = 176                       # full health bar in SF2 hp units; facts healths are 0..1 fractions
@@ -91,6 +91,7 @@ class QwenView:
     added: Tuple[GradedRule, ...]
     removed: Tuple[str, ...]
     in_play_after: Tuple[str, ...]
+    since: int = 0                           # the reflection's CAREER game-count (1-based, cumulative across blocks)
 
 
 @dataclass(frozen=True)
@@ -148,6 +149,7 @@ class SessionModel:
     rounds: Tuple[RoundSummary, ...]           # one per round dir, in round order
     per_game_wl: Tuple[str, ...]               # cumulative, every game of every round, in order
     per_round_wl: Tuple[str, ...]              # cumulative, every ROUND (health bar) in order - the finest unit
+    per_round_dmg: Tuple[Tuple[int, int], ...] # cumulative, (dealt, taken) per ROUND in order - raw for the dmg-share trend
     cum_wins: int
     cum_played: int
     cum_pct: int
@@ -275,6 +277,31 @@ def cum_winrate_series(per_game: Sequence[str]) -> Tuple[float, ...]:
         if v == "W":
             wins += 1
         out.append(wins / i)
+    return tuple(out)
+
+
+def damage_share_series(dmg: Sequence[Tuple[int, int]]) -> Tuple[float, ...]:
+    """Per-round share of hp inflicted = dealt/(dealt+taken), one per round in order. Unlike W/L (which only
+    moves on a decided match) this changes EVERY round, so the trend is fast to read. 0 when no damage either way.
+
+    >>> damage_share_series([(80, 40), (0, 0)])
+    (0.6666666666666666, 0.0)
+    """
+    out: List[float] = []
+    for dealt, taken in dmg:
+        tot = dealt + taken
+        out.append((dealt / tot) if tot else 0.0)
+    return tuple(out)
+
+
+def cum_damage_share_series(dmg: Sequence[Tuple[int, int]]) -> Tuple[float, ...]:
+    """Running cumulative dealt/(cumulative dealt+taken) after each round: the climbing 'offense' percent."""
+    out: List[float] = []
+    d = t = 0
+    for dealt, taken in dmg:
+        d += dealt
+        t += taken
+        out.append((d / (d + t)) if (d + t) else 0.0)
     return tuple(out)
 
 
@@ -546,13 +573,14 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
     if grade_qwen and grader is None:
         grader = get_grader()
     qwen_views: List[QwenView] = []
-    for e in qwen_events:
+    for i, e in enumerate(qwen_events, 1):       # i = this block's Nth reflection = the game-count the TUI shows
         added = tuple(_grade_line(ln, grader) for ln in (e.get("added", []) or []))
         qwen_views.append(QwenView(
             game=int(e.get("game", 0) or 0),
             added=added,
             removed=tuple(e.get("removed", []) or []),
             in_play_after=tuple(e.get("in_play_after", []) or []),
+            since=i,
         ))
 
     results = tuple(RoundResult(
@@ -647,13 +675,17 @@ def build_session_model(session_dir: str, grader: Optional[GradeFn] = None,
     summaries: List[RoundSummary] = []
     cum_series: List[str] = []
     round_series: List[str] = []       # per ROUND (health bar) across the whole session - the finest trend unit
+    dmg_series: List[Tuple[int, int]] = []     # (dealt, taken) per ROUND across the whole session
     active: Optional[DashboardModel] = None
     active_num, active_opp = -1, "?"
+    active_since_base = 0               # qwen reflections already played BEFORE the active block (so since keeps growing)
+    qwen_before = 0                    # running count of qwen reflections across the blocks seen so far
     for num, opp, dirname in round_dirs:
         rd = os.path.join(session_dir, dirname)
         dm = build_model(rd, grader=grader, grade_qwen=grade_qwen, max_decisions=max_decisions)
         wl = list(dm.per_game_wl)
         round_series += ["W" if r.result == "win" else ("L" if r.result == "loss" else "T") for r in dm.results]
+        dmg_series += [(r.dealt, r.taken) for r in dm.results]
         cum_series += wl
         cw, cp, cpct = win_rate(cum_series)
         summaries.append(RoundSummary(
@@ -664,6 +696,14 @@ def build_session_model(session_dir: str, grader: Optional[GradeFn] = None,
             cum_wins=cw, cum_played=cp, cum_pct=cpct,
         ))
         active, active_num, active_opp = dm, num, opp     # last iteration -> the live round
+        active_since_base = qwen_before                   # reflections before THIS block; the last block's value sticks
+        qwen_before += len(dm.qwen)
+
+    # CONTINUE: the active block's churn numbering picks up from the career total, not reset to 1 (owner: keep
+    # growing across a Mesen restart). Immutable rebuild -- a fresh QwenView/DashboardModel, never a mutation.
+    if active is not None and active_since_base and active.qwen:
+        bumped = tuple(replace(qv, since=qv.since + active_since_base) for qv in active.qwen)
+        active = replace(active, qwen=bumped)
 
     cum_wins, cum_played, cum_pct = win_rate(cum_series)
 
@@ -681,6 +721,7 @@ def build_session_model(session_dir: str, grader: Optional[GradeFn] = None,
     return SessionModel(
         session_dir=session_dir, rounds_planned=rounds_planned, opp_order=opp_order,
         rounds=tuple(summaries), per_game_wl=tuple(cum_series), per_round_wl=tuple(round_series),
+        per_round_dmg=tuple(dmg_series),
         cum_wins=cum_wins, cum_played=cum_played, cum_pct=cum_pct,
         active_num=active_num, active_opp=active_opp, active=active,
         status=status, error=error,

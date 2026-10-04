@@ -1,5 +1,6 @@
 """Pure trend-series helpers for the monitor TUI (win-rate climbs, margin sparkline, bar chart)."""
-from sf2.eval.tui_model import RoundResult, cum_winrate_series, margin_series, spark, vbars
+from sf2.eval.tui_model import (RoundResult, cum_damage_share_series, cum_winrate_series,
+                                damage_share_series, margin_series, spark, vbars)
 
 
 def test_cum_winrate_climbs():
@@ -20,6 +21,23 @@ def test_spark_monotonic_and_empty():
     s = spark([0, 1, 2, 3, 4, 5, 6, 7])
     assert s[0] == "▁" and s[-1] == "█"
     assert len(s) == 8
+
+
+def test_damage_share_moves_every_round():
+    # share of hp inflicted = dealt/(dealt+taken), one per round -- a FASTER signal than W/L:
+    # a lost round where she still dealt 60 vs took 90 is a 0.4 share, not a flat 0.
+    dmg = [(80, 40), (60, 90), (120, 0)]
+    s = damage_share_series(dmg)
+    assert s == (80 / 120, 60 / 150, 1.0)
+    assert damage_share_series([]) == ()
+    assert damage_share_series([(0, 0)]) == (0.0,)        # no damage either way -> 0, never a divide-by-zero
+
+
+def test_cum_damage_share_is_a_running_percent():
+    dmg = [(80, 40), (20, 60)]
+    c = cum_damage_share_series(dmg)
+    assert c == (80 / 120, 100 / 200)                     # cumulative dealt / cumulative (dealt+taken)
+    assert cum_damage_share_series([]) == ()
 
 
 def test_vbars_shape_and_rising():

@@ -183,11 +183,16 @@ def _qwen_panel(m: T.DashboardModel) -> Panel:
         rows.add_row(Text(""))
     # per-round reflection emits a qwen event every round; show only the ones that actually CHANGED the
     # playbook (newest last), so real churn keeps scrolling up instead of being buried by 'no change'.
+    # CAREER game-count: use each reflection's cumulative 'since' (keeps growing across a continue/restart,
+    # not reset to 0 per block). Show the highest reached up top so the current count is always visible.
+    highest = max((qv.since for qv in m.qwen), default=0)
+    if highest:
+        rows.add_row(Text(f"career: game {highest} so far", style="dim"))
     changed = [qv for qv in m.qwen if qv.added or qv.removed][-6:]
     if not changed:
         rows.add_row(Text("(no rule changes yet)", style="dim"))
     for qv in changed:
-        rows.add_row(Text(f"game {qv.game}:", style="bold"))
+        rows.add_row(Text(f"game {qv.since}:", style="bold"))
         for gr in qv.added:
             line = Text("  + ", style="green")
             line.append(gr.line)
@@ -343,6 +348,16 @@ def _career_trend(sm: T.SessionModel) -> Panel:
             rows.append(Text(row, style="green"))
         rows.append(Text.from_markup(
             T.shaded_bar(wins / len(wl), TREND_W, color="green") + f"  [bold green]{wins}/{len(wl)} rounds won[/bold green]"))
+        # dmg share: the share of hp SHE inflicts (dealt/(dealt+taken)). Win/loss is too slow to see; this
+        # moves every round. A climbing cumulative bar + a per-round sparkline so the movement is visible.
+        dmg = sm.per_round_dmg
+        cum = T.cum_damage_share_series(dmg)
+        if cum:
+            pct = int(round(cum[-1] * 100))
+            rows.append(Text.from_markup(
+                T.shaded_bar(cum[-1], TREND_W, color="cyan") + f"  [bold cyan]dmg share {pct}%[/bold cyan]"))
+            rows.append(Text.from_markup(
+                "[dim]dmg/round [/dim][cyan]" + T.spark(T.damage_share_series(dmg), lo=0.0, hi=1.0) + "[/cyan]"))
     else:
         rows.append(Text("(no rounds yet)", style="dim"))
     return Panel(Group(*rows), title=tr("CAREER TREND (growth)"), border_style="green")
