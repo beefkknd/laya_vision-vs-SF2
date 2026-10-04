@@ -175,20 +175,42 @@ def _maybe_split(t: Table, min_tries: int) -> None:
                     return
 
 
-def credit(table: Table, drows: Sequence[Dict], min_tries: int = MIN_TRIES) -> Table:
+def _nstep_return(nets: Sequence[float], i: int, horizon: int, gamma: float) -> float:
+    """Discounted sum of net hp from decision ``i`` over the next ``horizon`` decisions (clamped to the round
+    end): Σ_{k=0}^{horizon} gamma^k * nets[i+k]. horizon=0 -> just nets[i] (the one-step reward)."""
+    total = 0.0
+    for k in range(horizon + 1):
+        j = i + k
+        if j >= len(nets):
+            break
+        total += (gamma ** k) * nets[j]
+    return total
+
+
+def credit(table: Table, drows: Sequence[Dict], min_tries: int = MIN_TRIES,
+           horizon: int = 0, gamma: float = 1.0) -> Table:
     """Fold one round's decision rows into a NEW table (immutable). Each row's net hp (dealt-taken, already
     delayed-hit-corrected upstream) updates the (when, action) Welford stats for the move she played, plus a
-    his_label SHADOW tally per base cell (while unsplit) used to detect a needed split (``_maybe_split``)."""
+    his_label SHADOW tally per base cell (while unsplit) used to detect a needed split (``_maybe_split``).
+
+    ``horizon`` / ``gamma`` (backlog B1, diagnostic §0a): with horizon>0 a decision is credited with the
+    DISCOUNTED RETURN over the next ``horizon`` decisions, not just its own one-step net -- so a setup move
+    earns the downstream payoff it enables, fixing the measured credit myopia (r(immediate, 5-step)=0.50).
+    This makes the cell a truncated n-step Q-estimate rather than a one-step reward. horizon=0 (default) is
+    the original one-step behaviour exactly. The forward sum runs over the real hp sequence (all rows in
+    order, including unkeyable ones), but only keyable rows get their own cell credit."""
     t = _clone(table)
-    for r in drows:
+    nets = [net_of(r) for r in drows]
+    for i, r in enumerate(drows):
         act = r.get("action")
         if not act or r.get("range") is None:        # a malformed row with no range can't be keyed reliably -> skip
             continue
         rng, doing, fb, lab = r.get("range"), opp_doing(r), r.get("opp_shot"), str(r.get("his_label"))
         b = base_key(rng, doing, fb)
-        _acc(t["cells"].setdefault(when_key(rng, doing, fb, lab, t["depth"]), {}), act, net_of(r))
+        val = _nstep_return(nets, i, horizon, gamma) if horizon else nets[i]
+        _acc(t["cells"].setdefault(when_key(rng, doing, fb, lab, t["depth"]), {}), act, val)
         if not t["depth"].get(b):                            # track shadow only while the base cell is unsplit
-            _acc(t["shadow"].setdefault(b, {}).setdefault(lab, {}), act, net_of(r))
+            _acc(t["shadow"].setdefault(b, {}).setdefault(lab, {}), act, val)
     _maybe_split(t, min_tries)
     return t
 

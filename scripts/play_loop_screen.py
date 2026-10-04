@@ -200,7 +200,8 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
              qwen_mode: str = "two", policy: str = "rules", table: Optional[Dict] = None,
              save_table: Optional[str] = None, explore_rate: float = 0.1,
              explore_tries: int = VT.MIN_TRIES, quorum: Optional[QuorumConfig] = None,
-             quorum_state: Optional[Dict] = None, save_quorum: Optional[str] = None, qwen_pick=None) -> Dict:
+             quorum_state: Optional[Dict] = None, save_quorum: Optional[str] = None, qwen_pick=None,
+             credit_horizon: int = 0, credit_gamma: float = 1.0) -> Dict:
     """Play ``games`` games. Two policies (owner's two-system A/B): ``policy="rules"`` (default) = text-laya follows
     the short memory, rotated by System 2 after each round; ``policy="table"`` = the self-learning value table
     (sf2.system1.value_table) picks the move and is CREDITED from each round's outcomes (no Qwen, no short memory).
@@ -274,7 +275,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                                     "source": summary["source"]}) + "\n")
             trace.flush()
             if policy in ("table", "hybrid", "quorum"):  # CREDIT the table from this round's outcomes (every round)
-                tbl = VT.credit(tbl, drows)
+                tbl = VT.credit(tbl, drows, horizon=credit_horizon, gamma=credit_gamma)
                 if policy == "quorum":                   # ...and each voter's reliability, from the same outcomes
                     QR.credit(qrel, decisions, drows, qcfg)
                     rsrc: Dict[str, int] = {}
@@ -416,6 +417,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="policy quorum: start the voter-reliability state from this JSON")
     ap.add_argument("--save-quorum", dest="save_quorum", default=None,
                     help="policy quorum: write the voter-reliability state here after the run")
+    ap.add_argument("--horizon", dest="credit_horizon", type=int, default=0,
+                    help="table/hybrid credit: n-step horizon (backlog B1). >0 credits a decision with the discounted "
+                         "return over the next N decisions (fixes setup-move myopia); 0 = one-step reward (default)")
+    ap.add_argument("--gamma", dest="credit_gamma", type=float, default=1.0,
+                    help="table/hybrid credit: discount for the n-step return (only used with --horizon>0)")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -486,7 +492,8 @@ def main() -> int:
                                state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
                                qwen_mode=args.qwen_mode, policy=args.policy, table=table_in, save_table=args.save_table,
                                explore_rate=args.explore_rate, explore_tries=args.explore_tries,
-                               quorum=qcfg, quorum_state=qstate, save_quorum=args.save_quorum, qwen_pick=qwen_pick)
+                               quorum=qcfg, quorum_state=qstate, save_quorum=args.save_quorum, qwen_pick=qwen_pick,
+                               credit_horizon=args.credit_horizon, credit_gamma=args.credit_gamma)
     if args.policy in ("table", "hybrid", "quorum") and args.save_table:
         print("saved table", args.save_table)
     if args.save_registry:
