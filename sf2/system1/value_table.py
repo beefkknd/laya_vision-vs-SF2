@@ -21,6 +21,10 @@ from .advice import opp_doing
 MIN_TRIES = 20          # samples before a (when, action) mean is trusted / a cell may split (same threshold family
 #                         as move_coach.MIN_TRIES; kept local so sf2/system1 does not import sf2/system2)
 EPS0 = 0.3              # base exploration rate; per-cell eps = EPS0 * MIN_TRIES / (MIN_TRIES + n_cell)
+OVERRIDE_TRIES = 8      # HYBRID override threshold (owner 2026-10-04: laya is limited, give the table MORE weight) --
+#                         the table may override text-laya on a clearly-good cell with only this many samples (< the
+#                         MIN_TRIES used to TRUST a mean / split), so the table speaks sooner. The mean>0 floor stays,
+#                         so a cell where everything is net-negative still defers to laya (no defensive drift).
 # Density by distance (owner 2026-10-04): the closer the fighters, the more DETAIL worth carrying -- up close there
 # are many interacting options (throws, close normals, mix-ups), so allow a cell to split by his_label there; far
 # away she has few options and the situation is coarse, so far cells stay coarse (no split). (Action COUNT is
@@ -173,14 +177,18 @@ def _cell_view(table: Table, when: str) -> Dict[str, List]:
 
 
 def hybrid_decider(table: Table, me: str, rng: random.Random, base_decide,
-                   min_tries: int = MIN_TRIES, explore: float = 0.1):
+                   min_tries: int = MIN_TRIES, explore: float = 0.1, override_tries: int = OVERRIDE_TRIES):
     """HYBRID policy (owner 2026-10-04, after the pure table lost to ryu by tanking the neutral game): text-laya is
-    the PLAYER via ``base_decide(moment) -> {action, ...}`` (its trained neutral play); the value table only
-    OVERRIDES in a cell where it is CONFIDENT a move is clearly good (n>=min_tries AND mean net hp > 0) -- so it adds
-    the wins it actually learned (punish-stunned, lightning_legs) without forcing the from-scratch defensive-losing
-    policy. A small fixed ``explore`` rate still tries an under-sampled followable move so the table keeps learning
-    (even from losing games), but rarely enough not to wreck text-laya's neutral. The table is credited every round
-    regardless of who chose. Returns the decision dict tagged with ``source`` (laya / table / table-explore)."""
+    the PLAYER via ``base_decide(moment) -> {action, ...}`` (its trained neutral play); the value table OVERRIDES in a
+    cell where it is confident a move is clearly good (n >= ``override_tries`` AND mean net hp > 0) -- so it adds the
+    wins it actually learned (punish-stunned, lightning_legs) without forcing the from-scratch defensive-losing policy.
+    ``override_tries`` (default OVERRIDE_TRIES, well below ``min_tries``) is the owner's "give the table more weight"
+    knob: the table speaks with less data, since laya is limited. The mean>0 floor stays, so a cell where every
+    sampled move is net-negative defers to laya's neutral aggression (never the least-bad defensive move -- that is
+    what tanked the pure table). A small fixed ``explore`` rate still tries an under-sampled followable move
+    (``min_tries`` is the coverage target) so the table keeps learning even from losing games, but rarely enough not
+    to wreck text-laya's neutral. The table is credited every round regardless of who chose. Returns the decision dict
+    tagged with ``source`` (laya / table / table-explore)."""
     from .advice import available_moves, stance_of, char_categories
     from .action_menu import category_of
     from ..vocab import range_of
@@ -195,8 +203,8 @@ def hybrid_decider(table: Table, me: str, rng: random.Random, base_decide,
         if under and rng.random() < explore:                 # a little discovery so the table keeps learning
             a = rng.choice(under)
             return {"action": a, "when": when, "explored": True, "source": "table-explore", "category": category_of(a)}
-        good = [(mean(cell.get(a)), a) for a in actions if count(cell, a) >= min_tries and mean(cell.get(a)) > 0]
-        if good:                                             # override text-laya only where the table is confident-good
+        good = [(mean(cell.get(a)), a) for a in actions if count(cell, a) >= override_tries and mean(cell.get(a)) > 0]
+        if good:                                             # override text-laya where the table is confident-good
             a = max(good)[1]
             return {"action": a, "when": when, "explored": False, "source": "table", "category": category_of(a)}
         d = dict(base_decide(m))                             # otherwise defer to text-laya's neutral play

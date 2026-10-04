@@ -76,6 +76,29 @@ def test_hybrid_does_not_override_with_a_known_bad_move():
     assert d["source"] == "laya"                            # defers; the table's move there is net-negative
 
 
+def test_hybrid_overrides_sooner_than_the_exploration_threshold():
+    # TABLE WEIGHT (owner 2026-10-04: laya is limited, lean on the table): a clearly-good move needs only
+    # OVERRIDE_TRIES samples -- fewer than MIN_TRIES -- to override text-laya, so the table speaks with less data.
+    assert VT.OVERRIDE_TRIES < VT.MIN_TRIES
+    t = VT.blank()
+    for _ in range(VT.OVERRIDE_TRIES):                      # fewer samples than the old MIN_TRIES gate required
+        t = VT.credit(t, [_row("throw_F+hp", 15)])
+    decide = VT.hybrid_decider(t, "chunli", random.Random(0), _laya, explore=0.0)
+    d = decide(make_moment(dx=36, doing="standing"))
+    assert d["action"] == "throw_F+hp" and d["source"] == "table"   # overrides on OVERRIDE_TRIES, not MIN_TRIES
+
+
+def test_hybrid_still_floors_on_positive_mean_so_it_never_drifts_defensive():
+    # the mean>0 FLOOR stays: in a cell where the table's only sampled move is net-negative, defer to laya's
+    # neutral aggression rather than overriding to the least-bad (defensive) move -- guards the pure-table collapse.
+    t = VT.blank()
+    for _ in range(VT.OVERRIDE_TRIES + 2):
+        t = VT.credit(t, [_row("block_high", -5)])
+    decide = VT.hybrid_decider(t, "chunli", random.Random(0), _laya, explore=0.0)
+    d = decide(make_moment(dx=36, doing="standing"))
+    assert d["source"] == "laya"
+
+
 def test_hybrid_explore_tries_an_under_sampled_move():
     decide = VT.hybrid_decider(VT.blank(), "chunli", random.Random(1), _laya, explore=1.0)
     picks = {decide(make_moment(dx=36, doing="standing"))["source"] for _ in range(20)}
