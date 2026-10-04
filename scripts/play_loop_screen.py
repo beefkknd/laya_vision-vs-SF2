@@ -32,6 +32,9 @@ from sf2.config import PORTS
 from sf2.system1.advice import char_menu_moves, followable
 from sf2.system1.loop_runner import play_round as play_screen_round, two_stage_decide
 from sf2.system1 import value_table as VT
+from sf2.quorum import reliability as QR
+from sf2.quorum.config import QuorumConfig
+from sf2.quorum.decider import quorum_decider
 from sf2.system2 import character_prompt, lessons as L, rule_stats, screen_evidence, seed_rules, short_memory as SM
 from sf2.system2.lesson_prompt import streak
 
@@ -195,7 +198,8 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
              seed_lines: L.Registry, out: str, play_round_fn: PlayFn, state: bytes, state_id: Dict, emu,
              score_fn: Optional[ScoreFn] = None, reader=None, seed_rng: int = 0, me: str = ME, log=None,
              qwen_mode: str = "two", policy: str = "rules", table: Optional[Dict] = None,
-             save_table: Optional[str] = None) -> Dict:
+             save_table: Optional[str] = None, quorum: Optional[QuorumConfig] = None,
+             quorum_state: Optional[Dict] = None, save_quorum: Optional[str] = None, qwen_pick=None) -> Dict:
     """Play ``games`` games. Two policies (owner's two-system A/B): ``policy="rules"`` (default) = text-laya follows
     the short memory, rotated by System 2 after each round; ``policy="table"`` = the self-learning value table
     (sf2.system1.value_table) picks the move and is CREDITED from each round's outcomes (no Qwen, no short memory).
@@ -206,6 +210,10 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
     trace = open(os.path.join(out, "trace.jsonl"), "w") if log is None else log
     reg: L.Registry = list(seed_lines)
     tbl: Dict = table if table is not None else VT.blank()
+    qcfg: QuorumConfig = quorum if quorum is not None else QuorumConfig()       # policy="quorum" only
+    qrel: Dict = quorum_state if quorum_state is not None else QR.blank()
+    qsources: Dict[str, int] = {}
+    qsplit = [0, 0]                                   # [decisions with no quorum, decisions with a quorum record]
     rng = random.Random(seed_rng)
     explore = random.Random((seed_rng << 1) ^ 0x5F3759DF)      # a separate stream for the table's exploration
     trace.write(json.dumps({"event": "seed", "opp": opp, "lines": SM.in_play(reg),
@@ -229,6 +237,12 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
             if policy == "table":                        # the value table picks the move (no short memory, no Qwen)
                 play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, [], rd,
                               reader=reader, decide=VT.decider(tbl, me, explore))
+            elif policy == "quorum":                     # the bee quorum: laya + 3 flavours + the table vote (sf2/quorum)
+                lines = SM.in_play(reg)
+                base = lambda m, _l=lines: two_stage_decide(cat_advisor, move_advisor, me, m, _l)
+                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd,
+                              reader=reader, decide=quorum_decider(tbl, qrel, me, explore, base, cat_advisor,
+                                                                   move_advisor, qcfg, qwen_pick))
             elif policy == "hybrid":                     # text-laya plays; the table OVERRIDES where it is confident
                 lines = SM.in_play(reg)
                 base = lambda m, _l=lines: two_stage_decide(cat_advisor, move_advisor, me, m, _l)
@@ -250,14 +264,26 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                                         "words": d.get("advice_text"), "situation": d.get("situation"),
                                         "lines": d.get("lines"), "category": d.get("category"),
                                         "action": d.get("action"), "rule": d.get("rule"),
-                                        "follows_rule": d.get("follows_rule"),
+                                        "follows_rule": d.get("follows_rule"), "source": d.get("source"),
+                                        "quorum": d.get("quorum"),
                                         "dealt": row["dealt"], "taken": row["taken"]}) + "\n")
             trace.write(json.dumps({"event": "round", "game": g, "round": r, "result": summary["result"],
                                     "hp": summary["hp"], "dealt": summary["dealt"], "taken": summary["taken"],
                                     "source": summary["source"]}) + "\n")
             trace.flush()
-            if policy in ("table", "hybrid"):            # CREDIT the table from this round's outcomes (every round)
+            if policy in ("table", "hybrid", "quorum"):  # CREDIT the table from this round's outcomes (every round)
                 tbl = VT.credit(tbl, drows)
+                if policy == "quorum":                   # ...and each voter's reliability, from the same outcomes
+                    QR.credit(qrel, decisions, drows, qcfg)
+                    rsrc: Dict[str, int] = {}
+                    for d in decisions:
+                        rsrc[d.get("source") or "?"] = rsrc.get(d.get("source") or "?", 0) + 1
+                        qsources[d.get("source") or "?"] = qsources.get(d.get("source") or "?", 0) + 1
+                        if d.get("quorum"):
+                            qsplit[0] += d["quorum"].get("quorum_move") is None
+                            qsplit[1] += 1
+                    trace.write(json.dumps({"event": "quorum", "game": g, "round": r, "mode": qcfg.mode,
+                                            "sources": rsrc, "when_cells": len(qrel["rel"])}) + "\n")
                 trace.write(json.dumps({"event": "table", "game": g, "round": r,
                                         "cells": len(tbl["cells"]), "splits": len(tbl.get("depth", {}))}) + "\n")
                 trace.flush()
@@ -283,7 +309,16 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                "seed_lines": [r["line"] for r in seed_lines],
                "in_play_end": SM.in_play(reg), "registry_end": reg, "decisions": len(all_rows),
                "game_hp": game_hp, "games": games_wl, "violations": L.violations(reg, all_rows)}
-    if policy in ("table", "hybrid"):
+    if policy == "quorum":
+        verdict["quorum"] = {"mode": qcfg.mode, "config": qcfg.to_dict(), "sources": qsources,
+                             "escalation_rate": qsplit[0] / max(1, qsplit[1]),   # share of decisions with no quorum
+                             "decisions": qsplit[1]}
+        if save_quorum:
+            tmp = save_quorum + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(qrel, f)
+            os.replace(tmp, save_quorum)
+    if policy in ("table", "hybrid", "quorum"):
         verdict["table_cells"] = len(tbl["cells"])
         verdict["table_splits"] = len(tbl.get("depth", {}))
         if save_table:                                        # persist so the table GROWS across blocks (like career_reg)
@@ -354,7 +389,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--qwen-mode", dest="qwen_mode", default="two", choices=("one", "two"),
                     help="two (default): Stage 1 Scout summarizes, Stage 2 Coach strategizes (escalate when losing); "
                          "one: the OLD single prompt, kept as the A/B fallback")
-    ap.add_argument("--policy", default="rules", choices=("rules", "table", "hybrid"),
+    ap.add_argument("--policy", default="rules", choices=("rules", "table", "hybrid", "quorum"),
                     help="rules (default): text-laya + short memory + Qwen; table: the self-learning value table "
                          "decides alone (no Qwen/text-laya); hybrid: text-laya plays and the value table OVERRIDES "
                          "where it is confident a move is clearly good (text-laya + table, the owner's pick)")
@@ -362,6 +397,16 @@ def build_parser() -> argparse.ArgumentParser:
                     help="policy table: start the value table from this JSON and keep GROWING it (pass again to resume)")
     ap.add_argument("--save-table", dest="save_table", default=None,
                     help="policy table: write the value table here after the run")
+    ap.add_argument("--quorum-config", dest="quorum_config", default=None,
+                    help="policy quorum: a QuorumConfig JSON (sf2/quorum/config.py; the genome scripts/quorum_evolve.py tunes)")
+    ap.add_argument("--quorum-mode", dest="quorum_mode", default=None, choices=("shadow", "candidates", "vote"),
+                    help="policy quorum: override the config's mode (shadow = log only, candidates, vote)")
+    ap.add_argument("--quorum-qwen", dest="quorum_qwen", action="store_true",
+                    help="policy quorum, mode vote: send split votes to Qwen instead of falling back to text-laya")
+    ap.add_argument("--carry-quorum", dest="carry_quorum", default=None,
+                    help="policy quorum: start the voter-reliability state from this JSON")
+    ap.add_argument("--save-quorum", dest="save_quorum", default=None,
+                    help="policy quorum: write the voter-reliability state here after the run")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -385,9 +430,19 @@ def main() -> int:
                                                                                args.opp))
     os.makedirs(out, exist_ok=True)
     table_in = None
-    if args.policy in ("table", "hybrid") and args.carry_table and os.path.exists(args.carry_table):
+    if args.policy in ("table", "hybrid", "quorum") and args.carry_table and os.path.exists(args.carry_table):
         with open(args.carry_table) as f:
             table_in = json.load(f)
+    qcfg = QuorumConfig.load(args.quorum_config) if args.quorum_config else QuorumConfig()
+    if args.quorum_mode:
+        qcfg.mode = args.quorum_mode
+    if args.quorum_qwen:
+        qcfg.qwen = True
+    qcfg.validate()
+    qstate = None
+    if args.policy == "quorum" and args.carry_quorum and os.path.exists(args.carry_quorum):
+        with open(args.carry_quorum) as f:
+            qstate = json.load(f)
     if args.policy == "table":
         seed_lines, seed_source = [], "table"
     else:                                                    # rules AND hybrid seed text-laya's short memory
@@ -397,7 +452,8 @@ def main() -> int:
                    "seed": args.seed, "state": state_id, "book": args.book, "policy": args.policy,
                    "carry": args.carry, "save_registry": args.save_registry, "seed_source": seed_source,
                    "cat_advisor": args.cat_advisor, "move_advisor": args.move_advisor,
-                   "qwen": "off" if args.policy == "table" else "on", "qwen_mode": args.qwen_mode}, f, indent=1)
+                   "qwen": "off" if args.policy == "table" else "on", "qwen_mode": args.qwen_mode,
+                   "quorum": qcfg.to_dict() if args.policy == "quorum" else None}, f, indent=1)
     shared = {"shared": True} if args.shared_text_laya else {}
     score_fn = None if args.no_score else _real_score(args.replay_port, args.rom)
     if args.policy == "table":
@@ -411,11 +467,17 @@ def main() -> int:
         # rules OR hybrid: text-laya plays (two Advisor instances). hybrid also carries/credits the value table.
         with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
                 open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
-            verdict = run_loop(args.opp, cat_advisor, move_advisor, _real_qwen(), games=args.games, rounds=args.rounds,
+            qwen = _real_qwen()
+            qwen_pick = None
+            if args.policy == "quorum" and qcfg.qwen:            # System 2 on split votes (sf2/quorum/escalate.py)
+                from sf2.quorum.escalate import make_qwen_pick
+                qwen_pick = make_qwen_pick(qwen)
+            verdict = run_loop(args.opp, cat_advisor, move_advisor, qwen, games=args.games, rounds=args.rounds,
                                seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
                                state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
-                               qwen_mode=args.qwen_mode, policy=args.policy, table=table_in, save_table=args.save_table)
-    if args.policy in ("table", "hybrid") and args.save_table:
+                               qwen_mode=args.qwen_mode, policy=args.policy, table=table_in, save_table=args.save_table,
+                               quorum=qcfg, quorum_state=qstate, save_quorum=args.save_quorum, qwen_pick=qwen_pick)
+    if args.policy in ("table", "hybrid", "quorum") and args.save_table:
         print("saved table", args.save_table)
     if args.save_registry:
         save_registry(verdict["registry_end"], args.save_registry)
