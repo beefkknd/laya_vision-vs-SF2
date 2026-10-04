@@ -76,15 +76,61 @@ def _clone(t: Table) -> Table:
 
 
 # --------------------------------------------------------------------------- credit (learn) and choose (play)
-def credit(table: Table, drows: Sequence[Dict]) -> Table:
+def _var(s: List) -> float:
+    n, su, sq = s
+    return (sq - su * su / n) / (n - 1) if n > 1 else float("inf")      # inf for n<=1 -> never 'separated'
+
+
+def _separated(s1: List, s2: List) -> bool:
+    """s1's mean is confidently ABOVE s2's (Welch 95% lower bound of the difference > 0)."""
+    half = 1.96 * (_var(s1) / s1[0] + _var(s2) / s2[0]) ** 0.5
+    return (mean(s1) - mean(s2)) > half
+
+
+def _top_covered(acts: Dict[str, List], min_tries: int) -> Optional[Tuple[str, List]]:
+    cov = [(a, s) for a, s in acts.items() if s[0] >= min_tries]
+    return max(cov, key=lambda kv: mean(kv[1])) if cov else None
+
+
+def _maybe_split(t: Table, min_tries: int) -> None:
+    """Split a base cell by his_label when two labels confidently prefer DIFFERENT actions -- i.e. the label the
+    coarse cell ignores actually flips the best move (close/jumping: empty-jump vs jump-attack). Evidence bar: in
+    some label l1 the preferred action a1 is confidently better (Welch) than a2 (a different label's preferred
+    action) MEASURED IN l1, both covered (n>=min_tries). On split, seed the per-label cells from the shadow tally.
+    One split per credit call; the parent cell stays as the fallback for sparse labels."""
+    for b, labs in list(t["shadow"].items()):
+        if t["depth"].get(b):
+            continue
+        tops = {l: tc for l, tc in ((l, _top_covered(acts, min_tries)) for l, acts in labs.items()) if tc}
+        if len(tops) < 2:
+            continue
+        for l1, (a1, s1) in tops.items():
+            for l2, (a2, _s2) in tops.items():
+                if l2 == l1 or a1 == a2:
+                    continue
+                other = labs[l1].get(a2)                     # a2 (another label's pick) as measured IN l1
+                if other and other[0] >= min_tries and _separated(s1, other):
+                    t["depth"][b] = "his_label"
+                    for lab, acts in labs.items():           # seed the split cells from what we already saw per label
+                        t["cells"][b + "|" + lab] = {a: list(s) for a, s in acts.items()}
+                    return
+
+
+def credit(table: Table, drows: Sequence[Dict], min_tries: int = MIN_TRIES) -> Table:
     """Fold one round's decision rows into a NEW table (immutable). Each row's net hp (dealt-taken, already
-    delayed-hit-corrected upstream) updates the (when, action) Welford stats for the move she played."""
+    delayed-hit-corrected upstream) updates the (when, action) Welford stats for the move she played, plus a
+    his_label SHADOW tally per base cell (while unsplit) used to detect a needed split (``_maybe_split``)."""
     t = _clone(table)
     for r in drows:
         act = r.get("action")
         if not act:
             continue
-        _acc(t["cells"].setdefault(row_when(r, t["depth"]), {}), act, net_of(r))
+        rng, doing, fb, lab = r.get("range"), opp_doing(r), r.get("opp_shot"), str(r.get("his_label"))
+        b = base_key(rng, doing, fb)
+        _acc(t["cells"].setdefault(when_key(rng, doing, fb, lab, t["depth"]), {}), act, net_of(r))
+        if not t["depth"].get(b):                            # track shadow only while the base cell is unsplit
+            _acc(t["shadow"].setdefault(b, {}).setdefault(lab, {}), act, net_of(r))
+    _maybe_split(t, min_tries)
     return t
 
 

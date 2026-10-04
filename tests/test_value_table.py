@@ -76,3 +76,34 @@ def test_eps_decays_as_the_cell_fills():
     ex_empty = sum(VT.choose(empty, WHEN, ["A", "B", "C"], rng)[1] for _ in range(400))
     ex_full = sum(VT.choose(filled, WHEN, ["A", "B", "C"], rng)[1] for _ in range(400))
     assert ex_empty > ex_full
+
+
+# --------------------------------------------------------------------------- 2b: his_label split
+def _rows(n, action, net, his_label, doing="stand"):
+    return [_row(action, net, doing=doing, his_label=his_label) for _ in range(n)]
+
+
+def test_cell_splits_by_his_label_when_labels_prefer_different_actions():
+    # base (mid,standing): when his_label=='stand' s.mk is best (+10, throw -10); when 'walk' throw is best (+10).
+    # The coarse cell would average throw away; the split preserves it. (min_tries=5 to keep the fixture small.)
+    t = VT.blank()
+    rows = (_rows(6, "s.mk", 10, "stand") + _rows(6, "throw_F+hp", -10, "stand")
+            + _rows(6, "throw_F+hp", 10, "walk"))
+    t = VT.credit(t, rows, min_tries=5)
+    assert t["depth"].get("mid|standing|0") == "his_label"
+    assert "mid|standing|0|stand" in t["cells"] and "mid|standing|0|walk" in t["cells"]
+    # after the split, a 'walk' decision keys into the split cell and sees throw as best there
+    wk = VT.row_when(_row("x", 0, his_label="walk"), t["depth"])
+    assert wk == "mid|standing|0|walk"
+    assert VT.choose(t, wk, ["s.mk", "throw_F+hp"], random.Random(0), eps0=0.0)[0] == "throw_F+hp"
+
+
+def test_no_split_when_labels_agree():
+    t = VT.credit(VT.blank(), _rows(6, "s.mk", 10, "stand") + _rows(6, "s.mk", 10, "walk"), min_tries=5)
+    assert t["depth"] == {}                                  # both labels prefer s.mk -> nothing to split
+
+
+def test_no_split_when_under_covered():
+    # labels differ but neither reaches min_tries -> no confident split
+    t = VT.credit(VT.blank(), _rows(3, "s.mk", 10, "stand") + _rows(3, "throw_F+hp", 10, "walk"), min_tries=5)
+    assert t["depth"] == {}
