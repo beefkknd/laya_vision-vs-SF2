@@ -28,7 +28,7 @@ import dataclasses
 import json
 import os
 import time
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from PIL import Image
@@ -51,7 +51,8 @@ MOVEMENT_MOVES = frozenset(CATEGORIES["move"])     # the "move" category: no rec
 MENU_MOVES: Tuple[str, ...] = tuple(m for cat in CATEGORY_ORDER for m in CATEGORIES[cat])
 
 DECISION_KEYS = ("category", "cat_probs", "move_options", "move_probs", "rule", "rule_cats", "rule_answers",
-                 "follows_rule", "follows_cat", "advice_text", "lines", "prompt_lines")
+                 "follows_rule", "follows_cat", "advice_text", "lines", "prompt_lines",
+                 "when", "values", "explored")      # the value-table policy's fields (absent on the rules path)
 
 
 def physical(tokens: Sequence[str], facing_right: bool, pad: Dict[str, str] = PAD) -> List[str]:
@@ -183,12 +184,14 @@ class WrongFight(RuntimeError):
 
 
 def play_round(emu: ScreenEmu, cat_advisor, move_advisor, me: str, opp: str, state: bytes, state_id: Dict, delay: int,
-               lines: Sequence[str], out: str, reader: Optional[RoundReader] = None) -> Dict:
-    """One round in screen-only mode, text laya following ``lines`` (the short memory in force). ``cat_advisor`` /
-    ``move_advisor`` are the two trained checkpoints (round-1 category, round-2 move). Writes the round
-    record under ``out`` (the same files scripts/replay_score.py reads) and returns round.json's content. No hp and
-    no result here: those come from the offline replay (sf2.system2.screen_evidence sources them). ``reader`` is
-    injectable so a test can feed scripted ScreenFacts without an emulator; the default is a real RoundReader."""
+               lines: Sequence[str], out: str, reader: Optional[RoundReader] = None,
+               decide: Optional[Callable[["Moment"], Dict]] = None) -> Dict:
+    """One round in screen-only mode. By default text laya follows ``lines`` (the rules policy, two_stage_decide).
+    ``decide``, when given, REPLACES that per-decision pick with any policy's ``decide(moment) -> {"action", ...}``
+    (the value-table policy, sf2.system1.value_table.decider) -- the extra keys it returns (``when``/``explored``)
+    are logged via DECISION_KEYS. ``cat_advisor`` / ``move_advisor`` are the two trained checkpoints used by the
+    default path. Writes the round record under ``out`` (the files scripts/replay_score.py reads) and returns
+    round.json. No hp/result here (the offline replay sources them). ``reader`` is injectable for tests."""
     os.makedirs(os.path.join(out, "frames"), exist_ok=True)
     eyes = Eyes(os.path.join(out, "unknown"), reader=reader)
     first = emu.load(state)
@@ -211,7 +214,7 @@ def play_round(emu: ScreenEmu, cat_advisor, move_advisor, me: str, opp: str, sta
                 facts, ms = eyes.read(cur, k)
                 continue
             t = time.perf_counter()
-            d = two_stage_decide(cat_advisor, move_advisor, me, m, lines)
+            d = decide(m) if decide is not None else two_stage_decide(cat_advisor, move_advisor, me, m, lines)
             d_ms = 1000 * (time.perf_counter() - t)
             press = press_frames(me, d["action"], m)
             unknown = [f.side for f in (facts.left, facts.right) if f.unknown]

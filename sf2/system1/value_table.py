@@ -139,6 +139,24 @@ def credit(table: Table, drows: Sequence[Dict], min_tries: int = MIN_TRIES) -> T
     return t
 
 
+def decider(table: Table, me: str, rng: random.Random, min_tries: int = MIN_TRIES, eps0: float = EPS0):
+    """A `decide(moment) -> {action, when, explored, category}` closure for loop_runner.play_round. Keys the moment
+    ((range, doing, fireball)+his_label split), restricts to the FOLLOWABLE action set at that range, and lets
+    `choose` pick. Reads ``table`` as-is (rebuild the decider each round against the freshly-credited table)."""
+    from .advice import available_moves, stance_of, char_categories
+    from .action_menu import category_of
+    from ..vocab import range_of
+    cats = char_categories(me)
+
+    def decide(m) -> Dict:
+        rng_ = range_of(abs(m.dx))
+        actions = sorted(available_moves(stance_of("stand", rng_), cats))
+        when = when_key(rng_, m.doing, m.fireball, m.his_label, table["depth"])
+        action, explored = choose(table, when, actions, rng, min_tries, eps0)
+        return {"action": action, "when": when, "explored": explored, "category": category_of(action)}
+    return decide
+
+
 def choose(table: Table, when: str, actions: Sequence[str], rng: random.Random,
            min_tries: int = MIN_TRIES, eps0: float = EPS0) -> Tuple[str, bool]:
     """Pick an action for ``when`` over the FOLLOWABLE ``actions``. ε-greedy: with probability eps (decaying as the
