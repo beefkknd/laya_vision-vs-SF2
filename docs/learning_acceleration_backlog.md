@@ -1,113 +1,183 @@
 # Learning-acceleration backlog (laya-text + value-table + Qwen)
 
-A standing list of ways to make the self-learning loop learn FASTER / HIGHER, plus the open questions
-to settle by experiment. Companion to `docs/design_laya_table_hybrid.md` (architecture + Phase 2) and
-`docs/bee_quorum_notes.md`. Written 2026-10-04 on `feat/table-system1`.
+A standing list of ways to make the self-learning loop learn FASTER / HIGHER, and the open questions
+to settle by experiment. Companion to `docs/design_laya_table_hybrid.md` and `docs/bee_quorum_notes.md`.
+Written 2026-10-04 on `feat/table-system1`; **v2 after independent review by GPT6 (codex) and Fable** —
+the two engines converged on the fixes below, so this version supersedes the first draft's framing.
 
-## Context — the generational curve so far (Chun-Li vs Ryu, round win-rate)
+## Context — the generational numbers are TRAINING, not a learning curve
 
-| gen | win-rate | note |
-|-----|----------|------|
-| 1 | 33.7% | seed thin |
-| 2 | 49.8% | exploit a richer seed |
-| 3 | 38.8% | EXPLORE round (21% explore) — dipped on purpose, built coverage |
-| 4 | 58.9% | CASH-IN (explore ~1%) — exploited the 86k table; all 8 workers >50% |
-| 5 | (running) | compounding test |
+| gen | train win-rate | explore | note |
+|-----|----------------|---------|------|
+| 1 | 33.7% | — | seed thin |
+| 2 | 49.8% | ~9% | exploit a richer seed |
+| 3 | 38.8% | ~21% | EXPLORE round — dipped *because of the explore rate*, not regression |
+| 4 | 58.9% | ~1% | exploit the 86k table |
+| 5 | (running) | ~1% | compounding test |
 
-Established: **explore-rounds build coverage (win-rate dips); exploit-rounds cash it in (win-rate
-jumps).** The ceiling driver is the credit signal (hp-safety ≠ winning). Goal = ~75% (owner), not 100%.
-
----
-
-## A. Two axes of "speed" (frame every lever by which it moves)
-
-- **Sample-efficiency** — each game teaches more (fewer games to learn). The big wins live here.
-- **Throughput** — more games per hour (fixed sample-efficiency). Cheap but linear.
-
-Given fixed physical resources (owner's constraint), prioritize **sample-efficiency**.
+**These are training win-rates at different explore rates, so the curve is NOT a clean learning curve**
+(gen-3's dip is mostly the 21% explore tax). Any claim about learning requires the EVAL protocol (§0).
+The headline framing from the first draft — "explore builds / exploit cashes in" and "the credit
+signal is the ceiling" — is a **hypothesis, not established**; §0 is how we'd actually test it.
 
 ---
 
-## B. Levers, ranked (sample-efficiency unless noted)
+## §0. PREREQUISITES — nothing below is measurable without these (do FIRST)
 
-### B1. Better credit signal — layered reward (HIGHEST LEVERAGE)  [status: proposed, not built]
-Replace the table's single `net = dealt − taken` with a layered reward accumulated in the Welford cells:
+### 0a. Diagnostic (one script, ~1 hour) — is the credit signal even the problem?
+Per-decision net-hp (`dealt − taken`) summed over a round **telescopes to the final hp difference** —
+i.e. to the round result, except on time-outs. So the "safety bias" is almost certainly NOT
+"hp ≠ winning"; it is **credit-assignment myopia** (a setup move eats the taken-hits, the finisher
+banks the dealt). Before building any reward change, measure:
+- per round: `Σ net-hp` vs round result (should match closely → confirms telescoping);
+- per decision: correlation of immediate net vs k-step net (how myopic is single-window credit?);
+- fraction of rounds ending in **time-out** (the real mechanism by which "do nothing" goes unpunished).
 
-```
-R(decision) = w_hp · shaped_hp  +  w_round · round_signal  +  w_match · match_signal
-  shaped_hp    = dealt − β·taken            # β<1 tilts toward OFFENSE (counters the safety bias); the attack/defense knob
-                                            #   defense term (later): + (expected_incoming − taken)  [damage AVOIDED]
-  round_signal = +1 won / −1 lost           # optionally recency-discounted toward the KO (γ^steps_from_end)
-  match_signal = +1 / −1 (best-of-3)        # small weight, sparse
-```
-- WHY: ties every decision to WINNING, not just hp — fixes the exact ceiling we keep hitting and the
-  pure-table defensive collapse at its source. Speeds convergence (cleaner signal) AND raises the ceiling.
-- CHANGE: localized — `net_of()` / `credit` (pass round+match result in). `mean>0` floor still valid.
-- HARD PARTS: weight tuning (`w_round` too high swamps the dense hp signal — start moderate); the
-  defense "damage avoided" needs a rough per-opponent-move damage prior (noisiest piece — ship the
-  round-win term FIRST, add defense-avoided later).
-- FIRST EXPERIMENT: round-win-weighted credit vs the gen-4 58.9% baseline, test-first.
+If `Σnet ≈ outcome`, the ceiling is NOT the reward scalar — look to coverage, state aliasing, the eye,
+or the action space (§E) instead.
 
-### B2. Directed exploration — uncertainty-scaled "booster"  [status: proposed, not built]
-Replace ε-greedy-over-under-sampled with an optimism rule in `choose()`:
-```
-select(a) = mean(a) + c · sqrt(ln N_cell / n(a))      # UCB: thin move -> big visibility bonus, shrinks as it fills
-```
-- WHY: boosts exactly the under-tried moves, by how uncertain they are, and self-calibrates. This is the
-  owner's "artificially bump the thin rules' visibility" — but uncertainty-scaled, so it's harnessable
-  (a FLAT bump is noisy/hard to tune; an uncertainty-scaled one is not). Reuses the Welford variance
-  already stored (Thompson sampling = the variance-sampling cousin).
-- OPTIONAL "challenger" mode (owner's "filter out the thick"): occasionally BENCH a cell's argmax to
-  force a re-test of the dominant move — cheap guard against exploit lock-in.
-- CHANGE: localized — `choose()` selection rule.
-- HARD PART: `c` tuning; interacts with B1 (explore where, credit what).
-
-### B3. bee/quorum — structured category coverage  [status: IMPLEMENTED on feat/laya-quorum, merged]
-3 same-checkpoint bees (attack/move/defense prompts) vote; forces all categories to be sampled per
-branch → fills the tree faster than one biased laya. Correlated votes (shared weights) → coverage, not
-independent-ensemble. See `bee_quorum_notes.md`. Owner decision: keep the table OVERWRITE (not the
-quorum's weighted-voter) to start.
-
-### B4. Qwen-guided exploration / self-driving control  [status: HYPOTHESIS, gated by a test]
-Qwen as a BOUNDED meta-controller: reads the learning state (coverage, thin branches, win trend) and
-sets the next burst's explore/exploit ratio, which branches/categories to fill, which bee, when to
-re-seed. Directed search >> random coverage; also the self-sustaining-loop payoff.
-- OPEN QUESTION (the one the owner most wants answered): **can Qwen really drive the training?**
-- VALIDATION GATE (design doc §7, prove BEFORE wiring into bee/quorum):
-  - Test A (cheap, offline): feed Qwen the gen-1..5 learning-state snapshots; grade its control calls
-    against the table's MECHANICAL oracle (actually-thinnest branches, coverage-says-explore?), ≥10
-    permutations; score consistent-right / flip-flop / consistent-wrong.
-  - Test B (expensive): A/B Qwen-set ratios vs the mechanical schedule; must match or beat.
-  - Integrate only if A (ideally B) passes. Qwen stays bounded (ratios clamped, `mean>0` floor, merge
-    `shared=seed`, hard gate, stop conditions); the table stays Qwen-agnostic.
-
-### B5. Transfer / warm-start  [status: partial]
-Seed new cells from related ones. Parent-fallback already does this for splits. Extensions:
-cross-opponent seed-then-evolve; use laya's pick as an optimistic prior for an empty cell.
-
-### B6. More parallel throughput  [status: in use at 8; headroom to ~16]  (THROUGHPUT, not sample-eff)
-Workers each own a port (system1 range = 16) + own dir + merge `shared=seed`. 8 workers ran the box at
-~13% CPU; 16 roughly doubles data/hour for free. Shared text-laya server makes added workers ~free.
+### 0b. Eval protocol — separate TRAINING win-rate from EVAL win-rate
+Every experiment below is currently unpowered/unspecified. Fix once, reuse everywhere:
+- **Frozen eval**: explore=0, frozen short-memory, the learner's choices only, held-out emulator seeds.
+- **Power**: report Wilson CIs; a 5-pt lift needs ~800 eval rounds/arm at 95%. Gen-to-gen swings are
+  ±20 pts, so "a few generations/rounds" proves nothing.
+- **Independence**: paired branching from the SAME checkpoint/seed per arm; ≥3 seeds; workers sharing
+  ancestry are NOT independent replications (the 58.9% has no CI yet).
+- **Freeze Qwen memory** during table experiments (or use identical memory trajectories across arms) —
+  else the credit/exploration effect is confounded with memory drift.
 
 ---
 
-## C. Open experiments / questions to settle (by measurement, not opinion)
+## §A. Two axes of "speed"
+- **Sample-efficiency** — each game teaches more. The big wins live here.
+- **Throughput** — more games/hour. Cheap, linear, but verify the bottleneck (§B6).
+Given fixed physical resources, prioritize sample-efficiency.
 
-1. **Pure-table from a RICH seed** — run `--policy table` seeded from the gen-4/5 table. Hypothesis:
-   not the from-scratch 0%, but BELOW the hybrid's 59% (loses laya's coverage of the ~36% of cells
-   with no confident-positive move — the defensive-collapse zone). Cheap: 1 run. Pins the value of laya.
-2. **Round-win-weighted credit (B1)** vs the gen-4 58.9% baseline — does the ceiling rise?
-3. **UCB exploration (B2)** vs ε-greedy — faster coverage per game?
-4. **Can Qwen drive training (B4)** — Test A then B.
-5. **Compounding** — does each exploit-gen keep climbing, or plateau (diminishing returns toward 75%)?
+---
 
-## D. Known facts to respect (don't relearn)
+## §B. Levers, re-ranked after review
 
-- hp-safety ≠ winning: per-decision net-hp alone converges to a DEFENSIVE losing policy (pure table lost
-  0/144 from scratch). The `mean>0` floor + laya fallback is what prevents it in the hybrid.
-- laya-alone ≈ 20-22% vs Ryu; its value in the hybrid is NOT additive — it's the fallback that lets the
-  table be bold (combo = 59%, super-additive).
-- The table key has NO opponent identity (range | posture | fireball [| label]); opponent-specific
-  tables = per-matchup today, opponent-in-the-key is the deferred extension (pair with the quorum).
-- The table is ATTACKER-specific by construction (actions = me's move set).
+### B1. Better credit = n-step / λ-discounted DENSE credit (HIGHEST LEVERAGE)  [proposed]
+NOT a broadcast round signal (that is baseline-free REINFORCE — pure noise at n≈8, every decision in a
+won round gets the same bonus regardless of contribution). Instead, credit decision *t* with the
+discounted sum of the **dense hp signal** over the next few decisions (an eligibility trace):
+```
+credit(t) = Σ_{k≥0} γ^k · net_{t+k}      # γ∈(0,1), horizon a few decisions
+```
+- WHY: directly fixes "setup moves get no credit" (the actual myopia), **keeps hp units** (so the
+  override floor still means something), and is **low-variance** (unlike a sparse ±1 broadcast).
+- `β = 1` on `taken` — do NOT discount taken-hits (β<1 rewards losing trades and breaks telescoping).
+- Aggression, if wanted, via **potential-based shaping** `Φ = hp_diff · f(time_left)` (provably
+  policy-invariant) — this, not β, is how you punish passivity, and it finally models **time-outs**.
+- A round term, if any, is only a **baselined tie-breaker**: `(round_result − running_WR)`, undiscounted
+  (the decisive decisions are EARLY; the KO already gets full dense credit, so γ^steps_from_end is
+  backwards). **Drop `match_signal`** (deterministic function of round results → noise).
+- CHANGE: `net_of()`/`credit` is enough for the n-step version; eligibility traces proper (SARSA(λ))
+  are a LEARNER change. **Version the reward schema and RETAIN TRAJECTORIES** — old scalar cells cannot
+  reconstruct a new reward.
+- CHEAPEST EXPERIMENT: immediate-hp vs n-step vs terminal-only Monte-Carlo credit, exploration + state
+  rep + memory held fixed (§0b), measured on eval WR + sample-efficiency.
+
+### B2. Exploration = Thompson sampling (NOT UCB)  [proposed]  (merges the old B5 prior)
+Per cell, draw each move's mean from `N(mean, var/n)` using the stored `[n,sum,sumsq]`, pick the max of
+the draws for the EXPLORE branch:
+- WHY over UCB: UCB1 is **deterministic** → 8 cloned workers pick the same under-sampled move in the
+  same cell (duplicated exploration); Thompson **decorrelates workers for free**, has **no `c` to tune**
+  (UCB's `c` is in hp units, not "self-calibrating"), and actually uses the variance.
+- Thin cells need a **prior variance** = a global per-move estimate (this IS the old "optimistic prior
+  for an empty cell" — transfer/warm-start folded in here). Test negative transfer; cap prior strength.
+- **Optimism on the explore draw only; the override GATE must be PESSIMISTIC** (§B1a) — otherwise
+  optimism fires overrides and the floor is gone.
+- Drop "bench the argmax / challenger" — Thompson/UCB already re-test the incumbent at log rate.
+
+### B1a. Redesign the override gate ALONGSIDE B1 (not "still valid")  [proposed]
+`n≥8 & mean>0` is a magic heuristic; under any mixed-unit reward the floor shifts (`~w·(2·WR−1)`) and
+hp-negative moves pass it at WR>50%. Replace with either:
+- the floor/argmax test on the **hp component only**, or
+- **advantage** `Q(s,a) − V(s)` with a per-cell baseline (floor = "better than this cell's average"),
+  and override only when a **lower-confidence bound** on `Q(s,a) − Q(s,fallback)` clears a margin.
+Keep the current HP floor as a **separately named** heuristic while experimenting; don't silently
+reinterpret it.
+
+### B3. bee/quorum — structured category coverage  [IMPLEMENTED, merged]
+Caveat (both reviews): 3 category *proposals* do not guarantee 3 categories get *executed* samples —
+measure executed-per-category coverage, not proposals. See `bee_quorum_notes.md`.
+
+### B4. Qwen-driven training — reframed, Test B mandatory  [HYPOTHESIS, gated]
+- **Test A is an ENVELOPE test, not an oracle-imitation.** Graded against a mechanical "thinnest-branch"
+  oracle, the best Qwen can do is equal a rule we already have for free, and any place it is *right and
+  disagrees* scores wrong. Instead score "no catastrophic calls" (never exploit-hard with half the tree
+  unsampled; never explore a saturated cell). Feed **unsorted/raw** state (a sorted list makes "name the
+  thinnest" list-reading, not judgment). Grade only inferential calls, with pre-registered adversarial
+  states. "Thinnest ≠ most valuable" → use a **visitation-weighted** oracle (§E1).
+- **Test B is MANDATORY** (snapshots can't reveal outcomes of unchosen control decisions). Pre-register:
+  paired branching from the same seed per generation, equal game budget/arm, metric = eval WR after a
+  fixed budget + coverage/game, ≥3 seeds, and a **hard mechanical baseline schedule** (a lazy baseline
+  flatters Qwen). Predeclare improvement/noninferiority margin and stopping rule (no optional stopping).
+- Note: Qwen-controller and Qwen-coach are **two roles of one model** → the controller is biased by the
+  coach's own narrative; freeze/ isolate the coach role during the controller test.
+- Bounded always: ratios clamped, gate pessimistic, merge `shared=seed`, hard gate, stop conditions;
+  the table stays Qwen-agnostic.
+
+### B6. Throughput — VERIFY before scaling  [in use at 8]
+13% CPU does NOT establish headroom — the bottleneck is likely the shared text-laya server, emulator
+pacing, or Qwen round-trips. **Measure games/hour and server latency at 8 vs 16 workers before claiming
+linear scaling.** Also: more deterministic workers from one seed = more *correlated* samples (B2), so
+marginal data value per worker falls — Thompson helps here too.
+
+---
+
+## §C. Open experiments (powered via §0b, not opinion)
+1. **Pure-table from a RICH seed** (`--policy table`, gen-4/5 seed) — disentangles "bad signal" from "no
+   coverage" that 0/144-from-scratch confounds, and pins laya's value. Control unsupported-cell behavior
+   explicitly. This is the experiment that would move **D1** from fact to settled.
+2. **Credit: immediate vs n-step vs terminal-MC** (B1) vs the gen-4 eval baseline — does the ceiling rise?
+3. **Exploration: ε-greedy vs Thompson** (B2) under equal budget — faster coverage/game, less worker
+   correlation?
+4. **Can Qwen drive training** (B4) — envelope Test A, then mandatory Test B.
+5. **Compounding** — eval WR per generation with CIs; climb vs plateau.
+
+## §D. Facts to respect (don't relearn)
+- **D1 [now HYPOTHESIS, pending C1]:** per-decision net-hp converging to a passive policy MAY be the
+  ceiling — but net-hp telescopes to the round result, so the likelier cause is credit myopia + state
+  aliasing + time-outs, not "hp ≠ winning." Settle with §0a + C1.
+- laya-alone ≈ 20–22% vs Ryu; in the hybrid its value is the FALLBACK that lets the table be bold (the
+  59% is the combination — there is no clean additive baseline, so avoid "super-additive").
+- The pure table from scratch **lost every one of 144 rounds** (0 wins) — a failure of THAT config, not
+  proven convergence or proven cause.
+- Table key has NO opponent identity (range | posture | fireball [| label]); per-matchup today,
+  opponent-in-key is the deferred extension (pair with the quorum).
+- Table is ATTACKER-specific (actions = me's move set).
+- `[n, sum, sumsq]` are **raw moments** (NOT Welford's `[n, mean, M2]`) — raw moments ARE directly
+  additive, which is why `merge` sums them; don't rewrite merge as Chan's/Welford's parallel formula.
 - Merge MUST dedup a shared seed (`merge(shared=seed)`), or every generation inflates.
+
+## §E. Missing levers / ceilings surfaced by review
+1. **State-visitation exploration (value of information).** B2 explores moves *within* a cell; the harder
+   problem is *reaching* cells (controlled by movement + the opponent). A thin branch that occurs 0.1% of
+   the time isn't worth filling — weight exploration/oracles by visitation, not raw thinness.
+2. **Eye accuracy as a hard ceiling.** Posture/range misreads cap the attainable mean per cell. Measure
+   per-component eye accuracy on a labelled set; put it in §D. And check the **action space is
+   expressive** (wait/idle, walk-then-X) — the table can't learn what the actions can't express.
+3. **State aliasing.** Two real situations collapsed into one key ("protect a lead" vs "must attack")
+   cap the attainable mean no matter how many samples. Audit keys; consider adding timer/corner/
+   lead-state features (screen-only permits a little temporal memory).
+4. **Distribution-shift lock-in.** Once the table overrides ~74%, laya's proposals in those cells are
+   never sampled → "all 8 workers >50%" may be a shared LOCAL optimum. Track **fraction of cells whose
+   argmax changed last generation** as a plateau signal distinct from win-rate.
+5. **Nonstationarity / forgetting.** Lifetime counts across generations create false confidence in
+   obsolete returns (policies drift). Add recent-generation buckets or controlled forgetting; evaluate on
+   recent data.
+6. **Invariant [SCRIPT] tests (owner's testing doctrine — the merge bug was caught by hand).**
+   e.g. `Σn after merge == Σ worker n − (K−1)·seed n`; no cell mean outside hp bounds; splits only where
+   parent `n ≥ threshold`. The split criterion (Welch CI reversal over tens of thousands of cells) is a
+   **multiple-comparisons machine** → false splits fragment data; add a correction or a minimum effect
+   size.
+7. **Merge provenance.** Unique rollout IDs, immutable seed IDs, idempotent merges, no cross-arm
+   contamination — shared-seed subtraction only handles the one specified common ancestor.
+
+---
+*Reviewers: GPT6 (codex, read-only) + Fable (frontier). Independent convergence on: B1-is-myopia-not-
+hp≠winning, n-step credit, β=1, drop match-signal, floor-breaks-under-mixed-units, train≠eval + CIs,
+Thompson>UCB, Test-B-mandatory, verify-throughput, raw-moments naming. Unique-to-Fable: §0a diagnostic,
+§E1 visitation, §E2 eye ceiling, §E4 lock-in, §E6 invariants.*
