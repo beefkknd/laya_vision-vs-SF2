@@ -267,7 +267,9 @@ def render(m: T.DashboardModel, frame: int = 0, with_footer: bool = True) -> Lay
     if not with_footer:
         return top
     layout = Layout()
-    layout.split_column(Layout(top, name="top", ratio=5), Layout(name="bottom", ratio=1))
+    # minimum_size keeps TREND + DATA FLOW visible even on a short terminal (don't let them collapse)
+    layout.split_column(Layout(top, name="top", ratio=5),
+                        Layout(name="bottom", ratio=1, minimum_size=9))
     layout["bottom"].split_row(
         Layout(_trend_panel(m), name="trend", ratio=2),
         Layout(_pipeline_panel(m.qwen_thinking, frame), name="flow", ratio=3),
@@ -334,9 +336,9 @@ def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
     middle, and the cross-system DATA FLOW pulse at the bottom."""
     layout = Layout()
     layout.split_column(
-        Layout(name="head", ratio=2),
+        Layout(name="head", ratio=2, minimum_size=9),
         Layout(name="active", ratio=3),
-        Layout(name="flow", ratio=1),
+        Layout(name="flow", ratio=1, minimum_size=6),
     )
     layout["head"].split_row(Layout(_session_panel(sm), ratio=3), Layout(_career_trend(sm), ratio=2))
     thinking = bool(sm.active and sm.active.qwen_thinking)
