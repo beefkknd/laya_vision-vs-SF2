@@ -31,7 +31,7 @@ import json
 import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..system1.action_menu import category_of
+from ..system1.advice import char_categories
 from ..vocab import FULL_LIFE
 
 # the reader's "doing" word (sf2.system1.screen_words.Moment.doing) -> (opp_state, opp_air) so that
@@ -44,17 +44,21 @@ DOING_STATE: Dict[str, Tuple[str, bool]] = {
 KIND = {"move": "movement", "block": "defense"}
 
 
-def kind_of(action: str) -> str:
-    return KIND.get(category_of(action), "attack")
+def kind_of(action: str, cats: Dict[str, List[str]]) -> str:
+    """The game-log kind for ``action``, read from the PLAYED character's own categories (``cats`` =
+    advice.char_categories(me)). Never raises on a char-specific move (ryu's hadoken, a combo, ...): unknown -> attack."""
+    cat = next((c for c, moves in cats.items() if action in moves), None)
+    return KIND.get(cat, "attack")
 
 
 def _moment(dec: Dict) -> Dict:
     return dec.get("moment", {})
 
 
-def decision_row(game: int, me: str, opp: str, dec: Dict, nxt: Optional[Dict]) -> Dict:
+def decision_row(game: int, me: str, opp: str, dec: Dict, nxt: Optional[Dict], cats: Dict[str, List[str]]) -> Dict:
     """One decision as a lesson-shaped row. ``nxt``: the next moment-like dict ({"my_life", "his_life"}) the health
-    drops are measured to (the next decision, or the round-end life from the replay); None -> no drop (0)."""
+    drops are measured to (the next decision, or the round-end life from the replay); None -> no drop (0). ``cats`` =
+    ``me``'s category map (char_categories), used for the row's ``kind`` so any character's moves resolve."""
     m = _moment(dec)
     doing = m.get("doing", "standing")
     opp_state, opp_air = DOING_STATE.get(doing, ("stand", bool(m.get("his_air"))))
@@ -67,7 +71,7 @@ def decision_row(game: int, me: str, opp: str, dec: Dict, nxt: Optional[Dict]) -
         "side": m.get("side"), "gap": abs(int(m.get("dx", 0))), "range": rng,
         "my_life": my_now, "opp_life": his_now,
         "opp_state": opp_state, "opp_air": opp_air,
-        "action": dec.get("action"), "kind": kind_of(dec.get("action")) if dec.get("action") else "attack",
+        "action": dec.get("action"), "kind": kind_of(dec.get("action"), cats) if dec.get("action") else "attack",
         "actual": None,                                   # screen cannot see hit / whiff / blocked
         "his_label": m.get("his_label"),                  # raw reader label (delayed-hit reattribution + table his_label split)
         "dealt": max(0, his_now - his_next), "taken": max(0, my_now - my_next),
@@ -145,6 +149,7 @@ def round_evidence(game: int, me: str, opp: str, decisions: Sequence[Dict],
     when there is no replay so the LAST decision is scored to the final bars (the KO) and the result reflects the
     final blow instead of the bars BEFORE it."""
     decisions = list(decisions)
+    cats = char_categories(me)                            # me's own category map -> char-general row kind
     end = None
     if replay is not None:
         end = {"my_life": replay.get("my_life_end", 0), "his_life": replay.get("opp_life_end", 0)}
@@ -153,7 +158,7 @@ def round_evidence(game: int, me: str, opp: str, decisions: Sequence[Dict],
     rows: List[Dict] = []
     for i, d in enumerate(decisions):
         nxt = _moment(decisions[i + 1]) if i + 1 < len(decisions) else end
-        rows.append(decision_row(game, me, opp, d, nxt))
+        rows.append(decision_row(game, me, opp, d, nxt, cats))
     _reattribute_delayed_hits(rows)                       # credit the hit to the move that landed it, not the next one
     s_dealt = sum(r["dealt"] for r in rows)
     s_taken = sum(r["taken"] for r in rows)
