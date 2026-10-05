@@ -227,8 +227,10 @@ STANCE_VOID_PREFIXES = STANCE_PREFIXES["crouch"] + STANCE_PREFIXES["air"]   # ("
 def stance_unreliable(move) -> bool:
     """True for a crouch normal (c.*) or a jump/air attack (j./jf.*): she cannot be relied on to be in
     that stance when a lesson keyed on HIS state fires, so it voids to block. "cl." (close) does not
-    match "c." (distinct second char), so close normals stay reliable."""
-    return isinstance(move, str) and move.startswith(STANCE_VOID_PREFIXES)
+    match "c." (distinct second char), so close normals stay reliable. A ``combo`` (jf.* name but a
+    GROUND-launched jump-in macro) is reliable -- she is grounded when she starts it -- so it does NOT void."""
+    return (isinstance(move, str) and move.startswith(STANCE_VOID_PREFIXES)
+            and category_of(move) != "combo")
 
 
 def stance_of(posture: str, rng: str) -> str:
@@ -259,6 +261,10 @@ def moves_in_stance(category: str, stance: str, categories: Optional[Dict[str, S
         raise ValueError("unknown stance %r" % stance)
     out = []
     for m in categories[category]:
+        if category == "combo":                       # ground-launched jump-in macros (moves_free: setup far): offered
+            if stance == "standing":                  # GROUNDED at mid/far (where a jump-in starts), NOT by their jf.* name
+                out.append(m)
+            continue
         p = _prefix(m)
         if p is not None:
             if p in STANCE_PREFIXES[stance]:
