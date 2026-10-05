@@ -13,12 +13,13 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 
 from sf2.quorum.config import QuorumConfig                                 # noqa: E402
-from sf2.quorum.frontier import fireball_proposal, frontier_proposal       # noqa: E402
+from sf2.quorum.frontier import fireball_proposal, frontier_proposal, pressure_proposal   # noqa: E402
 from sf2.quorum.tally import Proposal, ranking, score                      # noqa: E402
 from sf2.quorum import reliability as R                                    # noqa: E402
 
 WHEN0 = "mid|standing|0"
-WHEN1 = "mid|attacking|1"      # a fireball-up context
+WHEN1 = "mid|attacking|1"      # a fireball-up context (also opp-attacking)
+WHENP = "close|attacking|0"   # opponent attacking, no fireball -> the pressured slice
 
 
 def acc(n, mean):
@@ -107,11 +108,29 @@ def test_both_bees_push_the_same_fb1_gap_target_doubling_the_vote():
     assert s[fr.action]["votes"] == pytest.approx(2 * only_fr[fr.action]["votes"])
 
 
+# -------------------------------------------------------------------- pressure bee: gated to opp-attacking
+def test_pressure_bee_fires_only_when_the_opponent_is_attacking():
+    assert pressure_proposal({}, ["s.mk"], WHENP, cfg()) is not None     # close|attacking -> pressured
+    assert pressure_proposal({}, ["s.mk"], WHEN1, cfg()) is not None     # mid|attacking|1 -> also attacking
+    assert pressure_proposal({}, ["s.mk"], WHEN0, cfg()) is None         # mid|standing -> not pressured
+    assert pressure_proposal({}, ["s.mk"], WHENP, cfg(pressure=False)) is None
+
+
+def test_pressure_respects_his_label_split_keys():
+    assert pressure_proposal({}, ["s.mk"], "close|attacking|0|attack", cfg()) is not None
+    assert pressure_proposal({}, ["s.mk"], "close|standing|0|stand", cfg()) is None
+
+
+def test_pressure_bee_boosts_the_least_sampled_gap_loud_where_blind():
+    p = pressure_proposal({}, ["block_high", "shoryuken_hp"], WHENP, cfg())
+    assert p.voter == "pressure" and p.confidence == pytest.approx(1.0)  # blind pressured cell -> loud
+
+
 # -------------------------------------------------------------------- config: the new pinned voter set
 def test_gapfill_bee_set_is_pinned():
     from sf2.quorum.config import FLAVORS, VOTERS
-    assert set(VOTERS) == {"laya", "table", "frontier", "fireball"}     # category-forcing bees retired (A: they hurt)
+    assert set(VOTERS) == {"laya", "table", "frontier", "fireball", "pressure"}   # category-forcing bees retired (A: they hurt)
     assert FLAVORS == {}                                                # no category-forcing flavours by default
     c = QuorumConfig()
-    assert c.frontier is True and c.fireball is True
-    assert set(c.priors) >= {"frontier", "fireball"}
+    assert c.frontier is True and c.fireball is True and c.pressure is True
+    assert set(c.priors) >= {"frontier", "fireball", "pressure"}

@@ -51,15 +51,30 @@ def frontier_proposal(cell: Dict[str, List], actions: Sequence[str], cfg: Quorum
     return Proposal("frontier", target, _confidence(cell, actions, cfg))
 
 
+def _slice_proposal(name: str, cell: Dict[str, List], actions: Sequence[str], when: str, cfg: QuorumConfig,
+                    field: int, value: str) -> Optional[Proposal]:
+    """The frontier push, gated to one slice of the 'when' key (field == value). None otherwise."""
+    parts = when.split("|")
+    if len(parts) <= field or parts[field] != value:
+        return None
+    target = _least_sampled(cell, actions)
+    if target is None:
+        return None
+    return Proposal(name, target, _confidence(cell, actions, cfg))
+
+
 def fireball_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
                       cfg: QuorumConfig) -> Optional[Proposal]:
     """The frontier push, gated to fireball-up (the 'when' key's fireball field == '1'). None otherwise."""
     if not cfg.fireball:
         return None
-    parts = when.split("|")
-    if len(parts) < 3 or parts[2] != "1":
+    return _slice_proposal("fireball", cell, actions, when, cfg, field=2, value="1")
+
+
+def pressure_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
+                      cfg: QuorumConfig) -> Optional[Proposal]:
+    """The frontier push, gated to the opponent ATTACKING (the 'when' posture field == 'attacking') -- the
+    'being-pressured' slice, where a zoner (e.g. ryu) is blind because it cannot zone. None otherwise."""
+    if not cfg.pressure:
         return None
-    target = _least_sampled(cell, actions)
-    if target is None:
-        return None
-    return Proposal("fireball", target, _confidence(cell, actions, cfg))
+    return _slice_proposal("pressure", cell, actions, when, cfg, field=1, value="attacking")

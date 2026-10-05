@@ -18,6 +18,7 @@ BEES = {
     "table":    {"role": "exploit", "fires": "cell has a confident+ move",    "source": "tally.table_proposal"},
     "frontier": {"role": "explore", "fires": "always (loud where thin/blind)", "source": "frontier.frontier_proposal"},
     "fireball": {"role": "explore", "fires": "a fireball is out (fb=1)",      "source": "frontier.fireball_proposal"},
+    "pressure": {"role": "explore", "fires": "opponent is attacking",        "source": "frontier.pressure_proposal"},
 }
 
 ROLES = ("base", "exploit", "explore")

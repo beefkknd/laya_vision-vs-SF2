@@ -20,7 +20,7 @@ MODES = ("shadow", "candidates", "vote")
 # generalist base; the table voter exploits the thick trunk. The flavour machinery (voters.py) stays available for a
 # config that sets its own ``flavors``, but the default is none.
 FLAVORS: Dict[str, List[str]] = {}
-VOTERS = ("laya", "table", "frontier", "fireball")
+VOTERS = ("laya", "table", "frontier", "fireball", "pressure")
 
 
 @dataclass
@@ -39,6 +39,7 @@ class QuorumConfig:
     qwen: bool = False           # escalate split votes to Qwen (needs an escalation hook in the driver)
     frontier: bool = True        # gap-filling bee: vote the least-sampled followable move where the table is thin
     fireball: bool = True        # gap-filling bee gated to fb=1 (the slice A found most under-explored)
+    pressure: bool = True        # gap-filling bee gated to opp-attacking (the 'being-pressured' blind slice)
     priors: Dict[str, float] = field(default_factory=lambda: {v: 1.0 for v in VOTERS})
     flavors: Dict[str, List[str]] = field(default_factory=lambda: {k: list(v) for k, v in FLAVORS.items()})
 

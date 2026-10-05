@@ -29,6 +29,7 @@ def test_bee_roster_matches_the_configured_voters():
     assert {b["role"] for b in bees.BEES.values()} <= set(bees.ROLES)
     assert bees.BEES["laya"]["role"] == "base" and bees.BEES["table"]["role"] == "exploit"
     assert bees.BEES["frontier"]["role"] == "explore" and bees.BEES["fireball"]["role"] == "explore"
+    assert bees.BEES["pressure"]["role"] == "explore"
 
 
 # ---------------------------------------------------------------- study: trunk / blind / coverage
