@@ -20,6 +20,7 @@ from ..system1.screen_words import sentence
 from ..vocab import range_of
 from . import reliability as R
 from .config import QuorumConfig
+from .frontier import fireball_proposal, frontier_proposal
 from .tally import ranking, score, table_proposal
 from .voters import base_proposal, flavor_proposals
 
@@ -40,9 +41,13 @@ def quorum_decider(table: VT.Table, rel: R.State, me: str, rng: random.Random, b
         text = prompt(sentence(m), base.get("prompt_lines", []))
         props = [p for p in [base_proposal(base)] if p is not None]
         props += flavor_proposals(cfg.flavors, cat_advisor, move_advisor, text, stance, cats)
-        tp = table_proposal(cell, sorted(actions), cfg)
+        acts = sorted(actions)
+        tp = table_proposal(cell, acts, cfg)
         if tp is not None:
             props.append(tp)
+        for gap in (frontier_proposal(cell, acts, cfg), fireball_proposal(cell, acts, when, cfg)):
+            if gap is not None:                                 # gap-filling bees: explore the table's thin/blind cells
+                props.append(gap)
         props = [p for p in props if p.action in actions]
         scores = score(props, cell, when, rel, cfg)
         order, share = ranking(scores) if scores else ([base["action"]], 0.0)

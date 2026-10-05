@@ -12,20 +12,15 @@ from typing import Dict, List
 
 MODES = ("shadow", "candidates", "vote")
 # flavour -> the round-1 categories that flavour may answer from (action_menu.CATEGORY_ORDER names).
-# Option-2 bees (owner 2026-10-05, data-driven from the 71% table): the table already OWNS neutral (s.hk/SBK win the
-# standing/jumping cells), so the specialist bees target what the table OVERLOOKED -- the negative "being-attacked"
-# cells (defend) and opening/punish damage incl. the never-used combos (punish). laya (base_proposal, full menu) is
-# the generalist base bee; the old broad "attack" blob is dropped (redundant with laya+table) and "move" folds into
-# defend. kick/neutral is left to laya+table on purpose.
-FLAVORS: Dict[str, List[str]] = {
-    "defend": ["block", "move"],                 # anti-pressure / escape: block, walk_back, jump_back, crouch
-    "punish": ["punch", "special", "throw"],     # cash openings: lightning_legs, throw_F, cl.hp
-    "combo": ["combo"],                          # DEDICATED combo bee (owner: "more combos"): combos are offered only
-    #                                              in the air, and inside punish the cat model never picked them over a
-    #                                              punch (Q0: 0% proposed). Its own flavour FORCES a combo when airborne
-    #                                              (jf.mk_legs / jf.hk_s.mp_s.hp) so the table finally samples them.
-}
-VOTERS = ("laya", "defend", "punish", "combo", "table")
+# RETIRED 2026-10-05 (owner): the Option-2 category-forcing bees (defend/punish/combo). A (run A_20261005_084309)
+# showed the force-combo bee HURT -- the quorum played combos ~6x/round and won 65% vs the ~71% baseline, because
+# forcing a category the thick trunk already owned is blunt. The quorum is now organised to FILL the table's gaps
+# (sf2/quorum/frontier.py): the 'frontier' bee explores the least-sampled followable move wherever the table is thin
+# or blind, and the 'fireball' bee pushes the fb=1 slice A found most under-explored. laya (base_proposal) is the
+# generalist base; the table voter exploits the thick trunk. The flavour machinery (voters.py) stays available for a
+# config that sets its own ``flavors``, but the default is none.
+FLAVORS: Dict[str, List[str]] = {}
+VOTERS = ("laya", "table", "frontier", "fireball")
 
 
 @dataclass
@@ -42,6 +37,8 @@ class QuorumConfig:
     w_min: float = 0.05          # reliability weight clamp
     w_max: float = 20.0
     qwen: bool = False           # escalate split votes to Qwen (needs an escalation hook in the driver)
+    frontier: bool = True        # gap-filling bee: vote the least-sampled followable move where the table is thin
+    fireball: bool = True        # gap-filling bee gated to fb=1 (the slice A found most under-explored)
     priors: Dict[str, float] = field(default_factory=lambda: {v: 1.0 for v in VOTERS})
     flavors: Dict[str, List[str]] = field(default_factory=lambda: {k: list(v) for k, v in FLAVORS.items()})
 

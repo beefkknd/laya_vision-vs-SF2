@@ -157,31 +157,33 @@ def test_shadow_mode_plays_text_laya_and_logs_the_swarm():
     assert d["action"] == "block_high" and d["source"] == "laya"          # play unchanged
     q = d["quorum"]
     voters = {p[0] for p in q["proposals"]}
-    assert {"laya", "defend", "punish"} <= voters and q["laya_move"] == "block_high"
-    assert set(q["scores"]) >= {"block_high", "throw_F+hp"} and d["when"] == WHEN
+    assert {"laya", "frontier"} <= voters and q["laya_move"] == "block_high"   # base + gap-filler (table abstains, fb=0)
+    assert "block_high" in q["scores"] and d["when"] == WHEN
 
 
 def test_vote_mode_acts_on_a_quorum():
-    rel = {"rel": {WHEN: {"punish": [10.0, 9]}}}                           # punish dominates the tally here
-    d = _decide(QuorumConfig(mode="vote", theta=0.5, epsilon=0.0), rel=rel)(make_moment(dx=36))
-    assert d["source"] == "quorum" and d["action"] == "throw_F+hp" and d["quorum"]["share"] >= 0.5
+    t = cell_table({"throw_F+mp": acc(40, 20.0)})                          # a thick-trunk winner: the table votes + recruits
+    d = _decide(QuorumConfig(mode="vote", theta=0.5, epsilon=0.0), table=t)(make_moment(dx=36))
+    assert d["source"] == "quorum" and d["action"] == "throw_F+mp" and d["quorum"]["share"] >= 0.5
 
 
 def test_vote_mode_split_falls_back_to_laya_or_asks_qwen():
+    t = lambda: cell_table({"block_high": acc(5, 0.0)})                    # block_high tried -> laya vs a distinct frontier gap: a split
     cfg = QuorumConfig(mode="vote", theta=0.99, epsilon=0.0)
-    d = _decide(cfg)(make_moment(dx=36))
+    d = _decide(cfg, table=t())(make_moment(dx=36))
     assert d["source"] == "fallback" and d["action"] == "block_high" and d["quorum"]["quorum_move"] is None
     asked = []
-    qwen = make_qwen_pick(lambda msgs, task: asked.append(task) or "I pick throw_F+hp.")   # a candidate (punish bee)
-    d = _decide(QuorumConfig(mode="vote", theta=0.99, epsilon=0.0, qwen=True), qwen=qwen)(make_moment(dx=36))
-    assert asked == ["quorum_pick"] and d["source"] == "qwen" and d["action"] == "throw_F+hp"
+    qwen = make_qwen_pick(lambda msgs, task: asked.append(task) or "I pick block_high.")   # laya's move is a candidate
+    d = _decide(QuorumConfig(mode="vote", theta=0.99, epsilon=0.0, qwen=True), table=t(), qwen=qwen)(make_moment(dx=36))
+    assert asked == ["quorum_pick"] and d["source"] == "qwen" and d["action"] == "block_high"
     bad = make_qwen_pick(lambda msgs, task: "jump to the moon")         # outside the candidates -> laya
-    d = _decide(QuorumConfig(mode="vote", theta=0.99, epsilon=0.0, qwen=True), qwen=bad)(make_moment(dx=36))
+    d = _decide(QuorumConfig(mode="vote", theta=0.99, epsilon=0.0, qwen=True), table=t(), qwen=bad)(make_moment(dx=36))
     assert d["source"] == "fallback"
 
 
 def test_vote_mode_explores_the_second_candidate():
-    d = _decide(QuorumConfig(mode="vote", epsilon=1.0))(make_moment(dx=36))
+    t = cell_table({"block_high": acc(5, 0.0)})                           # block_high tried -> frontier finds a DISTINCT gap
+    d = _decide(QuorumConfig(mode="vote", epsilon=1.0), table=t)(make_moment(dx=36))
     assert d["source"] == "explore" and d["explored"] and d["action"] != d["quorum"]["top"]
 
 
@@ -300,10 +302,5 @@ def test_quorum_report_reads_a_run(tmp_path):
     assert sum(b["n"] for b in rep["agreement_vs_outcome"]) == 3 and "laya" in rep["voters"]
 
 
-def test_option2_bee_set_is_pinned():
-    # Option-2 (owner 2026-10-05): base laya + defend(anti-pressure) + punish(openings incl. overlooked combos) + table.
-    from sf2.quorum.config import FLAVORS, VOTERS
-    assert set(VOTERS) == {"laya", "defend", "punish", "combo", "table"}  # dropped broad 'attack'/'move'; combo is its own bee
-    assert FLAVORS["defend"] == ["block", "move"]
-    assert FLAVORS["punish"] == ["punch", "special", "throw"]
-    assert FLAVORS["combo"] == ["combo"]                                 # dedicated: forces combos (air-only) into the vote
+# the pinned voter set moved to tests/test_frontier_bee.py::test_gapfill_bee_set_is_pinned (gap-filling bees, owner
+# 2026-10-05): the Option-2 category-forcing set {defend,punish,combo} was retired after A showed it hurt.
