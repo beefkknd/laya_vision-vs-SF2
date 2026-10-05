@@ -5,6 +5,23 @@ to settle by experiment. Companion to `docs/design_laya_table_hybrid.md` and `do
 Written 2026-10-04 on `feat/table-system1`; **v2 after independent review by GPT6 (codex) and Fable** —
 the two engines converged on the fixes below, so this version supersedes the first draft's framing.
 
+## RESULTS (2026-10-05) — §0 run; two findings that reframe everything
+
+1. **§0a RETRACTED: the credit scalar is NOT the ceiling.** The first draft's "myopia r=0.74→0.50" was an
+   arithmetic artifact (the k-step window included the decision's own net; 1/√(k+1)). Recomputed
+   FUTURE-ONLY: r(immediate net, next-k net) = **−0.008 / 0.081 / 0.080 ≈ 0** — the immediate net is
+   uncorrelated with what follows, so n-step credit adds ~uncorrelated variance, not signal. Telescoping
+   r=1.0 was a tautology (same end-bars feed both sides). **B1 (n-step) was then BUILT + frozen-eval'd:
+   it TIES immediate (71.9% vs 70.5%, diff +1.4, 95% CI [−3.8,+6.6] — not significant), exactly as the
+   corrected diagnostic predicted.** Reward-reshaping is not the lever. [independent review caught this
+   before we shipped a noise-adding "fix" — the owner-mandated code-review process paying off on run 1.]
+2. **The "~60% plateau" was a MEASUREMENT artifact — the real greedy policy is ~71%.** Same `ab_imm`
+   table: training WR (explore 0.1, Qwen rotating) = 59.3%; **FROZEN eval (explore 0, table+memory
+   frozen) = 70.5%** — an 11-pt gap from the exploration tax + memory churn + within-run warmup baked
+   into the training number. Both independently-trained arms land ~71% (tight). So every generational
+   number above is TRAINING-WR, pessimistic by ~10 pts; the policy is already near the 75% aspiration.
+   **Lesson: always report the §0b FROZEN eval, never the training WR.**
+
 ## Context — the generational numbers are TRAINING, not a learning curve
 
 | gen | train win-rate | explore | note |
