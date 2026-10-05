@@ -179,7 +179,7 @@ def _nstep_return(nets: Sequence[float], i: int, horizon: int, gamma: float) -> 
     """Discounted sum of net hp from decision ``i`` over the next ``horizon`` decisions (clamped to the round
     end): Σ_{k=0}^{horizon} gamma^k * nets[i+k]. horizon=0 -> just nets[i] (the one-step reward)."""
     total = 0.0
-    for k in range(horizon + 1):
+    for k in range(max(0, horizon) + 1):                 # clamp negative horizon to 0 (one-step), never a 0-length sum
         j = i + k
         if j >= len(nets):
             break

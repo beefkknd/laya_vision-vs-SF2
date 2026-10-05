@@ -292,6 +292,9 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                 trace.flush()
                 if policy == "table":
                     continue                             # pure table: no Qwen/short-memory; hybrid falls through to it
+            if no_learn:                                 # frozen EVAL: no table credit (above) AND no memory rotation
+                idx += 1
+                continue
             # SYSTEM 2 AFTER EACH ROUND: reflect and rotate the short memory so the NEXT round can adapt.
             round_hp.append(summary["dealt"] - summary["taken"])
             round_wl.append({"won": 1 if summary["result"] == "win" else 0,
