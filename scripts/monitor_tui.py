@@ -137,18 +137,31 @@ def _left_panel(m: T.DashboardModel) -> Panel:
                  Text.from_markup("[dim]PRESSED[/dim]"))
     if not m.decisions:
         pipe.add_row("(waiting for first decision...)", "", "", "")
+    table_policy = m.policy in ("table", "hybrid", "quorum")
     for d in m.decisions:
         fb = " [bold red]fb![/bold red]" if d.fireball else ""
         sit = Text.from_markup(f"{escape(d.rng)}/{escape(d.opp_doing)} dx={d.dx:+d}{fb}")
-        ccol = _conf_color(d.cat_prob)
-        mcol = _conf_color(d.move_prob)
-        cat = Text.from_markup(f"[cyan]{escape(d.category)}[/cyan] [{ccol}]{d.cat_prob:.0%}[/{ccol}]")
-        mark = "ok" if d.follows_rule else "x"
-        rcol = "green" if d.follows_rule else "red"
-        act = Text.from_markup(
-            f"[bold white]{escape(d.action)}[/bold white] [{mcol}]{d.move_prob:.0%}[/{mcol}]"
-            f" [{rcol}][{escape(d.rule)}:{mark}][/{rcol}]"
-        )
+        if table_policy:
+            # the value-table / quorum pick: show the CELL it was decided in and WHO chose it, instead of
+            # the rules-path cat/move probabilities and follows-rule mark (those are absent for these policies).
+            cat = Text.from_markup(f"[cyan]{escape(d.category)}[/cyan]")
+            src = d.source or ("explore" if d.explored else "table")
+            scol = "yellow" if d.explored else "green"
+            tag = "explore" if d.explored else src
+            act = Text.from_markup(
+                f"[bold white]{escape(d.action)}[/bold white] "
+                f"[{scol}]{escape(tag)}[/{scol}]" + (f" [dim]{escape(d.cell)}[/dim]" if d.cell else "")
+            )
+        else:
+            ccol = _conf_color(d.cat_prob)
+            mcol = _conf_color(d.move_prob)
+            cat = Text.from_markup(f"[cyan]{escape(d.category)}[/cyan] [{ccol}]{d.cat_prob:.0%}[/{ccol}]")
+            mark = "ok" if d.follows_rule else "x"
+            rcol = "green" if d.follows_rule else "red"
+            act = Text.from_markup(
+                f"[bold white]{escape(d.action)}[/bold white] [{mcol}]{d.move_prob:.0%}[/{mcol}]"
+                f" [{rcol}][{escape(d.rule)}:{mark}][/{rcol}]"
+            )
         pipe.add_row(sit, cat, act, Text(d.pressed, style="dim"))
 
     s = m.stats

@@ -52,6 +52,10 @@ class DecisionView:
     rule: str                      # which rule fired (default / soft / hard / ...)
     follows_rule: bool
     pressed: str                   # compact rendering of the button sequence
+    # value-table / quorum policies (absent on the rules path -> empty defaults):
+    cell: str = ""                 # the table cell the move was chosen in (decision `when`)
+    source: str = ""               # which path/voter chose it ("table"/"explore"/a quorum voter name)
+    explored: bool = False         # this was an exploration pick (an under-sampled move tried on purpose)
 
 
 @dataclass(frozen=True)
@@ -102,6 +106,7 @@ class DashboardModel:
     games: int
     rounds: int
     run_dir: str
+    policy: str                              # "rules" / "table" / "hybrid" / "quorum" (from run.json)
     # live gameplay
     cur_game: int
     cur_round: int
@@ -471,6 +476,8 @@ def _decision_views(records: Sequence[dict], game: int, rnd: int, cap: int) -> L
         act = r.get("action", "?")
         cat_prob = float((r.get("cat_probs") or {}).get(cat, 0.0) or 0.0)
         move_prob = float((r.get("move_probs") or {}).get(act, 0.0) or 0.0)
+        # value-table / quorum fields (absent on the rules path). `source` may be an explicit null in the
+        # record (table policy) -> read it as "" so the renderer can fall back to "table"/"explore".
         views.append(DecisionView(
             game=game, round=rnd, k=int(r.get("k", 0) or 0),
             rng=str(rng),
@@ -482,6 +489,9 @@ def _decision_views(records: Sequence[dict], game: int, rnd: int, cap: int) -> L
             rule=str(r.get("rule", "default")),
             follows_rule=bool(r.get("follows_rule", False)),
             pressed=_pressed_str(r.get("pressed") or []),
+            cell=str(r.get("when") or ""),
+            source=str(r.get("source") or ""),
+            explored=bool(r.get("explored", False)),
         ))
     return views
 
@@ -534,6 +544,7 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
     opp = str(meta.get("opp", "?"))
     games = int(meta.get("games", 0) or 0)
     rounds = int(meta.get("rounds", 0) or 0)
+    policy = str(meta.get("policy", "rules") or "rules")
 
     trace = _read_jsonl(os.path.join(run_dir, "trace.jsonl"))
     seed_lines: Tuple[str, ...] = ()
@@ -607,7 +618,7 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
     opp_hp = int(round(max(0.0, min(1.0, opp_frac)) * HP_MAX))
 
     return DashboardModel(
-        me=me, opp=opp, games=games, rounds=rounds, run_dir=run_dir,
+        me=me, opp=opp, games=games, rounds=rounds, run_dir=run_dir, policy=policy,
         cur_game=cur_game, cur_round=cur_round,
         me_hp=me_hp, opp_hp=opp_hp, me_hp_frac=me_frac, opp_hp_frac=opp_frac,
         decisions=tuple(decisions), stats=stats,

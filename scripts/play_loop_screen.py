@@ -387,6 +387,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="after the run, write the final registry here so the next round can --carry it")
     ap.add_argument("--watch", action="store_true", help="open a VISIBLE Mesen window to watch the match (default: headless)")
     ap.add_argument("--speed", type=int, default=100, help="--watch emulation speed percent (e.g. 100, 150)")
+    ap.add_argument("--hide-console", dest="hide_console", action="store_true",
+                    help="--watch: park Mesen's Script Window (the Lua 'console') off-screen for a clean recording; "
+                         "the game still plays and the original Mesen settings are restored on exit")
     ap.add_argument("--cat-advisor", default=os.path.join("runs", "text_laya", "cat_v3"),
                     help="round-1 CATEGORY checkpoint")
     ap.add_argument("--move-advisor", default=os.path.join("runs", "text_laya", "move_v2"),
@@ -478,7 +481,8 @@ def main() -> int:
     score_fn = None if args.no_score else _real_score(args.replay_port, args.rom)
     if args.policy == "table":
         # the table decides every move and is credited from outcomes -- text-laya advisors and Qwen are NOT used
-        with open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
+        with open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed,
+                         console=not args.hide_console) as emu:
             verdict = run_loop(args.opp, None, None, lambda *a, **k: "", games=args.games, rounds=args.rounds,
                                seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
                                state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
@@ -486,7 +490,8 @@ def main() -> int:
     else:
         # rules OR hybrid: text-laya plays (two Advisor instances). hybrid also carries/credits the value table.
         with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
-                open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed) as emu:
+                open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed,
+                            console=not args.hide_console) as emu:
             qwen = _real_qwen()
             qwen_pick = None
             if args.policy == "quorum" and qcfg.qwen:            # System 2 on split votes (sf2/quorum/escalate.py)

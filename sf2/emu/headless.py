@@ -5,6 +5,8 @@ host allows. Each worker gets a copy of mesen/sf2_bridge.lua with its port writt
 permission is needed; "Allow network access" must still be ticked once in Mesen's Script Window settings
 (the test runner reads the same settings).
 """
+import copy
+import json
 import os
 import re
 from typing import List
@@ -60,18 +62,50 @@ def window_argv(port: int, rom: str = None, mesen: str = None, speed: int = 100)
 
 
 SETTINGS = MESEN_SETTINGS
+# Parked-window coordinates: far off any normal desktop, so Mesen opens the Script Window out of the
+# screen-recording. Mesen restores each window's SAVED geometry on open, so writing this into the settings
+# before launch places the window there; KeepMesenSettings restores the real settings right after.
+OFFSCREEN = 32000
+
+
+def park_script_window(settings: dict) -> dict:
+    """A COPY of ``settings`` with Mesen's Script Window ("console") parked off-screen and its log pane
+    collapsed, for a clean --watch recording. The script still auto-runs (AutoStartScriptOnLoad is left on),
+    so the game still plays; only the window is moved out of the way. Pure: the input is not mutated."""
+    out = copy.deepcopy(settings)
+    sw = out.setdefault("Debug", {}).setdefault("ScriptWindow", {})
+    sw["WindowLocation"] = {"X": OFFSCREEN, "Y": OFFSCREEN}
+    sw["WindowIsMaximized"] = False
+    sw["LogWindowHeight"] = 0
+    return out
 
 
 class KeepMesenSettings:
     """A windowed Mesen writes its settings back when it closes, including this run's command-line overrides (speed,
-    controller 2). Use around a window's lifetime: the settings file is put back exactly as it was before."""
+    controller 2). Use around a window's lifetime: the settings file is put back exactly as it was before.
+
+    ``hide_console=True`` ALSO parks the Script Window off-screen for the duration of the run (``park_script_window``),
+    so a --watch recording shows only the game; the original settings are restored byte-for-byte on exit either way.
+    ``path`` is the settings file (defaults to Mesen's; overridable for tests)."""
+
+    def __init__(self, path: str = SETTINGS, hide_console: bool = False):
+        self.path = path
+        self.hide_console = hide_console
 
     def __enter__(self):
-        self.saved = open(SETTINGS, "rb").read() if os.path.exists(SETTINGS) else None
+        self.saved = open(self.path, "rb").read() if os.path.exists(self.path) else None
+        if self.hide_console and self.saved is not None:
+            try:
+                parked = park_script_window(json.loads(self.saved.decode("utf-8-sig")))
+                # keep Mesen's UTF-8 BOM so it reads the file the same way it wrote it
+                with open(self.path, "wb") as f:
+                    f.write(("﻿" + json.dumps(parked, indent=2)).encode("utf-8"))
+            except (ValueError, OSError):
+                pass            # a settings file we cannot parse: leave it; the console just stays visible
         return self
 
     def __exit__(self, *exc):
         if self.saved is not None:
-            with open(SETTINGS, "wb") as f:
+            with open(self.path, "wb") as f:
                 f.write(self.saved)
         return False

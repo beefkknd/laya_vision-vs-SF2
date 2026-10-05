@@ -92,15 +92,18 @@ def screen_bridge_for_port(port: int, out_dir: str = os.path.join(REPO, "out", "
 
 
 @contextlib.contextmanager
-def open_screen(port: int, rom: Optional[str] = None, show_window: bool = False, speed: int = 100) -> Iterator[ScreenEmu]:
+def open_screen(port: int, rom: Optional[str] = None, show_window: bool = False, speed: int = 100,
+                console: bool = True) -> Iterator[ScreenEmu]:
     """Mesen running the screen-only bridge, raw capture; always closed. The handle yielded is the first
-    round's record (``new_round`` for the next). ``watch=True`` opens a VISIBLE Mesen window you can watch the match
-    in (``speed`` percent), instead of the headless test runner; the bridge is identical, so play is unchanged."""
+    round's record (``new_round`` for the next). ``show_window=True`` opens a VISIBLE Mesen window you can watch the
+    match in (``speed`` percent), instead of the headless test runner; the bridge is identical, so play is unchanged.
+    ``console=False`` (only meaningful with a window) parks Mesen's Script Window off-screen for a clean recording;
+    the original Mesen settings are restored when the window closes."""
     argv = window_argv(port, rom, speed=speed) if show_window else launch_argv(port, rom)
     if not argv[-1].endswith("sf2_bridge_%d.lua" % port):
         raise RuntimeError("unexpected Mesen command line: %r" % argv)
     argv = argv[:-1] + [screen_bridge_for_port(port)]
-    keep = KeepMesenSettings() if show_window else contextlib.nullcontext()
+    keep = KeepMesenSettings(hide_console=not console) if show_window else contextlib.nullcontext()
     with keep:
         b = MesenBridge(port, launch=argv)
         try:
