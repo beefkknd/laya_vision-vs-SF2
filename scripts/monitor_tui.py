@@ -187,6 +187,45 @@ def _memory_panel(m: T.DashboardModel) -> Panel:
     return Panel(t, title=tr("SHORT MEMORY (in-play rules)"), border_style="green")
 
 
+_VOTER_STYLE = {"laya": "yellow", "table": "green", "frontier": "cyan",
+                "fireball": "bright_cyan", "pressure": "magenta"}
+
+
+def _quorum_panel(m: T.DashboardModel) -> Panel:
+    """The live bee-quorum vote = 'table fire': each bee's proposed move, the table-weighted scores, and the pick."""
+    q = m.quorum
+    t = Text()
+    if q is None:
+        t.append("(no quorum vote yet)", style="dim")
+        return Panel(t, title=tr("BEE QUORUM (table fire)"), border_style="magenta")
+    t.append(f"value table: {q.cells} cells learned", style="bold green")
+    if q.verdict:
+        t.append("   ·   opponent read: ", style="dim")
+        t.append(q.verdict, style="bold green" if q.verdict == "winning" else "bold red")
+    t.append("\n\nthe bees proposed:\n", style="dim")
+    for voter, action, conf, weight in q.proposals:
+        t.append(f"  {voter:9}", style="bold " + _VOTER_STYLE.get(voter, "white"))
+        t.append(f" {action:17}", style="bright_white")
+        t.append(f"  weight {weight:.2f}×conf {conf:.2f}\n", style="dim")
+    if q.scores:
+        t.append("\ntable-weighted score:\n", style="dim")
+        best = max((s for _, s in q.scores), default=1.0) or 1.0
+        for action, score in q.scores[:5]:
+            win = (action == q.quorum_move)
+            filled = int(round(max(0.0, score) / best * 18))
+            bar = "█" * filled + "░" * (18 - filled)
+            t.append("  ▶ " if win else "    ", style="bold green")
+            t.append(f"{action:17}", style="bold green" if win else "white")
+            t.append(f" {bar} {score:+.2f}\n", style="green" if win else "cyan")
+    if q.quorum_move:
+        t.append(f"\n✔ quorum fires: {q.quorum_move}   (share {q.share:.2f} ≥ θ {q.theta:.2f})",
+                 style="bold green")
+    else:
+        t.append(f"\nsplit vote (share {q.share:.2f} < θ {q.theta:.2f}) → laya / Qwen",
+                 style="bold yellow")
+    return Panel(t, title=tr("BEE QUORUM (table fire)"), border_style="magenta")
+
+
 def _qwen_panel(m: T.DashboardModel) -> Panel:
     rows = Table.grid(padding=(0, 1))
     rows.add_column(no_wrap=True)
@@ -292,8 +331,10 @@ def render(m: T.DashboardModel, frame: int = 0, with_footer: bool = True) -> Lay
     # wider right column, and SHORT MEMORY is the dominant panel there so more rules show at once
     top.split_row(Layout(name="left", ratio=1), Layout(name="right", ratio=1))
     top["left"].update(_left_panel(m))
+    # table/quorum policies: show the live bee-vote (table fire); rules policy: the short-memory rules
+    top_right = _quorum_panel(m) if m.policy in ("table", "hybrid", "quorum") else _memory_panel(m)
     top["right"].split_column(
-        Layout(_memory_panel(m), name="mem", ratio=3),
+        Layout(top_right, name="mem", ratio=3),
         Layout(_qwen_panel(m), name="qwen", ratio=2),
     )
     if not with_footer:

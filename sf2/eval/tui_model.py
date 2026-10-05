@@ -99,6 +99,20 @@ class QwenView:
 
 
 @dataclass(frozen=True)
+class QuorumView:
+    """The latest bee-quorum vote (the 'table firing'): each voter's proposal and the weighted result."""
+    mode: str
+    share: float
+    theta: float
+    quorum_move: str
+    laya_move: str
+    proposals: Tuple[Tuple[str, str, float, float], ...]   # (voter, action, confidence, reliability weight)
+    scores: Tuple[Tuple[str, float], ...]                  # (action, final score), best first
+    cells: int = 0                                         # value-table cells learned so far
+    verdict: str = ""                                      # Qwen scout's read of the match: winning / losing
+
+
+@dataclass(frozen=True)
 class DashboardModel:
     # metadata
     me: str
@@ -125,6 +139,7 @@ class DashboardModel:
     qwen_thinking: bool
     status: str                              # "running" / "thinking" / "done" / "empty"
     error: Optional[str] = None              # a parse note (never raised at the caller)
+    quorum: Optional["QuorumView"] = None    # the latest bee-quorum vote (quorum/table policies)
 
 
 @dataclass(frozen=True)
@@ -550,6 +565,9 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
     seed_lines: Tuple[str, ...] = ()
     qwen_events: List[dict] = []
     round_events: List[dict] = []
+    quorum_events: List[dict] = []
+    scout_events: List[dict] = []
+    table_events: List[dict] = []
     for e in trace:
         ev = e.get("event")
         if ev == "seed":
@@ -558,6 +576,12 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
             qwen_events.append(e)
         elif ev == "round":
             round_events.append(e)
+        elif ev == "quorum":
+            quorum_events.append(e)
+        elif ev == "scout":
+            scout_events.append(e)
+        elif ev == "table":
+            table_events.append(e)
 
     round_dirs = list_round_dirs(run_dir)
 
@@ -565,12 +589,15 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
     cur_game = cur_round = 0
     decisions: List[DecisionView] = []
     me_frac = opp_frac = 1.0
+    last_decision_quorum: Optional[dict] = None
     if round_dirs:
         cur_game, cur_round, dirname = round_dirs[-1]
         recs = _read_jsonl(os.path.join(run_dir, dirname, "decisions.jsonl"))
         decisions = _decision_views(recs, cur_game, cur_round, max_decisions)
         if recs:
             me_frac, opp_frac = _me_opp_health(recs[-1].get("facts", {}) or {}, me, opp)
+        # the live bee vote = the most recent decision that carried a quorum record
+        last_decision_quorum = next((r["quorum"] for r in reversed(recs) if r.get("quorum")), None)
 
     stats = _round_stats(trace, cur_game, cur_round)
 
@@ -614,6 +641,24 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
 
     error = None if meta else "run.json missing or unreadable"
 
+    # the live bee vote comes from the latest DECISION's quorum record (the per-round trace 'quorum' event is only
+    # a summary); cells from the trace 'table' event, the match read from the latest 'scout'.
+    quorum_view: Optional[QuorumView] = None
+    if last_decision_quorum:
+        qe = last_decision_quorum
+        props = tuple((str(p[0]), str(p[1]), float(p[2]), float(p[3]))
+                      for p in (qe.get("proposals") or []) if isinstance(p, (list, tuple)) and len(p) >= 4)
+        raw = (qe.get("scores") or {})
+        scores = tuple(sorted(((str(a), float(s["score"] if isinstance(s, dict) else s)) for a, s in raw.items()),
+                              key=lambda x: -x[1]))
+        quorum_view = QuorumView(
+            mode=str(qe.get("mode", "") or ""), share=float(qe.get("share", 0) or 0),
+            theta=float(qe.get("theta", 0) or 0), quorum_move=str(qe.get("quorum_move") or ""),
+            laya_move=str(qe.get("laya_move") or ""), proposals=props, scores=scores,
+            cells=int(table_events[-1].get("cells", 0) or 0) if table_events else 0,
+            verdict=str(scout_events[-1].get("verdict", "") or "") if scout_events else "",
+        )
+
     me_hp = int(round(max(0.0, min(1.0, me_frac)) * HP_MAX))
     opp_hp = int(round(max(0.0, min(1.0, opp_frac)) * HP_MAX))
 
@@ -624,7 +669,7 @@ def build_model(run_dir: str, grader: Optional[GradeFn] = None,
         decisions=tuple(decisions), stats=stats,
         in_play=in_play, qwen=tuple(qwen_views), results=results,
         per_game_wl=per_game_wl(results),
-        qwen_thinking=thinking, status=status, error=error,
+        qwen_thinking=thinking, status=status, error=error, quorum=quorum_view,
     )
 
 
