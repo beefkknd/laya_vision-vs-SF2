@@ -38,6 +38,13 @@ def blank() -> Table:
     return {"cells": {}, "shadow": {}, "depth": {}}
 
 
+def _category_of(action: str, cats: Dict[str, List[str]]) -> str:
+    """The round-1 category of ``action`` in the PLAYED character's own menu (``cats`` = advice.char_categories(me)).
+    Never raises on a char-specific move (ryu's hadoken, a combo, ...): unknown -> "block" (same safe default as the
+    quorum decider's ``_category``). action_menu.category_of knows only Chun-Li's moves, so it cannot be used here."""
+    return next((c for c, moves in cats.items() if action in moves), "block")
+
+
 # --------------------------------------------------------------------------- keys
 def base_key(rng: Optional[str], doing: str, fireball) -> str:
     return "%s|%s|%d" % (rng, doing, 1 if fireball else 0)
@@ -220,7 +227,6 @@ def decider(table: Table, me: str, rng: random.Random, min_tries: int = MIN_TRIE
     ((range, doing, fireball)+his_label split), restricts to the FOLLOWABLE action set at that range, and lets
     `choose` pick. Reads ``table`` as-is (rebuild the decider each round against the freshly-credited table)."""
     from .advice import available_moves, stance_of, char_categories
-    from .action_menu import category_of
     from ..vocab import range_of
     cats = char_categories(me)
 
@@ -229,7 +235,7 @@ def decider(table: Table, me: str, rng: random.Random, min_tries: int = MIN_TRIE
         actions = sorted(available_moves(stance_of("stand", rng_), cats))
         when = when_key(rng_, m.doing, m.fireball, m.his_label, table.get("depth", {}))
         action, explored = choose(table, when, actions, rng, min_tries, eps0)
-        return {"action": action, "when": when, "explored": explored, "category": category_of(action)}
+        return {"action": action, "when": when, "explored": explored, "category": _category_of(action, cats)}
     return decide
 
 
@@ -259,7 +265,6 @@ def hybrid_decider(table: Table, me: str, rng: random.Random, base_decide,
     to wreck text-laya's neutral. The table is credited every round regardless of who chose. Returns the decision dict
     tagged with ``source`` (laya / table / table-explore)."""
     from .advice import available_moves, stance_of, char_categories
-    from .action_menu import category_of
     from ..vocab import range_of
     cats = char_categories(me)
 
@@ -271,11 +276,11 @@ def hybrid_decider(table: Table, me: str, rng: random.Random, base_decide,
         under = [a for a in actions if count(cell, a) < min_tries]
         if under and rng.random() < explore:                 # a little discovery so the table keeps learning
             a = rng.choice(under)
-            return {"action": a, "when": when, "explored": True, "source": "table-explore", "category": category_of(a)}
+            return {"action": a, "when": when, "explored": True, "source": "table-explore", "category": _category_of(a, cats)}
         good = [(mean(cell.get(a)), a) for a in actions if count(cell, a) >= override_tries and mean(cell.get(a)) > 0]
         if good:                                             # override text-laya where the table is confident-good
             a = max(good)[1]
-            return {"action": a, "when": when, "explored": False, "source": "table", "category": category_of(a)}
+            return {"action": a, "when": when, "explored": False, "source": "table", "category": _category_of(a, cats)}
         d = dict(base_decide(m))                             # otherwise defer to text-laya's neutral play
         d.setdefault("when", when)
         d["source"] = "laya"

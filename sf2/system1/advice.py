@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..moves_free import menu as _menu
 from ..vocab import BARS, OPP_STATES, RANGE_WORDS, RANGES
-from .action_menu import CATEGORIES, CATEGORY_ORDER, DEFAULT_MOVE, category_of
+from .action_menu import CATEGORIES, CATEGORY_ORDER, DEFAULT_MOVE
 
 FORWARD = "forward"
 
@@ -368,9 +368,9 @@ def two_stage(rng: str, doing: str, stance: str, lessons: Sequence[Lesson], fire
     """Labels for the two-stage menu: (round-1 category answers, round-2 move answers, the rule that decided). Round 2
     is scoped to one category, so when the picks span categories the caller asks round 2 per category. ``categories``
     is the character's menu (default: Chun-Li's CATEGORIES); the category of each picked move is read from it, so a
-    character whose moves action_menu.category_of does not know (e.g. Ryu's hadoken) still resolves."""
+    character whose moves action_menu knows nothing of (e.g. Ryu's hadoken) still resolves (unknown -> "block")."""
     categories = categories if categories is not None else CATEGORIES
     moves, rule = chosen_moves(rng, doing, stance, lessons, fireball, categories)
     cat_of = {m: c for c, names in categories.items() for m in names}
-    cats = sorted({cat_of.get(m) or category_of(m) for m in moves})
+    cats = sorted({cat_of.get(m) or "block" for m in moves})   # resolve from THIS char's menu; unknown -> safe default
     return cats, moves, rule
