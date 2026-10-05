@@ -42,9 +42,11 @@ def test_throw_only_up_close_and_grounded_moves_only_grounded():
     assert moves_in_stance("block", "air") == [] and moves_in_stance("special", "air") == []
 
 
-def test_combos_are_air_only():
-    assert set(moves_in_stance("combo", "air")) == set(CATEGORIES["combo"])
-    for s in ("standing", "close", "crouch"):
+def test_combos_are_ground_launched_not_air():
+    # combos are GROUND-launched macros (their jf.* name is only the jump-in the macro performs), NOT air moves.
+    # Chun-Li's two are setup 'far' -> offered in the 'standing' stance (grounded mid/far), never air/close/crouch.
+    assert set(moves_in_stance("combo", "standing")) == set(CATEGORIES["combo"])
+    for s in ("air", "close", "crouch"):
         assert moves_in_stance("combo", s) == []
 
 

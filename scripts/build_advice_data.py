@@ -51,13 +51,14 @@ POSTURES = ("stand", "crouch", "air")
 # the five OFFENSE categories (move + block are defensive); the generator balances condition-ON offense rules across
 # these so the category model learns to FOLLOW the offense category when an offense rule applies, instead of defaulting
 # to block. Each offense category's (posture, forced-range) choices are the stances in which that category has moves:
-# a throw needs the close stance (stand + close range); specials are grounded; combos live in crouch/air.
+# a throw needs the close stance (stand + close range); specials are grounded; combos are GROUND-launched macros
+# (not air moves), drawn grounded/standing so moves_in_stance offers them at the range their setup starts from.
 OFFENSE_CATS = ("punch", "kick", "special", "throw", "combo")
 CAT_CHOICES = {"punch": (("stand", None), ("crouch", None), ("air", None)),
                "kick": (("stand", None), ("crouch", None), ("air", None)),
                "special": (("stand", None), ("crouch", None)),
                "throw": (("stand", "close"),),
-               "combo": (("crouch", None), ("air", None))}
+               "combo": (("stand", None),)}
 # moves_free carries the full prefixed menu (incl. specials + combos) for these; the other five it does not.
 FREE_MENU_CHARS = ("ryu", "ken", "chunli")
 # the _BASE normal-ish keys in actions_free.SPECIALS[char] that are NOT specials (crouch normals / sweep / throw)

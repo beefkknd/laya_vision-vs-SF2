@@ -228,9 +228,16 @@ def stance_unreliable(move) -> bool:
     """True for a crouch normal (c.*) or a jump/air attack (j./jf.*): she cannot be relied on to be in
     that stance when a lesson keyed on HIS state fires, so it voids to block. "cl." (close) does not
     match "c." (distinct second char), so close normals stay reliable. A ``combo`` (jf.* name but a
-    GROUND-launched jump-in macro) is reliable -- she is grounded when she starts it -- so it does NOT void."""
-    return (isinstance(move, str) and move.startswith(STANCE_VOID_PREFIXES)
-            and category_of(move) != "combo")
+    GROUND-launched jump-in macro) is reliable -- she is grounded when she starts it -- so it does NOT void.
+    TOTAL: never raises -- an unknown move name (e.g. a stray Qwen claim) is treated as not-a-combo and voids as
+    before, so this predicate can be fed raw claim strings without crashing coach_filter."""
+    if not (isinstance(move, str) and move.startswith(STANCE_VOID_PREFIXES)):
+        return False
+    try:
+        is_combo = category_of(move) == "combo"
+    except (ValueError, KeyError):
+        is_combo = False                                   # unknown name -> not a known ground combo -> voids (old behaviour)
+    return not is_combo
 
 
 def stance_of(posture: str, rng: str) -> str:
@@ -252,6 +259,13 @@ def _prefix(move: str) -> Optional[str]:
     return None
 
 
+# Combos are GROUND-launched macros, not air moves (their jf.* name is only the jump-in the macro performs). The
+# grounded stance they start from is set by their moves_free SETUP: a 'far' combo is a jump-in from distance (starts
+# in the 'standing' stance = grounded mid/far); a 'close' combo (ryu/ken) launches up close (the 'close' stance).
+_COMBO_SETUP = {m.name: m.gap for ch in ("chunli", "ryu", "ken") for m in _menu(ch) if m.kind == "combo"}
+_SETUP_STANCE = {"close": "close"}        # a 'close' combo launches up close; every other setup (far/mid) -> standing
+
+
 def moves_in_stance(category: str, stance: str, categories: Optional[Dict[str, Sequence[str]]] = None) -> List[str]:
     """``category``'s move names that this stance can actually do: a prefixed normal/combo by its prefix, a throw only
     up close, and the other grounded moves (movement, block, special) only while grounded. ``categories`` is the
@@ -261,8 +275,8 @@ def moves_in_stance(category: str, stance: str, categories: Optional[Dict[str, S
         raise ValueError("unknown stance %r" % stance)
     out = []
     for m in categories[category]:
-        if category == "combo":                       # ground-launched jump-in macros (moves_free: setup far): offered
-            if stance == "standing":                  # GROUNDED at mid/far (where a jump-in starts), NOT by their jf.* name
+        if category == "combo":                       # ground-launched macro: the stance comes from its SETUP (far ->
+            if stance == _SETUP_STANCE.get(_COMBO_SETUP.get(m, ""), "standing"):   # far/mid -> standing; close -> close), NOT the jf.* name
                 out.append(m)
             continue
         p = _prefix(m)
