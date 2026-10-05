@@ -303,6 +303,7 @@ def test_quorum_report_reads_a_run(tmp_path):
 def test_option2_bee_set_is_pinned():
     # Option-2 (owner 2026-10-05): base laya + defend(anti-pressure) + punish(openings incl. overlooked combos) + table.
     from sf2.quorum.config import FLAVORS, VOTERS
-    assert set(VOTERS) == {"laya", "defend", "punish", "table"}        # dropped the broad 'attack' and standalone 'move'
+    assert set(VOTERS) == {"laya", "defend", "punish", "combo", "table"}  # dropped broad 'attack'/'move'; combo is its own bee
     assert FLAVORS["defend"] == ["block", "move"]
-    assert FLAVORS["punish"] == ["punch", "special", "throw", "combo"]  # combo included on purpose (table never used it)
+    assert FLAVORS["punish"] == ["punch", "special", "throw"]
+    assert FLAVORS["combo"] == ["combo"]                                 # dedicated: forces combos (air-only) into the vote

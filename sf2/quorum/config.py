@@ -18,10 +18,14 @@ MODES = ("shadow", "candidates", "vote")
 # the generalist base bee; the old broad "attack" blob is dropped (redundant with laya+table) and "move" folds into
 # defend. kick/neutral is left to laya+table on purpose.
 FLAVORS: Dict[str, List[str]] = {
-    "defend": ["block", "move"],                       # anti-pressure / escape: block, walk_back, jump_back, crouch
-    "punish": ["punch", "special", "throw", "combo"],  # cash openings: lightning_legs, throw_F, cl.hp + overlooked combos
+    "defend": ["block", "move"],                 # anti-pressure / escape: block, walk_back, jump_back, crouch
+    "punish": ["punch", "special", "throw"],     # cash openings: lightning_legs, throw_F, cl.hp
+    "combo": ["combo"],                          # DEDICATED combo bee (owner: "more combos"): combos are offered only
+    #                                              in the air, and inside punish the cat model never picked them over a
+    #                                              punch (Q0: 0% proposed). Its own flavour FORCES a combo when airborne
+    #                                              (jf.mk_legs / jf.hk_s.mp_s.hp) so the table finally samples them.
 }
-VOTERS = ("laya", "defend", "punish", "table")
+VOTERS = ("laya", "defend", "punish", "combo", "table")
 
 
 @dataclass
