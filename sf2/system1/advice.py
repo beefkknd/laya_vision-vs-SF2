@@ -229,15 +229,12 @@ def stance_unreliable(move) -> bool:
     that stance when a lesson keyed on HIS state fires, so it voids to block. "cl." (close) does not
     match "c." (distinct second char), so close normals stay reliable. A ``combo`` (jf.* name but a
     GROUND-launched jump-in macro) is reliable -- she is grounded when she starts it -- so it does NOT void.
-    TOTAL: never raises -- an unknown move name (e.g. a stray Qwen claim) is treated as not-a-combo and voids as
-    before, so this predicate can be fed raw claim strings without crashing coach_filter."""
+    TOTAL and character-agnostic: a known ground-launched combo of ANY character (``_COMBO_SETUP``, built from
+    moves_free over chunli/ryu/ken) is reliable and does NOT void; every other c./j./jf.* name -- including an
+    unknown/stray one -- voids as before. A plain set membership, so it never raises on raw claim strings."""
     if not (isinstance(move, str) and move.startswith(STANCE_VOID_PREFIXES)):
         return False
-    try:
-        is_combo = category_of(move) == "combo"
-    except (ValueError, KeyError):
-        is_combo = False                                   # unknown name -> not a known ground combo -> voids (old behaviour)
-    return not is_combo
+    return move not in _COMBO_SETUP
 
 
 def stance_of(posture: str, rng: str) -> str:

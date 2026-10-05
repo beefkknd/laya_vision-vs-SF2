@@ -32,3 +32,11 @@ def test_combos_are_not_stance_voided_but_real_air_normals_still_are():
     assert not stance_unreliable("jf.hk_s.mp_s.hp")
     assert stance_unreliable("j.hk")                  # a genuine air normal still voids
     assert stance_unreliable("c.mk")                  # a crouch normal still voids
+
+
+def test_combos_of_every_character_are_not_voided():
+    # cross-character: ryu/ken combos (c.mk_xx_*, jf.hk_cl.hp_xx_*) are ground-launched too and must NOT void,
+    # even though category_of only knows Chun-Li. (Caught by the per-character sweep; was voiding before.)
+    for m in ("c.mk_xx_hadoken", "c.mk_xx_shoryuken", "jf.hk_cl.hp_xx_hadoken"):
+        assert not stance_unreliable(m), m
+    assert stance_unreliable("c.hk2")                 # an unknown c./j./jf. name still voids (total, no raise)
