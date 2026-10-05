@@ -52,12 +52,19 @@ def launch_argv(port: int, rom: str, mesen: str = None) -> List[str]:
             "--snes.port2.type=SnesController", rom, bridge_for_port(port)]
 
 
-def window_argv(port: int, rom: str = None, mesen: str = None, speed: int = 100) -> List[str]:
+def window_argv(port: int, rom: str = None, mesen: str = None, speed: int = 100, volume: int = 100) -> List[str]:
     """A Mesen window you can watch, running the bridge for ``port`` (same bridge copy as headless). ``speed``: emulation
-    speed in percent (150 measured at 90 fps). The window saves these overrides into Mesen's settings when it closes:
-    run it inside KeepMesenSettings."""
+    speed in percent (150 measured at 90 fps). ``volume``: master volume in percent (0-100) for the watch session;
+    Mesen's saved setting defaults it to ~3/100 (silent) and also ducks volume when the window is not the focused app,
+    so the watch command forces an audible level and disables background ducking (dotted overrides, same mechanism as
+    --emulation.emulationSpeed). The window saves these overrides into Mesen's settings when it closes: run it inside
+    KeepMesenSettings, which restores the real settings afterward."""
     argv = launch_argv(port, rom, mesen)
-    return [argv[0], "--emulation.emulationSpeed=%d" % speed] + [
+    volume = max(0, min(100, int(volume)))      # Mesen rejects an out-of-range MasterVolume override
+    overrides = ["--emulation.emulationSpeed=%d" % speed,
+                 "--audio.masterVolume=%d" % volume,
+                 "--audio.reduceSoundInBackground=false"]
+    return [argv[0]] + overrides + [
         a for a in argv[1:] if not a.startswith(("--testrunner", "--timeout"))]
 
 
