@@ -40,7 +40,7 @@ def test_single_run_view_has_the_new_panels(tmp_path):
     for tag in ("LIVE GAMEPLAY", "SHORT MEMORY", "QWEN", "TREND", "DATA FLOW"):
         assert tag in txt, "missing panel: %s" % tag
     assert "use more s.mk at mid range when he stands" in txt     # in-play rules actually listed
-    assert "VISION" in txt and "CONTROL" in txt                   # the data-flow nodes
+    assert "3 BEES" in txt and "TABLE" in txt                     # the data-flow nodes (quorum + table)
 
 
 def test_session_view_has_career_trend_and_data_flow(tmp_path):

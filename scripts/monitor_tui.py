@@ -285,8 +285,11 @@ def _trend_panel(m: T.DashboardModel) -> Panel:
     return Panel(body, title=tr("TREND (win-rate climbing)"), border_style="green")
 
 
-_PLAY_NODES = ("VISION", "TEXT", "CATEGORY", "MOVE", "CONTROL")
-_LEARN_NODES = ("laya_text", "QWEN", "PLAYBOOK", "MEMORY")
+# The live System 1 is the bee-quorum + value table (not the retired rules/text-laya pipeline): a frame
+# becomes words (the eye), three bees vote, the table weighs the votes and decides, the gamepad acts.
+_PLAY_NODES = ("FRAME", "EYE", "3 BEES", "TABLE", "GAMEPAD")
+# System 2, between rounds: the game log goes to Qwen, which writes one rule that re-weights the table.
+_LEARN_NODES = ("LOG", "QWEN", "RULE", "TABLE")
 
 
 def _flow_line(label: str, nodes, pulse: Optional[int], color: str) -> Text:
@@ -308,17 +311,33 @@ def _flow_line(label: str, nodes, pulse: Optional[int], color: str) -> Text:
     return t
 
 
-def _pipeline_panel(thinking: bool, frame: int) -> Panel:
+def _latest_source(m: Optional[T.DashboardModel]) -> str:
+    """The voter/path that chose the most recent move ('' if there is no decision yet). Used to ground the
+    DATA FLOW pulse in the real decision instead of a cosmetic march."""
+    if m is None or not m.decisions:
+        return ""
+    return m.decisions[-1].source or ""
+
+
+def _pipeline_panel(thinking: bool, frame: int, source: str = "") -> Panel:
     """The cross-system data flow with a firing pulse. While playing, the pulse travels the PLAY path
-    (vision -> text -> category -> move/short-memory -> control); while Qwen reflects between games, it
-    travels the LEARN path (laya_text -> qwen -> playbook -> short-memory). The idle path is dim."""
+    (frame -> eye -> 3 bees -> table -> gamepad); while Qwen reflects between rounds, it travels the LEARN
+    path (log -> qwen -> rule -> table). The idle path is dim. ``source`` is the voter/path that chose the
+    latest move (table/explore/a quorum voter name); when given, the PLAY line names it so the pulse is
+    grounded in the real decision rather than only a cosmetic frame%N march."""
     play_pulse = None if thinking else frame % len(_PLAY_NODES)
     learn_pulse = (frame % len(_LEARN_NODES)) if thinking else None
+    play = _flow_line("PLAY", _PLAY_NODES, play_pulse, "cyan")
+    if not thinking and source:
+        play.append(f"    ◉ table fires → {source}", style="dim cyan")
+    learn = _flow_line("LEARN", _LEARN_NODES, learn_pulse, "magenta")
+    if thinking:
+        learn.append("    ◉ Qwen writing a rule…", style="dim magenta")
     body = Group(
-        _flow_line("PLAY", _PLAY_NODES, play_pulse, "cyan"),
+        play,
         Text(""),
-        _flow_line("LEARN", _LEARN_NODES, learn_pulse, "magenta"),
-        Text.from_markup("[dim]MEMORY feeds back into MOVE — the short memory the player reads.[/dim]"),
+        learn,
+        Text.from_markup("[dim]QWEN writes one rule that re-weights the TABLE the bees vote into.[/dim]"),
     )
     status = "reflecting (LEARN firing)" if thinking else "playing (PLAY firing)"
     return Panel(body, title=tr(f"DATA FLOW — {status}"), border_style="yellow")
@@ -345,7 +364,7 @@ def render(m: T.DashboardModel, frame: int = 0, with_footer: bool = True) -> Lay
                         Layout(name="bottom", ratio=1, minimum_size=9))
     layout["bottom"].split_row(
         Layout(_trend_panel(m), name="trend", ratio=2),
-        Layout(_pipeline_panel(m.qwen_thinking, frame), name="flow", ratio=3),
+        Layout(_pipeline_panel(m.qwen_thinking, frame, source=_latest_source(m)), name="flow", ratio=3),
     )
     return layout
 
@@ -434,7 +453,7 @@ def render_session(sm: T.SessionModel, frame: int = 0) -> Layout:
     else:
         layout["active"].update(Panel(Text("(no active round yet)", style="dim"),
                                       title=tr("LIVE GAMEPLAY"), border_style="cyan"))
-    layout["flow"].update(_pipeline_panel(thinking, frame))
+    layout["flow"].update(_pipeline_panel(thinking, frame, source=_latest_source(sm.active)))
     return layout
 
 
