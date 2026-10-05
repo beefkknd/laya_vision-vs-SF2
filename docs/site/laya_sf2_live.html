@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>laya-vision vs SF2 — live</title>
+<meta name="description" content="A live terminal-style view of the self-learning Street Fighter II loop: a frame goes to the eye, func_img_txt turns it into words, three laya-text models vote, a 4x4 value table decides and the gamepad acts. The output also piles up in the log; when enough accumulates, one digest goes to Qwen, which writes a rule that re-weights a cell of the table.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#0a0b10; --win:#101219; --winbar:#171a23; --line:#232634; --line2:#2d3142;
+  --ink:#d9deea; --dim:#6b7488; --dim2:#4a5162;
+  --cyan:#56ccf2; --mint:#76e0a0; --violet:#ad82ff; --pink:#ff7aa8; --amber:#ffc861; --red:#ff6b6b;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);}
+body{padding:24px 16px 48px;-webkit-text-size-adjust:100%;}
+.wrap{max-width:1120px;margin:0 auto;}
+.lead{color:var(--dim);font-size:13px;line-height:1.6;margin:0 2px 16px;max-width:82ch;}
+.lead b{color:var(--ink);font-weight:600;} .lead code{color:var(--cyan);}
+.term{background:var(--win);border:1px solid var(--line2);border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.bar{display:flex;align-items:center;gap:8px;padding:11px 14px;background:var(--winbar);border-bottom:1px solid var(--line);font-size:12px;color:var(--dim);}
+.dots{display:flex;gap:7px;} .dots i{width:11px;height:11px;border-radius:50%;display:block;}
+.dots .r{background:#ff5f57;} .dots .y{background:#febc2e;} .dots .g{background:#28c840;}
+.bartitle{flex:1;text-align:center;letter-spacing:.04em;}
+.bartitle b{color:var(--ink);font-weight:600;} .bartitle .sep{color:var(--dim2);margin:0 8px;}
+.bar .right{color:var(--dim2);}
+.body{padding:14px 12px 6px;}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;padding:2px 8px 12px;font-size:12px;color:var(--dim);}
+.legend span{display:inline-flex;align-items:center;gap:7px;}
+.legend i{width:9px;height:9px;border-radius:2px;display:block;}
+.svgwrap{overflow-x:auto;}
+svg.live{display:block;width:100%;height:auto;min-width:900px;}
+svg text{font-family:var(--mono);}
+.ticker{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:12px 10px 4px;border-top:1px solid var(--line);margin-top:6px;font-size:12.5px;color:var(--dim);}
+.ticker .live-dot{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 8px var(--mint);animation:blink 1.4s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+.ticker b{color:var(--ink);font-weight:600;} .ticker .k{color:var(--dim2);}
+.ratebar{display:inline-block;letter-spacing:1px;color:var(--mint);} .ticker .last{color:var(--amber);}
+.controls{display:flex;flex-wrap:wrap;gap:9px;padding:12px 8px 4px;}
+.btn{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink);background:#1a1d27;border:1px solid var(--line2);border-radius:7px;padding:8px 13px;cursor:pointer;}
+.btn:hover{border-color:var(--cyan);} .btn.on{color:#06202b;background:var(--cyan);border-color:var(--cyan);}
+@media (max-width:560px){ body{padding:16px 8px 40px;} .bartitle{font-size:10.5px;} }
+@media (prefers-reduced-motion:reduce){ .ticker .live-dot{animation:none;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="lead">The whole player as one live board. A <b>frame</b> drops to the <b>eye</b>; <code>func_img_txt</code> turns the picture into words; <b>3 laya-text</b> models each vote a move; the <b>4×4 value table</b> — what has paid off before — decides, and the <b>gamepad</b> acts. The output loops to the next frame <b>and</b> piles into the <b>log</b>; once enough accumulates, one digest goes to <b>Qwen</b>, which writes a rule that lights up a table cell and <b>re-weights it</b>.</p>
+
+  <div class="term">
+    <div class="bar">
+      <span class="dots"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="bartitle"><b>laya-vision vs SF2</b><span class="sep">·</span>live<span class="sep">·</span>SYSTEM 1 + SYSTEM 2</span>
+      <span class="right">self-learning loop</span>
+    </div>
+    <div class="body">
+      <div class="legend">
+        <span><i style="background:var(--cyan)"></i> eye · vision</span>
+        <span><i style="background:var(--mint)"></i> 3 laya-text · vote</span>
+        <span><i style="background:var(--mint)"></i> value table · 4×4</span>
+        <span><i style="background:var(--violet)"></i> qwen · coach</span>
+        <span><i style="background:var(--amber)"></i> rule</span>
+        <span><i style="background:var(--dim)"></i> game · log · i/o</span>
+      </div>
+      <div class="svgwrap"><svg class="live" id="svg" viewBox="0 0 1180 560" role="img" aria-label="Live diagram: a frame feeds the eye; func_img_txt converts it to words for three laya-text voters; a 4x4 value table decides and the gamepad acts. Output loops to the frame and accumulates in the log; a digest triggers Qwen, whose rule re-weights a table cell."></svg></div>
+      <div class="ticker">
+        <span class="live-dot" aria-hidden="true"></span><span>live</span>
+        <span><span class="k">frame</span> <b id="tk-frame">0</b></span>
+        <span><span class="k">rate</span> <b id="tk-dec">0</b>/s</span>
+        <span><span class="k">round</span> <b id="tk-round">1</b></span>
+        <span><span class="k">win</span> <b id="tk-rate">50%</b> <span class="ratebar" id="tk-bar">▮▮▮▮▮▯▯▯▯▯</span></span>
+        <span class="last" id="tk-last">warming up…</span>
+      </div>
+      <div class="controls">
+        <button class="btn on" id="b-play">⏸ pause</button>
+        <button class="btn" id="b-speed">speed 1×</button>
+        <button class="btn" id="b-qwen">⚡ force digest → qwen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const reduce = matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+const svg=document.getElementById("svg");
+const C={cyan:"#56ccf2",mint:"#76e0a0",violet:"#ad82ff",pink:"#ff7aa8",amber:"#ffc861",dim:"#6b7488",dim2:"#4a5162",ink:"#d9deea"};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+/* ---- geometry: GAME ENGINE band on top (frame + gamepad); HARNESS = the eye; SYSTEM 1 = laya+table+log;
+   SYSTEM 2 = qwen+rule underneath. Nodes kept out of each other's zone rectangles. ---- */
+const N={
+  frame:{x:60,  y:48,  w:150, h:76,  c:C.cyan},
+  pad:{x:955,   y:48,  w:150, h:84,  c:C.dim},       // gamepad: top row, aligned x with log + qwen (col 1030)
+  eye:{x:60,    y:217, w:200, h:96,  c:C.cyan},       // HARNESS — on the main row (centre-y 265)
+  bees:{x:330,  y:190, w:250, h:150, c:C.mint},       // main row
+  table:{x:660, y:170, w:204, h:190, c:C.mint},       // main row; aligned x with rule (col 762)
+  log:{x:955,   y:205, w:150, h:120, c:C.dim},        // main row; aligned x with gamepad + qwen (col 1030)
+  qwen:{x:910,  y:400, w:240, h:120, c:C.violet},     // centre-x 1030, under the game log
+  rule:{x:647,  y:400, w:230, h:120, c:C.amber},      // centre-x 762, under the value table
+};
+const E={
+  e_fe:{to:"eye",   d:"M135,124 V190 H160 V217",  col:C.cyan,  grp:"s1"},
+  e_eb:{to:"bees",  d:"M260,265 H330",            col:C.cyan,  grp:"s1", label:"func_img_txt()", lx:295, ly:256, la:"middle"},
+  e_bt:{to:"table", d:"M580,265 H660",            col:C.mint,  grp:"s1"},
+  e_tg:{to:"pad",   d:"M762,170 V90 H955",        col:C.mint,  grp:"ctrl", label:"control", lx:770, ly:82, la:"start"},
+  e_tl:{to:"log",   d:"M864,265 H955",            col:C.mint,  grp:"log",  label:"accumulate", lx:909, ly:256, la:"middle"},
+  e_gf:{to:"frame", d:"M1030,48 V26 H135 V48",    col:C.dim2,  grp:"loop", label:"plays", lx:560, ly:20, la:"middle"},
+  e_lq:{to:"qwen",  d:"M1030,325 V400",           col:C.violet,grp:"s2",   label:"round digest", lx:1040, ly:368, la:"start"},
+  e_qr:{to:"rule",  d:"M910,460 H877",            col:C.violet,grp:"s2"},
+  e_rt:{to:"table", d:"M762,400 V360",            col:C.amber, grp:"s2",   label:"re-weight", lx:772, ly:385, la:"start"},
+};
+const S1=["e_fe","e_eb","e_bt"];           // frame -> eye -> bees -> table (the decision)
+const CTRL=["e_tg"];                        // table -> gamepad (the control)
+const TOLOG=["e_tl"];                        // table -> game log (accumulate) -- forked from the OUTPUT, not the pad
+const LOOP=["e_gf"];                        // gamepad -> frame (plays the next frame)
+const S2=["e_lq","e_qr","e_rt"];            // log -> qwen -> rule -> table
+
+/* ---- helpers ---- */
+function mk(tag,at,parent){const n=document.createElementNS(NS,tag);for(const k in at)n.setAttribute(k,at[k]);(parent||svg).appendChild(n);return n;}
+function txt(x,y,s,o={}){const t=mk("text",{x,y,fill:o.fill||C.ink,"font-size":o.size||12,"font-weight":o.w||400,"text-anchor":o.a||"start"},o.p);t.textContent=s;return t;}
+function colKey(c){return c===C.cyan?"cyan":c===C.mint?"mint":c===C.violet?"violet":c===C.amber?"amber":"dim2";}
+
+function defs(){
+  const d=mk("defs",{});
+  const f=mk("filter",{id:"glow",x:"-60%",y:"-60%",width:"220%",height:"220%"},d);
+  mk("feGaussianBlur",{stdDeviation:"2.6",result:"b"},f);
+  const mg=mk("feMerge",{},f); ["b","SourceGraphic"].forEach(i=>mk("feMergeNode",{in:i},mg));
+  Object.entries({cyan:C.cyan,mint:C.mint,violet:C.violet,amber:C.amber,dim2:C.dim2}).forEach(([k,col])=>{
+    const m=mk("marker",{id:"mk-"+k,viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"},d);
+    mk("path",{d:"M0,1 L9,5 L0,9",fill:"none",stroke:col,"stroke-width":"1.6"},m);
+  });
+}
+function edges(){
+  for(const id in E){const e=E[id];
+    e.el=mk("path",{d:e.d,fill:"none",stroke:e.col,"stroke-width":e.grp==="loop"?1.3:1.6,"stroke-dasharray":"5 5","opacity":(e.grp==="loop")?.4:.55,"marker-end":"url(#mk-"+colKey(e.col)+")"});
+    if(e.label) txt(e.lx,e.ly,e.label,{fill:e.col,size:10.5,a:e.la||"middle"});
+  }
+}
+function box(n){
+  const o=N[n]; const g=mk("g",{}); N[n].g=g;
+  N[n].rect=mk("rect",{x:o.x,y:o.y,width:o.w,height:o.h,rx:8,fill:"#0d0f16",stroke:o.c,"stroke-width":1.4,"stroke-opacity":.5},g);
+  N[n].hot=mk("rect",{x:o.x,y:o.y,width:o.w,height:o.h,rx:8,fill:o.c,"fill-opacity":0,stroke:o.c,"stroke-opacity":0,"stroke-width":2},g);
+  N[n].hot.style.transition="fill-opacity .5s ease, stroke-opacity .5s ease";
+  mk("rect",{x:o.x+14,y:o.y+31,width:34,height:2.5,rx:1,fill:o.c,"fill-opacity":.85},g);  // accent bar under the card name
+  return {g,o};
+}
+
+/* ---- group wireframes: GAME ENGINE, HARNESS, SYSTEM 1, SYSTEM 2 (light fill, dashed, short label) ---- */
+function zones(){
+  const Z=[
+    {x:44,  y:28,  w:1078, h:118, c:C.dim2,   t:"GAME ENGINE", lx:560, ly:45,  la:"middle"},
+    {x:44,  y:200, w:232,  h:130, c:C.cyan,    t:"HARNESS",     lx:58,  ly:216, la:"start"},
+    {x:296, y:156, w:826,  h:224, c:C.mint,    t:"SYSTEM 1",    lx:310, ly:172, la:"start"},
+    {x:628, y:384, w:538,  h:154, c:C.violet,  t:"SYSTEM 2",    lx:642, ly:400, la:"start"},
+  ];
+  Z.forEach(z=>{
+    mk("rect",{x:z.x,y:z.y,width:z.w,height:z.h,rx:14,fill:z.c,"fill-opacity":.045,stroke:z.c,"stroke-opacity":.34,"stroke-width":1.2,"stroke-dasharray":"7 6"});
+    const l=txt(z.lx,z.ly,z.t,{fill:z.c,size:11,w:700,a:z.la}); l.setAttribute("letter-spacing","2.2"); l.setAttribute("fill-opacity",".75");
+  });
+}
+function bar(g,x,y,w,val,col){ mk("rect",{x,y,width:w,height:7,rx:3,fill:"#1b1f2b"},g); return mk("rect",{x,y,width:Math.max(2,w*val),height:7,rx:3,fill:col},g); }
+
+/* ---- value-table 4x4 grid ---- */
+const GRID={cols:4,rows:4,x0:0,y0:0,cw:42,ch:34,gx:4,gy:4};
+const cells=[]; // {rect,text,val}
+function valOpacity(v){ return 0.08+0.62*clamp(v,0,1); }
+function buildGrid(o){
+  GRID.x0=o.x+10; GRID.y0=o.y+38;
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+    const i=r*4+c, v=rnd(.05,.95);
+    const x=GRID.x0+c*(GRID.cw+GRID.gx), y=GRID.y0+r*(GRID.ch+GRID.gy);
+    const rect=mk("rect",{x,y,width:GRID.cw,height:GRID.ch,rx:4,fill:C.mint,"fill-opacity":valOpacity(v),stroke:"#2a3340","stroke-width":1},N.table.g);
+    rect.style.transition="fill .45s ease, fill-opacity .45s ease";
+    const t=txt(x+GRID.cw/2,y+GRID.ch/2+4,v.toFixed(2),{fill:C.ink,size:11,a:"middle",p:N.table.g});
+    cells[i]={rect,text:t,val:v,x,y};
+  }
+}
+
+/* ---- node content ---- */
+const R={};
+function buildNodes(){
+  let b=box("frame"); txt(b.o.x+14,b.o.y+26,"frame",{fill:C.cyan,w:700,size:13,p:b.g});
+  txt(b.o.x+14,b.o.y+46,"2 shots · 4 apart",{fill:C.dim,size:11,p:b.g});
+  for(let i=0;i<9;i++)mk("rect",{x:b.o.x+14+(i%3)*8,y:b.o.y+54+Math.floor(i/3)*5,width:6,height:3,fill:(i*7)%3?C.dim2:C.cyan,opacity:.7},b.g);
+
+  b=box("eye"); txt(b.o.x+14,b.o.y+26,"the eye",{fill:C.cyan,w:700,size:13,p:b.g});
+  txt(b.o.x+14,b.o.y+45,"sees the screen",{fill:C.dim,size:11,p:b.g});
+  R.eye=txt(b.o.x+14,b.o.y+72,'"close · attacking"',{fill:C.ink,size:12.5,p:b.g});
+
+  b=box("bees"); txt(b.o.x+14,b.o.y+24,"3 laya-text",{fill:C.mint,w:700,size:13,p:b.g});
+  txt(b.o.x+152,b.o.y+24,"· each votes a move",{fill:C.dim,size:10.5,p:b.g});
+  const rows=[["laya",.71],["frontier",.52],["pressure",.44]]; R.bee={};
+  rows.forEach((r,i)=>{const y=b.o.y+44+i*30;
+    txt(b.o.x+12,y+7,r[0],{fill:C.ink,size:11.5,p:b.g});
+    R.bee[r[0]]={fill:bar(b.g,b.o.x+84,y,74,r[1],C.mint),
+      val:txt(b.o.x+164,y+7,r[1].toFixed(2),{fill:C.ink,size:11.5,w:600,p:b.g}),
+      tag:txt(b.o.x+196,y+7,r[1]>.6?"sharp":"split",{fill:r[1]>.6?C.mint:C.pink,size:11,p:b.g})};
+  });
+  R.beeVote=txt(b.o.x+12,b.o.y+140,"→ picks: throw",{fill:C.mint,size:11.5,w:600,p:b.g});
+
+  b=box("table"); txt(b.o.x+10,b.o.y+24,"value table",{fill:C.mint,w:700,size:13,p:b.g});
+  txt(b.o.x+120,b.o.y+24,"4×4 · 0–.99",{fill:C.dim,size:10.5,p:b.g});
+  buildGrid(b.o);
+
+  b=box("pad"); txt(b.o.x+14,b.o.y+24,"gamepad",{fill:C.ink,w:700,size:13,p:b.g});
+  R.ctrl=txt(b.o.x+b.o.w/2,b.o.y+60,"LP+LK",{fill:C.cyan,size:18,w:700,a:"middle",p:b.g});
+
+  b=box("log"); txt(b.o.x+14,b.o.y+24,"game log",{fill:C.ink,w:700,size:13,p:b.g});
+  R.logN=txt(b.o.x+14,b.o.y+46,"pending 0/"+TH,{fill:C.dim,size:11,p:b.g});
+  R.pips=[]; for(let i=0;i<TH;i++){const px=b.o.x+14+i*18;
+    R.pips.push(mk("rect",{x:px,y:b.o.y+56,width:13,height:13,rx:2,fill:"#1b1f2b",stroke:"#2a3340","stroke-width":1},b.g));}
+  R.logRound=txt(b.o.x+14,b.o.y+96,"round 1",{fill:C.dim2,size:10.5,p:b.g});
+
+  b=box("qwen"); txt(b.o.x+14,b.o.y+26,"qwen · coach",{fill:C.violet,w:700,size:13,p:b.g});
+  txt(b.o.x+14,b.o.y+46,"reads the round digest · background",{fill:C.dim,size:11,p:b.g});
+  R.qstat=txt(b.o.x+14,b.o.y+74,"◇ idle — waiting for the log to fill",{fill:C.dim2,size:12,p:b.g});
+  txt(b.o.x+14,b.o.y+98,"writes ONE rule · cites a table cell",{fill:C.dim,size:10.5,p:b.g});
+
+  b=box("rule"); txt(b.o.x+14,b.o.y+26,"rule",{fill:C.amber,w:700,size:13,p:b.g});
+  R.rule=txt(b.o.x+14,b.o.y+50,"—",{fill:C.ink,size:11.5,p:b.g});
+  R.ruleCite=txt(b.o.x+14,b.o.y+72,"",{fill:C.dim,size:10.5,p:b.g});
+}
+
+/* ---- live content updates ---- */
+const MOVES=[["throw","LP+LK"],["c.lk","↓+LK"],["s.mk","→+MK"],["jab","LP"],["sweep","↓+HK"],["upkick","↑+HK"]];
+const EYES=['"close · attacking"','"mid · neutral"','"far · fireball!"','"close · he jumped"','"mid · he blocks"'];
+let lastMove=MOVES[0], round=1, frame=0, winRate=0.50;
+function flickerBees(){ ["laya","frontier","pressure"].forEach(nm=>{const v=clamp(rnd(.3,.85),.15,.95),be=R.bee[nm];
+  be.fill.setAttribute("width",Math.max(2,74*v)); be.val.textContent=v.toFixed(2);
+  const s=v>.6; be.tag.textContent=s?"sharp":"split"; be.tag.setAttribute("fill",s?C.mint:C.pink);}); }
+function decide(){ lastMove=MOVES[Math.floor(Math.random()*MOVES.length)];
+  R.beeVote.textContent="→ picks: "+lastMove[0]; R.ctrl.textContent=lastMove[1];
+  // briefly glance a table cell being read
+  const i=Math.floor(Math.random()*16); flashCell(i, cells[i].val, false); }
+function updateEye(){ R.eye.textContent=EYES[Math.floor(Math.random()*EYES.length)]; }
+function pulse(n){ const node=N[n]; if(!node||!node.hot)return;
+  node.hot.setAttribute("fill-opacity",".20"); node.hot.setAttribute("stroke-opacity","1"); node.rect.setAttribute("filter","url(#glow)");
+  clearTimeout(node._pt); node._pt=setTimeout(()=>{node.hot.setAttribute("fill-opacity","0");node.hot.setAttribute("stroke-opacity","0");node.rect.setAttribute("filter","");},640); }
+
+/* a cell lights bright, then settles to its (darker) value color; number changes on settle */
+function flashCell(i,newVal,changeNum){ const cl=cells[i]; if(!cl)return;
+  cl.rect.setAttribute("fill","#eafff3"); cl.rect.setAttribute("fill-opacity","1"); cl.rect.setAttribute("stroke",C.mint);
+  clearTimeout(cl._t); cl._t=setTimeout(()=>{ cl.val=newVal;
+    cl.rect.setAttribute("fill",C.mint); cl.rect.setAttribute("fill-opacity",valOpacity(newVal)); cl.rect.setAttribute("stroke","#2a3340");
+    if(changeNum) cl.text.textContent=newVal.toFixed(2);
+  }, 460); }
+
+/* ---- log accumulator + qwen trigger ---- */
+const TH=6; let pending=0;
+function logTick(){ pending++; R.logN.textContent="pending "+pending+"/"+TH;
+  for(let i=0;i<TH;i++) R.pips[i].setAttribute("fill", i<pending?C.mint:"#1b1f2b");
+  pulse("log"); if(pending>=TH) fireDigest(); }
+function fireDigest(){ if(dots.some(d=>d.kind==="s2"))return; pending=0;
+  for(let i=0;i<TH;i++) R.pips[i].setAttribute("fill","#1b1f2b"); R.logN.textContent="digest → qwen";
+  spawn(S2,"log",C.violet,"s2",6); }
+function qwenUpdateTable(){ const i=Math.floor(Math.random()*16);
+  const newV=clamp(cells[i].val+rnd(-.1,.4),.02,.99);
+  flashCell(i,newV,true);                                   // light -> darker -> number changes
+  R.rule.textContent='"'+lastMove[0]+' up close — weight up"';
+  R.ruleCite.textContent="cites cell r"+(Math.floor(i/4)+1)+"c"+(i%4+1)+" "+cells[i].val.toFixed(2)+" → "+newV.toFixed(2);
+  round++; R.logRound.textContent="round "+round; winRate=clamp(winRate+rnd(.01,.05),0,.86);
+  setTicker("Qwen re-weighted a cell → "+newV.toFixed(2)); pulse("table"); }
+
+/* ---- dot animator ---- */
+let dots=[], speedMul=1, playing=true, raf=0, last=0;
+function spawn(route,startNode,col,kind,r){ dots.push({route,seg:0,dist:0,col,kind,dwell:0,r:r||4.5,
+  el:mk("circle",{r:r||4.5,cx:-30,cy:-30,fill:col,filter:"url(#glow)"})}); }
+function arrive(node,kind){
+  pulse(node);
+  if(node==="eye") updateEye();
+  else if(node==="bees") flickerBees();
+  else if(node==="qwen"){ R.qstat.textContent="◇ reflecting… writing a rule"; R.qstat.setAttribute("fill",C.violet); }
+}
+function done(d){
+  if(d.kind==="s1"){ decide(); spawn(CTRL,"table",C.mint,"ctrl"); spawn(TOLOG,"table",C.mint,"log"); }  // OUTPUT forks: control + log
+  else if(d.kind==="ctrl"){ spawn(LOOP,"pad",C.dim2,"loop"); }   // control reached the gamepad -> play next frame
+  else if(d.kind==="loop"){ pulse("frame"); }
+  else if(d.kind==="log"){ logTick(); }
+  else if(d.kind==="s2"){ qwenUpdateTable(); R.qstat.textContent="◇ idle — waiting for the log to fill"; R.qstat.setAttribute("fill",C.dim2); }
+}
+function step(now){
+  if(!playing) return;
+  const dt=Math.min(.05,(now-last)/1000||0); last=now; const base=90*speedMul;
+  for(let i=dots.length-1;i>=0;i--){ const d=dots[i];
+    if(d.dwell>0){ d.dwell-=dt; if(d.dwell>0) continue; }
+    let rem=base*dt;
+    while(rem>0){ const e=E[d.route[d.seg]], L=e.el.getTotalLength(), left=L-d.dist;
+      if(rem<left){ d.dist+=rem; rem=0; }
+      else{ rem-=left; arrive(e.to,d.kind); d.seg++;
+        if(d.seg>=d.route.length){ done(d); d.el.remove(); dots.splice(i,1); d.fin=1; break; }
+        d.dist=0;
+        if(d.kind==="s2" && E[d.route[d.seg-1]].to==="qwen"){ d.dwell=reduce?.3:1.5; rem=0; }
+      } }
+    if(!d.fin){ const e=E[d.route[d.seg]], p=e.el.getPointAtLength(d.dist); d.el.setAttribute("cx",p.x); d.el.setAttribute("cy",p.y); }
+  }
+  raf=requestAnimationFrame(step);
+}
+
+/* ---- schedulers + counters ---- */
+let spawnTimer, countTimer;
+function startSchedulers(){ stopSchedulers();
+  spawnTimer=setInterval(()=>{ if(playing && dots.filter(d=>d.kind==="s1").length<3) spawn(S1,"frame",C.cyan,"s1"); }, 2000/speedMul);
+  countTimer=setInterval(()=>{ if(!playing)return;
+    frame+=Math.floor(rnd(3,9)); document.getElementById("tk-frame").textContent=frame.toLocaleString();
+    document.getElementById("tk-dec").textContent=Math.floor(rnd(70,96));
+    document.getElementById("tk-round").textContent=round;
+    const pct=Math.round(winRate*100); document.getElementById("tk-rate").textContent=pct+"%";
+    const n=Math.round(winRate*10); document.getElementById("tk-bar").textContent="▮".repeat(n)+"▯".repeat(10-n);
+  },250);
+}
+function stopSchedulers(){ [spawnTimer,countTimer].forEach(t=>t&&clearInterval(t)); }
+function setTicker(s){ document.getElementById("tk-last").textContent=s; }
+
+/* ---- controls ---- */
+function setPlaying(p){ playing=p; const b=document.getElementById("b-play");
+  b.textContent=p?"⏸ pause":"▶ play"; b.classList.toggle("on",p);
+  if(p){ last=performance.now(); raf=requestAnimationFrame(step); startSchedulers(); } else { cancelAnimationFrame(raf); stopSchedulers(); } }
+document.getElementById("b-play").onclick=()=>setPlaying(!playing);
+document.getElementById("b-speed").onclick=()=>{ speedMul=speedMul===1?2:speedMul===2?.5:1;
+  document.getElementById("b-speed").textContent="speed "+(speedMul===.5?"½":speedMul)+"×"; if(playing)startSchedulers(); };
+document.getElementById("b-qwen").onclick=()=>{ if(!playing)setPlaying(true); fireDigest(); };
+
+/* ---- boot ---- */
+defs(); zones(); edges(); buildNodes();
+if(reduce){ flickerBees(); decide(); document.getElementById("tk-frame").textContent="1,446"; setTicker("reduced-motion: press play"); setPlaying(false); }
+else{ spawn(S1,"frame",C.cyan,"s1"); setTimeout(()=>spawn(S1,"frame",C.cyan,"s1"),700); setPlaying(true); }
+</script>
+</body>
+</html>
