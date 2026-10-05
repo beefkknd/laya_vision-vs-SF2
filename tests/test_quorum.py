@@ -157,12 +157,12 @@ def test_shadow_mode_plays_text_laya_and_logs_the_swarm():
     assert d["action"] == "block_high" and d["source"] == "laya"          # play unchanged
     q = d["quorum"]
     voters = {p[0] for p in q["proposals"]}
-    assert {"laya", "defend", "attack", "move"} <= voters and q["laya_move"] == "block_high"
+    assert {"laya", "defend", "punish"} <= voters and q["laya_move"] == "block_high"
     assert set(q["scores"]) >= {"block_high", "throw_F+hp"} and d["when"] == WHEN
 
 
 def test_vote_mode_acts_on_a_quorum():
-    rel = {"rel": {WHEN: {"attack": [10.0, 9]}}}                           # attack dominates the tally here
+    rel = {"rel": {WHEN: {"punish": [10.0, 9]}}}                           # punish dominates the tally here
     d = _decide(QuorumConfig(mode="vote", theta=0.5, epsilon=0.0), rel=rel)(make_moment(dx=36))
     assert d["source"] == "quorum" and d["action"] == "throw_F+hp" and d["quorum"]["share"] >= 0.5
 
@@ -172,9 +172,9 @@ def test_vote_mode_split_falls_back_to_laya_or_asks_qwen():
     d = _decide(cfg)(make_moment(dx=36))
     assert d["source"] == "fallback" and d["action"] == "block_high" and d["quorum"]["quorum_move"] is None
     asked = []
-    qwen = make_qwen_pick(lambda msgs, task: asked.append(task) or "I pick walk_forward.")
+    qwen = make_qwen_pick(lambda msgs, task: asked.append(task) or "I pick throw_F+hp.")   # a candidate (punish bee)
     d = _decide(QuorumConfig(mode="vote", theta=0.99, epsilon=0.0, qwen=True), qwen=qwen)(make_moment(dx=36))
-    assert asked == ["quorum_pick"] and d["source"] == "qwen" and d["action"] == "walk_forward"
+    assert asked == ["quorum_pick"] and d["source"] == "qwen" and d["action"] == "throw_F+hp"
     bad = make_qwen_pick(lambda msgs, task: "jump to the moon")         # outside the candidates -> laya
     d = _decide(QuorumConfig(mode="vote", theta=0.99, epsilon=0.0, qwen=True), qwen=bad)(make_moment(dx=36))
     assert d["source"] == "fallback"
@@ -200,7 +200,7 @@ def test_candidates_mode_takes_the_tables_confident_pick_else_laya():
 
 
 def test_decider_never_plays_an_unfollowable_move():
-    # far: no throws on offer, so the attack flavour cannot propose one and nothing far-illegal reaches the tally
+    # far: no throws on offer, so the punish flavour cannot propose one and nothing far-illegal reaches the tally
     d = _decide(QuorumConfig(mode="vote", epsilon=0.0, theta=0.0))(make_moment(dx=150))
     assert "throw" not in d["action"] and all("throw" not in p[1] for p in d["quorum"]["proposals"])
 
@@ -298,3 +298,11 @@ def test_quorum_report_reads_a_run(tmp_path):
     rep = json.loads(r.stdout)
     assert rep["decisions"] == 3 and rep["sources"] == {"laya": 3}
     assert sum(b["n"] for b in rep["agreement_vs_outcome"]) == 3 and "laya" in rep["voters"]
+
+
+def test_option2_bee_set_is_pinned():
+    # Option-2 (owner 2026-10-05): base laya + defend(anti-pressure) + punish(openings incl. overlooked combos) + table.
+    from sf2.quorum.config import FLAVORS, VOTERS
+    assert set(VOTERS) == {"laya", "defend", "punish", "table"}        # dropped the broad 'attack' and standalone 'move'
+    assert FLAVORS["defend"] == ["block", "move"]
+    assert FLAVORS["punish"] == ["punch", "special", "throw", "combo"]  # combo included on purpose (table never used it)

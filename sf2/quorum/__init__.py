@@ -1,7 +1,8 @@
 """Bee-quorum System 1 (docs/plan_bee_quorum.md, docs/quorum_integration.md).
 
-Several cheap voters propose a move -- the existing two-stage text-laya pick, the same checkpoints asked from three
-"flavours" (defend / attack / move), and the value table -- and a weighted tally decides. Each vote is weighted by
+Several cheap voters propose a move -- the existing two-stage text-laya pick (the generalist BASE bee), the same
+checkpoints asked from two Option-2 "flavours" (defend = block/move anti-pressure; punish = punch/special/throw/combo
+openings -- aimed at the regions the 71% table OVERLOOKED), and the value table -- and a weighted tally decides. Each vote is weighted by
 the voter's track record in this 'when' (multiplicative weights), plus recruitment (the table's good moves) and
 cross-inhibition (its bad ones). A share >= theta acts (System 1); below it there is no quorum and the decision
 falls back to text-laya, or to Qwen when an escalation hook is given (System 2).

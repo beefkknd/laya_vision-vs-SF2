@@ -11,13 +11,17 @@ from dataclasses import asdict, dataclass, field
 from typing import Dict, List
 
 MODES = ("shadow", "candidates", "vote")
-# flavour -> the round-1 categories that flavour may answer from (action_menu.CATEGORY_ORDER names)
+# flavour -> the round-1 categories that flavour may answer from (action_menu.CATEGORY_ORDER names).
+# Option-2 bees (owner 2026-10-05, data-driven from the 71% table): the table already OWNS neutral (s.hk/SBK win the
+# standing/jumping cells), so the specialist bees target what the table OVERLOOKED -- the negative "being-attacked"
+# cells (defend) and opening/punish damage incl. the never-used combos (punish). laya (base_proposal, full menu) is
+# the generalist base bee; the old broad "attack" blob is dropped (redundant with laya+table) and "move" folds into
+# defend. kick/neutral is left to laya+table on purpose.
 FLAVORS: Dict[str, List[str]] = {
-    "defend": ["block"],
-    "attack": ["punch", "kick", "throw", "special", "combo"],
-    "move": ["move"],
+    "defend": ["block", "move"],                       # anti-pressure / escape: block, walk_back, jump_back, crouch
+    "punish": ["punch", "special", "throw", "combo"],  # cash openings: lightning_legs, throw_F, cl.hp + overlooked combos
 }
-VOTERS = ("laya", "defend", "attack", "move", "table")
+VOTERS = ("laya", "defend", "punish", "table")
 
 
 @dataclass
