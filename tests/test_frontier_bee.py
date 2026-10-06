@@ -129,8 +129,10 @@ def test_pressure_bee_boosts_the_least_sampled_gap_loud_where_blind():
 # -------------------------------------------------------------------- config: the new pinned voter set
 def test_gapfill_bee_set_is_pinned():
     from sf2.quorum.config import FLAVORS, VOTERS
-    assert set(VOTERS) == {"laya", "table", "frontier", "fireball", "pressure"}   # category-forcing bees retired (A: they hurt)
+    assert set(VOTERS) == {"laya", "table", "frontier", "fireball", "pressure",
+                           "punish", "vs_crouch", "antiair"}            # posture-slice explore bees added
     assert FLAVORS == {}                                                # no category-forcing flavours by default
     c = QuorumConfig()
     assert c.frontier is True and c.fireball is True and c.pressure is True
-    assert set(c.priors) >= {"frontier", "fireball", "pressure"}
+    assert c.punish is True and c.vs_crouch is True and c.antiair is True
+    assert set(c.priors) >= {"frontier", "fireball", "pressure", "punish", "vs_crouch", "antiair"}

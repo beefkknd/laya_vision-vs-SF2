@@ -78,3 +78,29 @@ def pressure_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
     if not cfg.pressure:
         return None
     return _slice_proposal("pressure", cell, actions, when, cfg, field=1, value="attacking")
+
+
+def punish_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
+                    cfg: QuorumConfig) -> Optional[Proposal]:
+    """The frontier push, gated to the opponent STUNNED (the 'when' posture field == 'stunned') -- the punish
+    window, where the table is thin because a stun is rare. None otherwise."""
+    if not cfg.punish:
+        return None
+    return _slice_proposal("punish", cell, actions, when, cfg, field=1, value="stunned")
+
+
+def vs_crouch_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
+                       cfg: QuorumConfig) -> Optional[Proposal]:
+    """The frontier push, gated to the opponent CROUCHING (the 'when' posture field == 'crouching'). None otherwise."""
+    if not cfg.vs_crouch:
+        return None
+    return _slice_proposal("vs_crouch", cell, actions, when, cfg, field=1, value="crouching")
+
+
+def antiair_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
+                     cfg: QuorumConfig) -> Optional[Proposal]:
+    """The frontier push, gated to the opponent JUMPING (the 'when' posture field == 'jumping') -- the anti-air
+    slice. None otherwise."""
+    if not cfg.antiair:
+        return None
+    return _slice_proposal("antiair", cell, actions, when, cfg, field=1, value="jumping")

@@ -19,6 +19,9 @@ BEES = {
     "frontier": {"role": "explore", "fires": "always (loud where thin/blind)", "source": "frontier.frontier_proposal"},
     "fireball": {"role": "explore", "fires": "a fireball is out (fb=1)",      "source": "frontier.fireball_proposal"},
     "pressure": {"role": "explore", "fires": "opponent is attacking",        "source": "frontier.pressure_proposal"},
+    "punish":   {"role": "explore", "fires": "opponent is stunned",          "source": "frontier.punish_proposal"},
+    "vs_crouch":{"role": "explore", "fires": "opponent is crouching",        "source": "frontier.vs_crouch_proposal"},
+    "antiair":  {"role": "explore", "fires": "opponent is jumping",          "source": "frontier.antiair_proposal"},
 }
 
 ROLES = ("base", "exploit", "explore")
