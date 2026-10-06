@@ -49,7 +49,7 @@ svg text{font-family:var(--mono);}
 </head>
 <body>
 <div class="wrap">
-  <p class="lead">The whole player as one live board. A <b>frame</b> drops to the <b>eye</b>; <code>func_img_txt</code> turns the picture into words; <b>3 laya-text</b> models each vote a move; the <b>4×4 value table</b> — what has paid off before — decides, and the <b>gamepad</b> acts. The output loops to the next frame <b>and</b> piles into the <b>log</b>; once enough accumulates, one digest goes to <b>Qwen</b>, which writes a rule that lights up a table cell and <b>re-weights it</b>.</p>
+  <p class="lead">The whole player as one live board. A <b>frame</b> drops to the <b>eye</b>; <code>func_img_txt</code> turns the picture into words; <b>3 laya-text</b> models each vote a move; the <b>4×4 value table</b> — what has paid off before — decides, and the <b>gamepad</b> acts. The output loops to the next frame <b>and</b> piles into the <b>log</b>; once enough accumulates, one digest goes to <b>Qwen</b>, which writes a rule — a <b>lesson the 3 laya-text vote with</b>, re-weighting the table next round.</p>
 
   <div class="term">
     <div class="bar">
@@ -114,13 +114,13 @@ const E={
   e_gf:{to:"frame", d:"M1030,48 V26 H135 V48",    col:C.dim2,  grp:"loop", label:"plays", lx:560, ly:20, la:"middle"},
   e_lq:{to:"qwen",  d:"M1030,325 V400",           col:C.violet,grp:"s2",   label:"round digest", lx:1040, ly:368, la:"start"},
   e_qr:{to:"rule",  d:"M910,460 H877",            col:C.violet,grp:"s2"},
-  e_rt:{to:"table", d:"M762,400 V360",            col:C.amber, grp:"s2",   label:"re-weight", lx:772, ly:385, la:"start"},
+  e_rt:{to:"bees",  d:"M647,460 H455 V340",       col:C.amber, grp:"s2",   label:"lesson", lx:551, ly:452, la:"middle"},
 };
 const S1=["e_fe","e_eb","e_bt"];           // frame -> eye -> bees -> table (the decision)
 const CTRL=["e_tg"];                        // table -> gamepad (the control)
 const TOLOG=["e_tl"];                        // table -> game log (accumulate) -- forked from the OUTPUT, not the pad
 const LOOP=["e_gf"];                        // gamepad -> frame (plays the next frame)
-const S2=["e_lq","e_qr","e_rt"];            // log -> qwen -> rule -> table
+const S2=["e_lq","e_qr","e_rt"];            // log -> qwen -> rule -> 3 laya-text (the lesson they vote with)
 
 /* ---- helpers ---- */
 function mk(tag,at,parent){const n=document.createElementNS(NS,tag);for(const k in at)n.setAttribute(k,at[k]);(parent||svg).appendChild(n);return n;}
