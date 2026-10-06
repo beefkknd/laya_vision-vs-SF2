@@ -1,0 +1,190 @@
+{
+ "attacking_fb": {
+  "action": "block_low",
+  "quorum": {
+   "laya_move": "block_high",
+   "mode": "vote",
+   "proposals": [
+    [
+     "laya",
+     "block_high",
+     0.45,
+     1.0
+    ],
+    [
+     "table",
+     "cl.lk",
+     0.4286,
+     2.0
+    ],
+    [
+     "frontier",
+     "block_low",
+     0.5714,
+     1.5
+    ],
+    [
+     "fireball",
+     "block_low",
+     0.5714,
+     1.0
+    ],
+    [
+     "pressure",
+     "block_low",
+     0.5714,
+     1.0
+    ]
+   ],
+   "quorum_move": "block_low",
+   "scores": {
+    "block_high": 0.45,
+    "block_low": 2.0,
+    "cl.lk": 0.9184
+   },
+   "share": 0.5938,
+   "theta": 0.5,
+   "top": "block_low"
+  },
+  "source": "quorum",
+  "when": "close|attacking|1"
+ },
+ "crouching": {
+  "action": "block_low",
+  "quorum": {
+   "laya_move": "block_high",
+   "mode": "vote",
+   "proposals": [
+    [
+     "laya",
+     "block_high",
+     0.45,
+     1.0
+    ],
+    [
+     "table",
+     "cl.lk",
+     0.4286,
+     2.0
+    ],
+    [
+     "frontier",
+     "block_low",
+     0.5714,
+     1.5
+    ],
+    [
+     "vs_crouch",
+     "block_low",
+     0.5714,
+     1.0
+    ]
+   ],
+   "quorum_move": "block_low",
+   "scores": {
+    "block_high": 0.45,
+    "block_low": 1.4286,
+    "cl.lk": 0.9184
+   },
+   "share": 0.5108,
+   "theta": 0.5,
+   "top": "block_low"
+  },
+  "source": "quorum",
+  "when": "close|crouching|0"
+ },
+ "jumping_fb": {
+  "action": "block_low",
+  "quorum": {
+   "laya_move": "block_high",
+   "mode": "vote",
+   "proposals": [
+    [
+     "laya",
+     "block_high",
+     0.45,
+     1.0
+    ],
+    [
+     "table",
+     "cl.lk",
+     0.4286,
+     2.0
+    ],
+    [
+     "frontier",
+     "block_low",
+     0.5714,
+     1.5
+    ],
+    [
+     "fireball",
+     "block_low",
+     0.5714,
+     1.0
+    ],
+    [
+     "antiair",
+     "block_low",
+     0.5714,
+     1.0
+    ]
+   ],
+   "quorum_move": "block_low",
+   "scores": {
+    "block_high": 0.45,
+    "block_low": 2.0,
+    "cl.lk": 0.9184
+   },
+   "share": 0.5938,
+   "theta": 0.5,
+   "top": "block_low"
+  },
+  "source": "quorum",
+  "when": "close|jumping|1"
+ },
+ "stunned": {
+  "action": "block_low",
+  "quorum": {
+   "laya_move": "block_high",
+   "mode": "vote",
+   "proposals": [
+    [
+     "laya",
+     "block_high",
+     0.45,
+     1.0
+    ],
+    [
+     "table",
+     "cl.lk",
+     0.4286,
+     2.0
+    ],
+    [
+     "frontier",
+     "block_low",
+     0.5714,
+     1.5
+    ],
+    [
+     "punish",
+     "block_low",
+     0.5714,
+     1.0
+    ]
+   ],
+   "quorum_move": "block_low",
+   "scores": {
+    "block_high": 0.45,
+    "block_low": 1.4286,
+    "cl.lk": 0.9184
+   },
+   "share": 0.5108,
+   "theta": 0.5,
+   "top": "block_low"
+  },
+  "source": "quorum",
+  "when": "close|stunned|0"
+ }
+}

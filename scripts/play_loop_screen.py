@@ -19,6 +19,7 @@ category+move / follows_rule; per round result + hp; per Qwen step the claims pr
 short-memory diff.
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -33,15 +34,15 @@ from sf2.system1.advice import char_menu_moves, followable
 from sf2.system1.loop_runner import play_round as play_screen_round, two_stage_decide
 from sf2.system1 import value_table as VT
 from sf2.quorum import reliability as QR
-from sf2.quorum.config import QuorumConfig
+from sf2.quorum.config import EXPLORE_BEES, STAGES, QuorumConfig
 from sf2.quorum.decider import quorum_decider
 from sf2.system2 import character_prompt, lessons as L, rule_stats, screen_evidence, seed_rules, short_memory as SM
 from sf2.system2.lesson_prompt import streak
 
 ME = "chunli"
-# the characters we can play AS: only those with a RAM-free move menu in sf2.moves_free (chunli/ryu/ken). The round-1
-# categories and round-2 move menu, and the advice vocabulary, come from ME's own moveset (sf2.system1.advice).
-SUPPORTED_ME = ("chunli", "ryu", "ken")
+# the characters we can play AS: only those with a RAM-free move menu in sf2.moves_free (chunli/ryu/ken/honda). The
+# round-1 categories and round-2 move menu, and the advice vocabulary, come from ME's own moveset (sf2.system1.advice).
+SUPPORTED_ME = ("chunli", "ryu", "ken", "honda")
 MENU_MOVES: List[str] = char_menu_moves(ME)       # Chun-Li's followable (two-stage) vocabulary; == the old constant
 DELAY_MIN, DELAY_SPAN = 4, 40
 
@@ -192,13 +193,31 @@ def update(reg: L.Registry, rows: List[Dict], game: int, game_hp: List[float], g
 # ------------------------------------------------------------------ the loop
 PlayFn = Callable[..., Dict]        # like sf2.system1.loop_runner.play_round
 ScoreFn = Callable[[str], Optional[Dict]]    # a round dir -> its offline replay score (result, hp, ...), or None
+HYBRID_EXPLORE = 0.1                # hybrid's train-stage exploration rate (the --explore default)
+
+
+def resolve_stage(stage: str, quorum: Optional[QuorumConfig] = None, explore_rate: Optional[float] = None,
+                  no_learn: bool = False) -> Tuple[QuorumConfig, Dict]:
+    """PURE VALIDATION, once, above the policy dispatch (table, hybrid, quorum alike) -> (the quorum config, the
+    runtime STAMP every explore / learning path reads and run.json / verdict.json record). The resolved ``stage`` is
+    the ONE authority: a quorum config whose ``stage`` disagrees raises, as does any train-only knob at eval (epsilon /
+    bee / Qwen via re-validation, explore_rate > 0); nothing is zeroed -- build an eval config with for_eval."""
+    qcfg = quorum if quorum is not None else QuorumConfig()
+    train = stage == "train"
+    if stage not in STAGES or qcfg.stage != stage or (explore_rate and not train):
+        raise ValueError("stage %r must be one of %s, match the quorum config's stage %r, and eval takes no --explore"
+                         % (stage, ", ".join(STAGES), qcfg.stage))
+    qcfg.validate()
+    return qcfg, {"stage": stage, "learn": train and not no_learn, "eps0": VT.EPS0 if train else 0.0,
+                  "explore_rate": (HYBRID_EXPLORE if explore_rate is None else explore_rate) if train else 0.0,
+                  "explore_bees": [b for b in EXPLORE_BEES if getattr(qcfg, b)], "epsilon": qcfg.epsilon}
 
 
 def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games: int, rounds: int,
              seed_lines: L.Registry, out: str, play_round_fn: PlayFn, state: bytes, state_id: Dict, emu,
              score_fn: Optional[ScoreFn] = None, reader=None, seed_rng: int = 0, me: str = ME, log=None,
              qwen_mode: str = "two", policy: str = "rules", table: Optional[Dict] = None,
-             save_table: Optional[str] = None, explore_rate: float = 0.1,
+             save_table: Optional[str] = None, stage: str = "train", explore_rate: Optional[float] = None,
              explore_tries: int = VT.MIN_TRIES, quorum: Optional[QuorumConfig] = None,
              quorum_state: Optional[Dict] = None, save_quorum: Optional[str] = None, qwen_pick=None,
              credit_horizon: int = 0, credit_gamma: float = 1.0, no_learn: bool = False) -> Dict:
@@ -209,11 +228,11 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
     ``emu``, ``score_fn``. For the table policy, ``table`` is the carried table (blank if None) and ``save_table`` a
     path to persist it to after the run (so it GROWS across blocks like the registry). Returns the verdict."""
     os.makedirs(out, exist_ok=True)
+    qcfg, rt = resolve_stage(stage, quorum, explore_rate, no_learn)  # ONE gate for every explore / learning path
     trace = open(os.path.join(out, "trace.jsonl"), "w") if log is None else log
     reg: L.Registry = list(seed_lines)
     tbl: Dict = table if table is not None else VT.blank()
-    qcfg: QuorumConfig = quorum if quorum is not None else QuorumConfig()       # policy="quorum" only
-    qrel: Dict = quorum_state if quorum_state is not None else QR.blank()
+    qrel: Dict = quorum_state if quorum_state is not None else QR.blank()       # policy="quorum" only
     qsources: Dict[str, int] = {}
     qsplit = [0, 0]                                   # [decisions with no quorum, decisions with a quorum record]
     rng = random.Random(seed_rng)
@@ -236,24 +255,17 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
         for r in range(rounds):
             rd = os.path.join(out, "g%02d_r%d" % (g, r))
             delay = DELAY_MIN + rng.randrange(DELAY_SPAN)
+            lines = [] if policy == "table" else SM.in_play(reg)   # FRESH each round: the latest short memory
+            base = lambda m, _l=lines: two_stage_decide(cat_advisor, move_advisor, me, m, _l)
+            decide = None                                # rules: text-laya follows the short memory (play_round's default)
             if policy == "table":                        # the value table picks the move (no short memory, no Qwen)
-                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, [], rd,
-                              reader=reader, decide=VT.decider(tbl, me, explore))
-            elif policy == "quorum":                     # the bee quorum: laya + 3 flavours + the table vote (sf2/quorum)
-                lines = SM.in_play(reg)
-                base = lambda m, _l=lines: two_stage_decide(cat_advisor, move_advisor, me, m, _l)
-                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd,
-                              reader=reader, decide=quorum_decider(tbl, qrel, me, explore, base, cat_advisor,
-                                                                   move_advisor, qcfg, qwen_pick))
+                decide = VT.decider(tbl, me, explore, eps0=rt["eps0"])
+            elif policy == "quorum":                     # the bee quorum: laya + flavours + the table vote (sf2/quorum)
+                decide = quorum_decider(tbl, qrel, me, explore, base, cat_advisor, move_advisor, qcfg, qwen_pick)
             elif policy == "hybrid":                     # text-laya plays; the table OVERRIDES where it is confident
-                lines = SM.in_play(reg)
-                base = lambda m, _l=lines: two_stage_decide(cat_advisor, move_advisor, me, m, _l)
-                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd,
-                              reader=reader, decide=VT.hybrid_decider(tbl, me, explore, base,
-                                                                      min_tries=explore_tries, explore=explore_rate))
-            else:
-                lines = SM.in_play(reg)                  # FRESH each round: play with the latest short memory
-                play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader)
+                decide = VT.hybrid_decider(tbl, me, explore, base, min_tries=explore_tries, explore=rt["explore_rate"])
+            play_round_fn(emu, cat_advisor, move_advisor, me, opp, state, state_id, delay, lines, rd, reader=reader,
+                          **({"decide": decide} if decide else {}))
             emu = emu.new_round()
             replay = score_fn(rd) if score_fn else None
             decisions = screen_evidence.read_decisions(rd)
@@ -274,7 +286,9 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                                     "hp": summary["hp"], "dealt": summary["dealt"], "taken": summary["taken"],
                                     "source": summary["source"]}) + "\n")
             trace.flush()
-            if policy in ("table", "hybrid", "quorum") and not no_learn:  # CREDIT the table (skipped in --no-learn frozen eval)
+            if not rt["learn"]:                          # eval / --no-learn: no table credit, no reliability, no Coach
+                continue                                 # (idx, the Coach's churn counter, is consumed by update() only)
+            if policy in ("table", "hybrid", "quorum"):  # CREDIT the table
                 tbl = VT.credit(tbl, drows, horizon=credit_horizon, gamma=credit_gamma)
                 if policy == "quorum":                   # ...and each voter's reliability, from the same outcomes
                     QR.credit(qrel, decisions, drows, qcfg)
@@ -292,9 +306,6 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
                 trace.flush()
                 if policy == "table":
                     continue                             # pure table: no Qwen/short-memory; hybrid falls through to it
-            if no_learn:                                 # frozen EVAL: no table credit (above) AND no memory rotation
-                idx += 1
-                continue
             # SYSTEM 2 AFTER EACH ROUND: reflect and rotate the short memory so the NEXT round can adapt.
             round_hp.append(summary["dealt"] - summary["taken"])
             round_wl.append({"won": 1 if summary["result"] == "win" else 0,
@@ -311,7 +322,7 @@ def run_loop(opp: str, cat_advisor, move_advisor, ask_qwen: QwenCaller, *, games
         game_hp.append(sum(s["dealt"] - s["taken"] for s in this_rounds) / max(1, len(this_rounds)))
         games_wl.append({"won": sum(s["result"] == "win" for s in this_rounds),
                          "lost": sum(s["result"] != "win" for s in this_rounds)})
-    verdict = {"opp": opp, "games": games, "rounds": rounds, "policy": policy,
+    verdict = {"opp": opp, "games": games, "rounds": rounds, "policy": policy, **rt,
                "seed_lines": [r["line"] for r in seed_lines],
                "in_play_end": SM.in_play(reg), "registry_end": reg, "decisions": len(all_rows),
                "game_hp": game_hp, "games": games_wl, "violations": L.violations(reg, all_rows)}
@@ -406,9 +417,12 @@ def build_parser() -> argparse.ArgumentParser:
                     help="policy table: start the value table from this JSON and keep GROWING it (pass again to resume)")
     ap.add_argument("--save-table", dest="save_table", default=None,
                     help="policy table: write the value table here after the run")
-    ap.add_argument("--explore", dest="explore_rate", type=float, default=0.1,
-                    help="hybrid: how often to try an under-sampled move (table exploration rate; higher = more "
-                         "exploration, richer table, lower win-rate during collection)")
+    ap.add_argument("--stage", default="train", choices=STAGES,
+                    help="train (default): explore (bees, epsilon, --explore) and learn as configured; eval: GREEDY "
+                         "-- every explore bee / epsilon / Qwen escalation off, --explore 0, no learning (every policy)")
+    ap.add_argument("--explore", dest="explore_rate", type=float, default=None,
+                    help="hybrid: how often to try an under-sampled move (default %g at stage train, 0 at eval; "
+                         "higher = richer table, lower win-rate during collection)" % HYBRID_EXPLORE)
     ap.add_argument("--explore-tries", dest="explore_tries", type=int, default=VT.MIN_TRIES,
                     help="hybrid: a move with fewer than this many tries in a cell still counts as under-sampled "
                          "(the exploration COVERAGE target). Raise it to re-open exploration in cells that are "
@@ -429,7 +443,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--gamma", dest="credit_gamma", type=float, default=1.0,
                     help="table/hybrid credit: discount for the n-step return (only used with --horizon>0)")
     ap.add_argument("--no-learn", dest="no_learn", action="store_true",
-                    help="frozen EVAL: play the carried table but do NOT credit/update it (use with --explore 0)")
+                    help="stage train: keep exploring but do NOT credit the table / update reliability / run the "
+                         "Coach (a greedy frozen eval is --stage eval instead)")
     ap.add_argument("--shared-text-laya", action="store_true")
     ap.add_argument("--no-score", action="store_true", help="score rounds from the screen only (skip the offline replay)")
     ap.add_argument("--port", type=int, default=PORTS["system1"][0] + PORTS["system1"][1] - 1)
@@ -456,12 +471,12 @@ def main() -> int:
     if args.policy in ("table", "hybrid", "quorum") and args.carry_table and os.path.exists(args.carry_table):
         with open(args.carry_table) as f:
             table_in = json.load(f)
-    qcfg = QuorumConfig.load(args.quorum_config) if args.quorum_config else QuorumConfig()
-    if args.quorum_mode:
-        qcfg.mode = args.quorum_mode
-    if args.quorum_qwen:
-        qcfg.qwen = True
-    qcfg.validate()
+    base = QuorumConfig.load(args.quorum_config) if args.quorum_config else QuorumConfig()
+    if args.stage == "eval" and not args.quorum_config:      # the implicit default config, converted ONCE, here;
+        base = QuorumConfig.for_eval(base)                   # an explicit --quorum-config must itself be an eval one
+    qd = dict(base.to_dict(), **{k: v for k, v in (("mode", args.quorum_mode), ("qwen", args.quorum_qwen)) if v})
+    qcfg, rt = resolve_stage(args.stage, QuorumConfig.from_dict(qd), args.explore_rate, args.no_learn)   # fail fast, once
+    escalate = args.policy == "quorum" and qcfg.qwen            # Qwen on split votes, learning or not
     qstate = None
     if args.policy == "quorum" and args.carry_quorum and os.path.exists(args.carry_quorum):
         with open(args.carry_quorum) as f:
@@ -475,36 +490,29 @@ def main() -> int:
                    "seed": args.seed, "state": state_id, "book": args.book, "policy": args.policy,
                    "carry": args.carry, "save_registry": args.save_registry, "seed_source": seed_source,
                    "cat_advisor": args.cat_advisor, "move_advisor": args.move_advisor,
-                   "qwen": "off" if args.policy == "table" else "on", "qwen_mode": args.qwen_mode,
-                   "quorum": qcfg.to_dict() if args.policy == "quorum" else None}, f, indent=1)
+                   "qwen": "on" if (rt["learn"] and args.policy != "table") or escalate else "off",   # Coach or escalation
+                   "qwen_mode": args.qwen_mode, "quorum": qcfg.to_dict() if args.policy == "quorum" else None,
+                   **rt}, f, indent=1)
     shared = {"shared": True} if args.shared_text_laya else {}
-    score_fn = None if args.no_score else _real_score(args.replay_port, args.rom)
-    if args.policy == "table":
-        # the table decides every move and is credited from outcomes -- text-laya advisors and Qwen are NOT used
-        with open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed,
-                         console=not args.hide_console) as emu:
-            verdict = run_loop(args.opp, None, None, lambda *a, **k: "", games=args.games, rounds=args.rounds,
-                               seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
-                               state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
-                               policy="table", table=table_in, save_table=args.save_table)
-    else:
-        # rules OR hybrid: text-laya plays (two Advisor instances). hybrid also carries/credits the value table.
-        with Advisor(args.cat_advisor, **shared) as cat_advisor, Advisor(args.move_advisor, **shared) as move_advisor, \
-                open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed,
-                            console=not args.hide_console) as emu:
-            qwen = _real_qwen()
-            qwen_pick = None
-            if args.policy == "quorum" and qcfg.qwen:            # System 2 on split votes (sf2/quorum/escalate.py)
-                from sf2.quorum.escalate import make_qwen_pick
-                qwen_pick = make_qwen_pick(qwen)
-            verdict = run_loop(args.opp, cat_advisor, move_advisor, qwen, games=args.games, rounds=args.rounds,
-                               seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
-                               state=state, state_id=state_id, emu=emu, score_fn=score_fn, seed_rng=args.seed, me=me,
-                               qwen_mode=args.qwen_mode, policy=args.policy, table=table_in, save_table=args.save_table,
-                               explore_rate=args.explore_rate, explore_tries=args.explore_tries,
-                               quorum=qcfg, quorum_state=qstate, save_quorum=args.save_quorum, qwen_pick=qwen_pick,
-                               credit_horizon=args.credit_horizon, credit_gamma=args.credit_gamma,
-                               no_learn=args.no_learn)
+    common = dict(games=args.games, rounds=args.rounds, seed_lines=seed_lines, out=out, play_round_fn=play_screen_round,
+                  state=state, state_id=state_id, seed_rng=args.seed, me=me, qwen_mode=args.qwen_mode,
+                  score_fn=None if args.no_score else _real_score(args.replay_port, args.rom),
+                  policy=args.policy, table=table_in, save_table=args.save_table, stage=args.stage, quorum=qcfg,
+                  no_learn=args.no_learn, explore_rate=args.explore_rate, explore_tries=args.explore_tries,
+                  quorum_state=qstate, save_quorum=args.save_quorum, credit_horizon=args.credit_horizon,
+                  credit_gamma=args.credit_gamma)
+    with contextlib.ExitStack() as stack:
+        # table: the value table decides every move, text-laya's advisors are not loaded; every other policy plays
+        # through the two Advisor instances (hybrid/quorum also carry/credit the table)
+        cat, move = (None, None) if args.policy == "table" else \
+            [stack.enter_context(Advisor(p, **shared)) for p in (args.cat_advisor, args.move_advisor)]
+        emu = stack.enter_context(open_screen(args.port, args.rom, show_window=args.watch, speed=args.speed,
+                                              console=not args.hide_console))
+        qwen, qwen_pick = _real_qwen(), None
+        if escalate:                                             # System 2 on split votes (sf2/quorum/escalate.py)
+            from sf2.quorum.escalate import make_qwen_pick
+            qwen_pick = make_qwen_pick(qwen)
+        verdict = run_loop(args.opp, cat, move, qwen, emu=emu, qwen_pick=qwen_pick, **common)
     if args.policy in ("table", "hybrid", "quorum") and args.save_table:
         print("saved table", args.save_table)
     if args.save_registry:

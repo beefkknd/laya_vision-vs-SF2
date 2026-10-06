@@ -3,7 +3,7 @@
 Per decision:
   1. key the moment like value_table (range, his doing, fireball [+ his_label split]) and list the followable moves;
   2. run today's two-stage text-laya pick (``base_decide``) -- it is the "laya" voter and the fallback;
-  3. ask the three flavours with the same prompt text, and let the table vote from its stats;
+  3. ask the flavours (if any), let the table vote from its stats, and add the explore bees (TRAIN stage only);
   4. score the candidates (tally.score) and compute the top move's share;
   5. act by ``cfg.mode`` (config.py), tag the decision ``source`` (laya / quorum / table / explore / qwen /
      fallback) and attach a ``quorum`` record (every proposal with its weight, the scores, the share, what a
@@ -20,8 +20,7 @@ from ..system1.screen_words import sentence
 from ..vocab import range_of
 from . import reliability as R
 from .config import QuorumConfig
-from .frontier import (antiair_proposal, fireball_proposal, frontier_proposal, pressure_proposal,
-                       punish_proposal, vs_crouch_proposal)
+from .frontier import explore_proposals
 from .tally import ranking, score, table_proposal
 from .voters import base_proposal, flavor_proposals
 
@@ -46,11 +45,7 @@ def quorum_decider(table: VT.Table, rel: R.State, me: str, rng: random.Random, b
         tp = table_proposal(cell, acts, cfg)
         if tp is not None:
             props.append(tp)
-        for gap in (frontier_proposal(cell, acts, cfg), fireball_proposal(cell, acts, when, cfg),
-                    pressure_proposal(cell, acts, when, cfg), punish_proposal(cell, acts, when, cfg),
-                    vs_crouch_proposal(cell, acts, when, cfg), antiair_proposal(cell, acts, when, cfg)):
-            if gap is not None:                                 # gap-filling bees: explore the table's thin/blind cells
-                props.append(gap)
+        props += explore_proposals(cell, acts, when, cfg)       # the gap-filling bees: TRAIN only, [] at eval
         props = [p for p in props if p.action in actions]
         scores = score(props, cell, when, rel, cfg)
         order, share = ranking(scores) if scores else ([base["action"]], 0.0)

@@ -20,12 +20,15 @@ MODES = ("shadow", "candidates", "vote")
 # generalist base; the table voter exploits the thick trunk. The flavour machinery (voters.py) stays available for a
 # config that sets its own ``flavors``, but the default is none.
 FLAVORS: Dict[str, List[str]] = {}
-VOTERS = ("laya", "table", "frontier", "fireball", "pressure", "punish", "vs_crouch", "antiair")
+EXPLORE_BEES = ("frontier", "fireball", "pressure", "punish", "vs_crouch", "antiair")   # TRAIN-only (frontier.py)
+VOTERS = ("laya", "table") + EXPLORE_BEES                                              # laya + table = the exploit voters
+STAGES = ("train", "eval")       # train: bees + epsilon + Qwen as configured; eval: greedy (laya + table), validated below
 
 
 @dataclass
 class QuorumConfig:
     mode: str = "shadow"
+    stage: str = "train"
     theta: float = 0.5           # quorum: act when the top move's share of the positive score is at least this
     epsilon: float = 0.05        # explore: act on the second candidate this often (vote / candidates modes)
     beta: float = 0.5            # recruitment strength (the table's good moves get a boost)
@@ -64,6 +67,16 @@ class QuorumConfig:
         missing = [v for v in VOTERS if v not in self.priors]
         if missing:
             raise ValueError("quorum priors missing %s" % ", ".join(missing))
+        if self.stage not in STAGES or (self.stage == "eval" and (self.epsilon or self.qwen
+                                                                 or any(getattr(self, b) for b in EXPLORE_BEES))):
+            raise ValueError("quorum stage %r: must be train, or eval with epsilon=0, qwen=False and every explore "
+                             "bee off" % self.stage)
+
+    @classmethod
+    def for_eval(cls, genome: "QuorumConfig") -> "QuorumConfig":
+        """The same genome (theta, beta, gamma, k, ... priors) at the EVAL stage: no explore bee, no epsilon, no Qwen."""
+        return cls.from_dict(dict(genome.to_dict(), stage="eval", epsilon=0.0, qwen=False,
+                                  **{b: False for b in EXPLORE_BEES}))
 
     def to_dict(self) -> Dict:
         return asdict(self)

@@ -1,4 +1,4 @@
-"""Gap-filling voters: fill the table's thin/blind cells instead of forcing a category.
+"""Gap-filling (EXPLORE) voters: fill the table's thin/blind cells instead of forcing a category. TRAIN stage only.
 
 Owner 2026-10-05, after A (rollouts/loop_screen/A_20261005_084309) showed the force-combo bee hurt (quorum 65% <
 71% baseline): it spammed a move the thick trunk already owned. The study of that table found the real gaps -- 7
@@ -9,8 +9,9 @@ blind contexts (no move at n>=20), half the cells thin (n<20), and the whole fir
                      the sample count the table has on a CONFIDENT POSITIVE winner in the cell. So confidence is 1.0
                      in a blind cell (no winner yet) and fades as a winner accrues evidence -- the bee LEADS the
                      exploration where the table is uncertain and DEFERS to the thick trunk where it is sure.
-  fireball_proposal  the same, but only when a fireball is out (the 'when' key's fireball field is '1'); at fb=1
-                     both bees fire on the same gap, doubling the push into the slice A found most under-explored.
+  the gated bees     the same push, each gated to one slice of the 'when' key (GATES): fireball (fb=1), pressure /
+                     punish / vs_crouch / antiair (the opponent's posture). Open gates all fire on the same gap.
+  explore_proposals  the decider's one call: every bee the config turns on, in VOTER order; [] at the EVAL stage.
 
 Pure: value_table stats only, no models, no I/O. ``cell`` is value_table's per-action stats for the 'when'
 ({action: [n, sum, sumsq]}); ``actions`` the followable set at that range (decider restricts it).
@@ -18,8 +19,11 @@ Pure: value_table stats only, no models, no I/O. ``cell`` is value_table's per-a
 from typing import Dict, List, Optional, Sequence
 
 from ..system1 import value_table as VT
-from .config import QuorumConfig
+from .config import EXPLORE_BEES, QuorumConfig
 from .tally import Proposal
+
+GATES = {"fireball": (2, "1"), "pressure": (1, "attacking"), "punish": (1, "stunned"),    # bee -> ('when' field, value
+         "vs_crouch": (1, "crouching"), "antiair": (1, "jumping")}                        # that opens its gate)
 
 
 def _covered_n(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumConfig) -> int:
@@ -30,77 +34,38 @@ def _covered_n(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumConfig)
     return max(ns, default=0)
 
 
-def _least_sampled(cell: Dict[str, List], actions: Sequence[str]) -> Optional[str]:
-    """The followable action the table knows least (ties -> name, so a replay is deterministic). None if no actions."""
+def _push(name: str, cell: Dict[str, List], actions: Sequence[str], cfg: QuorumConfig) -> Optional[Proposal]:
+    """The frontier push under ``name``: the followable action the table knows least (ties -> name, so a replay is
+    deterministic), with confidence 1.0 in a blind cell fading to k / (k + covered_n) as a confident positive winner
+    accrues evidence. None = no actions."""
     acts = sorted(actions)
-    return min(acts, key=lambda a: (VT.count(cell, a), a)) if acts else None
-
-
-def _confidence(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumConfig) -> float:
-    """1.0 in a blind cell, fading to k / (k + covered_n) as a confident positive winner accrues evidence."""
-    return cfg.k / (cfg.k + _covered_n(cell, actions, cfg))
+    if not acts:
+        return None
+    return Proposal(name, min(acts, key=lambda a: (VT.count(cell, a), a)), cfg.k / (cfg.k + _covered_n(cell, acts, cfg)))
 
 
 def frontier_proposal(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumConfig) -> Optional[Proposal]:
     """Vote the least-sampled followable action, loud where the table is uncertain. None = abstain (off / no actions)."""
-    if not cfg.frontier:
-        return None
-    target = _least_sampled(cell, actions)
-    if target is None:
-        return None
-    return Proposal("frontier", target, _confidence(cell, actions, cfg))
+    return _push("frontier", cell, actions, cfg) if cfg.frontier else None
 
 
-def _slice_proposal(name: str, cell: Dict[str, List], actions: Sequence[str], when: str, cfg: QuorumConfig,
-                    field: int, value: str) -> Optional[Proposal]:
-    """The frontier push, gated to one slice of the 'when' key (field == value). None otherwise."""
-    parts = when.split("|")
-    if len(parts) <= field or parts[field] != value:
-        return None
-    target = _least_sampled(cell, actions)
-    if target is None:
-        return None
-    return Proposal(name, target, _confidence(cell, actions, cfg))
+def _gated(name: str):
+    """One slice bee: the frontier push only where the 'when' key opens its gate (GATES) and the config turns it on."""
+    field, value = GATES[name]
+
+    def proposal(cell: Dict[str, List], actions: Sequence[str], when: str, cfg: QuorumConfig) -> Optional[Proposal]:
+        parts = when.split("|")
+        if not getattr(cfg, name) or len(parts) <= field or parts[field] != value:
+            return None
+        return _push(name, cell, actions, cfg)
+    return proposal
 
 
-def fireball_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
-                      cfg: QuorumConfig) -> Optional[Proposal]:
-    """The frontier push, gated to fireball-up (the 'when' key's fireball field == '1'). None otherwise."""
-    if not cfg.fireball:
-        return None
-    return _slice_proposal("fireball", cell, actions, when, cfg, field=2, value="1")
+_GATED = [_gated(b) for b in EXPLORE_BEES[1:]]                 # VOTER order: fireball, pressure, punish, vs_crouch, antiair
+fireball_proposal, pressure_proposal, punish_proposal, vs_crouch_proposal, antiair_proposal = _GATED
 
 
-def pressure_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
-                      cfg: QuorumConfig) -> Optional[Proposal]:
-    """The frontier push, gated to the opponent ATTACKING (the 'when' posture field == 'attacking') -- the
-    'being-pressured' slice, where a zoner (e.g. ryu) is blind because it cannot zone. None otherwise."""
-    if not cfg.pressure:
-        return None
-    return _slice_proposal("pressure", cell, actions, when, cfg, field=1, value="attacking")
-
-
-def punish_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
-                    cfg: QuorumConfig) -> Optional[Proposal]:
-    """The frontier push, gated to the opponent STUNNED (the 'when' posture field == 'stunned') -- the punish
-    window, where the table is thin because a stun is rare. None otherwise."""
-    if not cfg.punish:
-        return None
-    return _slice_proposal("punish", cell, actions, when, cfg, field=1, value="stunned")
-
-
-def vs_crouch_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
-                       cfg: QuorumConfig) -> Optional[Proposal]:
-    """The frontier push, gated to the opponent CROUCHING (the 'when' posture field == 'crouching'). None otherwise."""
-    if not cfg.vs_crouch:
-        return None
-    return _slice_proposal("vs_crouch", cell, actions, when, cfg, field=1, value="crouching")
-
-
-def antiair_proposal(cell: Dict[str, List], actions: Sequence[str], when: str,
-                     cfg: QuorumConfig) -> Optional[Proposal]:
-    """The frontier push, gated to the opponent JUMPING (the 'when' posture field == 'jumping') -- the anti-air
-    slice. None otherwise."""
-    if not cfg.antiair:
-        return None
-    return _slice_proposal("antiair", cell, actions, when, cfg, field=1, value="jumping")
+def explore_proposals(cell: Dict[str, List], actions: Sequence[str], when: str, cfg: QuorumConfig) -> List[Proposal]:
+    """Every explore bee's vote (VOTER order); [] at the EVAL stage, where only the exploit voters (laya, table) play."""
+    bees = [] if cfg.stage == "eval" else [frontier_proposal(cell, actions, cfg)] + [g(cell, actions, when, cfg) for g in _GATED]
+    return [p for p in bees if p is not None]
