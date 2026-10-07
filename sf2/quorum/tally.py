@@ -53,7 +53,12 @@ def table_proposal(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumCon
            if a in cell and cell[a][0] >= cfg.table_min_n]
     if not cov:
         return None
-    a, n, m = max(cov, key=lambda t: t[2])
+    # Pick by SHRUNK mean (mean * n/(n+k)), not raw mean: a 3-sample outlier (+36.7) must not beat a
+    # well-sampled move (+34.8 over n=871) and then vote weakly off its tiny n. The chosen move votes
+    # at its OWN n/(n+k) -- strong only when well-sampled. (Shrinkage pulls toward 0, so in an
+    # all-negative cell it is optimistic about a low-n move; the nonpositive branch below is guarded by
+    # the Welch _separated test, which a tiny-n move fails -> abstain, never a bad vote.)
+    a, n, m = max(cov, key=lambda t: t[2] * t[1] / (t[1] + cfg.k))
     if m > 0:
         return Proposal("table", a, n / (n + cfg.k))
     laya_s = cell.get(laya_move) if laya_move else None
