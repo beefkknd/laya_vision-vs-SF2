@@ -125,3 +125,36 @@ The loop, per round N (current best table):
 6. Repeat from 1 with the new best. Fix the exploit VOTER first (biggest lever); bees are for the
    residual B/C only, and a context with NO positive answer (e.g. `far|attacking` fireball wall) is a
    structural matchup cap a bee cannot crack -- say so instead of grinding rounds.
+
+## Bee SELECTION principles (owner-set 2026-10-07, after a wrong set + the Fable review)
+
+A bee votes `k / (k + n of ITS MOVE in the cell)`, so it is **loud only where that move's n is LOW**
+and silent where the trunk already has the move. That one fact dictates every selection rule:
+
+1. **Aim at UNDER-SAMPLED cells, never at the biggest HP sink.** HP-bled finds WEAKNESS; it does not
+   say a bee can HELP. A huge sink that is already well-sampled is a VOTE or HORIZON problem, not a
+   coverage gap. Selection signal = **visits x uncertainty on a plausibly-good, under-sampled move**,
+   NOT HP magnitude.
+2. **Never push a move the thick trunk already owns.** At high n the bee's vote is ~`k/n` ~ 0 (mute),
+   so it does nothing; worse, a loud bee on a known-BAD move drags the cell's share below `theta` and
+   forces the fallback to laya's block -- it spends samples CONFIRMING a loss. (Original lesson,
+   `frontier.py` docstring: the force-combo bee HURT, 65% < 71%, by spamming a trunk move. The Zangief
+   R3 bees repeated it: `far->double_lariat` at n=1162 was mute; `mid|standing->walk_forward` was loud
+   on a -20 move.)
+3. **Classify the cell first, then pick the tool:**
+   - **A** (a covered move beats what's played, but loses the vote) -> a VOTER / weighting fix
+     (`table_proposal` selection + confidence, `priors.laya`), **not a bee**. Most big sinks are A.
+   - **C** (under-sampled, no move at n>=20, but a plausibly-good move exists) -> the ONLY legit bee:
+     push that move so the table can learn it. Loud because n is low -- exactly where a bee works.
+   - **Horizon** (every one-step move is negative because the payoff is 2-3 decisions away, e.g.
+     approach-then-throw) -> retrain the table on a 2-step / discounted return, **not a bee** and not
+     a voter tweak. The one-step table literally cannot learn "don't be in that cell".
+4. **Sanity-check the aim before spending a 90-min round:** read the target move's `n` in the cell. If
+   n is already high, the bee is mute -- re-aim or drop it. Confirm the move is plausibly positive
+   (or least-bad with upside), not a known loser.
+
+Worked example (Zangief vs Ryu): the dominant sinks (`far|attacking` -5564, `mid|attacking` -2350)
+were all class A -- the table knew `double_lariat` beat block but the voter crushed its vote. Fixing
+the voter (drop the margin factor, `priors.laya=0.7`) moved 75.0% -> 92.2% with NO retraining and NO
+bees. Three carefully-aimed bees before that moved nothing (two mute, one harmful). Fix the voter
+first; reach for a bee only for a true class-C gap.
