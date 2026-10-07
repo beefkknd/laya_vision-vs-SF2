@@ -97,3 +97,31 @@ Frozen bees-off, honda_r8, 336 games: **Ryu 88.4->92.0%, Ken 79.7->98.5%** match
 flips `block_high`->`cl.hk`. None of the 3 proposed bees were needed -- the table already knew the
 answer; it just wasn't allowed to vote it. Lesson: before adding a play-time bee, check whether the
 move it would propose is already in the table and merely out-voted (a WEIGHTING fix, not a new voter).
+
+## Per-round fine-tune flow (owner-set 2026-10-07) -- the law for EVERY round
+
+**Each fine-tune round gets its OWN review and its OWN bees, aimed at the CURRENT table's
+weaknesses.** Bees are never carried over from a prior round's analysis. The flaw this fixes: the
+Zangief bees were designed from R1's ledger and then reused for R2 and R3 -- so they targeted
+yesterday's weaknesses, not the table being trained. Bees must be measured ONE round behind at most:
+you review table N, design bees for table N, train N+1.
+
+The loop, per round N (current best table):
+1. **Measure** table N frozen bees-off vs the opponent (8 seeds x 8 games). This is the number to beat.
+2. **Review** -- run the weakness ledger on THAT run's frozen play (`scratchpad/study/ledger.py`,
+   two-cell horizon): rank `when` contexts by net-HP bled; classify A / B / C.
+   - **A** (a covered move beats what's played) -> usually already handled by the exploit voter
+     (table_proposal: separation vote + shrunk-mean selection). If not, it is a WEIGHTING fix, not a bee.
+   - **B** (no positive answer) / **C** (under-sampled) -> candidates for a bee.
+3. **Design NEW bees from table N**, not from memory. For each target context, read what the table
+   ACTUALLY holds there and push the real less-bad / thematic counter move (e.g. Zangief's
+   `double_lariat` eats fireballs and the table shows it at -1.6 vs block's -8.3 at `mid|attacking`) --
+   NOT a guessed move (`jump_forward` into the fireball was wrong). Aim them via the config:
+   `QuorumConfig(counters=True, counter_specs=[[range, posture, move], ...])` -> a train config JSON.
+4. **Train** N+1: carry best table N, `STUDY_QCONFIG=<that config>` (counters on), 8x42, explore 0.3.
+5. **Measure** N+1 frozen bees-off; **ratchet**: keep (promote to canonical) only if >= best; else
+   restore best and try a different aim. A single round's +/-3% on 64 games is within noise -- confirm
+   a real gain at 336 scale before trusting it.
+6. Repeat from 1 with the new best. Fix the exploit VOTER first (biggest lever); bees are for the
+   residual B/C only, and a context with NO positive answer (e.g. `far|attacking` fireball wall) is a
+   structural matchup cap a bee cannot crack -- say so instead of grinding rounds.
