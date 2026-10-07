@@ -158,3 +158,32 @@ were all class A -- the table knew `double_lariat` beat block but the voter crus
 the voter (drop the margin factor, `priors.laya=0.7`) moved 75.0% -> 92.2% with NO retraining and NO
 bees. Three carefully-aimed bees before that moved nothing (two mute, one harmful). Fix the voter
 first; reach for a bee only for a true class-C gap.
+
+## The three mechanical GATES (owner-set 2026-10-07) -- every bee/voter change passes a RED/GREEN check
+
+Prose rules drift; these are the [SCRIPT] gates that enforce them. Two failure modes, three gates:
+
+1. **Bee admission gate** -- `sf2/quorum/bee_check.py` (`python -m sf2.quorum.bee_check --table T --specs
+   '[[range,posture,move],...]'`). From the TABLE alone (no round), RED/GREEN per bee:
+   - **RED MUTE**: the move is already thick (`k/(k+n)` tiny) in every cell its gate fires -> the bee
+     can't change anything (e.g. `far|attacking->double_lariat` at n=1162).
+   - **RED LOSER**: the move is loud but loses in ANY cell its gate fires (below the covered best, or
+     below an absolute floor) -> it spends samples confirming a loss (e.g. `mid|standing->walk_forward`
+     at -20.5). A bee fires in EVERY (range,posture) cell, so one bad split condemns it.
+   - **GREEN**: loud in an under-sampled cell on a positive / blind / least-bad move. Run this BEFORE
+     spending a 90-min round; a dud is caught in milliseconds.
+
+2. **Distinct-signal requirement** -- the 3 bees in a round must target DIFFERENT gates/cells, and each
+   is judged by ITS OWN cell's net-HP delta (the ledger), not the aggregate match%. Otherwise you
+   cannot attribute which bee helped, which hurt, or whether two cancelled. Each bee is a predeclared
+   checkpoint: "cell X net-HP must rise." A bee whose cell didn't move is a dud regardless of match%.
+
+3. **Cross-character regression gate** -- `scripts/voter_regression.py`. ANY change to the SHARED
+   exploit voter (`tally.py`) or its config (`config.py` priors/formula) MUST pass this before commit:
+   re-measure the WHOLE trained roster frozen vs Ryu, FAIL if any character drops below its floor. A
+   single-character green is NOT sufficient -- the margin-drop looked great on Zangief (75->92%) and
+   cratered honda (92->18.8%) because honda's one-step "least-bad" moves are traps. "You changed
+   something GLOBAL" is a different failure than "bad bee", and needs a roster-wide gate, not a bee check.
+
+Rule of thumb: a BEE is a per-character, per-cell change -> gate 1 + gate 2. A VOTER/CONFIG edit is
+global -> gate 3. Never commit a shared-voter change on one character's number.
