@@ -40,6 +40,22 @@ TATSUMAKI: Tuple[Step, ...] = ((("D",), 2), (("D", "B"), 2), (("B", "hk"), 2), (
 LEGS: Tuple[Step, ...] = ((("lk",), 1), ((), 1)) * 12
 BIRD: Tuple[Step, ...] = ((("D",), 64), (("U", "hk"), 2), ((), 2))
 JUMP_IN: Tuple[Step, ...] = ((("U", "F"), 4), ((), 18), (("hk",), 2), ("until", "landed", (), 60))
+# E.Honda: Hundred Hand Slap = mash punch (no motion); Sumo Headbutt / Sumo Smash = charge moves (hold the direction
+# inside the macro, like BIRD, so no charge STATE is needed in the key). Which fire on this World-Warrior ROM is
+# verified on screen; non-firing candidates are dropped from honda().
+HUNDRED_HAND: Tuple[Step, ...] = ((("lp",), 1), ((), 1)) * 14
+HEADBUTT: Tuple[Step, ...] = ((("B",), 56), (("F", "hp"), 2), ((), 2))
+SUMO_SMASH: Tuple[Step, ...] = ((("D",), 56), (("U", "hk"), 2), ((), 2))
+# Zangief: Spinning Piledriver = a 360 joystick rotation + P (a CLOSE command throw). On-screen probe
+# (scratchpad zangief_probe*) verified the ROM only registers the special (p1_state 0x0C) when the
+# rotation is a FULL semicircle-plus with the punch on a dedicated final up-frame; a shorter rotation
+# with punch folded into the last diagonal came out as a plain normal. This script fired 0x0C with
+# only ~2 stray jump frames (the mirror B->..->UF variant jumped 47 frames -- rejected). The grab is
+# range-gated like every throw (learned in play). Double/Quick Lariat = all-punch / all-kick, no motion.
+SPD: Tuple[Step, ...] = ((("F",), 2), (("D", "F"), 2), (("D",), 2), (("D", "B"), 2),
+                         (("B",), 2), (("U", "B"), 2), (("U", "hp"), 1), ((), 2))
+LARIAT: Tuple[Step, ...] = ((("lp", "mp", "hp"), 2), ((), 6))
+QLARIAT: Tuple[Step, ...] = ((("lk", "mk", "hk"), 2), ((), 6))
 
 
 def _btn(b: str, n: int = 2) -> Tuple[Step, ...]:
@@ -108,7 +124,23 @@ def chunli() -> List[MoveSteps]:
     ]
 
 
-MENUS: Dict[str, "callable"] = {"ryu": ryu, "ken": ryu, "chunli": chunli}
+def honda() -> List[MoveSteps]:
+    return movement() + normals() + blocks() + throws(["hp", "mp"]) + [
+        MoveSteps("hundred_hand_slap", "special", "close", HUNDRED_HAND, sweep=True),   # mash punch (signature)
+        MoveSteps("sumo_headbutt", "special", "mid", HEADBUTT, sweep=True),             # charge B->F+hp (verify fires)
+        MoveSteps("sumo_smash", "special", "mid", SUMO_SMASH, sweep=True),              # charge D->U+hk (verify fires)
+    ]
+
+
+def zangief() -> List[MoveSteps]:
+    return movement() + normals() + blocks() + throws(["hp", "hk"]) + [
+        MoveSteps("spinning_piledriver", "special", "close", SPD, sweep=True),   # 360+P command throw (verify fires)
+        MoveSteps("double_lariat", "special", "mid", LARIAT, sweep=True),         # PPP spin (anti-air / anti-fireball)
+        MoveSteps("quick_lariat", "special", "mid", QLARIAT, sweep=True),         # KKK spin (faster, verify fires)
+    ]
+
+
+MENUS: Dict[str, "callable"] = {"ryu": ryu, "ken": ryu, "chunli": chunli, "honda": honda, "zangief": zangief}
 
 
 def menu(char: str) -> List[MoveSteps]:
