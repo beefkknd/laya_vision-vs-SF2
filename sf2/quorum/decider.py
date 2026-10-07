@@ -20,7 +20,7 @@ from ..system1.screen_words import sentence
 from ..vocab import range_of
 from . import reliability as R
 from .config import QuorumConfig
-from .frontier import explore_proposals
+from .frontier import counter_proposals, explore_proposals
 from .tally import ranking, score, table_proposal
 from .voters import base_proposal, flavor_proposals
 
@@ -46,6 +46,7 @@ def quorum_decider(table: VT.Table, rel: R.State, me: str, rng: random.Random, b
         if tp is not None:
             props.append(tp)
         props += explore_proposals(cell, acts, when, cfg)       # the gap-filling bees: TRAIN only, [] at eval
+        props += counter_proposals(cell, acts, when, cfg)       # purposed counter-bees: TRAIN only, off by default
         props = [p for p in props if p.action in actions]
         scores = score(props, cell, when, rel, cfg)
         order, share = ranking(scores) if scores else ([base["action"]], 0.0)

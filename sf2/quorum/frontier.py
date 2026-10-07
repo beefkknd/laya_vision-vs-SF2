@@ -69,3 +69,28 @@ def explore_proposals(cell: Dict[str, List], actions: Sequence[str], when: str, 
     """Every explore bee's vote (VOTER order); [] at the EVAL stage, where only the exploit voters (laya, table) play."""
     bees = [] if cfg.stage == "eval" else [frontier_proposal(cell, actions, cfg)] + [g(cell, actions, when, cfg) for g in _GATED]
     return [p for p in bees if p is not None]
+
+
+# ---------------------------------------------------------------------------------------------------- counter-bees
+# PURPOSED bees (vs the generic frontier push): each targets ONE named weakness context (range, opp-posture) with a
+# SPECIFIC move, and votes it with confidence k / (k + n of THAT MOVE here) -- loud until its own counter is tried,
+# then fading (never a flat 1.0 once sampled, so it can't stack-dominate forever like the old frontier bees). Designed
+# for Zangief R2 from the frozen-play weakness ledger: he can't get IN vs fireballs and bleeds to jump-ins. TRAIN only.
+COUNTERS = {                     # voter name -> ((range, opp-posture) gate, the move it pushes)
+    "approach": (("far", "attacking"), "jump_forward"),            # fireball wall -> jump in to close the gap
+    "airgrab":  (("close", "jumping"), "spinning_piledriver"),     # jump-in up close -> SPD the landing
+    "airpoke":  (("mid", "jumping"), "s.mp"),                      # jump-in at mid -> the anti-air poke
+}
+
+
+def counter_proposals(cell: Dict[str, List], actions: Sequence[str], when: str, cfg: QuorumConfig) -> List[Proposal]:
+    """Purposed counter-bee votes; [] unless cfg.counters and the TRAIN stage. Each fires only where its (range,
+    opp-posture) gate matches and its move is followable here, pushing that move to be tried."""
+    if cfg.stage == "eval" or not cfg.counters:
+        return []
+    parts = when.split("|")
+    out = []
+    for name, ((rng, posture), move) in COUNTERS.items():
+        if len(parts) > 1 and parts[0] == rng and parts[1] == posture and move in actions:
+            out.append(Proposal(name, move, cfg.k / (cfg.k + VT.count(cell, move))))
+    return out

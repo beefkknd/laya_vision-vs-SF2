@@ -46,6 +46,8 @@ class QuorumConfig:
     punish: bool = True          # gap-filling bee gated to opp-stunned (the punish window)
     vs_crouch: bool = True       # gap-filling bee gated to opp-crouching
     antiair: bool = True         # gap-filling bee gated to opp-jumping (the anti-air slice)
+    counters: bool = False       # PURPOSED counter-bees (frontier.COUNTERS): propose a SPECIFIC move in a named
+                                 # weakness context, confidence fading on that move's OWN n. TRAIN-only, off by default.
     priors: Dict[str, float] = field(default_factory=lambda: {v: 1.0 for v in VOTERS})
     flavors: Dict[str, List[str]] = field(default_factory=lambda: {k: list(v) for k, v in FLAVORS.items()})
 
@@ -67,15 +69,16 @@ class QuorumConfig:
         missing = [v for v in VOTERS if v not in self.priors]
         if missing:
             raise ValueError("quorum priors missing %s" % ", ".join(missing))
-        if self.stage not in STAGES or (self.stage == "eval" and (self.epsilon or self.qwen
+        if self.stage not in STAGES or (self.stage == "eval" and (self.epsilon or self.qwen or self.counters
                                                                  or any(getattr(self, b) for b in EXPLORE_BEES))):
-            raise ValueError("quorum stage %r: must be train, or eval with epsilon=0, qwen=False and every explore "
-                             "bee off" % self.stage)
+            raise ValueError("quorum stage %r: must be train, or eval with epsilon=0, qwen=False, counters=False "
+                             "and every explore bee off" % self.stage)
 
     @classmethod
     def for_eval(cls, genome: "QuorumConfig") -> "QuorumConfig":
-        """The same genome (theta, beta, gamma, k, ... priors) at the EVAL stage: no explore bee, no epsilon, no Qwen."""
-        return cls.from_dict(dict(genome.to_dict(), stage="eval", epsilon=0.0, qwen=False,
+        """The same genome (theta, beta, gamma, k, ... priors) at the EVAL stage: no explore bee, no counter bee, no
+        epsilon, no Qwen."""
+        return cls.from_dict(dict(genome.to_dict(), stage="eval", epsilon=0.0, qwen=False, counters=False,
                                   **{b: False for b in EXPLORE_BEES}))
 
     def to_dict(self) -> Dict:
