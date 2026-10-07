@@ -64,12 +64,13 @@ def table_proposal(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumCon
     laya_s = cell.get(laya_move) if laya_move else None
     if laya_s is None or laya_s[0] < cfg.table_min_n or a == laya_move or not _separated(cell[a], laya_s):
         return None
-    # Vote at the move's own evidence, min(NEG_CONF_CAP, n/(n+k)). The earlier (m - mean_laya)/net_scale
-    # factor was a bug (Fable 2026-10-07): _separated is ALREADY the evidence test, so the margin
-    # double-counted it in raw-HP units and crushed a well-sampled vote -- far|attacking lariat (n=1162,
-    # Welch-separated above block by 3 HP) voted 0.30 and lost to laya's block at 0.98. Dropping it lets
-    # a confident least-bad move actually win. Offline replay of 64 frozen games: +~4.9k HP.
-    return Proposal("table", a, min(NEG_CONF_CAP, n / (n + cfg.k)))
+    # Confidence fades on BOTH evidence and the separation MARGIN. Dropping the margin (so a separated
+    # move votes min(cap, n/(n+k)) ~ 0.9) helped Zangief (+11pt) but CRATERED honda 92->18.8% in a
+    # cross-character regression: honda's one-step "least-bad" moves are traps (misleading one-step
+    # means), and a strong table vote overrode laya's block that was carrying it. So the aggressive
+    # vote is NOT globally safe -- the conservative margin stays the default; scope the drop per-char.
+    margin = min(1.0, (m - _mean(laya_s)) / cfg.net_scale)    # >0 since _separated implies m > mean(laya_s)
+    return Proposal("table", a, min(NEG_CONF_CAP, (n / (n + cfg.k)) * margin))
 
 
 def score(proposals: Sequence[Proposal], cell: Dict[str, List], when: str, rel: R.State,

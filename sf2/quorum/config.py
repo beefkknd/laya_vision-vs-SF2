@@ -50,10 +50,10 @@ class QuorumConfig:
                                  # weakness context, confidence fading on that move's OWN n. TRAIN-only, off by default.
     counter_specs: List = field(default_factory=list)   # [[range, posture, move], ...] re-aims the counter-bees at the
                                  # current weaknesses (from the ledger); [] = the default frontier.COUNTERS targets.
-    priors: Dict[str, float] = field(default_factory=lambda: {v: (0.7 if v == "laya" else 1.0) for v in VOTERS})
-    # laya's base vote is down-weighted to 0.7 (Fable 2026-10-07): at frozen play she proposes block at
-    # ~0.98 in nearly every cell, out-voting the table's confident move in all-negative cells; 0.7 lets
-    # the table's separated answer win the biggest sink too (far|attacking). Offline replay: +~1.2k HP.
+    priors: Dict[str, float] = field(default_factory=lambda: {v: 1.0 for v in VOTERS})
+    # NOTE: priors.laya=0.7 helped Zangief (+far|attacking) but CRATERED honda (92%->18.8%) -- a global
+    # laya down-weight lets a table's bad moves override her where she was carrying the character. Keep
+    # the default at 1.0; apply a per-character laya down-weight via a config only where measured safe.
     flavors: Dict[str, List[str]] = field(default_factory=lambda: {k: list(v) for k, v in FLAVORS.items()})
 
     def __post_init__(self):
