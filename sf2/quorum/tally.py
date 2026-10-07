@@ -12,6 +12,12 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import reliability as R
 from .config import QuorumConfig
+from ..system1.value_table import _separated, mean as _mean
+
+
+NEG_CONF_CAP = 0.9   # a net-negative "least-bad" table vote is held below ~1.0 on purpose: an exploit
+                     # voter must never become a lone near-certain dictator in a LOSING cell (the vote
+                     # that a KNOWN-GOOD move earns, n/(n+k)->1, is not granted to a merely less-bad one).
 
 
 @dataclass(frozen=True)
@@ -28,19 +34,33 @@ def _stats(cell: Dict[str, List], action: str) -> Tuple[int, float]:
     return int(s[0]), s[1] / s[0]
 
 
-def table_proposal(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumConfig) -> Optional[Proposal]:
-    """The table's vote: its best-mean followable move with at least ``table_min_n`` samples and a positive mean
-    (it never votes for the least-bad move -- the defensive drift that sank the pure table). Confidence grows with
-    evidence: n / (n + k). None = abstain."""
-    best = None
-    for a in actions:
-        n, m = _stats(cell, a)
-        if n >= cfg.table_min_n and m > 0 and (best is None or m > best[1]):
-            best = (a, m, n)
-    if best is None:
+def table_proposal(cell: Dict[str, List], actions: Sequence[str], cfg: QuorumConfig,
+                   laya_move: Optional[str] = None) -> Optional[Proposal]:
+    """The table's vote. Two cases, both keyed on the covered argmax (n >= ``table_min_n``):
+
+    - positive argmax  -> vote it, confidence n/(n+k)  (UNCHANGED behaviour).
+    - covered argmax NONPOSITIVE -> the old rule abstained, leaving laya UNOPPOSED in every hard
+      cell (she over-blocked into jump-ins and pokes). Now vote the least-bad covered move IFF it
+      is Welch-``_separated`` strictly ABOVE ``laya_move`` -- i.e. the table has evidence that a
+      concrete move beats what laya would do. Confidence = min(NEG_CONF_CAP, n/(n+k) * margin)
+      where margin = (m - mean(laya))/net_scale: it fades on both evidence and separation and is
+      capped below ~1.0, so it cannot recreate the frontier near-certain-vote stacking bug.
+      Abstains if laya's move isn't given, isn't covered, is itself the argmax, or the argmax
+      doesn't separate from it.
+
+    ``None`` = abstain."""
+    cov = [(a, cell[a][0], _mean(cell[a])) for a in actions
+           if a in cell and cell[a][0] >= cfg.table_min_n]
+    if not cov:
         return None
-    a, _, n = best
-    return Proposal("table", a, n / (n + cfg.k))
+    a, n, m = max(cov, key=lambda t: t[2])
+    if m > 0:
+        return Proposal("table", a, n / (n + cfg.k))
+    laya_s = cell.get(laya_move) if laya_move else None
+    if laya_s is None or laya_s[0] < cfg.table_min_n or a == laya_move or not _separated(cell[a], laya_s):
+        return None
+    margin = min(1.0, (m - _mean(laya_s)) / cfg.net_scale)    # >0 since _separated implies m > mean(laya_s)
+    return Proposal("table", a, min(NEG_CONF_CAP, (n / (n + cfg.k)) * margin))
 
 
 def score(proposals: Sequence[Proposal], cell: Dict[str, List], when: str, rel: R.State,

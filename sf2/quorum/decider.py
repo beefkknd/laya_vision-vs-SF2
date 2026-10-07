@@ -42,7 +42,7 @@ def quorum_decider(table: VT.Table, rel: R.State, me: str, rng: random.Random, b
         props = [p for p in [base_proposal(base)] if p is not None]
         props += flavor_proposals(cfg.flavors, cat_advisor, move_advisor, text, stance, cats)
         acts = sorted(actions)
-        tp = table_proposal(cell, acts, cfg)
+        tp = table_proposal(cell, acts, cfg, laya_move=base["action"])
         if tp is not None:
             props.append(tp)
         props += explore_proposals(cell, acts, when, cfg)       # the gap-filling bees: TRAIN only, [] at eval
