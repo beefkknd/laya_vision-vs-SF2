@@ -84,3 +84,16 @@ Also fix the `table` voter: vote the covered argmax when it confidently beats la
 - [ ] enough scale (Ryu reference = 336 training games; measure >= 8 seeds x 8 games)
 - [ ] ratchet: accepted only if >= previous best
 - [ ] bee contribution judged by in-context lift, not raw net
+
+## Update 2026-10-06 — the table-voter fix SHIPPED (commit 7b02990)
+
+The "open fix" above (table votes the covered argmax via `_separated`, not only `mean>0`) is DONE.
+Root cause found via gameplay ledger + Fable review: in every all-negative cell the ballot was
+laya ALONE (table abstained), so she blocked unopposed at share 1.0 -- Honda over-blocked into
+jump-ins. `table_proposal` now proposes the least-bad covered move when it is Welch-`_separated`
+strictly above laya's move, confidence `n/(n+k)*margin` capped at `NEG_CONF_CAP=0.9` (never ~1.0
+at rest, so no frontier-style stacking). Positive-mean cells unchanged (golden held).
+Frozen bees-off, honda_r8, 336 games: **Ryu 88.4->92.0%, Ken 79.7->98.5%** match. `close|jumping`
+flips `block_high`->`cl.hk`. None of the 3 proposed bees were needed -- the table already knew the
+answer; it just wasn't allowed to vote it. Lesson: before adding a play-time bee, check whether the
+move it would propose is already in the table and merely out-voted (a WEIGHTING fix, not a new voter).
