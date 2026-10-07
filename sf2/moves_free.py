@@ -51,6 +51,13 @@ HUNDRED_HAND: Tuple[Step, ...] = ((("lp",), 1), ((), 1)) * 14
 CHARGE = 80
 HEADBUTT: Tuple[Step, ...] = ((("B",), CHARGE), (("F", "hp"), 4), ((), 2))     # charge Back -> Forward+hp
 SUMO_SMASH: Tuple[Step, ...] = ((("D",), CHARGE), (("U", "hk"), 4), ((), 2))   # charge Down -> Up+hk
+# Honda's TRAINED table (honda_r8, 93.8%) learned the ORIGINAL 56-frame scripts (sumo_headbutt as a
+# mislabeled normal, sumo_smash present). The 80-frame fix above is "more correct" but a DIFFERENT
+# menu, and it regressed honda's table 93.8%->60% (menu/table mismatch). Until honda is RETRAINED on
+# the 80-frame menu, he keeps his original scripts so his table stays valid; guile/blanka (no trained
+# table) use the working 80-frame CHARGE. Restores honda to 98.4%.
+HONDA_HEADBUTT: Tuple[Step, ...] = ((("B",), 56), (("F", "hp"), 2), ((), 2))
+HONDA_SUMO_SMASH: Tuple[Step, ...] = ((("D",), 56), (("U", "hk"), 2), ((), 2))
 # Zangief: Spinning Piledriver = a 360 joystick rotation + P (a CLOSE command throw). On-screen probe
 # (scratchpad zangief_probe*) verified the ROM only registers the special (p1_state 0x0C) when the
 # rotation is a FULL semicircle-plus with the punch on a dedicated final up-frame; a shorter rotation
@@ -147,8 +154,9 @@ def chunli() -> List[MoveSteps]:
 def honda() -> List[MoveSteps]:
     return movement() + normals() + blocks() + throws(["hp", "mp"]) + [
         MoveSteps("hundred_hand_slap", "special", "close", HUNDRED_HAND, sweep=True),   # mash punch (signature)
-        MoveSteps("sumo_headbutt", "special", "mid", HEADBUTT, sweep=True),             # charge B->F+hp (fires w/ 80f charge)
-    ]  # sumo_smash (charge D->U+K) DROPPED: a Super-SF2 move, never registered as a special on this WW ROM.
+        MoveSteps("sumo_headbutt", "special", "mid", HONDA_HEADBUTT, sweep=True),       # 56f: matches honda_r8's table
+        MoveSteps("sumo_smash", "special", "mid", HONDA_SUMO_SMASH, sweep=True),        # re-added: in honda_r8's table
+    ]  # honda keeps his ORIGINAL 56-frame menu so his trained table stays valid (see HONDA_* constants).
 
 
 def zangief() -> List[MoveSteps]:
