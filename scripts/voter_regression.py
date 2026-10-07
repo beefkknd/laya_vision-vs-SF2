@@ -22,10 +22,13 @@ ROSTER = [("honda", "runs/tables/honda.json", 80.0), ("chunli", "runs/tables/chu
 
 
 def _frozen_config():
-    """A frozen eval config written to a temp file: laya+table only (no explore bee, no counter, eps 0)."""
+    """A frozen config written to a temp file: laya+table only (every explore bee + counter off, eps 0).
+    A TRAIN-stage config with all flags off (not for_eval) -- matches the measure harness and avoids a
+    stage mismatch when the run is driven by --no-learn/--explore 0 rather than --stage eval."""
     sys.path.insert(0, REPO)
     from sf2.quorum.config import QuorumConfig
-    cfg = QuorumConfig.for_eval(QuorumConfig())
+    cfg = QuorumConfig(epsilon=0.0, qwen=False, counters=False, frontier=False, fireball=False,
+                       pressure=False, punish=False, vs_crouch=False, antiair=False)
     fd, path = tempfile.mkstemp(suffix=".json", prefix="frozen_")
     json.dump(cfg.to_dict(), os.fdopen(fd, "w"))
     return path
