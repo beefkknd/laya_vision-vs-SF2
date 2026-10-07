@@ -44,8 +44,13 @@ JUMP_IN: Tuple[Step, ...] = ((("U", "F"), 4), ((), 18), (("hk",), 2), ("until", 
 # inside the macro, like BIRD, so no charge STATE is needed in the key). Which fire on this World-Warrior ROM is
 # verified on screen; non-firing candidates are dropped from honda().
 HUNDRED_HAND: Tuple[Step, ...] = ((("lp",), 1), ((), 1)) * 14
-HEADBUTT: Tuple[Step, ...] = ((("B",), 56), (("F", "hp"), 2), ((), 2))
-SUMO_SMASH: Tuple[Step, ...] = ((("D",), 56), (("U", "hk"), 2), ((), 2))
+# Charge specials: on-screen probe (scratchpad charge_var_probe) showed a 56-frame hold + 2-frame
+# button NEVER registered the special on this WW ROM (came out a normal, for honda/guile/blanka
+# alike). CHARGE frames held + a 4-frame release button DOES fire 0x0C. Fixed at the source so every
+# charge move (headbutt, sumo smash, sonic boom, flash kick, rolling, up-ball) gets the working timing.
+CHARGE = 80
+HEADBUTT: Tuple[Step, ...] = ((("B",), CHARGE), (("F", "hp"), 4), ((), 2))     # charge Back -> Forward+hp
+SUMO_SMASH: Tuple[Step, ...] = ((("D",), CHARGE), (("U", "hk"), 4), ((), 2))   # charge Down -> Up+hk
 # Zangief: Spinning Piledriver = a 360 joystick rotation + P (a CLOSE command throw). On-screen probe
 # (scratchpad zangief_probe*) verified the ROM only registers the special (p1_state 0x0C) when the
 # rotation is a FULL semicircle-plus with the punch on a dedicated final up-frame; a shorter rotation
@@ -65,6 +70,12 @@ QLARIAT: Tuple[Step, ...] = ((("lk", "mk", "hk"), 2), ((), 6))
 # it just re-triggered Yoga Fire -- so there is no honest Yoga Flame descriptor to ship (scratchpad
 # dhalsim_probe2). Dropped like honda's non-firing charges, not faked.
 YOGA_FIRE: Tuple[Step, ...] = HADOKEN
+# Guile & Blanka are CHARGE characters; their specials reuse the charge timings proven on this WW ROM
+# by honda (HEADBUTT = charge Back -> Forward+P; SUMO_SMASH = charge Down -> Up+K). Blanka Electricity
+# is mash-punch (no motion, same shape as honda's Hundred Hand Slap). Which fire is verified on screen.
+CHARGE_BF_HP: Tuple[Step, ...] = HEADBUTT       # charge Back, Forward+hp  -> Sonic Boom / Blanka Rolling Attack
+CHARGE_DU_HK: Tuple[Step, ...] = SUMO_SMASH     # charge Down, Up+hk       -> Flash Kick / Blanka Up-Ball
+ELECTRIC: Tuple[Step, ...] = HUNDRED_HAND        # mash punch               -> Blanka Electric Thunder
 
 
 def _btn(b: str, n: int = 2) -> Tuple[Step, ...]:
@@ -136,9 +147,8 @@ def chunli() -> List[MoveSteps]:
 def honda() -> List[MoveSteps]:
     return movement() + normals() + blocks() + throws(["hp", "mp"]) + [
         MoveSteps("hundred_hand_slap", "special", "close", HUNDRED_HAND, sweep=True),   # mash punch (signature)
-        MoveSteps("sumo_headbutt", "special", "mid", HEADBUTT, sweep=True),             # charge B->F+hp (verify fires)
-        MoveSteps("sumo_smash", "special", "mid", SUMO_SMASH, sweep=True),              # charge D->U+hk (verify fires)
-    ]
+        MoveSteps("sumo_headbutt", "special", "mid", HEADBUTT, sweep=True),             # charge B->F+hp (fires w/ 80f charge)
+    ]  # sumo_smash (charge D->U+K) DROPPED: a Super-SF2 move, never registered as a special on this WW ROM.
 
 
 def zangief() -> List[MoveSteps]:
@@ -155,8 +165,22 @@ def dhalsim() -> List[MoveSteps]:
     ]
 
 
+def guile() -> List[MoveSteps]:
+    return movement() + normals() + blocks() + throws(["hp", "hk"]) + [
+        MoveSteps("sonic_boom", "special", "far", CHARGE_BF_HP, sweep=True),   # charge B->F+P projectile
+        MoveSteps("flash_kick", "special", "close", CHARGE_DU_HK, sweep=True),  # charge D->U+K anti-air
+    ]
+
+
+def blanka() -> List[MoveSteps]:
+    return movement() + normals() + blocks() + throws(["hp", "hk"]) + [
+        MoveSteps("electricity", "special", "close", ELECTRIC, sweep=True),       # mash P (signature)
+        MoveSteps("rolling_attack", "special", "mid", CHARGE_BF_HP, sweep=True),   # charge B->F+P (fires)
+    ]  # up_rolling (charge D->U+K) DROPPED: a Super-SF2 move, never registered as a special on this WW ROM.
+
+
 MENUS: Dict[str, "callable"] = {"ryu": ryu, "ken": ryu, "chunli": chunli, "honda": honda,
-                                "zangief": zangief, "dhalsim": dhalsim}
+                                "zangief": zangief, "dhalsim": dhalsim, "guile": guile, "blanka": blanka}
 
 
 def menu(char: str) -> List[MoveSteps]:

@@ -40,10 +40,10 @@ from sf2.system2 import character_prompt, lessons as L, rule_stats, screen_evide
 from sf2.system2.lesson_prompt import streak
 
 ME = "chunli"
-# the characters we can play AS: only those with a RAM-free move menu in sf2.moves_free
-# (chunli/ryu/ken/honda/zangief/dhalsim). Round-1 categories and round-2 move menu, and the advice
-# vocabulary, come from ME's own moveset (sf2.system1.advice).
-SUPPORTED_ME = ("chunli", "ryu", "ken", "honda", "zangief", "dhalsim")
+# the characters we can play AS: all eight World Warriors now have a RAM-free move menu in
+# sf2.moves_free. Round-1 categories and round-2 move menu, and the advice vocabulary, come from ME's
+# own moveset (sf2.system1.advice).
+SUPPORTED_ME = ("chunli", "ryu", "ken", "honda", "zangief", "dhalsim", "guile", "blanka")
 MENU_MOVES: List[str] = char_menu_moves(ME)       # Chun-Li's followable (two-stage) vocabulary; == the old constant
 DELAY_MIN, DELAY_SPAN = 4, 40
 
