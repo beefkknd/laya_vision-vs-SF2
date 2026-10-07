@@ -56,6 +56,15 @@ SPD: Tuple[Step, ...] = ((("F",), 2), (("D", "F"), 2), (("D",), 2), (("D", "B"),
                          (("B",), 2), (("U", "B"), 2), (("U", "hp"), 1), ((), 2))
 LARIAT: Tuple[Step, ...] = ((("lp", "mp", "hp"), 2), ((), 6))
 QLARIAT: Tuple[Step, ...] = ((("lk", "mk", "hk"), 2), ((), 6))
+# Dhalsim: Yoga Fire = QCF+P (a projectile, same motion as the hadoken) -- on-screen probe confirms
+# it fires (p1_state 0x0C) and the projectile hits at range (34 dmg at 69 AND 110 px). His signature
+# long reach is NOT special input -- it is his NORMALS (the stretch s./cl. punches & kicks), which the
+# shared normals() already presses (probe: s.hp connects for 21 dmg from 88 px); reach via sweep.
+# Yoga Flame (HCB+P) is DROPPED: a clean half-circle-BACK never registered as the special on this WW
+# ROM via scripted tokens (came out as a normal); the only rotation that fired 0x0C had a QCF tail, i.e.
+# it just re-triggered Yoga Fire -- so there is no honest Yoga Flame descriptor to ship (scratchpad
+# dhalsim_probe2). Dropped like honda's non-firing charges, not faked.
+YOGA_FIRE: Tuple[Step, ...] = HADOKEN
 
 
 def _btn(b: str, n: int = 2) -> Tuple[Step, ...]:
@@ -140,7 +149,14 @@ def zangief() -> List[MoveSteps]:
     ]
 
 
-MENUS: Dict[str, "callable"] = {"ryu": ryu, "ken": ryu, "chunli": chunli, "honda": honda, "zangief": zangief}
+def dhalsim() -> List[MoveSteps]:
+    return movement() + normals() + blocks() + throws(["hp", "mp"]) + [
+        MoveSteps("yoga_fire", "special", "far", YOGA_FIRE, sweep=True),     # QCF+P projectile (verified fires)
+    ]
+
+
+MENUS: Dict[str, "callable"] = {"ryu": ryu, "ken": ryu, "chunli": chunli, "honda": honda,
+                                "zangief": zangief, "dhalsim": dhalsim}
 
 
 def menu(char: str) -> List[MoveSteps]:
