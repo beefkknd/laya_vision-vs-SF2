@@ -83,14 +83,23 @@ COUNTERS = {                     # voter name -> ((range, opp-posture) gate, the
 }
 
 
+def _specs(cfg: QuorumConfig):
+    """The counter-bee targets in effect: cfg.counter_specs (the ledger's re-aim, [[range, posture, move], ...]) if
+    set, else the default frontier.COUNTERS. Yields (voter_name, range, posture, move)."""
+    if cfg.counter_specs:
+        return [("ctr_%s" % move, rng, posture, move) for rng, posture, move in cfg.counter_specs]
+    return [(name, rng, posture, move) for name, ((rng, posture), move) in COUNTERS.items()]
+
+
 def counter_proposals(cell: Dict[str, List], actions: Sequence[str], when: str, cfg: QuorumConfig) -> List[Proposal]:
     """Purposed counter-bee votes; [] unless cfg.counters and the TRAIN stage. Each fires only where its (range,
-    opp-posture) gate matches and its move is followable here, pushing that move to be tried."""
+    opp-posture) gate matches and its move is followable here, pushing that move to be tried. The targets are the
+    ledger's re-aim (cfg.counter_specs) or the default COUNTERS."""
     if cfg.stage == "eval" or not cfg.counters:
         return []
     parts = when.split("|")
     out = []
-    for name, ((rng, posture), move) in COUNTERS.items():
+    for name, rng, posture, move in _specs(cfg):
         if len(parts) > 1 and parts[0] == rng and parts[1] == posture and move in actions:
             out.append(Proposal(name, move, cfg.k / (cfg.k + VT.count(cell, move))))
     return out

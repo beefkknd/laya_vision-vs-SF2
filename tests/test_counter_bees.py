@@ -59,3 +59,14 @@ def test_counters_table_moves_are_sane():
     assert COUNTERS["approach"][1] == "jump_forward"
     assert COUNTERS["airgrab"][1] == "spinning_piledriver"
     assert COUNTERS["airpoke"][1] == "s.mp"
+
+
+def test_counter_specs_re_aim_the_bees_from_the_ledger():
+    # the ledger re-aims the bees: counter_specs overrides the default COUNTERS targets.
+    cfg = QuorumConfig(counters=True, counter_specs=[["far", "attacking", "sumo_headbutt"]])
+    acts = ["sumo_headbutt", "jump_forward", "block_high"]
+    props = counter_proposals({"sumo_headbutt": _eq(5, -1.0)}, acts, "far|attacking|0", cfg)
+    assert [p.action for p in props] == ["sumo_headbutt"]          # the re-aimed move, not the default jump_forward
+    assert props[0].voter == "ctr_sumo_headbutt"
+    # the default COUNTERS move is NOT used when specs are given
+    assert "jump_forward" not in {p.action for p in props}

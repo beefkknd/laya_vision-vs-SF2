@@ -63,7 +63,7 @@ def test_config_validates_and_round_trips(tmp_path):
     with pytest.raises(ValueError):
         QuorumConfig.from_dict({"thetaa": 0.5})
     c = QuorumConfig.from_dict({"mode": "vote", "priors": {"table": 2.5}})
-    assert c.priors["table"] == 2.5 and c.priors["laya"] == 1.0
+    assert c.priors["table"] == 2.5 and c.priors["laya"] == 0.7   # laya base prior down-weighted (Fable 2026-10-07)
     p = str(tmp_path / "q.json")
     c.save(p)
     assert QuorumConfig.load(p) == c

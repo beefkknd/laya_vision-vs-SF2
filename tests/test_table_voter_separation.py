@@ -78,6 +78,23 @@ def test_prefers_well_sampled_move_over_a_tiny_n_outlier():
     assert p.confidence > 0.9                            # strong: selected by evidence, not by a 3-sample fluke
 
 
+def test_separated_negative_move_votes_strongly_not_crushed_by_margin():
+    # FAIL-twin (Fable 2026-10-07): far|attacking -- double_lariat (n=1162, -4.7) is Welch-separated
+    # above block (n=857, -7.7). The OLD formula multiplied by (margin/net_scale)=0.3 -> vote ~0.30,
+    # which lost to laya's block at 0.98. Dropping the margin: the move votes at min(0.9, n/(n+k)) ~ 0.9.
+    # This test is RED under the margin formula (0.30 < 0.85), GREEN after the fix.
+    cell = {"double_lariat": _eq(1162, -4.7), "block_high": _eq(857, -7.7)}
+    p = table_proposal(cell, ["double_lariat", "block_high"], CFG, laya_move="block_high")
+    assert p is not None and p.action == "double_lariat"
+    assert p.confidence >= 0.85                 # strong (was ~0.30 under the old margin factor)
+
+
+def test_laya_base_prior_is_downweighted():
+    # laya over-proposes block at ~0.98; her base prior is 0.7 so the table's confident move can win.
+    from sf2.quorum.config import QuorumConfig as QC
+    assert QC().priors["laya"] == 0.7 and QC().priors["table"] == 1.0
+
+
 def test_negative_vote_is_capped_below_one_even_at_huge_n_and_margin():
     # invariant (blind-review finding): a net-negative "least-bad" vote must never approach 1.0 at
     # rest. Uncapped, n/(n+k)*margin here would be ~0.999; the cap holds it to NEG_CONF_CAP.

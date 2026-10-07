@@ -9,7 +9,7 @@
      "laya",
      "block_high",
      0.45,
-     1.0
+     0.7
     ],
     [
      "table",
@@ -38,11 +38,11 @@
    ],
    "quorum_move": "block_low",
    "scores": {
-    "block_high": 0.45,
+    "block_high": 0.315,
     "block_low": 2.0,
     "cl.lk": 0.9184
    },
-   "share": 0.5938,
+   "share": 0.6186,
    "theta": 0.5,
    "top": "block_low"
   },
@@ -59,7 +59,7 @@
      "laya",
      "block_high",
      0.45,
-     1.0
+     0.7
     ],
     [
      "table",
@@ -82,11 +82,11 @@
    ],
    "quorum_move": "block_low",
    "scores": {
-    "block_high": 0.45,
+    "block_high": 0.315,
     "block_low": 1.4286,
     "cl.lk": 0.9184
    },
-   "share": 0.5108,
+   "share": 0.5367,
    "theta": 0.5,
    "top": "block_low"
   },
@@ -103,7 +103,7 @@
      "laya",
      "block_high",
      0.45,
-     1.0
+     0.7
     ],
     [
      "table",
@@ -132,11 +132,11 @@
    ],
    "quorum_move": "block_low",
    "scores": {
-    "block_high": 0.45,
+    "block_high": 0.315,
     "block_low": 2.0,
     "cl.lk": 0.9184
    },
-   "share": 0.5938,
+   "share": 0.6186,
    "theta": 0.5,
    "top": "block_low"
   },
@@ -153,7 +153,7 @@
      "laya",
      "block_high",
      0.45,
-     1.0
+     0.7
     ],
     [
      "table",
@@ -176,11 +176,11 @@
    ],
    "quorum_move": "block_low",
    "scores": {
-    "block_high": 0.45,
+    "block_high": 0.315,
     "block_low": 1.4286,
     "cl.lk": 0.9184
    },
-   "share": 0.5108,
+   "share": 0.5367,
    "theta": 0.5,
    "top": "block_low"
   },
