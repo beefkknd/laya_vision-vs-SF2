@@ -24,7 +24,9 @@ import os
 import sys
 from typing import Dict, Optional, Tuple
 
-_TABLE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "opp_limb_table.json")
+from ..config import REPO  # layout invariant (tests/test_layout): repo paths come from config, not the module path
+
+_TABLE_PATH = os.path.join(REPO, "sf2", "system1", "data", "opp_limb_table.json")
 HAND, LEG = "hand", "leg"
 HIGH, MID, LOW = "high", "mid", "low"
 NONE = "none"
