@@ -109,18 +109,18 @@ def test_chunli_decision_is_unchanged():
 
 # --------------------------------------------------------------------- unsupported character errors clearly
 def test_unsupported_me_char_categories_errors():
+    with pytest.raises(ValueError):                    # balrog is a boss, not one of the 8 playable world warriors
+        char_categories("balrog")
     with pytest.raises(ValueError):
-        char_categories("blanka")
-    with pytest.raises(ValueError):
-        two_stage_decide(CharFollower("ryu"), CharFollower("ryu"), "blanka", make_moment(), [])
+        two_stage_decide(CharFollower("ryu"), CharFollower("ryu"), "balrog", make_moment(), [])
 
 
 def test_unsupported_me_cli_rejected():
     play_loop = load_driver()
     parser = play_loop.build_parser()
     parser.parse_args(["--me", "ryu"])                 # a supported one is accepted
-    with pytest.raises(SystemExit):                    # argparse choices reject blanka
-        parser.parse_args(["--me", "blanka"])
+    with pytest.raises(SystemExit):                    # argparse choices reject a non-playable char
+        parser.parse_args(["--me", "balrog"])
 
 
 # --------------------------------------------------------------------- blank seed for a non-book character

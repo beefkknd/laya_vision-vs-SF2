@@ -41,7 +41,7 @@ STORY = [
 ]
 
 
-def bar(ctx):
+def context_line(ctx):
     cells = ", ".join("%s %d%%" % (c, p) for c, _, p in ctx.his_cells[:3])
     trk = "; ".join("%s net%+.0f%s" % (r.line.split(" at ")[0].replace("use more ", ""), r.net,
                                         "" if r.good else " (DEAD)") for r in ctx.rules)
@@ -55,7 +55,7 @@ def main():
     inc = "book"
     for i, (sug, log) in enumerate(zip(STORY, res.rounds)):
         print("round %d  [%s]" % (i, sug.kind.upper()))
-        print("  context : %s" % bar(sug.context))
+        print("  context : %s" % context_line(sug.context))
         print("  propose : %s   (%s)" % (sug.candidate.id, sug.why))
         dev = sug.dev
         print("  measured: dev %+.1f CI[%+.1f,%+.1f] wins %d/%d fire %.0f%% follows %.0f%%%s"

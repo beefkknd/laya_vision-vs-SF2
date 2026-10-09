@@ -55,7 +55,9 @@ def _verified_tips():
 # two-stage menu has no bare "hp" (only s.hp / cl.hp / c.hp / ...), and "hp" is not a throw word. The old choices-menu
 # validation MASKED this (choices has a bare "hp"); at play time read_lesson already returns no move for it, so the
 # seed was dead weight. Dropping it is the correct, surfaced behavior - not a regression.
-KNOWN_DROPS = {("ken", "use more hp up close when he attacks"): "no followable move"}
+KNOWN_DROPS = {("ken", "use more hp up close when he attacks"): "no followable move",
+               # guile's c.mk line: c.* is stance-unreliable (voids to block when keyed on his state) - correct drop
+               ("guile", "use more c.mk at mid range when he stands"): "stance-unreliable"}
 
 
 @pytest.mark.parametrize("opp,tip", _verified_tips(), ids=lambda x: x if isinstance(x, str) else x["line"])
@@ -123,7 +125,7 @@ def test_seed_entries_are_verified_and_tagged_web():
 # Golden: the exact seed set from the real book (me=chunli; regenerate with `python -m sf2.system2.seed_rules`).
 GOLDEN = {
     "dhalsim": ["always throw up close"],
-    "guile": ["use more throw up close", "use more c.mk at mid range when he stands"],
+    "guile": ["use more throw up close"],   # "use more c.mk ... when he stands" dropped: c.* is stance-unreliable (voids to block keyed on his state)
     "honda": ["use more throw up close", "use more lightning_legs up close when he stands"],
     "ken": ["use more throw up close"],   # "use more hp up close when he attacks" dropped: no bare "hp" in the menu
     "ryu": ["use more throw up close"],
@@ -192,12 +194,12 @@ def test_chunli_book_still_loads_against_the_two_stage_menu(tmp_path):
 
 
 def test_unsupported_character_errors_clearly(tmp_path):
-    """me is a character with no two-stage move menu (sf2.moves_free knows only chunli/ryu/ken): a clear ValueError
-    naming the character, not a silent empty seed set or an obscure KeyError."""
-    doc = {"me": "zangief", "opponents": {"guile": {"lines": [GOOD], "not_verified": []}}}
-    p = tmp_path / "zangief_book.json"
+    """me is a character with no two-stage move menu (a boss like balrog; the 8 world warriors are all supported):
+    a clear ValueError naming the character, not a silent empty seed set or an obscure KeyError."""
+    doc = {"me": "balrog", "opponents": {"guile": {"lines": [GOOD], "not_verified": []}}}
+    p = tmp_path / "balrog_book.json"
     p.write_text(json.dumps(doc))
-    with pytest.raises(ValueError, match="zangief"):
+    with pytest.raises(ValueError, match="balrog"):
         S.seed_lessons(str(p), "guile")
     with pytest.raises(ValueError, match="balrog"):
         S.seed_lessons(BOOK, "guile", me="balrog")
