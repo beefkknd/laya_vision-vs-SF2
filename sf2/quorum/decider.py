@@ -35,7 +35,7 @@ def quorum_decider(table: VT.Table, rel: R.State, me: str, rng: random.Random, b
         rng_ = range_of(abs(m.dx))
         stance = stance_of("stand", rng_)                     # decisions are only taken when she can act (grounded)
         actions = set(available_moves(stance, cats)) | {DEFAULT_MOVE}
-        when = VT.when_key(rng_, m.doing, m.fireball, m.his_label, table.get("depth", {}))
+        when = VT.when_key(rng_, m.doing, m.fireball, VT.split_label_moment(m), table.get("depth", {}))
         cell = VT._cell_view(table, when)
         base = dict(base_decide(m))
         text = prompt(sentence(m), base.get("prompt_lines", []))

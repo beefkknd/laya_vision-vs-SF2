@@ -37,6 +37,7 @@ from ..screen.assets import CATALOG
 from ..screen.facts import FighterFacts, ScreenFacts
 from ..vocab import FULL_LIFE, bar, range_of
 from .advice import situation_text
+from .opp_limb import fine_class, limb_key_on
 
 CAN_ACT = ("stand", "walk")
 CROUCH_STATE = "02"
@@ -84,6 +85,7 @@ class Moment:
     his_life: int
     filled: Tuple[str, ...] = ()   # facts not on the screen this frame, filled from the last moment / defaults
     fireball: bool = False         # G4: a fireball the reader sees coming at me (an opponent / unattributed shot)
+    his_class: Optional[str] = None  # SF2_LIMB_KEY: opponent's fine "<limb>_<zone>" on an attack pose, else None
 
     @property
     def can_act(self) -> bool:
@@ -164,9 +166,12 @@ def moment(facts: ScreenFacts, last: Optional[Moment] = None) -> Moment:
     for name, v in (("my_life", my_frac), ("his_life", his_frac)):
         if v is None:
             filled.append(name)
+    # SF2_LIMB_KEY (default OFF): the opponent's fine pose class, only on an attack frame where both limb and zone
+    # are known. None (startup / unknown / flag off) -> the value-table key falls back to the coarse his_label.
+    his_class = fine_class(him.character, him.sprite) if limb_key_on() else None
     return Moment(my_x, his_x, me.facing if me.found else None, label(me), bool(me.in_air),
                   label(him), bool(him.in_air), bool(not him.unknown and him.sprite in crouch_sprites()),
-                  life_of(my_frac), life_of(his_frac), tuple(filled), says_fireball(facts))
+                  life_of(my_frac), life_of(his_frac), tuple(filled), says_fireball(facts), his_class=his_class)
 
 
 def note(me: str, m: Moment) -> str:

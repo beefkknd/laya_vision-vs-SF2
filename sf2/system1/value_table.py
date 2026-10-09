@@ -17,6 +17,7 @@ import random
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .advice import opp_doing
+from .opp_limb import limb_key_on, limb_cells
 
 MIN_TRIES = 20          # samples before a (when, action) mean is trusted / a cell may split (same threshold family
 #                         as move_coach.MIN_TRIES; kept local so sf2/system1 does not import sf2/system2)
@@ -58,7 +59,33 @@ def when_key(rng: Optional[str], doing: str, fireball, his_label, depth: Dict[st
 
 def row_when(row: Dict, depth: Dict[str, str]) -> str:
     """The 'when' for a decision row (screen_evidence drow): range + opp_doing + fireball (+ his_label if split)."""
-    return when_key(row.get("range"), opp_doing(row), row.get("opp_shot"), row.get("his_label"), depth)
+    return when_key(row.get("range"), opp_doing(row), row.get("opp_shot"), split_label_row(row), depth)
+
+
+def split_label_moment(m) -> str:
+    """The 4th field of the when-key for a live Moment. SF2_LIMB_KEY OFF -> the coarse ``his_label`` (unchanged).
+    ON -> the fine ``his_class`` ("<limb>_<zone>") on an attack frame, falling back to ``his_label`` when None.
+    With SF2_LIMB_CELLS set (the detector's allowlist), only those base cells go fine; all others stay coarse."""
+    if not limb_key_on():
+        return m.his_label
+    allow = limb_cells()
+    if allow is not None:
+        from ..vocab import range_of
+        if base_key(range_of(abs(m.dx)), m.doing, m.fireball) not in allow:
+            return m.his_label
+    return m.his_class or m.his_label
+
+
+def split_label_row(r: Dict):
+    """The 4th field of the when-key for a logged decision row. Mirrors ``split_label_moment`` off the row's fields:
+    OFF -> ``his_label``; ON -> ``his_class`` when present, else ``his_label``. With SF2_LIMB_CELLS set, only the
+    listed base cells go fine; all others stay coarse."""
+    if not limb_key_on():
+        return r.get("his_label")
+    allow = limb_cells()
+    if allow is not None and base_key(r.get("range"), opp_doing(r), r.get("opp_shot")) not in allow:
+        return r.get("his_label")
+    return r.get("his_class") or r.get("his_label")
 
 
 # --------------------------------------------------------------------------- stat helpers (Welford via n/sum/sumsq)
@@ -212,7 +239,7 @@ def credit(table: Table, drows: Sequence[Dict], min_tries: int = MIN_TRIES,
         act = r.get("action")
         if not act or r.get("range") is None:        # a malformed row with no range can't be keyed reliably -> skip
             continue
-        rng, doing, fb, lab = r.get("range"), opp_doing(r), r.get("opp_shot"), str(r.get("his_label"))
+        rng, doing, fb, lab = r.get("range"), opp_doing(r), r.get("opp_shot"), str(split_label_row(r))
         b = base_key(rng, doing, fb)
         val = _nstep_return(nets, i, horizon, gamma) if horizon else nets[i]
         _acc(t["cells"].setdefault(when_key(rng, doing, fb, lab, t["depth"]), {}), act, val)
@@ -233,7 +260,7 @@ def decider(table: Table, me: str, rng: random.Random, min_tries: int = MIN_TRIE
     def decide(m) -> Dict:
         rng_ = range_of(abs(m.dx))
         actions = sorted(available_moves(stance_of("stand", rng_), cats))
-        when = when_key(rng_, m.doing, m.fireball, m.his_label, table.get("depth", {}))
+        when = when_key(rng_, m.doing, m.fireball, split_label_moment(m), table.get("depth", {}))
         action, explored = choose(table, when, actions, rng, min_tries, eps0)
         return {"action": action, "when": when, "explored": explored, "category": _category_of(action, cats)}
     return decide
@@ -271,7 +298,7 @@ def hybrid_decider(table: Table, me: str, rng: random.Random, base_decide,
     def decide(m) -> Dict:
         rng_ = range_of(abs(m.dx))
         actions = sorted(available_moves(stance_of("stand", rng_), cats))
-        when = when_key(rng_, m.doing, m.fireball, m.his_label, table.get("depth", {}))
+        when = when_key(rng_, m.doing, m.fireball, split_label_moment(m), table.get("depth", {}))
         cell = _cell_view(table, when)
         under = [a for a in actions if count(cell, a) < min_tries]
         if under and rng.random() < explore:                 # a little discovery so the table keeps learning

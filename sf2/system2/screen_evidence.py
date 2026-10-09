@@ -74,6 +74,7 @@ def decision_row(game: int, me: str, opp: str, dec: Dict, nxt: Optional[Dict], c
         "action": dec.get("action"), "kind": kind_of(dec.get("action"), cats) if dec.get("action") else "attack",
         "actual": None,                                   # screen cannot see hit / whiff / blocked
         "his_label": m.get("his_label"),                  # raw reader label (delayed-hit reattribution + table his_label split)
+        "his_class": m.get("his_class"),                  # SF2_LIMB_KEY: fine "<limb>_<zone>" on attack frames, else None (value-table split only)
         "dealt": max(0, his_now - his_next), "taken": max(0, my_now - my_next),
         "opp_reaction": [], "opp_move": None, "opp_shot": bool(m.get("fireball")),
         "my_life_after": my_next, "opp_life_after": his_next,

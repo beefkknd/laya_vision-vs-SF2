@@ -1,0 +1,1276 @@
+{
+ "about": "catalog sprite key -> opponent (limb, zone). limb in {hand,leg,none}, zone in {high,mid,low,none}. Built Step 1 from catalog aid + move-word-derived aid->(limb,zone); NOT wired into live code.",
+ "aid_map": {
+  "chunli": {
+   "01": [
+    "hand",
+    "high"
+   ],
+   "02": [
+    "hand",
+    "high"
+   ],
+   "03": [
+    "hand",
+    "high"
+   ],
+   "04": [
+    "hand",
+    "high"
+   ],
+   "05": [
+    "hand",
+    "high"
+   ],
+   "06": [
+    "hand",
+    "high"
+   ],
+   "07": [
+    "leg",
+    "mid"
+   ],
+   "08": [
+    "leg",
+    "high"
+   ],
+   "09": [
+    "leg",
+    "high"
+   ],
+   "0a": [
+    "leg",
+    "high"
+   ],
+   "0b": [
+    "leg",
+    "high"
+   ],
+   "0c": [
+    "leg",
+    "high"
+   ],
+   "11": [
+    "hand",
+    "mid"
+   ],
+   "12": [
+    "hand",
+    "mid"
+   ],
+   "13": [
+    "hand",
+    "mid"
+   ],
+   "14": [
+    "leg",
+    "low"
+   ],
+   "15": [
+    "leg",
+    "low"
+   ],
+   "16": [
+    "leg",
+    "low"
+   ],
+   "17": [
+    "hand",
+    "high"
+   ],
+   "18": [
+    "hand",
+    "high"
+   ],
+   "19": [
+    "hand",
+    "high"
+   ],
+   "1a": [
+    "leg",
+    "high"
+   ],
+   "1b": [
+    "leg",
+    "high"
+   ],
+   "20": [
+    "leg",
+    "high"
+   ],
+   "21": [
+    "leg",
+    "high"
+   ],
+   "23": [
+    "leg",
+    "high"
+   ],
+   "24": [
+    "leg",
+    "high"
+   ],
+   "25": [
+    "leg",
+    "high"
+   ],
+   "26": [
+    "hand",
+    "high"
+   ],
+   "27": [
+    "hand",
+    "high"
+   ],
+   "28": [
+    "hand",
+    "high"
+   ],
+   "2d": [
+    "leg",
+    "high"
+   ],
+   "2e": [
+    "leg",
+    "high"
+   ],
+   "31": [
+    "leg",
+    "high"
+   ],
+   "32": [
+    "leg",
+    "mid"
+   ],
+   "33": [
+    "leg",
+    "mid"
+   ],
+   "34": [
+    "leg",
+    "mid"
+   ],
+   "35": [
+    "leg",
+    "mid"
+   ],
+   "3e": [
+    "leg",
+    "high"
+   ]
+  },
+  "ryu": {
+   "01": [
+    "hand",
+    "high"
+   ],
+   "02": [
+    "hand",
+    "high"
+   ],
+   "04": [
+    "hand",
+    "high"
+   ],
+   "05": [
+    "hand",
+    "high"
+   ],
+   "06": [
+    "hand",
+    "high"
+   ],
+   "07": [
+    "hand",
+    "high"
+   ],
+   "08": [
+    "leg",
+    "high"
+   ],
+   "09": [
+    "leg",
+    "high"
+   ],
+   "0c": [
+    "leg",
+    "high"
+   ],
+   "0d": [
+    "leg",
+    "high"
+   ],
+   "0e": [
+    "hand",
+    "mid"
+   ],
+   "0f": [
+    "hand",
+    "mid"
+   ],
+   "10": [
+    "hand",
+    "mid"
+   ],
+   "11": [
+    "hand",
+    "mid"
+   ],
+   "12": [
+    "leg",
+    "low"
+   ],
+   "13": [
+    "leg",
+    "low"
+   ],
+   "14": [
+    "leg",
+    "low"
+   ],
+   "15": [
+    "hand",
+    "high"
+   ],
+   "16": [
+    "hand",
+    "high"
+   ],
+   "17": [
+    "hand",
+    "high"
+   ],
+   "18": [
+    "leg",
+    "high"
+   ],
+   "19": [
+    "leg",
+    "high"
+   ],
+   "1a": [
+    "leg",
+    "high"
+   ],
+   "1b": [
+    "leg",
+    "high"
+   ],
+   "1c": [
+    "leg",
+    "high"
+   ],
+   "1d": [
+    "leg",
+    "high"
+   ],
+   "1e": [
+    "hand",
+    "high"
+   ],
+   "1f": [
+    "hand",
+    "high"
+   ],
+   "20": [
+    "leg",
+    "mid"
+   ],
+   "21": [
+    "leg",
+    "mid"
+   ],
+   "27": [
+    "leg",
+    "high"
+   ]
+  }
+ },
+ "lag": 1,
+ "opponents": [
+  "ryu",
+  "chunli"
+ ],
+ "table": {
+  "chunli": {
+   "chunli/01ff8c25ab009602": [
+    "none",
+    "none"
+   ],
+   "chunli/0396a857cb19e9a1": [
+    "leg",
+    "mid"
+   ],
+   "chunli/0644cb614786703d": [
+    "none",
+    "none"
+   ],
+   "chunli/0748e5217886cf5b": [
+    "none",
+    "none"
+   ],
+   "chunli/090191079dbb0334": [
+    "none",
+    "none"
+   ],
+   "chunli/0b0f9e23cb8535c4": [
+    "none",
+    "none"
+   ],
+   "chunli/0c357f58f67f369b": [
+    "none",
+    "none"
+   ],
+   "chunli/0e853549f3723fc3": [
+    "none",
+    "none"
+   ],
+   "chunli/0f695ffff1fdffa1": [
+    "none",
+    "none"
+   ],
+   "chunli/10a9640141c1b399": [
+    "leg",
+    "high"
+   ],
+   "chunli/138886855a721619": [
+    "none",
+    "none"
+   ],
+   "chunli/14ad8f180544662b": [
+    "none",
+    "none"
+   ],
+   "chunli/15d11bdc8d5b3557": [
+    "hand",
+    "high"
+   ],
+   "chunli/17bb8b8095305f66": [
+    "none",
+    "none"
+   ],
+   "chunli/1acb78cf780abd82": [
+    "none",
+    "none"
+   ],
+   "chunli/1bde7443ca9e4bf3": [
+    "none",
+    "none"
+   ],
+   "chunli/1be2035555cac507": [
+    "none",
+    "none"
+   ],
+   "chunli/1e7d60e3a029c0ad": [
+    "none",
+    "none"
+   ],
+   "chunli/1fd8594d0a64be8d": [
+    "none",
+    "none"
+   ],
+   "chunli/211413ff794042b6": [
+    "none",
+    "none"
+   ],
+   "chunli/24d4676353bb9dbe": [
+    "none",
+    "none"
+   ],
+   "chunli/284504932562ce53": [
+    "none",
+    "none"
+   ],
+   "chunli/2b37d1050179309d": [
+    "none",
+    "none"
+   ],
+   "chunli/2d1b86467b8bfa31": [
+    "none",
+    "none"
+   ],
+   "chunli/3184e1a9287de2d0": [
+    "none",
+    "none"
+   ],
+   "chunli/325abcb95de88cc0": [
+    "none",
+    "none"
+   ],
+   "chunli/334583205c41e615": [
+    "none",
+    "none"
+   ],
+   "chunli/33f4145f6b3cc49b": [
+    "leg",
+    "high"
+   ],
+   "chunli/343ac4daaba64675": [
+    "leg",
+    "low"
+   ],
+   "chunli/35f8d329a4d339b9": [
+    "none",
+    "none"
+   ],
+   "chunli/3836f59a4d692e3e": [
+    "none",
+    "none"
+   ],
+   "chunli/38cd8e5dff8f05b3": [
+    "leg",
+    "low"
+   ],
+   "chunli/38da7febb42804b7": [
+    "none",
+    "none"
+   ],
+   "chunli/3e5e48e9cdb1bcac": [
+    "leg",
+    "high"
+   ],
+   "chunli/3ef8872e1a42e2af": [
+    "none",
+    "none"
+   ],
+   "chunli/425598ac0282bbd6": [
+    "none",
+    "none"
+   ],
+   "chunli/43a0f9e3ac0a9c7f": [
+    "none",
+    "none"
+   ],
+   "chunli/44105306041018c3": [
+    "none",
+    "none"
+   ],
+   "chunli/45595e5677fcf5cf": [
+    "leg",
+    "high"
+   ],
+   "chunli/45b03fbddb526bf4": [
+    "none",
+    "none"
+   ],
+   "chunli/479dd6df1281d8a5": [
+    "none",
+    "none"
+   ],
+   "chunli/4867f2cc9341f107": [
+    "none",
+    "none"
+   ],
+   "chunli/4caf2e85f619c033": [
+    "none",
+    "none"
+   ],
+   "chunli/4cbd826ebe15a75b": [
+    "none",
+    "none"
+   ],
+   "chunli/4cf32eb10e6836af": [
+    "none",
+    "none"
+   ],
+   "chunli/4e06c3bd545d84e3": [
+    "none",
+    "none"
+   ],
+   "chunli/4e39aae6e7b57cdc": [
+    "leg",
+    "high"
+   ],
+   "chunli/4ee2d81f14868a1b": [
+    "none",
+    "none"
+   ],
+   "chunli/53a6e5a211e05b0f": [
+    "none",
+    "none"
+   ],
+   "chunli/53eebb5a21e22f4c": [
+    "none",
+    "none"
+   ],
+   "chunli/569bd87ac25ab2bc": [
+    "leg",
+    "high"
+   ],
+   "chunli/57c4d452b0766bf3": [
+    "none",
+    "none"
+   ],
+   "chunli/5c830e4496aa418d": [
+    "none",
+    "none"
+   ],
+   "chunli/5e3d2cbe045c6332": [
+    "none",
+    "none"
+   ],
+   "chunli/6394ba5a4042aff0": [
+    "none",
+    "none"
+   ],
+   "chunli/63d6f1f05f9d2c7c": [
+    "none",
+    "none"
+   ],
+   "chunli/6929a89bcb113239": [
+    "none",
+    "none"
+   ],
+   "chunli/69303ffe5fdf2fa9": [
+    "leg",
+    "high"
+   ],
+   "chunli/6a33bc3f722730ca": [
+    "leg",
+    "high"
+   ],
+   "chunli/6a692ee671db4066": [
+    "none",
+    "none"
+   ],
+   "chunli/6a9528f55b61e6a1": [
+    "none",
+    "none"
+   ],
+   "chunli/6e71fc970e651b6d": [
+    "none",
+    "none"
+   ],
+   "chunli/6f168ff67566079d": [
+    "none",
+    "none"
+   ],
+   "chunli/7670d115f997d623": [
+    "none",
+    "none"
+   ],
+   "chunli/77c6404ec7bc04db": [
+    "none",
+    "none"
+   ],
+   "chunli/793ab074f1a6b737": [
+    "leg",
+    "mid"
+   ],
+   "chunli/798b0213d77c57a5": [
+    "leg",
+    "high"
+   ],
+   "chunli/7cc35c0f1ed5d514": [
+    "none",
+    "none"
+   ],
+   "chunli/7ccb6a095bec83e8": [
+    "none",
+    "none"
+   ],
+   "chunli/7d49582ab10fb2c0": [
+    "none",
+    "none"
+   ],
+   "chunli/83d903cef72ebf9e": [
+    "none",
+    "none"
+   ],
+   "chunli/84e1a1f17d269a43": [
+    "none",
+    "none"
+   ],
+   "chunli/88183e4c432d36e8": [
+    "none",
+    "none"
+   ],
+   "chunli/8baac35d9b979799": [
+    "none",
+    "none"
+   ],
+   "chunli/8cc033b98f7dcbf4": [
+    "none",
+    "none"
+   ],
+   "chunli/8dafe2453be0635d": [
+    "leg",
+    "low"
+   ],
+   "chunli/91a6eb57216fad79": [
+    "none",
+    "none"
+   ],
+   "chunli/9259ca88a28cf0ee": [
+    "hand",
+    "high"
+   ],
+   "chunli/9545ea9e96b13ccb": [
+    "none",
+    "none"
+   ],
+   "chunli/95d752c1841c19ff": [
+    "none",
+    "none"
+   ],
+   "chunli/9a0529dff80f26d0": [
+    "leg",
+    "high"
+   ],
+   "chunli/9a481ca483d5ce0a": [
+    "none",
+    "none"
+   ],
+   "chunli/9d8400b46a60486e": [
+    "leg",
+    "mid"
+   ],
+   "chunli/9f4eb1a53b0ec654": [
+    "none",
+    "none"
+   ],
+   "chunli/a7b4242610896134": [
+    "none",
+    "none"
+   ],
+   "chunli/a98eb68041bc8401": [
+    "none",
+    "none"
+   ],
+   "chunli/aa7c58e9953325c4": [
+    "leg",
+    "low"
+   ],
+   "chunli/aadf1ead456c0084": [
+    "none",
+    "none"
+   ],
+   "chunli/ab10eb317461ceae": [
+    "none",
+    "none"
+   ],
+   "chunli/aba51c92b8afa6e6": [
+    "none",
+    "none"
+   ],
+   "chunli/ac0bd125e2846b03": [
+    "none",
+    "none"
+   ],
+   "chunli/af7ff526b1db4286": [
+    "leg",
+    "high"
+   ],
+   "chunli/affdf47dab4da194": [
+    "none",
+    "none"
+   ],
+   "chunli/b1d90f297dba0ca6": [
+    "none",
+    "none"
+   ],
+   "chunli/b36536ed6c813195": [
+    "leg",
+    "high"
+   ],
+   "chunli/b5237817e0bac55e": [
+    "none",
+    "none"
+   ],
+   "chunli/c0a9493b5810ac7e": [
+    "none",
+    "none"
+   ],
+   "chunli/c0ec70b1bb316fe0": [
+    "none",
+    "none"
+   ],
+   "chunli/c1f70e6e1cce00d3": [
+    "hand",
+    "high"
+   ],
+   "chunli/c3c51f850af11153": [
+    "none",
+    "none"
+   ],
+   "chunli/c70a43ad90c38cac": [
+    "none",
+    "none"
+   ],
+   "chunli/c9d88d25a937e15c": [
+    "none",
+    "none"
+   ],
+   "chunli/ca0b188695cd716f": [
+    "leg",
+    "high"
+   ],
+   "chunli/cc1920367bc4aab1": [
+    "none",
+    "none"
+   ],
+   "chunli/d1efaef3fe722bc2": [
+    "none",
+    "none"
+   ],
+   "chunli/d5c5442e22734c66": [
+    "none",
+    "none"
+   ],
+   "chunli/d6bfb4b3fe098133": [
+    "none",
+    "none"
+   ],
+   "chunli/d7c27e4b8735b331": [
+    "hand",
+    "high"
+   ],
+   "chunli/d7d67d90577b6194": [
+    "leg",
+    "high"
+   ],
+   "chunli/da9f98aae408b503": [
+    "none",
+    "none"
+   ],
+   "chunli/db5118ffce3048e0": [
+    "leg",
+    "high"
+   ],
+   "chunli/db5d2d7dd1104ad5": [
+    "none",
+    "none"
+   ],
+   "chunli/db646c6a5703a1ec": [
+    "leg",
+    "high"
+   ],
+   "chunli/e14db108205a40d1": [
+    "none",
+    "none"
+   ],
+   "chunli/e2282e7abbbc605c": [
+    "none",
+    "none"
+   ],
+   "chunli/e5567ec480b4b6d4": [
+    "hand",
+    "mid"
+   ],
+   "chunli/e5defa1209e3db4c": [
+    "leg",
+    "low"
+   ],
+   "chunli/e83b8a8a57ee11f4": [
+    "none",
+    "none"
+   ],
+   "chunli/eaeb8af77ba42b86": [
+    "leg",
+    "mid"
+   ],
+   "chunli/ec3cebee60e751ab": [
+    "none",
+    "none"
+   ],
+   "chunli/ecb7b90b924c94fc": [
+    "none",
+    "none"
+   ],
+   "chunli/ecdee98608770912": [
+    "leg",
+    "high"
+   ],
+   "chunli/edd6cacf54694c9e": [
+    "none",
+    "none"
+   ],
+   "chunli/edf93201d7c354b3": [
+    "none",
+    "none"
+   ],
+   "chunli/ef7b9b35bee75cb5": [
+    "none",
+    "none"
+   ],
+   "chunli/efc6571c3e710c08": [
+    "none",
+    "none"
+   ],
+   "chunli/f1844b6799e1705c": [
+    "none",
+    "none"
+   ],
+   "chunli/f68a1d60d3d9842a": [
+    "none",
+    "none"
+   ],
+   "chunli/f832e4d59daa432b": [
+    "none",
+    "none"
+   ],
+   "chunli/fbbf5e5cf22c6c09": [
+    "hand",
+    "high"
+   ],
+   "chunli/fcafad8bab3ce5e9": [
+    "leg",
+    "high"
+   ],
+   "chunli/fe566b77f80153ac": [
+    "none",
+    "none"
+   ]
+  },
+  "ryu": {
+   "ryu/02c38b828ea8ed22": [
+    "none",
+    "none"
+   ],
+   "ryu/06cf4fe4f332eab2": [
+    "none",
+    "none"
+   ],
+   "ryu/077c00b1854ed96a": [
+    "none",
+    "none"
+   ],
+   "ryu/09002b58469a6ef8": [
+    "none",
+    "none"
+   ],
+   "ryu/0a9ac84271ad5596": [
+    "none",
+    "none"
+   ],
+   "ryu/0adb9fba1afd457f": [
+    "none",
+    "none"
+   ],
+   "ryu/0bd20c85e5cdf54d": [
+    "none",
+    "none"
+   ],
+   "ryu/0efab071c3ca3dfd": [
+    "hand",
+    "mid"
+   ],
+   "ryu/101311984c43751e": [
+    "none",
+    "none"
+   ],
+   "ryu/1120b3331499a90c": [
+    "none",
+    "none"
+   ],
+   "ryu/115a794379b5d5b5": [
+    "none",
+    "none"
+   ],
+   "ryu/12ec6dd70a4b5f22": [
+    "leg",
+    "high"
+   ],
+   "ryu/171b221524fe4328": [
+    "none",
+    "none"
+   ],
+   "ryu/1836cd4647b6c858": [
+    "none",
+    "none"
+   ],
+   "ryu/19436e7a5ba4d1b0": [
+    "none",
+    "none"
+   ],
+   "ryu/1e0b875dd495890e": [
+    "none",
+    "none"
+   ],
+   "ryu/1e3c488ff8b96912": [
+    "none",
+    "none"
+   ],
+   "ryu/1ebf86a5da7a18e7": [
+    "none",
+    "none"
+   ],
+   "ryu/204612a0354e1323": [
+    "none",
+    "none"
+   ],
+   "ryu/23514e12682d428a": [
+    "leg",
+    "high"
+   ],
+   "ryu/244465f2e346a425": [
+    "none",
+    "none"
+   ],
+   "ryu/254f7dfe0648fba4": [
+    "hand",
+    "high"
+   ],
+   "ryu/2aec4d8a6e3b2854": [
+    "hand",
+    "high"
+   ],
+   "ryu/2c9dd24b4ebb97ef": [
+    "leg",
+    "high"
+   ],
+   "ryu/2d68164d2f8fcf91": [
+    "leg",
+    "low"
+   ],
+   "ryu/2daac4f3a26582ec": [
+    "hand",
+    "high"
+   ],
+   "ryu/2f64dc38d83093be": [
+    "leg",
+    "mid"
+   ],
+   "ryu/2fc304be288fbf42": [
+    "hand",
+    "high"
+   ],
+   "ryu/30812d795e613722": [
+    "none",
+    "none"
+   ],
+   "ryu/30e5733c0bad9d73": [
+    "hand",
+    "high"
+   ],
+   "ryu/3232e329f6da7433": [
+    "none",
+    "none"
+   ],
+   "ryu/32e32f00ad484735": [
+    "none",
+    "none"
+   ],
+   "ryu/33413991747cf906": [
+    "none",
+    "none"
+   ],
+   "ryu/3360e3e997b71ae6": [
+    "none",
+    "none"
+   ],
+   "ryu/36d88beda510d724": [
+    "none",
+    "none"
+   ],
+   "ryu/3a6f5412358a11a9": [
+    "none",
+    "none"
+   ],
+   "ryu/3bac0b7a525a108f": [
+    "none",
+    "none"
+   ],
+   "ryu/466d19ed193ed6b2": [
+    "none",
+    "none"
+   ],
+   "ryu/476025f1609cc215": [
+    "none",
+    "none"
+   ],
+   "ryu/48071d099c91fda9": [
+    "leg",
+    "low"
+   ],
+   "ryu/520e512dcc147c47": [
+    "none",
+    "none"
+   ],
+   "ryu/530b63e9ef1a2e37": [
+    "none",
+    "none"
+   ],
+   "ryu/53305ca95703de66": [
+    "none",
+    "none"
+   ],
+   "ryu/536b795abb89683d": [
+    "none",
+    "none"
+   ],
+   "ryu/5491479f9251e707": [
+    "leg",
+    "mid"
+   ],
+   "ryu/56a698b5e4ac9a5a": [
+    "none",
+    "none"
+   ],
+   "ryu/5f3948db8ca4aa7a": [
+    "hand",
+    "high"
+   ],
+   "ryu/66ea6bd07492b224": [
+    "none",
+    "none"
+   ],
+   "ryu/6949d36927cf49a0": [
+    "none",
+    "none"
+   ],
+   "ryu/6e5b291f07c2a097": [
+    "none",
+    "none"
+   ],
+   "ryu/6e8e654eb38bc0cc": [
+    "none",
+    "none"
+   ],
+   "ryu/6f05816ce788400d": [
+    "none",
+    "none"
+   ],
+   "ryu/709b4e950d2248c4": [
+    "none",
+    "none"
+   ],
+   "ryu/751428b18535e5b9": [
+    "none",
+    "none"
+   ],
+   "ryu/77b703164a0c406b": [
+    "none",
+    "none"
+   ],
+   "ryu/7ccd61f212cb9ec4": [
+    "leg",
+    "high"
+   ],
+   "ryu/7eae6a378066ea75": [
+    "none",
+    "none"
+   ],
+   "ryu/7f65c0396f04c9e2": [
+    "leg",
+    "high"
+   ],
+   "ryu/7f71bb611913ffc5": [
+    "none",
+    "none"
+   ],
+   "ryu/804342ad13c2cecf": [
+    "none",
+    "none"
+   ],
+   "ryu/8098a7b7e032dbb8": [
+    "none",
+    "none"
+   ],
+   "ryu/817e39e155db1370": [
+    "none",
+    "none"
+   ],
+   "ryu/81e4430431d7bf0b": [
+    "leg",
+    "low"
+   ],
+   "ryu/8239fcb3c1176d43": [
+    "leg",
+    "high"
+   ],
+   "ryu/86a5230210f4d791": [
+    "hand",
+    "mid"
+   ],
+   "ryu/8a94205a66d15a5f": [
+    "none",
+    "none"
+   ],
+   "ryu/8fb79dc3a376cb7f": [
+    "leg",
+    "high"
+   ],
+   "ryu/903db94ec2d52322": [
+    "none",
+    "none"
+   ],
+   "ryu/9051cd82d1bdb176": [
+    "none",
+    "none"
+   ],
+   "ryu/91ee62fcfad14c26": [
+    "none",
+    "none"
+   ],
+   "ryu/942f10dc39ea7cbb": [
+    "none",
+    "none"
+   ],
+   "ryu/953d4ce0555f6953": [
+    "none",
+    "none"
+   ],
+   "ryu/9918074219374d5d": [
+    "hand",
+    "high"
+   ],
+   "ryu/9b9f7402c0cb1af7": [
+    "none",
+    "none"
+   ],
+   "ryu/a001001ed1e06393": [
+    "none",
+    "none"
+   ],
+   "ryu/a018ac62b5355713": [
+    "none",
+    "none"
+   ],
+   "ryu/a35d6e1e49324200": [
+    "none",
+    "none"
+   ],
+   "ryu/a3f7913cb5c39bf5": [
+    "none",
+    "none"
+   ],
+   "ryu/a454824b0fcdb092": [
+    "none",
+    "none"
+   ],
+   "ryu/a4cf618c5adf212f": [
+    "none",
+    "none"
+   ],
+   "ryu/a4dc615a38b7cdfd": [
+    "none",
+    "none"
+   ],
+   "ryu/a5a12848df48a40e": [
+    "none",
+    "none"
+   ],
+   "ryu/af2a716c715dd64e": [
+    "none",
+    "none"
+   ],
+   "ryu/b57277e0f4e7cb0f": [
+    "none",
+    "none"
+   ],
+   "ryu/b682e306730030da": [
+    "none",
+    "none"
+   ],
+   "ryu/b763979639fa254c": [
+    "none",
+    "none"
+   ],
+   "ryu/bcf47b0821c9e4c4": [
+    "none",
+    "none"
+   ],
+   "ryu/c2435a2c08949fd4": [
+    "none",
+    "none"
+   ],
+   "ryu/c3d169bb649b4a1b": [
+    "leg",
+    "high"
+   ],
+   "ryu/c8c772a927cd5c1c": [
+    "none",
+    "none"
+   ],
+   "ryu/cb0d86798bde6748": [
+    "none",
+    "none"
+   ],
+   "ryu/cf3018cd90b6364e": [
+    "leg",
+    "high"
+   ],
+   "ryu/d02b426ee8bd8fd8": [
+    "none",
+    "none"
+   ],
+   "ryu/d2ebddb61e6a51bc": [
+    "none",
+    "none"
+   ],
+   "ryu/db0b8d68d96e0e65": [
+    "none",
+    "none"
+   ],
+   "ryu/dfb587398e832087": [
+    "none",
+    "none"
+   ],
+   "ryu/e09c788b828cf63e": [
+    "none",
+    "none"
+   ],
+   "ryu/e258a91934500f5e": [
+    "none",
+    "none"
+   ],
+   "ryu/e2f4020702017bbb": [
+    "none",
+    "none"
+   ],
+   "ryu/e33b68a05ba6095f": [
+    "none",
+    "none"
+   ],
+   "ryu/ec4c0e073f0cc948": [
+    "none",
+    "none"
+   ],
+   "ryu/ecff3e26faef4068": [
+    "none",
+    "none"
+   ],
+   "ryu/ef57b0ecc44acda8": [
+    "none",
+    "none"
+   ],
+   "ryu/f0942c5fad7d980a": [
+    "none",
+    "none"
+   ],
+   "ryu/f1a7777bd8502da7": [
+    "hand",
+    "mid"
+   ],
+   "ryu/f1cd13ff062f0c9d": [
+    "none",
+    "none"
+   ],
+   "ryu/f4c423ec2bacd76e": [
+    "none",
+    "none"
+   ],
+   "ryu/f55715b02f578ff0": [
+    "none",
+    "none"
+   ],
+   "ryu/f773b1ce427074f9": [
+    "none",
+    "none"
+   ],
+   "ryu/f84e642a25292cb9": [
+    "none",
+    "none"
+   ],
+   "ryu/fad8e5f4c4efb6d2": [
+    "none",
+    "none"
+   ],
+   "ryu/feb8edf70596cf54": [
+    "none",
+    "none"
+   ]
+  }
+ }
+}
