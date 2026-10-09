@@ -1,123 +1,178 @@
-# laya text vs SF2: a self-learning loop (Qwen + text laya, screen only)
+# laya text vs Street Fighter II: lessons learned
 
-## What this project is
-A self-learning loop. Qwen (System 2) writes the knowledge; text laya (System 1) turns it into moves; the game is seen
-only through the screen. The question: **game after game, does Chun-Li play better as Qwen's rules are admitted and
-rotated?** If not, find out why.
+*A screen-only self-learning player for SF2. The game is seen through a sprite reader (no RAM in play); a small
+"System 1" — a text model plus a per-character **value table** and a **quorum of voters** — picks the move; the
+table learns from the net-HP outcome of each exchange. After training, frozen tables beat the CPU at Ryu ~95%
+(Zangief), and Honda reaches 98.4% vs Ryu / 98.5% vs Ken.*
 
-laya-vision is cut out for now (its 512 px action eye is parked on threebody: `runs/eye3_q3_512`). The screen is read
-by the sprite reader instead. Swapping laya-vision back in later = plugging it into the same slot.
+This page is the part worth reading: what went wrong, and how each problem was found and fixed. The headline lesson
+is that almost every hard problem here was a **measurement** problem, not a modelling one.
 
-> Status (2026-10-02): the SCREEN READER is built and measured. The LOOP is NOT built yet - see "What does not exist
-> yet". This README is the plan; it was blind-reviewed by Fable (docs/review_readme_fable_2026-10-02.md), and the
-> claims below are corrected to match the code.
+> An earlier era of this repo used a 256M vision model + a scripted teacher + DAgger imitation (the "laya-vision
+> eye"). That pipeline was deleted (`3d37466`, `3d7239a`). Everything below is the current screen-only table+quorum
+> system.
 
-## Two hard rules (enforced by tests, not by care)
-1. **No RAM in real play.** During a game the emulator gives frames and takes buttons, nothing else. RAM is read only
-   OUTSIDE play: to score a game afterwards (offline replay) and to CHECK the screen reader. The play bridge has no RAM
-   handle; the play emulator raises on any RAM read.
-2. **The table is not a player, it is a ruler.** `lessons/value_oracle_v1.json` is stats of what beats what (built
-   from RAM-labelled games). It may ONLY score how good a Qwen rule is, offline. It must never choose a move in play.
-   (Testing text laya + table measures the table, not the loop - that is why it is useless for this project.)
+## Why
 
-Both are a HARD GATE: `scripts/hard_gate.py` scans the real play path (import closure from the play entry points +
-`sf2/screen/`) and fails if any TABLE or RAM symbol is reachable. Allowed only in tests, the replay scorer, and
-collection/gate tooling. See "Known debt" - the gate is RED today on purpose.
+Two goals, by doing them:
 
-## The pieces and their roles
+1. **Make a "System 1" that decides from the screen in one shot** — one look, one move, no reasoning chain, four
+   times a second — and have it *learn* from whether the move actually worked, not from a label.
+2. **Build the harness that makes that measurable**, and gate every change on real play like a regression test.
 
-| Piece | Role | What it is NOT |
-|---|---|---|
-| Screen reader (`sf2/screen/`) | image -> facts: who, where, doing what, in the air, facing, health bars, fireball, round over. No RAM. | not a decider |
-| Words (`sf2/system1/screen_words.py`) | facts -> the sentence text laya reads | |
-| Qwen (System 2) | starts from web-research rules (owner's preference) or blank; watches games; writes, admits and retires rules (short memory -> advice lines) | not run every frame |
-| Text laya (System 1, `runs/text_laya/advice_v1`) | reads the sentence + Qwen's advice + the move options; picks one move by FOLLOWING the advice. Trained on reading advice (a fixed rule over words), never on game outcomes. | has no game knowledge of its own; an UNGUIDED score (no Qwen advice) means nothing - it just follows whatever ratings it is handed |
-| The table (`lessons/value_oracle_v1.json`) | a RULER only: scores how good a Qwen rule is, offline. Cells = (my char, range, opp attacking, opp airborne) - no opponent axis, no fireball cell. | NOT a player. Never in the play path. |
-| Replay (`scripts/replay_score.py`) | after a game, replays it with RAM to score it (hp, wins, reader vs truth). Refuses to score if the replay drifts. | never fed back to Qwen or play |
+As with most of this kind of work, the second turned out to be nearly all of the value — and nearly all of the bugs.
 
-## One game, step by step (the TARGET loop - not all wired yet)
-1. Screen frame -> reader -> facts -> words ("He is at mid range and jumping. My bar is full, his bar is half.").
-2. Text laya gets the words + Qwen's advice lines + the move options -> picks one move by following the advice ->
-   buttons.
-3. The run logs every decision: facts, words, advice in force, the pick, whether the pick followed the advice
-   (`follows_rule`).
-4. After the game: Qwen reads a SCREEN-BASED record (damage from health-bar drops, his action from the reader, round
-   results) and updates its rules: admit, keep, retire. (Today this record is RAM-built - G3/M4.)
-5. Next game with the new rules.
+## What the system is
 
-## What we measure
-- **Does she get better?** hp per round and rounds won, game after game, per opponent (from the replay).
-- **Are Qwen's rules good?** Each admitted rule scored by the table OFFLINE - generically (the table has no opponent
-  axis, so "vs Honda" is scored only by range/attacking/airborne, not per opponent), "not scorable" for rules the
-  table has no cell for (e.g. fireball).
-- **Does text laya follow?** `follows_rule` per decision, per rule.
+- **The eye.** A sprite-template reader (`sf2/screen/`) turns one frame into facts — who, where, posture, airborne,
+  facing, health bars, fireball on screen, round over — with **no RAM in the play path** (a hard gate enforces it).
+  `sf2/system1/screen_words.py` turns those facts into a one-line situation.
+- **The memory.** A per-character **value table** (`sf2/system1/value_table.py`): a dict keyed by situation, each
+  cell holding, per candidate move, the running mean **net HP** (damage dealt − taken) as Welford stats
+  `[n, sum, sumsq]`. The key is `range | opponent-posture | fireball`, optionally split by the opponent's behaviour
+  in close/mid cells.
+- **The decider.** `sf2/quorum/decider.py` collects votes each frame: a text model (`laya`, the generalist and
+  fallback), the `table` (votes a cell's confident move), and — during training only — a set of **bees** (voters
+  that fill gaps). It tallies confidence × reliability, and the top move acts if its share clears a threshold.
 
-## When it does not improve: the diagnosis
-1. Qwen writes bad rules -> the table's offline score of each rule shows it.
-2. Text laya does not follow good rules -> `follows_rule` low. Then:
-   a. the question / wording it is asked is wrong (e.g. a word it was never trained on), or
-   b. the checkpoint is skewed (check `advice_v1` on held-out wordings: its own test set, test.json).
-3. The reader feeds wrong facts -> the replay's reader-vs-RAM agreement per decision shows it.
+A move is chosen; the net HP of the exchange is credited back to that move's cell; the table slowly learns what beats
+what, per opponent.
 
-## What IS built and measured (2026-10-02)
-- **Screen reader** (`sf2/screen/`), checked against RAM on held-out games (out/screen_gate/s303/gate.json):
-  identity 100%, position within 4 px .98-.99, action .89/.83 (at the catalog's own ceiling), **health as drawn 1.0**,
-  7 ms/frame. CAVEAT: the gate script still exits FAIL on one bar (round-over on time-over rounds, 1 frame early) -
-  accepted as a wording defect (see Known debt). Health vs RAM *life* is only .94-.97 (the bar shows drawn hp, which
-  drains); the health WORD at decisions matched RAM .63-.74 in the one smoke game (M3).
-- **No-RAM play plumbing**: a RAM-free bridge (`mesen/sf2_bridge_screen.lua`) and a handle that raises on RAM reads
-  (`sf2/system1/screen_emu.py`); offline replay scoring with a pixel-exact drift check (`scripts/replay_score.py`);
-  unknown sprite -> "block" + logged.
-- **Sprite catalog** (game-captured) + the full ROM pose set (847 poses, out/sprite_rom/).
+## How it's wired
 
-## What does NOT exist yet (the loop itself)
-- **M1. A Qwen-in-loop screen runner.** `scripts/play_screen.py` is NOT the loop: it hardcodes "Advice: none", Qwen
-  off, and it builds `System1(oracle=table)` - i.e. it is the table-in-play arm the owner rejected, usable only as a
-  reader harness. The real runner (screen facts -> Qwen lessons -> text laya, no table, no RAM) must be written. This
-  is why the hard gate is RED today.
-- Qwen's evidence is RAM-built end to end (G3/M4), so admission and retirement must be rebuilt on the screen record,
-  not re-pointed.
+### One decision: screen to buttons
+1. Frame → reader → facts → words: *"He is at mid range, attacking, no fireball; my bar is full, his is half."*
+2. The situation is keyed into the table cell. The text model proposes a move; the table proposes its
+   confident-best move for that cell; (in training) bees propose under-tried moves in thin cells.
+3. Votes are tallied. **Hybrid rule** (`docs/design_laya_table_hybrid.md`): the table only *overrides* the text
+   model where it is **confident and positive** — a move with `n ≥ 8` and mean net-HP `> 0`. Otherwise it either
+   explores an under-sampled move (prob `--explore`) or defers to the text model. The `mean > 0` floor is load-
+   bearing: without it the pure-table policy collapses into a defensive loss (it went 0/144 vs Ryu, `c3c44d9`).
+4. Buttons are pressed; the decision is logged (situation, votes, pick, source).
 
-## Gaps to fix before the loop runs - checklist
-Each: what breaks if not fixed, and the fix.
+### The training loop
+- Train from a blank table with the full bee roster on, `--explore ≈ 0.3`, workers sharing one text-model server
+  (**8 workers to train, 16 to measure** — training is GPU-bound on the shared server, measuring parallelises;
+  `CLAUDE.md`, `45fc490`).
+- Each round, every decision's net HP folds into its move's Welford stats (`value_table.credit`).
+- **Workers pool samples, not policies.** Because Welford stats are additive, `value_table.merge` sums
+  `[n, sum, sumsq]` across workers (valid at one-step credit; a shared seed is counted once, `519b84f`). The earlier
+  belief that "pooling diverges into mush" was wrong and is corrected in the recipe.
+- **Keep a table only if it measures better** than the previous best (a ratchet), measured frozen (next section).
 
-- [x] **M5 (done 33ac6ef).** RAM-free move menu / action vocab / frame helpers carved out (sf2/moves_free.py, sf2/data/actions_free.py, frames_free.py) so the runner imports no RAM.
+## Problems I hit, and what solved them
 
-- [x] **G1. (done 649460d) Text laya's options without the table.** Today text laya is handed the table's shortlist + rating words
-      ("likely works"); `advice.answers` needs every option to carry a rating. Breaks: with the table out of play
-      there are no ratings. Fix: options = Chun-Li's move list (plain); text laya follows a lesson if one applies,
-      else the default. This is a RETRAIN of text laya on a new question shape (unrated options), not just rewiring.
-      Decide the default when no rule applies (walk in? block?).
-- [x] **G2. (done 5737a79) Starting rules.** Breaks: with a blank start, every decision is the default until Qwen has written
-      something. Fix (owner's preference): web research -> starting rules, written in text laya's grammar, admitted
-      through the normal checks (`advice.read`), tagged "web" so they rotate like any rule. No "web" source exists yet.
-- [x] **G3. (done 4bdec91, screen evidence adapter) What Qwen observes, with no RAM (UNDERSTATED before).** Qwen's whole evidence path is RAM: damage
-      (dealt/taken), his move naming (fireball/uppercut/throw via `opp_moves.py`), hit/whiff/blocked outcome, round
-      results (`game_log.py`). Breaks the no-RAM rule AND feeds lesson `cause`/threat views. Fix: a screen record -
-      damage from health-bar drops, his action (7 labels + fireball) from the reader, round result from the reader -
-      and REBUILD the lesson evidence/threat/`cause` paths on it (not a re-feed: the screen gives no hit/whiff/blocked
-      or named special yet). Test: screen record vs replay RAM, at DECISION granularity (M3).
-- [x] **G4. (done 649460d) Text laya's grammar is too small.** It knows "when he jumps / crouches / attacks / stands / is stunned" +
-      a range; no fireball, no specific move of his. The reader DOES see fireballs but the words never say so. Fix:
-      extend the advice grammar + text laya's training data (reading rules only), for the fireball now and more when
-      Qwen needs it.
-- [x] **G5. (done d0a42f2) The table as the ruler (offline scorer).** Today the table ranks moves IN PLAY (`system1._by_table`); that
-      must leave play. Fix: an offline scorer - for each Qwen rule look up its cell and score its move; report per
-      rule, per game; "not scorable" where the table has no cell (fireball, and per-opponent, which the table cannot
-      do).
-- [ ] **G6. Qwen on.** OFF on threebody by the owner's order. The loop needs it on: threebody (llama.cpp, NOTES.md) or
-      local omlx. Owner decides.
-- [ ] **G7. (building) Diagnostics wired.** `follows_rule` per rule, the table's offline score per rule, reader-vs-RAM per game -
-      one per-game report. No code yet.
-- [x] **G8. (drafted facf3a0, owner decisions open) The loop test pre-registered** before any game: opponents, games per opponent, starting rules, what counts
-      as "better" (hp/round trend over games, per opponent), stop rules.
-- [x] **M2. (done 3203552) Gate round-over waiver.** The reader gate FAILS on time-over rounds ending 1 frame early; state the waiver
-      or fix the wording so the gate exits 0.
-- [x] **M4. (screen evidence now provides round result/hp; retirement runs on it) Lesson retirement on the screen record.** `lessons.review/stop` keys on per-game RAM hp; move it to the
-      screen/replay record.
+### 1. The measurement lied — and a whole "regression" was noise
+The first big result was a table that "regressed" round after round (78% → 53% → 39%). It was an artefact.
+`--no-learn --explore 0` does **not** make play greedy: under the quorum policy the **explore bees still vote**, loudly
+and near-randomly (a frontier bee's confidence stays 1.0 forever in an all-negative cell; posture bees stack a second
+~1.0 vote; the tally *sums*). So every "measurement" was scoring `table + noise`, not the table.
 
-## Decisions for the owner
-1. Qwen on: threebody or local omlx (G6).
-2. Default move when no rule applies (G1).
-3. Starting rules: web research (preferred) - which sources / how many rules (G2).
-4. Extend text laya's grammar now (fireball) or when first needed (G4).
+**Fix:** measurement is a different thing from play. Measure **frozen, bees off** — explore voters disabled,
+`epsilon = 0`, no learning, policy = text-model + table only, ≥ 8 seeds × 8 games, and only promote on a gain over the
+previous best. (`docs/value_quorum_training_recipe.md`.) This one distinction — *train with the roster, measure
+without it* — is the backbone of every number in the repo.
+
+### 2. One character's win can crater another
+Two changes that looked like wins on the character they were tuned against quietly destroyed a different one:
+- A global **margin-drop + `priors.laya 0.7`** took Zangief 75 → 92% — and took **Honda 92 → 18.8%** (`a581eb2`,
+  reverted `bea23d1`).
+- A **shrunk-mean** move selection fixed a real Zangief `n=3` fluke (20 → 72%) — and regressed **Honda 92 → 59%**
+  (`ce97ee0`, reverted `f333864`).
+
+Honda's best one-step moves are often "least-bad" traps that a strong shared vote will walk straight into.
+
+**Fix — the cross-character regression gate** (`scripts/voter_regression.py`): any change to the shared voter or its
+config must re-measure the **whole roster** frozen vs Ryu and fail if any character drops below its floor (honda 80,
+chunli 80, ken 68, ryu 78). A single-character green is never sufficient.
+
+### 3. A value table is only as valid as the moves it was trained on
+A charge-timing fix changed Honda's move menu (56 → 80 frames, dropped a move) and silently invalidated his trained
+table — which had learned on the old scripts. Nobody re-measured; his win rate fell 93.8 → ~60%.
+
+**Fix** (`eb32829`): restore Honda-specific 56-frame moves, and treat *any* menu change as a reason to re-measure the
+tables that depend on it. Restored Honda vs Ryu to 98.4%.
+
+### 4. The table must not be allowed to only defend
+When every move a cell had tried was net-negative, the table **abstained** and left the text model unopposed — and
+the text model would over-block Honda straight into jump-ins.
+
+**Fix** (`7b02990`): in an all-negative cell the table still votes the **least-bad** move (chosen by a Welch
+separation test), above the text model's pick, with confidence capped below 1. Honda/336 games: Ryu 88.4 → 92.0%,
+Ken 79.7 → 98.5%; the `close|jumping` cell flips from *block* to a counter-hit.
+
+### 5. Bees fill gaps; they must not push a category the table already owns
+Bees that *forced* a category (defend / punish / combo) hurt — they spammed a move the thick trunk of the table
+already played (combos ~6×/round), and the table measured **65% < 71%** without them (`faaf5c4`, retired).
+
+**Fix — the bee-admission gate** (`python -m sf2.quorum.bee_check`): from the table alone, before any 90-minute
+round, score each proposed bee RED/GREEN. **RED-MUTE** = the move is already thick, so the bee (confidence
+`k/(k+n)`) can't change anything. **RED-LOSER** = the bee is loud but its move loses in every cell its gate fires.
+**GREEN** = loud in an under-sampled cell on a positive-or-least-bad move. A dud is caught in milliseconds, and the
+three bees in a round must each target a **different** cell, judged by that cell's own net-HP delta — not by
+aggregate match %.
+
+### 6. One table cannot serve two fighting styles
+Trying to make one Zangief table beat both Ryu and Chun-Li fails, and now we know exactly why. A Zangief-vs-Ryu table
+(94.5%) and a Zangief-vs-Chun-Li table (trained from blank to 64.1%) **share 78% of their situation keys** — they see
+the same situations — but on the shared, decided cells the **best move flips 84% of the time**, with 10–65 net-HP
+swings. Vs Ryu, Zangief learns to commit (piledriver, lariat, throw); vs Chun-Li's faster, safer pokes he learns to
+block and poke back. The *same* observed situation demands opposite moves, because the thing that decides it —
+the opponent's style — isn't in the key.
+
+**Fix:** one table per style-cluster, with the opponent known at runtime. "Separate table per opponent" and "add the
+opponent to the key" are the same decision; the second is better engineering, because the handful of cells that *do*
+agree (close-range throw, crouch-block at range) can stay shared.
+
+### 7. A finer key only earns its keep if the best move actually flips inside it
+Before concluding the above, we tried a finer key — splitting attack cells by the opponent's limb and zone (hand/leg
+× high/mid/low). It cost real machinery and bought almost nothing: the best move flips across limb×zone in **~1%** of
+decisions (block is "least-bad" across nearly every limb), versus **84%** across opponents. Even the one cell where
+the fine value looked large, the coarse cell already picks the same move.
+
+**Fix** (`e2a63a1`): default back to one coarse `attack`; keep the finer split in the tree but gated off. The test
+that decides it is the same for both: *does the argmax change inside the finer cells?* Split on the opponent (it
+does); don't split on the limb (it doesn't). (`docs/attack_key_coarse_vs_fine.md`.)
+
+### 8. Credit, and what "pooling" means
+Early tables credited only the immediate exchange (one-step), which is myopic when a move's payoff comes a beat later;
+`5ea1f1b` added an n-step / discounted return. And the pooling correction (Lesson intro): because the stats are
+additive, parallel workers merge by **summing samples**, which is exactly valid at one-step credit — the instinct to
+fear "diverging policies" was the wrong mental model.
+
+## What I'd tell someone trying something similar
+- **Build the measuring instrument before the model, and make play and measurement different code paths.** The worst
+  bug here wasn't in the learner; it was that "measure" silently still had the training noise in it.
+- **Gate every shared change on the whole roster, not the character you tuned.** Cross-character regression is the
+  default failure mode of a shared value function.
+- **Make dud-detection cost milliseconds.** A gate that reads the table and says "this bee can't matter" saves 90
+  minutes per bad idea.
+- **A finer key is a liability until you've shown the best action flips inside it.** More resolution without more
+  leverage is pure cost.
+- **The opponent's style is a hidden state variable.** If the same observation wants opposite actions, the key is
+  underspecified — split it, don't average it.
+
+## Still open / known debt
+- **Hard gate is RED on purpose.** `scripts/hard_gate.py` reports ~42–44 import-closure violations ("no table/RAM in
+  the play path"); accepted, tracked debt (`ddb37ca`).
+- **Structural matchup caps.** A context with no positive answer (the `far | attacking` fireball wall) is a ceiling a
+  bee cannot crack; the recipe says to *declare* it, not grind rounds.
+- **Chun-Li tops out ~64%** for Zangief — a slow grappler vs a fast zoner is a genuine matchup ceiling, not a missing
+  move.
+- **Scoped-out:** an `n=3` shrunk-mean fluke (per-character fix deferred, `f333864`); `priors.laya = 0.7` kept per-
+  character only, global default stays 1.0.
+- **Not built:** nightly consolidation of proven cells into text-model fine-tune rows, and racing in the evolution
+  loop (`docs/quorum_integration.md`).
+
+## Repo map
+
+| What | Where |
+|---|---|
+| Screen reader (image → facts, no RAM) | `sf2/screen/`, `sf2/system1/screen_words.py` |
+| Value table (key, credit, merge, split) | `sf2/system1/value_table.py` |
+| Quorum decider + voters/bees | `sf2/quorum/{decider,tally,voters,frontier,bees,config}.py` |
+| Bee-admission gate | `sf2/quorum/bee_check.py` |
+| Cross-character regression gate | `scripts/voter_regression.py` |
+| The training recipe + the three gates | `docs/value_quorum_training_recipe.md` |
+| Hybrid table/text-model design | `docs/design_laya_table_hybrid.md` |
+| Coarse-vs-fine attack-key analysis | `docs/attack_key_coarse_vs_fine.md` |
